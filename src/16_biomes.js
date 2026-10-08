@@ -355,3 +355,54 @@ BIOMES.oasis = function (L) {
   }, { fy: 0.25 });
   return B;
 };
+
+/* ---------- Mesa del Nexo (azul real, oro, coral, esmeralda, blanco) ---------- */
+BIOMES.council = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  B.horizon = 150;
+  B.sky = makeSkyCanvas(RAMP.skyDusk, 150, { sun: { x: 300, y: 120, r: 14, cols: ['#fff6d8', '#ffe08a', '#ffb862'], halo: '#ffd28d' }, curve: 1.05 });
+  B.addClouds(5, CLOUD_PALS.dusk, 61, 10, 80, 0.04, 0.1);
+  // 1. ciudad al atardecer vista por los ventanales
+  B.layer(0.08, 90, 90, (pb, w) => {
+    const r = RNG(12);
+    for (let x = 0; x < w; x += r.int(10, 22)) { const hh = r.int(14, 50); pb.rect(x, 90 - hh, r.int(8, 18), hh, mixHex('#3a2a5a', '#c06a9a', r() * 0.3)); if (r.chance(0.6)) pb.set(x + 3, 90 - hh + 4, '#ffd86a'); }
+  });
+  // 2. muro azul real con arcos-ventana, columnas doradas y friso de mosaico
+  B.layer(0.3, H, 0, (pb, w) => {
+    for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) pb.set(x, y, rampDither(['#0e1f5a', '#14287a', '#1c3596', '#2a46b0', '#3a5ac4'], 0.3 + (y / H) * 0.4 + (fbm(x * 0.02, y * 0.02, 2, 4) - 0.5) * 0.1, x, y));
+    for (let x = 30; x < w; x += 200) {
+      // ventana en arco (transparente)
+      const cx = x + 60;
+      for (let yy = 40; yy < 170; yy++) for (let xx = -46; xx <= 46; xx++) { const top = 86 - Math.sqrt(Math.max(0, 46 * 46 - xx * xx)); if (yy > top && yy < 170) pb.set(cx + xx, yy, 0); }
+      for (let a = 0; a <= 40; a++) { const an = Math.PI * a / 40; pb.set(cx - Math.cos(an) * 48, 86 - Math.sin(an) * 48, '#eab02a'); pb.set(cx - Math.cos(an) * 50, 86 - Math.sin(an) * 50, '#8a5e14'); }
+      pb.rect(cx - 50, 170, 100, 5, '#eab02a'); pb.vline(cx, 40, 170, '#8a5e14');
+      // columna dorada
+      pb.rect(x + 150, 0, 14, H, '#c8861a'); pb.rect(x + 150, 0, 4, H, '#ffe08a'); pb.rect(x + 160, 0, 4, H, '#8a5e14');
+    }
+    // friso de mosaico (agua, energía, cultivos, ecosistema, personas)
+    const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#1f854c'];
+    for (let x = 0; x < w; x++) for (let y = 186; y < 200; y++) { const cx = Math.floor(x / 8), cy = Math.floor((y - 186) / 7); pb.set(x, y, (x % 8 === 0 || (y - 186) % 7 === 0) ? '#0a1440' : cols[(cx + cy * 3) % cols.length]); }
+  }, { fy: 0 });
+  return B;
+};
+
+/* ---------- La Gran Calima (ocre, rojo tormenta, azul eléctrico, cian, verde) ---------- */
+RAMP.skyCalima = ['#2a0e0a', '#4a1a10', '#6a2a14', '#8a3a1a', '#a85024', '#c06a30', '#d4843e', '#e2a052', '#ecbc6e'];
+BIOMES.calima = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  const horizon = 196;
+  B.horizon = horizon;
+  B.sky = makeSkyCanvas(RAMP.skyCalima, horizon, { sun: { x: 420, y: 90, r: 10, cols: ['#ffe0b0', '#ffc080', '#e09050'], halo: '#d08040' }, curve: 1.1 });
+  B.addClouds(10, CLOUD_PALS.storm, 87, 10, 140, 0.05, 0.35);
+  B.weather.wind = 2.5;
+  B.layer(0.06, 90, horizon - 50, (pb, w) => { ART.ridge(pb, (x) => 50 - Math.max(0, Math.sin(x * 0.006) * 30) - fbm1(x * 0.02, 3, 3) * 10, ART.hazeRamp(RAMP.mesa, '#c06a30', 0.6), { mesa: true, baseIdx: 4, strata: 6 }); });
+  // ciudad y SYNARA envueltas en polvo
+  B.layer(0.2, 140, horizon - 90, (pb, w) => {
+    const r = RNG(5);
+    for (let x = -10; x < w; x += r.int(18, 36)) ART.house(pb, x, 136, r.int(16, 30), r.int(18, 46), x, { pal: HOUSE_COLS[r.int(0, 6)].map(c => mixHex(c, '#c06a30', 0.55)), night: true });
+    for (let k = 0; k < Math.ceil(w / 400); k++) { const tx = 200 + k * 400; for (let y = 20; y < 136; y++) { const ww = 4 + Math.round((y - 20) / 20); pb.rect(tx - ww, y, ww * 2, 1, mixHex('#d8d0ec', '#c06a30', 0.5)); } pb.ellipse(tx, 40, 12, 4, '#56e5ff'); }
+  }, { dyn: (g, cam, Ly) => { const t = Game.time; for (let k = 0; k < 6; k++) { const tx = 200 + k * 400 - cam.x * 0.2; if (tx < -40 || tx > W + 40) continue; if ((Math.floor(t * 2) + k) % 2) fdisc(g, tx, Ly.y + 40 - cam.y * Ly.fy, 3, '#ff4e5d'); } } });
+  // velo de polvo dinámico (bandas tramadas que avanzan)
+  B.dynLayer(0.6, (g, cam) => { const t = Game.time; for (let i = 0; i < 7; i++) { const y = 60 + i * 38 + Math.sin(t * 0.7 + i) * 6; fdither(g, ((t * 60 + i * 140) % (W + 300)) - 300, y, 300, 18, '#d4843e', 0.18); } }, { front: true });
+  return B;
+};

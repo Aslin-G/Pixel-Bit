@@ -163,6 +163,7 @@ const TINY_SRC = {
   '_': ['...', '...', '...', '...', '###'], '₂': ['...', '...', '##.', '.#.', '.##'], 'Δ': ['.#.', '.#.', '#.#', '#.#', '###'],
   'η': ['##.', '#.#', '#.#', '#.#', '..#'], '|': ['#', '#', '#', '#', '#'], '$': ['.##', '##.', '.#.', '.##', '##.'],
   '≈': ['....', '.#.#', '#.#.', '.#.#', '#.#.'], 'π': ['####', '.#.#', '.#.#', '.#.#', '.#.#'], '≤': ['..##', '##..', '..##', '....', '####'], '≥': ['##..', '..##', '##..', '....', '####'], 'µ': ['#.#', '#.#', '#.#', '##.', '#..'], '—': ['....', '....', '####', '....', '....'], 'Ω': ['.#.', '#.#', '#.#', '.#.', '#.#'], '~': ['...', '.#.', '#.#', '...', '...'], '*': ['#.#', '.#.', '#.#', '...', '...'], '#': ['#.#', '###', '#.#', '###', '#.#'], '…': ['.....', '.....', '.....', '.....', '#.#.#'],
+  ';': ['.', '#', '.', '#', '#'], "'": ['#', '#', '.', '.', '.'], '&': ['.#.', '#.#', '.#.', '#.#', '.##'], '"': ['#.#', '#.#', '...', '...', '...'],
 };
 const TINY_MAP = { 'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N', 'Ü': 'U', 'á': 'A', 'é': 'E', 'í': 'I', 'ó': 'O', 'ú': 'U', 'ñ': 'N', 'ü': 'U', '¿': '?', '¡': '!' };
 
@@ -291,12 +292,11 @@ function wrapText(text, maxW, font = 'main') {
     let carry = ''; // código de color activo para continuar en la siguiente línea
     for (let wi = 0; wi < words.length; wi++) {
       const word = words[wi];
-      const ww = f.measure(word);
-      const sp = line ? f.charW(' ') : 0;
-      if (line && lineW + sp + ww > maxW) {
+      // medir la línea completa evita subestimar el espaciado entre palabras
+      if (line && f.measure(line + ' ' + word) > maxW) {
         lines.push(line);
-        line = carry + word; lineW = ww;
-      } else { line += (line ? ' ' : '') + word; lineW += sp + ww + (line === word ? 0 : 0); }
+        line = carry + word; lineW = f.measure(line);
+      } else { line += (line ? ' ' : '') + word; lineW = f.measure(line); }
       const codes = word.match(/\{[a-z\/]\}/g);
       if (codes) { const lastc = codes[codes.length - 1]; carry = lastc === '{/}' ? '' : lastc; }
     }
