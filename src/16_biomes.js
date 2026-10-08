@@ -403,6 +403,6 @@ BIOMES.calima = function (L) {
     for (let k = 0; k < Math.ceil(w / 400); k++) { const tx = 200 + k * 400; for (let y = 20; y < 136; y++) { const ww = 4 + Math.round((y - 20) / 20); pb.rect(tx - ww, y, ww * 2, 1, mixHex('#d8d0ec', '#c06a30', 0.5)); } pb.ellipse(tx, 40, 12, 4, '#56e5ff'); }
   }, { dyn: (g, cam, Ly) => { const t = Game.time; for (let k = 0; k < 6; k++) { const tx = 200 + k * 400 - cam.x * 0.2; if (tx < -40 || tx > W + 40) continue; if ((Math.floor(t * 2) + k) % 2) fdisc(g, tx, Ly.y + 40 - cam.y * Ly.fy, 3, '#ff4e5d'); } } });
   // velo de polvo dinámico (bandas tramadas que avanzan)
-  B.dynLayer(0.6, (g, cam) => { const t = Game.time; for (let i = 0; i < 7; i++) { const y = 60 + i * 38 + Math.sin(t * 0.7 + i) * 6; fdither(g, ((t * 60 + i * 140) % (W + 300)) - 300, y, 300, 18, '#d4843e', 0.18); } }, { front: true });
+  B.dynLayer(0.6, (g, cam) => { const t = Game.time; for (let i = 0; i < 5; i++) { const y = 70 + i * 50 + Math.sin(t * 0.7 + i) * 6; fdither(g, ((t * 60 + i * 140) % (W + 300)) - 300, y, 300, 14, '#e2a052', 0.08); } }, { front: true });
   return B;
 };
