@@ -222,7 +222,13 @@ function drawSign(pb, x, y, text, col = '#8a5a3c') {
   pb.rect(x - 1, y - 22, 3, 22, '#5a3826');
   const w = text.length * 4 + 8;
   pb.rect(x - w / 2, y - 30, w, 11, col); pb.rect(x - w / 2, y - 30, w, 1, shade(col, 0.3)); pb.rect(x - w / 2, y - 20, w, 1, shade(col, -0.3));
-  for (let i = 0; i < text.length; i++) { const gl = TINY_SRC[text[i].toUpperCase()]; if (!gl) continue; gl.forEach((row, ry) => { for (let k = 0; k < row.length; k++) if (row[k] === '#') pb.set(x - w / 2 + 4 + i * 4 + k, y - 28 + ry, '#fff6d8'); }); }
+  for (let i = 0; i < text.length; i++) {
+    const raw = text[i], up = raw.toUpperCase();
+    const gl = TINY_SRC[TINY_MAP[up] || TINY_MAP[raw] || up]; if (!gl) continue;
+    gl.forEach((row, ry) => { for (let k = 0; k < row.length; k++) if (row[k] === '#') pb.set(x - w / 2 + 4 + i * 4 + k, y - 28 + ry, '#fff6d8'); });
+    if ('ÁÉÍÓÚ'.includes(up)) pb.set(x - w / 2 + 4 + i * 4 + 2, y - 29, '#fff6d8');
+    if (up === 'Ñ') { pb.set(x - w / 2 + 4 + i * 4 + 1, y - 29, '#fff6d8'); pb.set(x - w / 2 + 4 + i * 4 + 2, y - 29, '#fff6d8'); }
+  }
 }
 function drawLampPost(g, x, y, on = true, col = '#ffe14d') {
   frect(g, x, y - 34, 2, 34, '#263442'); frect(g, x - 3, y - 36, 8, 3, '#345a78'); frect(g, x - 2, y - 33, 6, 3, on ? col : '#3a4a6e');

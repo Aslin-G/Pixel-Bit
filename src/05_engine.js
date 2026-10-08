@@ -118,7 +118,7 @@ const Game = {
     if (this.settings.showFps) drawText(g, fmt0(this.fps) + ' FPS', 4, H - 10, { font: 'tiny', color: '#86e36f', shadow: '#140d26' });
   },
   renderToasts(g) {
-    let y = 34;
+    let y = H - 50;
     for (const t of this.toasts) {
       const a = t.t < 0.25 ? t.t / 0.25 : t.t > t.dur - 0.4 ? (t.dur - t.t) / 0.4 : 1;
       const w = Math.min(300, FONTS.main.measure(t.text) + 34);
@@ -127,7 +127,7 @@ const Game = {
       UIK.panel(g, x, yy, w, 18, 'toast', t.color);
       Icons.draw(g, t.icon, x + 5, yy + 2);
       drawText(g, t.text, x + 25, yy + 5, { color: '#fffaf0', shadow: '#140d26' });
-      y += 22;
+      y -= 22;
     }
   },
 };

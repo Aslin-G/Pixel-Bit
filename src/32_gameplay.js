@@ -227,7 +227,7 @@ const GameplayScene = {
     // objetivo
     if (this.objective && ct > 3.5) {
       const o = this.objective;
-      const lines = wrapText(o.text, 210);
+      const lines = wrapText(o.text, 200);
       const h = 18 + lines.length * 11;
       const slide = Math.min(1, o.t * 3);
       const x = Math.round(6 - (1 - slide) * 240);

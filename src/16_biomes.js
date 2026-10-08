@@ -66,3 +66,72 @@ BIOMES.plaza = function (L) {
   }, { fy: 0.25 });
   return B;
 };
+
+/* ---------- Planta de ósmosis inversa (interior luminoso) ---------- */
+BIOMES.plant = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  B.horizon = 150;
+  B.sky = makeSkyCanvas(RAMP.skyDay, 150, { sun: { x: 120, y: 40, r: 10, halo: '#fff3d4' }, curve: 1.2 });
+  B.addClouds(5, CLOUD_PALS.day, 12, 10, 70, 0.04, 0.1);
+  // 1. vista exterior: mar y costa a través de los ventanales
+  B.layer(0.08, 120, 100, (pb, w) => {
+    ART.sea(pb, 50, 120, ['#1063a6', '#1283bf', '#16a6cf', '#1fc0d0', '#20d6c7', '#4ae4cf'], {});
+    for (let x = 0; x < w; x++) pb.set(x, 50, '#a6e0f4');
+    const hz = ART.hazeRamp(RAMP.mesa, '#a6c8ec', 0.5);
+    ART.ridge(pb, (x) => 50 - Math.max(0, Math.sin(x * 0.01) * 20) - fbm1(x * 0.03, 3, 7) * 6, hz, { mesa: true, baseIdx: 4, strata: 5 });
+  }, { dyn: (g, cam, Ly) => drawSeaSparkles(g, 0, Ly.y + 52 - cam.y * Ly.fy, W, 60, Game.time, 0.6) });
+  // 2. muro interior blanco salino con ventanales recortados, columnas y cerchas
+  B.layer(0.3, H, 0, (pb, w) => {
+    const wall = ['#8a94b8', '#a9b2d0', '#c8cee4', '#dfe4f2', '#eef1fa', '#fbfcff'];
+    for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) {
+      const t = y / H;
+      let c = rampDither(wall, 0.85 - t * 0.55 + (fbm(x * 0.02, y * 0.02, 2, 3) - 0.5) * 0.08, x, y);
+      if (y % 24 === 0) c = wall[2];
+      if ((x % 48) === 0 && y > 20) c = wall[2];
+      pb.set(x, y, c);
+    }
+    for (let x = 24; x < w; x += 168) {
+      // ventanal con parteluces (transparente para ver el mar)
+      const wx = x, wy = 46, ww = 120, wh = 96;
+      for (let yy = wy; yy < wy + wh; yy++) for (let xx = wx; xx < wx + ww; xx++) pb.set(xx, yy, 0);
+      pb.rect(wx - 3, wy - 3, ww + 6, 3, '#5b6f96'); pb.rect(wx - 3, wy + wh, ww + 6, 5, '#5b6f96'); pb.hline(wx - 3, wx + ww + 2, wy + wh, '#cbdaea');
+      pb.rect(wx - 3, wy, 3, wh, '#5b6f96'); pb.rect(wx + ww, wy, 3, wh, '#477a94');
+      for (let k = 1; k < 4; k++) pb.rect(wx + k * 30 - 1, wy, 2, wh, '#6a7fa8');
+      pb.rect(wx, wy + 40, ww, 2, '#6a7fa8');
+      // columna estructural
+      const cx = x + 140;
+      pb.rect(cx, 0, 12, H, '#c8cee4'); pb.rect(cx, 0, 3, H, '#fbfcff'); pb.rect(cx + 9, 0, 3, H, '#8a94b8');
+      for (let yy = 30; yy < H; yy += 40) { pb.set(cx + 3, yy, '#5b6f96'); pb.set(cx + 8, yy, '#5b6f96'); }
+    }
+    // cerchas del techo con luminarias
+    pb.rect(0, 0, w, 14, '#5b6f96'); pb.hline(0, w - 1, 14, '#3a4a6e');
+    for (let x = 0; x < w; x += 32) { pb.line(x, 14, x + 16, 2, '#7a8ab0'); pb.line(x + 16, 2, x + 32, 14, '#7a8ab0'); }
+    for (let x = 60; x < w; x += 120) { pb.rect(x, 15, 22, 4, '#263442'); pb.rect(x + 2, 18, 18, 2, '#fff6d8'); }
+    // franja técnica violeta y rótulos
+    pb.rect(0, 164, w, 6, '#8d6bff'); pb.hline(0, w - 1, 164, '#b49cff'); pb.hline(0, w - 1, 169, '#5a44a8');
+    for (let x = 90; x < w; x += 336) { pb.rect(x, 172, 44, 10, '#1d2a48'); pb.hline(x + 4, x + 30, 177, '#56e5ff'); }
+  }, { fy: 0, dyn: (g, cam, Ly) => {
+    // haces de luz de los ventanales sobre el muro y el suelo (tramados)
+    const ox = cam.x * 0.3;
+    for (let x = 24; x < Ly.w; x += 168) {
+      const sx = x - ox;
+      if (sx < -200 || sx > W + 40) continue;
+      for (let k = 0; k < 4; k++) {
+        const bx = sx + k * 30 + 6;
+        for (let y = 146; y < 300; y += 2) { const off = (y - 146) * 0.55; fdither(g, Math.round(bx + off), y, 18, 2, '#fff6d8', 0.1); }
+      }
+    }
+  } });
+  // 3. bastidores lejanos de equipos (silueta violácea)
+  B.layer(0.55, 120, H - 120 - 70, (pb, w) => {
+    const pal = ['#3a3460', '#4e4878', '#6a6494', '#8a86b0'];
+    for (let x = 10; x < w; x += 140) {
+      for (let r = 0; r < 4; r++) { pb.rect(x, 40 + r * 14, 90, 8, pal[2]); pb.hline(x, x + 89, 40 + r * 14, pal[3]); pb.rect(x - 3, 39 + r * 14, 4, 10, pal[1]); pb.rect(x + 89, 39 + r * 14, 4, 10, pal[1]); }
+      pb.rect(x - 6, 30, 3, 90, pal[0]); pb.rect(x + 96, 30, 3, 90, pal[0]);
+      pb.rect(x + 104, 70, 24, 50, pal[1]); pb.ellipse(x + 116, 70, 12, 4, pal[2]);
+      for (let yy = 26; yy < 120; yy += 3) pb.set(x + 132, yy, pal[0]);
+    }
+    for (let x = 0; x < w; x++) pb.set(x, 28, '#4e4878');
+  }, { fy: 0.2 });
+  return B;
+};
