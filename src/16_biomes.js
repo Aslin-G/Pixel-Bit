@@ -135,3 +135,63 @@ BIOMES.plant = function (L) {
   }, { fy: 0.2 });
   return B;
 };
+
+/* ---------- Manglar (raíces zancudas y copa densa) ---------- */
+ART.mangrove = function (pb, x, y, h, seed, pal = RAMP.mangrove) {
+  const r = RNG(seed);
+  // raíces en arco
+  for (let k = -3; k <= 3; k++) {
+    const rx = x + k * 5, top = y - h * 0.35;
+    for (let i = 0; i <= 12; i++) { const t = i / 12; const xx = lerp(x, rx + k * 2, t), yy = lerp(top, y, t) - Math.sin(t * Math.PI) * 4; pb.set(Math.round(xx), Math.round(yy), t < 0.5 ? '#6a4a3a' : '#4a3226'); }
+  }
+  // tronco
+  pb.rect(x - 1, y - h * 0.75, 3, h * 0.42, '#5a3a2a'); pb.vline(x - 1, y - h * 0.75, y - h * 0.34, '#7a5a42');
+  // copa en racimos
+  for (let i = 0; i < 9; i++) {
+    const cx = x + r.range(-h * 0.45, h * 0.45), cy = y - h * 0.75 - r.range(0, h * 0.3), rr = r.range(h * 0.16, h * 0.26);
+    pb.ellipse(cx, cy, rr, rr * 0.75, pal[2]);
+    pb.ellipse(cx - rr * 0.25, cy - rr * 0.25, rr * 0.6, rr * 0.45, pal[4]);
+    pb.ellipse(cx - rr * 0.35, cy - rr * 0.35, rr * 0.3, rr * 0.22, pal[6]);
+  }
+  for (let i = 0; i < 12; i++) pb.set(x + r.int(-h / 2, h / 2), y - h * 0.6 + r.int(-4, 4), pal[1]);
+};
+
+/* ---------- Cañones de sal (rosa salino, naranja, azul petróleo) ---------- */
+RAMP.skySalt = ['#2a2a6e', '#3e3a8a', '#5e4aa0', '#8a5aa8', '#c06aa6', '#ee86a2', '#ffa894', '#ffc890', '#ffe6b0'];
+BIOMES.canyon = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  const horizon = 176;
+  B.horizon = horizon;
+  B.sky = makeSkyCanvas(RAMP.skySalt, horizon, { sun: { x: 500, y: 120, r: 16, cols: ['#fff6d8', '#ffe08a', '#ffb862'], halo: '#ffd8b0' }, curve: 1.1 });
+  B.addClouds(7, CLOUD_PALS.dusk, 33, 20, 110);
+  // 1. mar azul petróleo y salinas lejanas
+  B.layer(0.05, 60, horizon - 6, (pb, w) => {
+    ART.sea(pb, 0, 60, ['#0f3a4a', '#0f4a5a', '#16606e', '#1f7a80', '#3a9a94', '#7ac0b0'], { invert: true });
+    for (let x = 0; x < w; x++) pb.set(x, 0, '#ffd8c0');
+    for (let k = 0; k < 14; k++) { const x = k * 70 + 20; pb.rect(x, 4 + (k % 3) * 2, 40, 3, '#ffd8ec'); pb.hline(x, x + 39, 4 + (k % 3) * 2, '#ffffff'); }
+  }, { dyn: (g, cam, Ly) => drawSunGlitter(g, 500 - cam.x * 0.02, Ly.y + 2 - cam.y * Ly.fy, Ly.y + 50 - cam.y * Ly.fy, Game.time, '#ffe6b0') });
+  // 2. mesetas estratificadas con arcos (contraluz violáceo)
+  B.layer(0.12, 120, horizon - 96, (pb, w) => {
+    const hz = ART.hazeRamp(RAMP.mesa, '#c88ab0', 0.45);
+    ART.ridge(pb, (x) => 60 - Math.max(0, Math.sin(x * 0.008 + 2) * 40) - (Math.floor(x / 90) % 3 === 0 ? 24 : 0) - fbm1(x * 0.02, 3, 8) * 10, hz, { mesa: true, baseIdx: 4, strata: 7 });
+    for (let x = 100; x < w; x += 260) { for (let yy = 70; yy < 110; yy++) for (let xx = -14; xx <= 14; xx++) if ((xx * xx) / 196 + ((yy - 110) * (yy - 110)) / 1600 < 1) pb.set(x + xx, yy, 0); }
+  });
+  // 3. paredes del cañón cercanas con vetas de sal
+  B.layer(0.3, 160, horizon - 110, (pb, w) => {
+    ART.ridge(pb, (x) => 40 + Math.abs(Math.sin(x * 0.006)) * 50 + fbm1(x * 0.03, 3, 12) * 20, RAMP.mesa, { mesa: true, baseIdx: 5, strata: 9 });
+    for (let y = 0; y < pb.h; y++) for (let x = 0; x < w; x++) if (pb.alpha(x, y) && ((y + Math.floor(fbm1(x * 0.01, 2, 4) * 10)) % 13 === 0) && hash2(x >> 2, y, 7) < 0.6) pb.set(x, y, '#ffe8f0');
+    // costras de sal al pie
+    for (let x = 0; x < w; x++) { const n = fbm1(x * 0.05, 2, 9); for (let k = 0; k < 4 + n * 6; k++) pb.set(x, pb.h - 1 - k, k < 2 ? '#ffffff' : '#ffd8ec'); }
+  }, { fy: 0.2 });
+  // 4. salinas rosadas cercanas con estanques (ventana al mar a la derecha)
+  B.layer(0.55, 110, H - 110 - 60, (pb, w) => {
+    const sp = ART.hazeRamp(RAMP.salt, '#7a5aa8', 0.28);
+    for (let y = 30; y < 110; y++) for (let x = 0; x < w; x++) pb.set(x, y, rampDither(sp, 0.62 - (y - 30) / 260 + (fbm(x * 0.04, y * 0.08, 2, 3) - 0.5) * 0.2, x, y));
+    for (let x = 20; x < w; x += 90) { pb.rect(x, 38, 60, 8, '#f78acb'); pb.rect(x + 1, 39, 58, 6, '#fbb0da'); pb.hline(x, x + 59, 38, '#ffffff'); for (let k = 0; k < 8; k++) pb.set(x + 6 + k * 7, 41 + (k % 3), '#ffffff'); }
+    for (let x = 0; x < w; x++) pb.set(x, 30, '#ffffff');
+  }, { fy: 0.25, dyn: (g, cam, Ly) => {
+    const t = Game.time;
+    for (let i = 0; i < 7; i++) { const fx = ((i * 97 + 40) - cam.x * 0.55) % (W + 100); ART.flamingo(g, fx < -40 ? fx + W + 100 : fx, Ly.y - cam.y * Ly.fy + 64 + (i % 3) * 10, t + i, i % 2 ? 1 : -1); }
+  } });
+  return B;
+};

@@ -280,14 +280,14 @@ function drawWaterFront(g, w, ox, oy, sc) {
   for (let k = 0; k < (xb - xa) / 9; k++) {
     const xx = xa + ((k * 37 + Math.floor((t * 6 + k * 3) % 9)) % (xb - xa));
     const yy = y + 4 + ((k * 13) % Math.max(4, depthPx - 8));
-    if (((k + Math.floor(t * 2)) % 3) === 0) frect(g, xx, yy, 3 + (k % 3), 1, '#6cf0db');
+    if (((k + Math.floor(t * 2)) % 3) === 0) frect(g, xx, yy, 3 + (k % 3), 1, w.caustic || '#6cf0db');
   }
   // superficie con oleaje y espuma
   for (let x = xa; x < xb; x++) {
     const wy = Math.round(Math.sin((x + ox) * 0.08 + t * 2.2) * 1.2);
-    fpx(g, x, y + wy, '#c6fff2');
+    fpx(g, x, y + wy, w.foam || '#c6fff2');
     if (((x + ox + Math.floor(t * 12)) % 17) < 3) fpx(g, x, y + wy - 1, '#ffffff');
-    if (((x + ox) % 5) === 0) fpx(g, x, y + wy + 1, '#6cf0db');
+    if (((x + ox) % 5) === 0) fpx(g, x, y + wy + 1, w.caustic || '#6cf0db');
   }
 }
 
