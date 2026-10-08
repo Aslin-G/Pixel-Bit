@@ -343,7 +343,7 @@ const AgroModel = {
     store = Math.max(0, store - ETa);
     plot.theta = clamp(store / TAW, 0, 1.2);
     // sales: entrada con el riego, salida con el drenaje (fracción de lavado)
-    const saltIn = w.irr * w.eff * w.ecw * 0.02;
+    const saltIn = w.irr * w.eff * w.ecw * 0.008;
     const LF = applied > 0 ? drain / Math.max(1, applied) : 0;
     plot.ECe = clamp(plot.ECe + saltIn - plot.ECe * LF * 0.9 - (pond > 5 ? -0.05 : 0), 0.2, 20);
     plot.B = clamp(plot.B * 0.92 + w.boron * 0.08 * (w.irr > 0 ? 1 : 0), 0, 10);

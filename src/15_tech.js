@@ -243,36 +243,43 @@ ART.bigScreen = function (pb, x, y, w, h) {
 /** Planta de cultivo en distintos estadios (0..1) y estrés (0..1) */
 ART.crop = function (pb, x, y, kind, stage = 1, seed = 1, stress = 0) {
   const r = RNG(seed);
-  const leaf = stress > 0.6 ? ['#5a4a1a', '#8a7a2a', '#b0a040', '#d4c46a'] : stress > 0.3 ? ['#2a5a2a', '#5a8a2a', '#8ab040', '#c2d86a'] : ['#0f3b20', '#1f854c', '#33a552', '#86e36f'];
+  const L = stress > 0.6 ? ['#3a3010', '#6a5a1a', '#9a8a2a', '#c8b84a', '#e8d878'] : stress > 0.3 ? ['#1e3a14', '#3e6a1e', '#6a9a2a', '#9ac040', '#cce070'] : ['#0b2a18', '#14532e', '#1f854c', '#33a552', '#86e36f'];
   const s = clamp(stage, 0.15, 1);
-  if (kind === 'maiz' || kind === 'sorgo') {
-    const hgt = Math.round((kind === 'maiz' ? 34 : 28) * s);
-    pb.vline(x, y - hgt, y, leaf[1]); pb.vline(x + 1, y - hgt + 2, y, leaf[0]);
-    for (let k = 4; k < hgt - 4; k += 5) {
-      const side = (k / 5) % 2 ? 1 : -1, len = 6 + r.int(0, 3);
-      for (let i = 0; i < len; i++) pb.set(x + side * (i + 1), y - k - Math.round(Math.sin(i / len * 2.2) * 3), i < len * 0.6 ? leaf[2] : leaf[3]);
+  const leafBlade = (x0, y0, dir, len, droop) => {
+    for (let i = 0; i < len; i++) {
+      const t = i / len, xx = x0 + dir * i, yy = y0 - Math.round(Math.sin(t * 2.4) * 3) + Math.round(t * t * droop);
+      pb.set(xx, yy, t < 0.15 ? L[2] : L[3]); pb.set(xx, yy + 1, L[1]); if (t > 0.2 && t < 0.7) pb.set(xx, yy - 1, L[4]);
     }
+  };
+  if (kind === 'maiz' || kind === 'sorgo') {
+    const hgt = Math.round((kind === 'maiz' ? 46 : 38) * s);
+    for (let yy = 0; yy < hgt; yy++) { pb.set(x, y - yy, L[2]); pb.set(x + 1, y - yy, L[1]); if (yy % 9 === 4) { pb.set(x, y - yy, L[0]); pb.set(x + 1, y - yy, L[0]); } }
+    for (let k = 5, n = 0; k < hgt - 6; k += 6, n++) leafBlade(x + (n % 2 ? 2 : -1), y - k, n % 2 ? 1 : -1, 9 + r.int(0, 4), 5);
     if (s > 0.7) {
-      if (kind === 'maiz') { pb.rect(x + 2, y - hgt * 0.55, 3, 7, '#f2d48a'); pb.set(x + 3, y - hgt * 0.55 - 1, '#c9862e'); pb.vline(x + 1, y - hgt * 0.55, y - hgt * 0.55 + 6, leaf[2]); for (let i = 0; i < 4; i++) pb.set(x - 1 + i, y - hgt - 1 - (i % 2), '#e8c070'); }
-      else { for (let i = 0; i < 6; i++) pb.disc(x + (i % 2) - 1, y - hgt - 2 - i, 1, i % 2 ? '#a8402a' : '#c8582e'); }
+      if (kind === 'maiz') {
+        const cy = y - Math.round(hgt * 0.5);
+        pb.rect(x + 2, cy, 4, 9, '#f2d48a'); for (let k = 0; k < 9; k += 2) pb.hline(x + 2, x + 5, cy + k, '#e8b84a'); pb.vline(x + 2, cy - 1, cy + 9, L[3]); pb.set(x + 4, cy - 1, '#c9862e'); pb.set(x + 5, cy - 2, '#a86a1e');
+        for (let i = -3; i <= 3; i++) { pb.set(x + i, y - hgt - 1 - Math.abs(i % 2), '#e8c070'); pb.set(x + i, y - hgt - 2 - (i === 0 ? 2 : 0), '#f6dc90'); }
+      } else { for (let i = 0; i < 9; i++) pb.disc(x + ((i % 3) - 1) * 2, y - hgt - 2 - Math.floor(i / 3) * 2, 1, i % 2 ? '#a8402a' : '#d8642e'); }
     }
   } else if (kind === 'frijol') {
-    const hgt = Math.round(24 * s);
-    pb.vline(x, y - hgt - 2, y, '#8a6a3a');
-    for (let k = 0; k < hgt; k += 2) { const ox = Math.round(Math.sin(k * 0.5) * 2); pb.set(x + ox, y - k, leaf[2]); if (k % 4 === 0) { pb.disc(x + ox + 2, y - k, 1, leaf[3]); pb.set(x + ox - 2, y - k - 1, leaf[1]); } }
-    if (s > 0.7) for (let k = 0; k < 3; k++) { pb.vline(x + 2, y - 6 - k * 6, y - 3 - k * 6, '#7a8a2a'); pb.set(x - 2, y - 10 - k * 6, '#f78acb'); }
+    const hgt = Math.round(30 * s);
+    pb.vline(x + 3, y - hgt - 4, y, '#b07a50'); pb.vline(x + 4, y - hgt - 4, y, '#7a5236');
+    for (let k = 0; k < hgt; k++) { const ox = Math.round(Math.sin(k * 0.45) * 3); pb.set(x + 3 + ox, y - k, L[2]); if (k % 5 === 2) { const d = ox >= 0 ? 1 : -1; pb.disc(x + 3 + ox + d * 3, y - k, 2, L[3]); pb.set(x + 3 + ox + d * 3, y - k - 1, L[4]); pb.set(x + 3 + ox + d * 4, y - k + 1, L[1]); } }
+    if (s > 0.7) for (let k = 0; k < 4; k++) { pb.vline(x + 6, y - 6 - k * 7, y - 1 - k * 7, '#7a8a2a'); pb.vline(x + 7, y - 5 - k * 7, y - 2 - k * 7, '#9aaa3a'); pb.set(x, y - 10 - k * 7, '#f78acb'); pb.set(x + 1, y - 10 - k * 7, '#ffc4dc'); }
   } else if (kind === 'ahuyama') {
-    const n = Math.round(4 * s) + 1;
-    for (let i = 0; i < n; i++) { const lx = x + (i - n / 2) * 6, ly = y - 3 - (i % 2) * 2; pb.ellipse(lx, ly, 4, 3, leaf[2]); pb.ellipse(lx - 1, ly - 1, 2, 1, leaf[3]); pb.set(lx, ly + 2, leaf[0]); }
-    pb.hline(x - n * 3, x + n * 3, y - 1, leaf[1]);
-    if (s > 0.6) { pb.ellipse(x + 2, y - 3, 4, 3, '#ff9f43'); pb.hline(x - 1, x + 5, y - 5, '#ffc06a'); pb.vline(x + 2, y - 6, y - 1, '#c9622e'); }
+    const n = Math.round(4 * s) + 2;
+    for (let i = 0; i < n; i++) { const lx = x + (i - n / 2) * 7, ly = y - 4 - (i % 2) * 3; pb.ellipse(lx, ly, 5, 4, L[2]); pb.ellipse(lx - 1, ly - 1, 3, 2, L[3]); pb.set(lx - 2, ly - 2, L[4]); pb.line(lx, ly + 3, lx, ly - 2, L[1]); }
+    pb.hline(x - n * 4, x + n * 4, y - 1, L[1]);
+    if (s > 0.55) { pb.ellipse(x + 3, y - 4, 6, 4, '#ff9f43'); pb.ellipse(x + 2, y - 5, 4, 2, '#ffc06a'); for (const dx of [-3, 0, 3]) pb.vline(x + 3 + dx, y - 7, y - 1, '#d8742a'); pb.set(x + 3, y - 9, '#5a8a2a'); pb.disc(x - 8, y - 9, 2, '#ffe14d'); }
   } else if (kind === 'tomate' || kind === 'aji') {
-    const hgt = Math.round((kind === 'tomate' ? 20 : 12) * s);
-    if (kind === 'tomate') pb.vline(x + 3, y - hgt - 4, y, '#b07a50');
-    for (let k = 0; k < hgt; k += 2) { pb.set(x + (k % 4 ? 1 : -1), y - k, leaf[1]); pb.disc(x + r.int(-3, 3), y - k, 1, leaf[2 + (k % 2)]); }
-    if (s > 0.6) for (let k = 0; k < 4; k++) { const fx = x + r.int(-3, 3), fy = y - r.int(3, Math.max(4, hgt)); if (kind === 'tomate') { pb.disc(fx, fy, 1, '#ff4e5d'); pb.set(fx - 1, fy - 1, '#ffb0a0'); } else { pb.vline(fx, fy, fy + 2, r.chance(0.5) ? '#ff4e5d' : '#ffe14d'); } }
-  } else if (kind === 'nopal') ART.nopal(pb, x, y, Math.max(2, Math.round(3 * s)), seed);
-  else ART.shrub(pb, x, y, Math.max(3, Math.round(6 * s)), seed);
+    const tom = kind === 'tomate', hgt = Math.round((tom ? 30 : 18) * s);
+    if (tom) { pb.vline(x + 5, y - hgt - 4, y, '#c89a6a'); pb.vline(x + 6, y - hgt - 4, y, '#8a5a3c'); }
+    for (let k = 0; k < hgt; k += 2) { const w = Math.round((tom ? 5 : 4) * Math.sin((k / hgt) * Math.PI) + 2); for (let i = -w; i <= w; i++) { const c = hash2(x + i, y - k, seed) < 0.25 ? L[4] : (i < 0 ? L[3] : L[2]); pb.set(x + i, y - k, c); pb.set(x + i, y - k - 1, i % 2 ? L[1] : L[2]); } }
+    pb.vline(x, y - hgt, y, L[1]);
+    if (s > 0.6) for (let k = 0; k < (tom ? 6 : 7); k++) { const fx = x + r.int(-4, 4), fy = y - r.int(4, Math.max(5, hgt - 2)); if (tom) { pb.disc(fx, fy, 2, '#e8343c'); pb.set(fx - 1, fy - 1, '#ff9a8a'); pb.set(fx, fy - 2, L[2]); } else { const c = r.chance(0.5) ? '#ff4e5d' : '#ffb93b'; pb.vline(fx, fy, fy + 3, c); pb.set(fx + 1, fy + 1, shade(c, -0.2)); pb.set(fx, fy - 1, L[2]); } }
+  } else if (kind === 'nopal') ART.nopal(pb, x, y, Math.max(3, Math.round(4 * s)), seed);
+  else ART.shrub(pb, x, y, Math.max(3, Math.round(7 * s)), seed);
 };
 /** Cinta de goteo con emisores sobre el suelo */
 ART.dripLine = function (pb, x0, x1, y, spacing = 10) {

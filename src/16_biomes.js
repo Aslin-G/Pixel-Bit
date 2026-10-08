@@ -327,3 +327,31 @@ BIOMES.citadel = function (L) {
   }, { fy: 0.2 });
   return B;
 };
+
+/* ---------- Oasis de las Raíces (verde hoja, terracota, turquesa, amarillo flor, violeta) ---------- */
+RAMP.skyOasis = ['#2a5ab8', '#3a72cc', '#4e8ede', '#6aaae8', '#8cc4ee', '#b4daf0', '#dcecdc', '#fff0c0', '#ffd8a0'];
+BIOMES.oasis = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  const horizon = 186;
+  B.horizon = horizon;
+  B.sky = makeSkyCanvas(RAMP.skyOasis, horizon, { sun: { x: 460, y: 70, r: 13, cols: ['#fff6d8', '#ffe878', '#ffd04a'], halo: '#fff0c0' }, curve: 1.15 });
+  B.addClouds(7, CLOUD_PALS.day, 15, 14, 100);
+  // 1. dunas doradas del desierto que rodea el oasis
+  B.layer(0.06, 70, horizon - 40, (pb, w) => { ART.dunes(pb, 50, 26, ART.hazeRamp(RAMP.dune, '#dcecdc', 0.35), 41, { minW: 120, maxW: 260, lit: 5, shadow: 2 }); });
+  // 2. palmar y casas de adobe
+  B.layer(0.22, 130, horizon - 70, (pb, w) => {
+    const r = RNG(44);
+    for (let x = 0; x < w; x += r.int(30, 60)) { if (r.chance(0.3)) ART.house(pb, x, 120, r.int(22, 34), r.int(18, 28), x, { pal: HOUSE_COLS[r.pick([4, 0, 2, 5])].map(c => mixHex(c, '#dcecdc', 0.3)), roof: r.pick(['flat', 'dome']) }); else ART.palm(pb, x, 124, r.int(36, 58), r.range(-6, 6), x, ART.hazeRamp(RAMP.leaf, '#dcecdc', 0.25)); }
+    for (let x = 0; x < w; x++) for (let y = 118; y < 130; y++) pb.set(x, y, rampDither(ART.hazeRamp(RAMP.leaf, '#dcecdc', 0.3), 0.5 + (y - 118) / 30, x, y));
+  });
+  // 3. terrazas cercanas con flores y canales
+  B.layer(0.5, 90, H - 90 - 56, (pb, w) => {
+    for (let t = 0; t < 3; t++) {
+      const y0 = 30 + t * 20;
+      for (let x = 0; x < w; x++) { pb.set(x, y0, '#c9622e'); pb.set(x, y0 + 1, '#a04a22'); for (let y = y0 + 2; y < y0 + 20; y++) pb.set(x, y, rampDither(ART.hazeRamp(RAMP.leaf, '#dcecdc', 0.4 - t * 0.1), 0.62 + (fbm(x * 0.05, y * 0.1, 2, t) - 0.5) * 0.4, x, y)); }
+      for (let x = 4; x < w; x += 7) { const k = hash2(x, t, 3); if (k < 0.2) { pb.set(x, y0 + 4, '#ffe14d'); pb.set(x + 1, y0 + 4, '#fff6a0'); } else if (k < 0.35) pb.set(x, y0 + 5, '#b49cff'); else if (k < 0.45) pb.set(x, y0 + 6, '#ff8ab8'); }
+      for (let x = 0; x < w; x += 2) pb.set(x, y0 - 1, (x >> 3) % 2 ? '#20d6c7' : '#7ff0dc');
+    }
+  }, { fy: 0.25 });
+  return B;
+};
