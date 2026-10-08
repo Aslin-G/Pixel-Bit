@@ -228,3 +228,35 @@ BIOMES.pvdunes = function (L) {
   }, { fy: 0.25 });
   return B;
 };
+
+/* ---------- Torres de Brisa (azul cielo, blanco, menta, magenta, gris perla) ---------- */
+RAMP.skyBreeze = ['#1e4aa8', '#2a64c4', '#3a82dc', '#58a4ec', '#7cc4f4', '#a6dcf8', '#cdeefa', '#e8f8f8', '#f6fcf6'];
+BIOMES.windcliffs = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  const horizon = 190;
+  B.horizon = horizon;
+  B.sky = makeSkyCanvas(RAMP.skyBreeze, horizon, { sun: { x: 120, y: 50, r: 11, halo: '#ffffff' }, curve: 1.2 });
+  B.addClouds(12, CLOUD_PALS.day, 91, 10, 120, 0.06, 0.3);
+  B.weather.wind = 1.4;
+  // 1. mar y acantilados lejanos gris perla
+  B.layer(0.05, 90, horizon - 50, (pb, w) => {
+    ART.sea(pb, 50, 90, ['#2a64c4', '#3a82dc', '#4aa0e0', '#6cc0e8', '#a6dcf8', '#cdeefa'], {});
+    const hz = ART.hazeRamp(['#3a3a4a', '#5a5a6a', '#7a7a8a', '#9a9aa8', '#babac6', '#d8d8e2', '#eeeef4'], '#cdeefa', 0.4);
+    ART.ridge(pb, (x) => 52 - Math.max(0, Math.sin(x * 0.005) * 34) - fbm1(x * 0.03, 3, 2) * 6, hz, { mesa: true, baseIdx: 4, strata: 6 });
+  }, { dyn: (g, cam, Ly) => drawSeaSparkles(g, 0, Ly.y + 52 - cam.y * Ly.fy, W, 36, Game.time, 0.7) });
+  // 2. meseta media con un parque eólico lejano (dinámico)
+  B.layer(0.18, 130, horizon - 20, (pb, w) => {
+    const pal = ART.hazeRamp(RAMP.mangrove, '#cdeefa', 0.45);
+    ART.ridge(pb, (x) => 30 - Math.sin(x * 0.01) * 8 - fbm1(x * 0.04, 3, 5) * 6, pal, { baseIdx: 4 });
+  }, { dyn: (g, cam, Ly) => {
+    const ox = cam.x * 0.18;
+    for (let i = 0; i < 9; i++) { const tx = 60 + i * 120 - ox; if (tx < -40 || tx > W + 40) continue; ART.turbine(g, tx, Ly.y - cam.y * Ly.fy + 26 + Math.sin(i) * 4, 46, Game.time * 2.4 + i, { col: '#f6fcf6', shade: '#c8d8e8' }); }
+  } });
+  // 3. acantilados cercanos con pradera menta y flores magenta
+  B.layer(0.42, 120, H - 120 - 40, (pb, w) => {
+    const pal = ['#2a3a4a', '#3e5060', '#56687a', '#728496', '#94a6b4', '#b8c6d0', '#dce4ea'];
+    ART.ridge(pb, (x) => 50 + Math.abs(Math.sin(x * 0.004)) * 30 - fbm1(x * 0.03, 3, 9) * 14, pal, { mesa: true, baseIdx: 4, strata: 6 });
+    for (let x = 0; x < w; x++) { for (let y = 0; y < pb.h; y++) if (pb.alpha(x, y)) { for (let k = 0; k < 4; k++) pb.set(x, y + k, k < 2 ? '#8ff5c8' : '#4fb27a'); if (hash2(x, 2, 4) < 0.05) { pb.set(x, y - 1, '#e34ad8'); pb.set(x, y - 2, '#f78acb'); } break; } }
+  }, { fy: 0.2 });
+  return B;
+};

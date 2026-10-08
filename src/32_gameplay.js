@@ -202,7 +202,7 @@ const GameplayScene = {
   },
   renderLens(g, cam) {
     const k = this.lensT;
-    fdither(g, 0, 0, W, H, '#05031a', 0.55 * k);
+    g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.55 * k; frect(g, 0, 0, W, H, '#3a4a8a'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     // rejilla técnica
     if (k > 0.5) { g.fillStyle = 'rgba(86,229,255,0.10)'; for (let x = -(cam.x % 32); x < W; x += 32) g.fillRect(Math.round(x), 0, 1, H); for (let y = -(cam.y % 32); y < H; y += 32) g.fillRect(0, Math.round(y), W, 1); }
     if (this.def.lens) this.def.lens(g, this, cam, k);
