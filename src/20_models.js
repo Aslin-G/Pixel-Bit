@@ -383,7 +383,12 @@ const MicrogridModel = {
       let h2 = (cfg.schedule.h2[h] || 0) * (cfg.h2KW || 0);
       const reserve = cfg.rules?.reserve ?? b.socMin;
       // H2 solo con excedente si la regla lo exige
-      if (cfg.rules?.h2OnlySurplus) h2 = Math.min(h2, Math.max(0, gen - crit - ro - irr));
+      if (cfg.rules?.h2OnlySurplus) {
+        let surplus = Math.max(0, gen - crit - ro - irr);
+        // regla opcional: el excedente carga primero la batería hasta el objetivo de SOC
+        if (cfg.rules.chargeFirst) { const room = Math.max(0, (Math.min(b.socMax, cfg.rules.socTarget ?? 0.9) - b.soc) * b.cap * b.health) / b.etaC; surplus = Math.max(0, surplus - Math.min(room, b.pmax)); }
+        h2 = Math.min(h2, surplus);
+      }
       let load = crit + ro + irr + h2;
       let net = gen - load; // >0 excedente
       let pb = 0;

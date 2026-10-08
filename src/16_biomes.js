@@ -260,3 +260,35 @@ BIOMES.windcliffs = function (L) {
   }, { fy: 0.2 });
   return B;
 };
+
+/* ---------- Bóveda de Carga (azul eléctrico, lima, violeta, coral, negro azulado) ---------- */
+BIOMES.vault = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  B.horizon = 0;
+  B.sky = (() => { const pb = new PixelBuffer(W, H); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) pb.set(x, y, rampDither(['#05081d', '#0a1030', '#101a46', '#17265c', '#1d2a5a'], 0.15 + y / H * 0.6, x, y)); return pb.toCanvas(); })();
+  B.weather.wind = 0;
+  // 1. pared de roca con vetas minerales violetas
+  B.layer(0.15, H, 0, (pb, w) => {
+    const pal = ['#070a1c', '#0c1230', '#121a44', '#1a2458', '#24306c', '#2e3c80'];
+    for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) {
+      const n = fbm(x * 0.012, y * 0.02, 4, 6);
+      let c = rampDither(pal, 0.2 + n * 0.7, x, y);
+      if (Math.abs(fbm(x * 0.02 + 5, y * 0.03, 3, 8) - 0.5) < 0.012) c = '#5a38b8';
+      if (hash2(x, y, 3) < 0.0015) c = '#b6f05a';
+      pb.set(x, y, c);
+    }
+  });
+  // 2. hileras lejanas de racks con LED (dinámico) y bandejas de cables
+  B.layer(0.35, 200, 70, (pb, w) => {
+    for (let x = 10; x < w; x += 46) {
+      pb.rect(x, 40, 36, 140, '#0f1838'); pb.rect(x, 40, 36, 2, '#2c63c0'); pb.rect(x + 34, 40, 2, 140, '#070a1c');
+      for (let r = 0; r < 12; r++) pb.rect(x + 3, 46 + r * 11, 30, 8, '#16224c');
+    }
+    pb.rect(0, 20, w, 6, '#2a2f4a'); for (let x = 0; x < w; x += 8) pb.vline(x, 20, 26, '#3a4268');
+    for (let x = 0; x < w; x += 3) pb.set(x, 27 + Math.round(Math.sin(x * 0.05) * 3 + 3), '#e8873e');
+  }, { fy: 0.1, dyn: (g, cam, Ly) => {
+    const ox = Math.round(cam.x * 0.35), t = Game.time;
+    for (let x = 10 - (ox % 46) - 46; x < W + 46; x += 46) for (let r = 0; r < 12; r++) { const on = ((Math.floor(t * 2) + r + Math.floor((x + ox) / 46)) % 5) !== 0; frect(g, x + 28, Ly.y + 48 + r * 11, 2, 2, on ? '#b6f05a' : '#2a4a1a'); if (r % 3 === 0) frect(g, x + 22, Ly.y + 48 + r * 11, 2, 2, '#56e5ff'); }
+  } });
+  return B;
+};
