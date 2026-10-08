@@ -292,3 +292,38 @@ BIOMES.vault = function (L) {
   } });
   return B;
 };
+
+/* ---------- Ciudadela del Hidrógeno (cian, blanco, verde neón, azul oscuro, ámbar) ---------- */
+RAMP.skyCitadel = ['#05081d', '#0a1236', '#101c4c', '#16285e', '#1d3672', '#284884', '#3a5e98', '#5a7cb0', '#8aa4cc'];
+BIOMES.citadel = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  const horizon = 190;
+  B.horizon = horizon;
+  B.sky = makeSkyCanvas(RAMP.skyCitadel, horizon, { stars: 120, seed: 9, curve: 1.0 });
+  B.addClouds(4, CLOUD_PALS.night, 71, 20, 90, 0.04, 0.12);
+  // 1. bahía nocturna con luces de la ciudad
+  B.layer(0.05, 60, horizon - 10, (pb, w) => {
+    ART.sea(pb, 10, 60, ['#05081d', '#0a1236', '#101c4c', '#16285e', '#1d3672'], {});
+    for (let x = 0; x < w; x += 3) { const h = 2 + Math.floor(hash2(x, 1, 3) * 10); pb.rect(x, 10 - h, 3, h, '#0a1030'); if (hash2(x, 2, 3) < 0.3) pb.set(x + 1, 10 - h + 1, hash2(x, 3, 3) < 0.5 ? '#ffd86a' : '#56e5ff'); }
+  }, { dyn: (g, cam, Ly) => { const t = Game.time; for (let i = 0; i < 30; i++) fpx(g, (i * 53 - cam.x * 0.05) % W, Ly.y + 14 + (i % 7) * 4 - cam.y * Ly.fy, ((Math.floor(t * 2) + i) % 4) ? '#ffd86a' : '#56e5ff'); } });
+  // 2. esferas de almacenamiento y chimeneas de venteo (siluetas iluminadas)
+  B.layer(0.2, 140, horizon - 100, (pb, w) => {
+    for (let x = 20; x < w; x += 120) {
+      const r = 22 + (x % 3) * 4;
+      pb.ellipse(x + 30, 120 - r, r, r, '#16285e'); pb.ellipse(x + 26, 116 - r, r * 0.6, r * 0.6, '#1d3672');
+      for (const lx of [x + 12, x + 48]) pb.rect(lx, 120 - r, 3, r, '#0a1236');
+      pb.rect(x + 80, 40, 6, 80, '#16285e'); pb.rect(x + 78, 38, 10, 3, '#284884');
+    }
+    pb.rect(0, 120, w, 20, '#0a1236');
+  }, { dyn: (g, cam, Ly) => { const ox = cam.x * 0.2, t = Game.time; for (let x = 20; x < Ly.w; x += 120) { const sx = x - ox; if (sx < -60 || sx > W + 60) continue; frect(g, sx + 82, Ly.y + 36 - cam.y * Ly.fy, 2, 2, (Math.floor(t * 1.5 + x) % 2) ? '#ff4e5d' : '#3a0a10'); frect(g, sx + 30, Ly.y + 120 - 26 - 26 - cam.y * Ly.fy, 2, 2, '#86e36f'); } } });
+  // 3. arquitectura blanca cercana con franjas cian
+  B.layer(0.45, 150, H - 150 - 50, (pb, w) => {
+    for (let x = 0; x < w; x += 160) {
+      const hh = 70 + (x % 7) * 6;
+      pb.rect(x, 150 - hh, 130, hh, '#c8d8e8'); pb.rect(x, 150 - hh, 130, 3, '#ffffff'); pb.rect(x + 124, 150 - hh, 6, hh, '#8396ba');
+      for (let k = 0; k < 4; k++) { pb.rect(x + 8 + k * 30, 150 - hh + 12, 22, 14, '#1a2a4a'); pb.rect(x + 8 + k * 30, 150 - hh + 12, 22, 2, '#56e5ff'); }
+      pb.rect(x, 150 - hh + 34, 130, 3, '#20d6c7');
+    }
+  }, { fy: 0.2 });
+  return B;
+};
