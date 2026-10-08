@@ -20,7 +20,7 @@ const TERRAIN_MATS = {
   dune: { ramp: RAMP.dune, top: ['#fbdc86', '#f6c35c'], deco: 'ripples', base: 5 },
   metal: { ramp: RAMP.metal, top: ['#cfe8ee', '#98c6d2'], deco: 'plates', base: 4 },
   tile: { ramp: ['#3a2a4a', '#5a3e5e', '#8a5a6e', '#b87a7a', '#d8a08a', '#f0c8a8', '#fff0d8'], top: ['#fff0d8', '#f0c8a8'], deco: 'tiles', base: 4 },
-  stone: { ramp: RAMP.rock, top: ['#e8d8d0', '#c79a9e'], deco: 'cobble', base: 5 },
+  stone: { ramp: ['#4a2e2e', '#6a4440', '#8a5e50', '#a87a62', '#c69878', '#e2b890', '#f6d8b0'], top: ['#fbe8c8', '#f6d8b0'], deco: 'cobble', base: 5 },
   grassland: { ramp: RAMP.soil, top: ['#c2f58e', '#86e36f'], deco: 'roots', base: 4, grass: true },
 };
 
@@ -89,9 +89,13 @@ function renderTerrain(world) {
       if (d === 0) c = M.top[0];
       else if (d === 1) c = M.top[1];
       else {
-        // profundidad → rampa más oscura, con ruido tramado
-        const n = fbm(x * 0.05, y * 0.08, 3, 5);
-        let k = M.base - Math.floor(d / 22) - (n > 0.62 ? 1 : 0);
+        // profundidad → rampa más oscura; textura sutil (tramado suave entre tonos vecinos)
+        const n = fbm(x * 0.035, y * 0.06, 3, 5);
+        let k = M.base - Math.floor(d / 26);
+        const band = (d % 26) / 26;
+        if (band > 0.82 && bayer4(x, y) < (band - 0.82) * 5) k -= 1;
+        if (n > 0.72 && bayer4(x, y) < 0.25) k -= 1;
+        if (n < 0.26 && bayer4(x, y) < 0.2) k += 1;
         if (slopeL > 1.5 && d < 6) k += 1; // borde iluminado
         if (slopeR > 1.5 && d < 6) k -= 1;
         if (M.deco === 'strata' && ((y + Math.floor(fbm1(x * 0.015, 2, 3) * 8)) % 9 === 0)) k -= 1;
@@ -100,7 +104,6 @@ function renderTerrain(world) {
         if (M.deco === 'tiles') { if (y % 8 === 0 || (x + (Math.floor(y / 8) % 2) * 8) % 16 === 0) k = 2; else k = 4; }
         if (M.deco === 'cobble') { const cx = Math.floor(x / 9), cy = Math.floor(y / 7); const jx = (x + (cy % 2) * 4) % 9, jy = y % 7; k = (jx === 0 || jy === 0) ? 2 : 4 + (hash2(cx, cy, 2) > 0.6 ? 1 : 0); }
         if (M.deco === 'ripples' && d < 30 && ((y * 2 + Math.floor(Math.sin(x * 0.05) * 4)) % 9 === 0)) k -= 1;
-        if (bayer4(x, y) < 0.18 && n > 0.55) k -= 1;
         k = clamp(k, 0, M.ramp.length - 1);
         c = M.ramp[k];
         if (M.deco === 'shells' && hash2(x, y, 3) < 0.004 && d > 4) c = hash2(x, y, 4) < 0.5 ? '#fff6d8' : '#f78acb';
@@ -491,17 +494,7 @@ class Pickup extends Entity {
   }
 }
 
-/** Adversario conceptual: concepción errónea encarnada; se disuelve corrigiéndola */
-const ADVERSARIES = {
-  fouler: { name: 'Fouler', col: ['#3a2a10', '#6a5020', '#9a7a3a', '#c8a860'], desc: 'Oscurece sensores y aumenta la pérdida de carga.' },
-  scale: { name: 'Scale Wisp', col: ['#5c2550', '#b44d88', '#ffd8ec', '#ffffff'], desc: 'Cristaliza cuando se fuerzan los límites.' },
-  saltMirage: { name: 'Salt Mirage', col: ['#621a66', '#bc3e92', '#f888b8', '#ffc4dc'], desc: 'Hace parecer que diluir equivale a desaparecer.' },
-  peak: { name: 'Peak Sprite', col: ['#8a5e14', '#e0b41e', '#ffe14d', '#fffbd0'], desc: 'Confunde potencia máxima con energía diaria.' },
-  gust: { name: 'Gust Loop', col: ['#3a4a6e', '#8396ba', '#cbdaea', '#ffffff'], desc: 'Extrapola el viento sin respetar el cut-out.' },
-  socEater: { name: 'SOC Eater', col: ['#1a1240', '#5a38b8', '#b6f05a', '#e6ffc0'], desc: 'Vacía la reserva por un beneficio inmediato.' },
-  greenwash: { name: 'Greenwash Phantom', col: ['#0e3a1c', '#2e8a4e', '#86e36f', '#e6ffc0'], desc: 'Etiqueta el H2 como verde sin verificar la electricidad.' },
-  monoscore: { name: 'MonoScore', col: ['#3a2208', '#c8861a', '#ffd84a', '#ffffff'], desc: 'Oculta criterios dentro de una única puntuación.' },
-};
+/** Adversario conceptual (definiciones en 21_learning.js) */
 class Adversary extends Entity {
   constructor(o) { super(Object.assign({ type: 'fouler', range: 60, speed: 30, hp: 1, quizId: null }, o)); this.bx = this.x; this.by = this.y; this.phase = Math.random() * 6; }
   update(dt) {

@@ -212,14 +212,16 @@ const GameplayScene = {
   renderHUD(g) {
     if (this.hideHUD) return;
     const def = this.def;
-    // tarjeta de capítulo
+    // tarjeta de capítulo (cinta con borde, sin oscurecer el cielo)
     const ct = this.chapterCard.t;
     if (ct < 4.2) {
       const a = ct < 0.5 ? ct / 0.5 : ct > 3.4 ? (4.2 - ct) / 0.8 : 1;
-      const yy = Math.round(26 - (1 - a) * 20);
-      fdither(g, 0, yy - 6, W, 56, '#05030f', 0.55 * a);
-      drawText(g, this.chapterCard.sub || '', W / 2, yy, { align: 'center', font: 'tiny', color: '#ffe14d' });
-      drawTitleText(g, this.chapterCard.title || '', W / 2, yy + 9, 2, ['#fffaf0', '#ffe14d', '#ff9f43'], { align: 'center', shadow: '#140d26', depth: 2 });
+      const tw = Math.max(220, FONTS.main.measure(this.chapterCard.title || '') * 2 + 60);
+      const bx = Math.round(W / 2 - tw / 2), by = Math.round(30 - (1 - a) * 46);
+      UIK.panel(g, bx, by, tw, 44, 'dialog');
+      drawText(g, this.chapterCard.sub || '', W / 2, by + 6, { align: 'center', font: 'tiny', color: '#ffe14d' });
+      drawTitleText(g, this.chapterCard.title || '', W / 2, by + 13, 2, ['#fffaf0', '#ffe14d', '#ff9f43'], { align: 'center', shadow: '#140d26', depth: 1 });
+      frect(g, bx + 10, by + 40, tw - 20, 1, '#8a5e14');
     }
     // objetivo
     if (this.objective && ct > 3.5) {
@@ -266,16 +268,26 @@ function drawWaterFront(g, w, ox, oy, sc) {
   if (x1 < 0 || x0 > W) return;
   const xa = Math.max(0, x0), xb = Math.min(W, x1);
   const depthPx = Math.max(4, H - y);
-  const tint = w.tint || '#20d6c7';
-  fdither(g, xa, y + 1, xb - xa, depthPx, tint, w.alpha ?? 0.45);
-  fdither(g, xa, y + 6, xb - xa, depthPx, w.deep || '#1063a6', 0.35);
-  // superficie con oleaje
-  for (let x = xa; x < xb; x++) {
-    const wy = Math.round(Math.sin((x + ox) * 0.08 + Game.time * 2.2) * 1.2);
-    fpx(g, x, y + wy, '#c6fff2');
-    if (((x + ox + Math.floor(Game.time * 12)) % 17) < 3) fpx(g, x, y + wy + 1, '#ffffff');
+  // cuerpo de agua translúcido en bandas (sin malla de tramado)
+  g.globalAlpha = w.alpha ?? 0.55; frect(g, xa, y + 1, xb - xa, depthPx, w.tint || '#20d6c7');
+  g.globalAlpha = 0.45; frect(g, xa, y + 9, xb - xa, depthPx, w.deep || '#1063a6');
+  g.globalAlpha = 0.35; frect(g, xa, y + 22, xb - xa, depthPx, '#0d3168');
+  if (w.turbid) { g.globalAlpha = clamp(w.turbid, 0, 0.75); frect(g, xa, y + 1, xb - xa, depthPx, '#a0783a'); }
+  g.globalAlpha = 1;
+  // cáusticas animadas
+  const t = Game.time;
+  for (let k = 0; k < (xb - xa) / 9; k++) {
+    const xx = xa + ((k * 37 + Math.floor((t * 6 + k * 3) % 9)) % (xb - xa));
+    const yy = y + 4 + ((k * 13) % Math.max(4, depthPx - 8));
+    if (((k + Math.floor(t * 2)) % 3) === 0) frect(g, xx, yy, 3 + (k % 3), 1, '#6cf0db');
   }
-  if (w.turbid) fdither(g, xa, y + 1, xb - xa, depthPx, '#a07a3a', clamp(w.turbid, 0, 0.75));
+  // superficie con oleaje y espuma
+  for (let x = xa; x < xb; x++) {
+    const wy = Math.round(Math.sin((x + ox) * 0.08 + t * 2.2) * 1.2);
+    fpx(g, x, y + wy, '#c6fff2');
+    if (((x + ox + Math.floor(t * 12)) % 17) < 3) fpx(g, x, y + wy - 1, '#ffffff');
+    if (((x + ox) % 5) === 0) fpx(g, x, y + wy + 1, '#6cf0db');
+  }
 }
 
 /* =====================================================================

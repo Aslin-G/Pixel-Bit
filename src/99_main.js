@@ -4,6 +4,7 @@
 const TESTS = {};
 function boot() {
   Game.init();
+  GS.reset();
   const q = new URLSearchParams(location.search);
   const test = q.get('test');
   if (test && TESTS[test]) { Game.setScene(TESTS[test]); return; }
@@ -66,3 +67,8 @@ TESTS.portraits = {
     }
   },
 };
+
+TESTS.level = { enter() { const q = new URLSearchParams(location.search); const lv = parseInt(q.get('lv') || '1'); if (q.get('tools')) for (const t of q.get('tools').split(',')) GS.giveTool(t, true); Game.setScene(GameplayScene, { level: lv, checkpoint: q.get('cp') || null }); if (q.get('px')) { const P = GameplayScene.player; P.x = parseFloat(q.get('px')); P.y = GameplayScene.world.groundAt(P.x); GameplayScene.kiru && (GameplayScene.kiru.x = P.x - 30); GameplayScene.cam.snap(P); } if (q.get('lens')) { GameplayScene.lens = true; GameplayScene.lensT = 1; } if (q.get('nocard')) GameplayScene.chapterCard.t = 9; }, update() { }, render() { } };
+TESTS.title = { enter() { Game.setScene(TitleScene); }, update() { }, render() { } };
+TESTS.map = { enter() { for (let i = 0; i <= 10; i++) GS.s.unlocked.push(i); GS.s.completed.push(0, 1); Game.setScene(WorldMapScene, { focus: 2 }); }, update() { }, render() { } };
+TESTS.scene = { enter() { const q = new URLSearchParams(location.search); const sc = window[q.get('s')] || eval(q.get('s')); Game.setScene(sc, JSON.parse(q.get('p') || '{}')); }, update() { }, render() { } };

@@ -105,37 +105,45 @@ ART.ridge = function (pb, heightFn, pal, opts = {}) {
   }
   return tops;
 };
-/** Dunas: superposición de lomas con lado de sotavento sombreado y rizaduras */
+/** Dunas: se pintan de atrás hacia delante; cara de barlovento iluminada, cara de
+ *  sotavento sombreada con borde curvo, cresta resaltada y rizaduras del viento. */
 ART.dunes = function (pb, yBase, amp, pal, seed, opts = {}) {
   const w = pb.w;
   const r = RNG(seed);
   const crests = [];
   let x = -r.range(20, 80);
-  while (x < w + 100) { const width = r.range(opts.minW || 80, opts.maxW || 180); crests.push({ x, w: width, hgt: amp * r.range(0.6, 1) }); x += width * r.range(0.55, 0.85); }
-  const top = new Float32Array(w).fill(1e9), shadeArr = new Int8Array(w);
+  while (x < w + 100) { const width = r.range(opts.minW || 80, opts.maxW || 180); crests.push({ x, w: width, hgt: amp * r.range(0.55, 1), back: r.range(0, 8) }); x += width * r.range(0.5, 0.8); }
+  crests.sort((a, b) => a.back - b.back || a.hgt - b.hgt);
+  const top = new Float32Array(w).fill(1e9);
+  const lit = opts.lit ?? 4, sh = opts.shadow ?? 2;
   for (const c of crests) {
-    const peak = c.x + c.w * 0.62;
-    for (let xx = Math.max(0, Math.floor(c.x)); xx < Math.min(w, c.x + c.w); xx++) {
-      let y;
-      if (xx < peak) { const t = (xx - c.x) / (peak - c.x); y = yBase - c.hgt * Math.sin(t * Math.PI / 2) ** 1.6; }
-      else { const t = (xx - peak) / (c.x + c.w - peak); y = yBase - c.hgt * (1 - t) ** 1.3; }
-      if (y < top[xx]) { top[xx] = y; shadeArr[xx] = xx < peak ? 1 : -1; }
+    const peak = c.x + c.w * 0.6, base = yBase + c.back;
+    for (let xx = Math.max(0, Math.floor(c.x)); xx < Math.min(w, Math.ceil(c.x + c.w)); xx++) {
+      let y, windward = xx < peak;
+      if (windward) { const t = (xx - c.x) / (peak - c.x); y = base - c.hgt * Math.pow(Math.sin(t * Math.PI / 2), 1.5); }
+      else { const t = (xx - peak) / (c.x + c.w - peak); y = base - c.hgt * Math.pow(1 - t, 1.25); }
+      const y0 = Math.round(y);
+      if (y0 < top[xx]) top[xx] = y0;
+      const lt = windward ? 0 : (xx - peak) / (c.x + c.w - peak);
+      for (let yy = y0; yy < pb.h; yy++) {
+        const d = yy - y0;
+        let idx;
+        if (windward) {
+          idx = lit;
+          if (d > c.hgt * 0.55 && bayer4(xx, yy) < 0.35) idx = lit - 1;
+          if (opts.ripples && d > 2 && ((yy * 3 + Math.floor(Math.sin(xx * 0.09 + yy * 0.25) * 3)) % 8 === 0)) idx = lit - 1;
+        } else {
+          // la sombra de sotavento se curva: más ancha arriba, se disuelve hacia la base
+          const shadowDepth = c.hgt * (1.1 - lt * 0.6);
+          idx = d < shadowDepth ? sh : (bayer4(xx, yy) < 0.5 ? sh : lit - 1);
+          if (d < shadowDepth && d > shadowDepth - 3 && bayer4(xx, yy) < 0.5) idx = sh + 1;
+        }
+        if (d === 0) idx = windward ? lit + 1 : sh + 1;
+        pb.set(xx, yy, pal[clamp(idx, 0, pal.length - 1)]);
+      }
     }
   }
-  for (let xx = 0; xx < w; xx++) {
-    if (top[xx] > 1e8) top[xx] = yBase;
-    const t0 = Math.round(top[xx]);
-    for (let y = t0; y < pb.h; y++) {
-      const d = y - t0;
-      let idx = shadeArr[xx] > 0 ? opts.lit ?? 4 : opts.shadow ?? 2;
-      if (d < 1) idx += 1;
-      if (shadeArr[xx] > 0 && d > 3 && d < 9 && bayer4(xx, y) < 0.3) idx -= 1;
-      // rizaduras del viento
-      if (opts.ripples && ((y * 3 + Math.floor(Math.sin(xx * 0.08 + y * 0.3) * 3)) % 7 === 0) && shadeArr[xx] > 0) idx -= 1;
-      if (opts.fade && y > yBase - 4) idx = Math.max(idx - 1, 0);
-      pb.set(xx, y, pal[clamp(idx, 0, pal.length - 1)]);
-    }
-  }
+  for (let xx = 0; xx < w; xx++) if (top[xx] > 1e8) top[xx] = yBase;
   return top;
 };
 /** Mar con degradado hacia el horizonte */

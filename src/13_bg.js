@@ -147,7 +147,7 @@ BIOMES.coast = function (L) {
   B.addClouds(9, CLOUD_PALS.day, 41, 18, 120);
   // 1. promontorio lejano con faro
   B.layer(0.08, 90, horizon - 60, (pb, w) => {
-    const hazePal = ART.hazeRamp(RAMP.mesa, '#a6e0f4', 0.62);
+    const hazePal = ART.hazeRamp(RAMP.mesa, '#9cc0ec', 0.48);
     ART.ridge(pb, (x) => 60 - Math.max(0, 1 - Math.abs(x - 120) / 170) * 46 - fbm1(x * 0.03, 3, 2) * 10 + (x > 260 ? 30 : 0), hazePal, { mesa: true, baseIdx: 4, strata: 7 });
     pb.rect(158, 6, 4, 14, '#fffaf0'); pb.rect(158, 10, 4, 3, '#ff6b6b'); pb.rect(157, 4, 6, 2, '#5a6fb0'); pb.set(160, 3, '#ffe14d');
   });
@@ -168,8 +168,8 @@ BIOMES.coast = function (L) {
   } });
   // 3. costa media con pueblo de Aridia y aerogeneradores lejanos
   B.layer(0.25, 120, horizon - 52, (pb, w) => {
-    const sand = ART.hazeRamp(RAMP.dune, '#c8eef4', 0.35);
-    ART.dunes(pb, 70, 26, sand, 7, { minW: 90, maxW: 220, lit: 4, shadow: 2 });
+    const sand = ART.hazeRamp(RAMP.dune, '#c8eef4', 0.22);
+    ART.dunes(pb, 70, 26, sand, 7, { minW: 90, maxW: 220, lit: 5, shadow: 2, ripples: true });
     const r = RNG(9);
     for (let x = 30; x < w - 40; x += r.int(50, 120)) {
       if (r.chance(0.55)) { const hw = r.int(18, 34), hh = r.int(14, 26); ART.house(pb, x, 68, hw, hh, x, { pal: HOUSE_COLS[r.int(0, 6)].map(c => mixHex(c, '#c8eef4', 0.3)) }); }
@@ -185,17 +185,20 @@ BIOMES.coast = function (L) {
       ART.turbine(g, tx, Ly.y - cam.y * Ly.fy + 64 - (i % 2) * 6, 34, Game.time * 1.6 + i, { col: '#e6f4fa', shade: '#a8c8d8' });
     }
   } });
-  // 4. acantilado cercano con vegetación xerófita
-  B.layer(0.55, 150, H - 150 - 40, (pb, w) => {
+  // 4. dunas cercanas con vegetación xerófita y rocas dispersas (deja ver el mar)
+  B.layer(0.55, 120, H - 120 - 52, (pb, w) => {
     const r = RNG(21);
-    ART.ridge(pb, (x) => 70 + Math.sin(x * 0.006) * 18 + fbm1(x * 0.02, 4, 4) * 26 - (Math.sin(x * 0.0021 + 1) > 0.5 ? 34 : 0), RAMP.mesa, { mesa: true, baseIdx: 5, strata: 6 });
-    for (let x = 20; x < w; x += r.int(26, 70)) {
-      const y = 70 + Math.sin(x * 0.006) * 18 + fbm1(x * 0.02, 4, 4) * 26 - (Math.sin(x * 0.0021 + 1) > 0.5 ? 34 : 0);
+    const top = ART.dunes(pb, 96, 30, RAMP.dune, 23, { minW: 120, maxW: 260, lit: 5, shadow: 3, ripples: true });
+    // rocas ocasionales
+    for (let x = 60; x < w; x += r.int(160, 320)) { const y = Math.round(top[Math.min(w - 1, x)]) + 4; pb.ellipse(x, y, r.int(10, 18), r.int(6, 9), '#b8564b'); pb.ellipse(x - 3, y - 3, r.int(6, 10), 4, '#d77558'); pb.hline(x - 6, x + 2, y - 6, '#f7c08e'); }
+    for (let x = 20; x < w; x += r.int(22, 60)) {
+      const y = Math.round(top[Math.min(w - 1, x)]) + 2;
       const k = r();
-      if (k < 0.3) ART.cactus(pb, x, Math.round(y) + 2, r.int(14, 26), x);
-      else if (k < 0.6) ART.shrub(pb, x, Math.round(y) + 2, r.int(4, 7), x);
-      else if (k < 0.75) ART.agave(pb, x, Math.round(y) + 2, r.int(6, 10));
-      else ART.nopal(pb, x, Math.round(y) + 2, r.int(3, 5), x);
+      if (k < 0.22) ART.cactus(pb, x, y, r.int(14, 24), x);
+      else if (k < 0.55) ART.shrub(pb, x, y, r.int(4, 7), x);
+      else if (k < 0.7) ART.agave(pb, x, y, r.int(6, 9));
+      else if (k < 0.82) ART.nopal(pb, x, y, r.int(3, 4), x);
+      else ART.grass(pb, x, y, 4, x);
     }
   }, { fy: 0.3 });
   return B;

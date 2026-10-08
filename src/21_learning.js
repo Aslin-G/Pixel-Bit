@@ -3,6 +3,18 @@
    metacognición, analítica local y micro-retos de adversarios.
    ===================================================================== */
 
+/** Adversario conceptual: concepción errónea encarnada; se disuelve corrigiéndola */
+const ADVERSARIES = {
+  fouler: { name: 'Fouler', col: ['#3a2a10', '#6a5020', '#9a7a3a', '#c8a860'], desc: 'Oscurece sensores y aumenta la pérdida de carga.' },
+  scale: { name: 'Scale Wisp', col: ['#5c2550', '#b44d88', '#ffd8ec', '#ffffff'], desc: 'Cristaliza cuando se fuerzan los límites.' },
+  saltMirage: { name: 'Salt Mirage', col: ['#621a66', '#bc3e92', '#f888b8', '#ffc4dc'], desc: 'Hace parecer que diluir equivale a desaparecer.' },
+  peak: { name: 'Peak Sprite', col: ['#8a5e14', '#e0b41e', '#ffe14d', '#fffbd0'], desc: 'Confunde potencia máxima con energía diaria.' },
+  gust: { name: 'Gust Loop', col: ['#3a4a6e', '#8396ba', '#cbdaea', '#ffffff'], desc: 'Extrapola el viento sin respetar el cut-out.' },
+  socEater: { name: 'SOC Eater', col: ['#1a1240', '#5a38b8', '#b6f05a', '#e6ffc0'], desc: 'Vacía la reserva por un beneficio inmediato.' },
+  greenwash: { name: 'Greenwash Phantom', col: ['#0e3a1c', '#2e8a4e', '#86e36f', '#e6ffc0'], desc: 'Etiqueta el H2 como verde sin verificar la electricidad.' },
+  monoscore: { name: 'MonoScore', col: ['#3a2208', '#c8861a', '#ffd84a', '#ffffff'], desc: 'Oculta criterios dentro de una única puntuación.' },
+};
+
 const MASTERY_KEYS = ['systemsThinking', 'waterQuality', 'pretreatment', 'reverseOsmosis', 'massBalance', 'brine', 'photovoltaics', 'wind', 'battery', 'microgrid', 'electrolysis', 'hydrogenSafety', 'irrigationQuality', 'agroecology', 'waterProductivity', 'economics', 'multiobjective', 'steamInquiry', 'communication', 'ethics'];
 const MASTERY_LABELS = {
   systemsThinking: 'Pensamiento sistémico', waterQuality: 'Calidad de agua', pretreatment: 'Captación y pretratamiento', reverseOsmosis: 'Ósmosis inversa', massBalance: 'Balances de masa', brine: 'Salmuera', photovoltaics: 'Fotovoltaica', wind: 'Eólica', battery: 'Baterías (BESS)', microgrid: 'Microred y despacho', electrolysis: 'Electrólisis', hydrogenSafety: 'Seguridad H2', irrigationQuality: 'Calidad para riego', agroecology: 'Agroecología', waterProductivity: 'Productividad hídrica', economics: 'Economía', multiobjective: 'Multiobjetivo', steamInquiry: 'Indagación STEAM', communication: 'Comunicación', ethics: 'Ética y gobernanza',
