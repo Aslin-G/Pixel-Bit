@@ -195,3 +195,36 @@ BIOMES.canyon = function (L) {
   } });
   return B;
 };
+
+/* ---------- Dunas fotónicas (amarillo intenso, turquesa, púrpura de sombra) ---------- */
+RAMP.skySolar = ['#1a3a8f', '#2152b5', '#2b6fd2', '#3d8fe6', '#5aaeee', '#86cbf2', '#b8e4f0', '#f0f4d8', '#fff0b0'];
+BIOMES.pvdunes = function (L) {
+  const B = new Backdrop(L.width, L.height);
+  const horizon = 178;
+  B.horizon = horizon;
+  B.sky = makeSkyCanvas(RAMP.skySolar, horizon, { sun: { x: 330, y: 34, r: 14, halo: '#fff6c8' }, curve: 1.15 });
+  B.addClouds(6, CLOUD_PALS.day, 54, 14, 90, 0.12, 0.25);
+  // 1. mesetas lejanas en púrpura de sombra
+  B.layer(0.05, 80, horizon - 60, (pb, w) => {
+    const hz = ART.hazeRamp(['#2e1838', '#4a2a5a', '#6a3a7a', '#8a5a9a', '#a87ab0', '#c8a0c8', '#e8c8dc'], '#c8d8f0', 0.35);
+    ART.ridge(pb, (x) => 50 - Math.max(0, Math.sin(x * 0.007 + 1) * 30) - (Math.floor(x / 120) % 2 ? 10 : 0) - fbm1(x * 0.02, 3, 4) * 8, hz, { mesa: true, baseIdx: 4, strata: 5 });
+  });
+  // 2. dunas medias con hileras FV en perspectiva y franjas de vegetación
+  B.layer(0.2, 120, horizon - 40, (pb, w) => {
+    const top = ART.dunes(pb, 56, 22, ART.hazeRamp(RAMP.dune, '#f0e8d0', 0.25), 3, { minW: 100, maxW: 240, lit: 5, shadow: 2, ripples: true });
+    for (let row = 0; row < 3; row++) for (let x = 10 + row * 17; x < w - 60; x += 74) { const y = Math.round(top[Math.min(w - 1, x + 20)]) + 10 + row * 12; ART.pvRow(pb, x, y, 50, x + row, { tilt: 4, depth: 4 }); }
+    for (let x = 0; x < w; x += 9) { const y = Math.round(top[x]) + 2; if (hash2(x, 3, 1) < 0.4) pb.set(x, y, '#4ccb70'); }
+  }, { dyn: (g, cam, Ly) => {
+    // sombras de nubes barriendo el campo
+    const t = Game.time;
+    for (let i = 0; i < 3; i++) { const cx = ((t * 14 + i * 260) % (W + 300)) - 150, cy = Ly.y - cam.y * Ly.fy + 70 + i * 10; fshadow(g, cx, cy, 70, 12, '#3a2a5a', 0.35); }
+    // espejismo de calor (líneas tramadas que ondulan)
+    for (let y = 0; y < 6; y++) { const yy = Ly.y - cam.y * Ly.fy + 40 + y * 3; fdither(g, Math.round(Math.sin(t * 2 + y) * 6), yy, W, 1, '#fff6d8', 0.12); }
+  } });
+  // 3. dunas cercanas con cardones y cercas de arena
+  B.layer(0.5, 110, H - 110 - 56, (pb, w) => {
+    const top = ART.dunes(pb, 80, 30, RAMP.dune, 17, { minW: 140, maxW: 300, lit: 5, shadow: 3, ripples: true });
+    for (let x = 20; x < w; x += 37) { const y = Math.round(top[Math.min(w - 1, x)]) + 2; const k = hash2(x, 1, 2); if (k < 0.25) ART.cactus(pb, x, y, 16 + Math.floor(k * 30), x); else if (k < 0.45) ART.agave(pb, x, y, 7); else if (k < 0.6) { for (let i = 0; i < 18; i += 3) pb.vline(x + i, y - 8, y, '#8a5a3c'); pb.hline(x, x + 15, y - 6, '#b07a50'); } }
+  }, { fy: 0.25 });
+  return B;
+};
