@@ -175,6 +175,9 @@ BIOMES.coast = function (L) {
       if (r.chance(0.55)) { const hw = r.int(18, 34), hh = r.int(14, 26); ART.house(pb, x, 68, hw, hh, x, { pal: HOUSE_COLS[r.int(0, 6)].map(c => mixHex(c, '#c8eef4', 0.3)) }); }
       else ART.palm(pb, x, 70, r.int(22, 34), r.range(-6, 6), x, ART.hazeRamp(RAMP.leaf, '#c8eef4', 0.3));
     }
+    // segunda hilera de dunas más cercana: rompe la llanura y da profundidad
+    const top2 = ART.dunes(pb, 106, 20, ART.hazeRamp(RAMP.dune, '#c8eef4', 0.12), 13, { minW: 70, maxW: 170, lit: 5, shadow: 2, ripples: true });
+    for (let x = 14; x < w; x += r.int(26, 70)) { const k = r(); const y = Math.round(top2[Math.min(w - 1, x)]) + 1; if (k < 0.4) ART.shrub(pb, x, y, r.int(3, 5), x, ART.hazeRamp(RAMP.leaf, '#c8eef4', 0.2)); else if (k < 0.55) ART.grass(pb, x, y, 3, x); }
     // franja de playa húmeda
     for (let x = 0; x < w; x++) { pb.set(x, 118, '#fde8a8'); pb.set(x, 119, '#c6fff2'); }
   }, { dyn: (g, cam, Ly) => {

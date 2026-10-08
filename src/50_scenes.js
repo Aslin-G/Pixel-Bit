@@ -196,6 +196,13 @@ const MAP_NODES = [
   { id: 9, x: 258, y: 96, icon: 'scale', name: 'Mesa del Nexo' },
   { id: 10, x: 330, y: 182, icon: 'mosaic', name: 'Núcleo SYNARA' },
 ];
+const MAP_BIOMES = [
+  [214, 168, RAMP.sand, 0.62, 0.5], [120, 200, RAMP.sand, 0.58, 0.5],
+  [232, 296, RAMP.salt, 0.55, 0.6], [170, 300, RAMP.salt, 0.6, 0.6],
+  [378, 282, RAMP.leaf, 0.45, 0.7], [420, 300, RAMP.leaf, 0.5, 0.6],
+  [430, 108, RAMP.mesa, 0.5, 0.9], [520, 120, RAMP.mesa, 0.45, 0.9],
+  [352, 214, RAMP.dune, 0.55, 0.8], [300, 140, RAMP.dune, 0.6, 0.8], [500, 210, RAMP.dune, 0.5, 0.8], [270, 240, RAMP.dune, 0.6, 0.7],
+];
 const MAP_LINKS = [[0, 1], [1, 2], [2, 3], [0, 6], [6, 4], [4, 7], [6, 5], [4, 8], [3, 8], [0, 9], [9, 5], [6, 10], [10, 4], [10, 8], [10, 7]];
 const WorldMapScene = {
   touchControls: false,
@@ -226,13 +233,13 @@ const WorldMapScene = {
         if (d < 0.025) c = '#c6fff2';
         else if (d < 0.05 && ((x + y + Math.floor(fbm(x * 0.1, y * 0.1, 2, 9) * 6)) % 5 === 0)) c = '#6cf0db';
       } else {
-        // biomas por posición
+        // biomas con fronteras orgánicas (Voronoi deformado por ruido)
         const n = fbm(x * 0.03, y * 0.03, 3, 5);
-        let ramp = RAMP.dune, t = 0.55 + (n - 0.5) * 0.8;
-        if (y > 262 && x < 300) { ramp = RAMP.salt; t = 0.55 + (n - 0.5) * 0.6; }
-        if (x > 330 && x < 430 && y > 245) { ramp = RAMP.leaf; t = 0.45 + (n - 0.5) * 0.7; }
-        if (y < 140 && x > 360) { ramp = RAMP.mesa; t = 0.5 + (n - 0.5) * 0.9; }
-        if (x < 260 && y < 230 && y > 120) { ramp = RAMP.sand; t = 0.6 + (n - 0.5) * 0.5; }
+        const wx = x + (fbm(x * 0.018, y * 0.018, 3, 21) - 0.5) * 70, wy = y + (fbm(x * 0.018 + 9, y * 0.018, 3, 22) - 0.5) * 70;
+        let b1 = null, d1 = 1e9, d2 = 1e9;
+        for (const A of MAP_BIOMES) { const dd = Math.hypot(wx - A[0], (wy - A[1]) * 1.1); if (dd < d1) { d2 = d1; d1 = dd; b1 = A; } else if (dd < d2) d2 = dd; }
+        let ramp = b1[2], t = b1[3] + (n - 0.5) * b1[4];
+        if (d2 - d1 < 5 && bayer4(x, y) < 0.5 - (d2 - d1) / 10) t -= 0.12;
         c = rampDither(ramp, t, x, y);
         if (d > -0.02) c = '#fff6d8';
         // relieve sombreado
@@ -329,7 +336,7 @@ const WorldMapScene = {
     drawTextBlock(g, '{y}' + M.ra + '{/} ' + RA[M.ra], px + 10, 60, pw - 20, { color: '#cfd6f0', font: 'main' });
     const cs = RA_CONCEPTS[M.ra] || [];
     let yy = 140;
-    for (const c of cs.slice(0, 3)) { drawText(g, MASTERY_LABELS[c], px + 10, yy, { font: 'tiny', color: '#cfd6f0' }); UIK.bar(g, px + 110, yy, 96, 5, (GS.s.mastery ? GS.s.mastery[c] : 0) / 100, '#86e36f'); yy += 9; }
+    for (const c of cs.slice(0, 3)) { drawText(g, MASTERY_LABELS[c], px + 10, yy, { font: 'tiny', color: '#cfd6f0' }); UIK.bar(g, px + 136, yy, 70, 5, (GS.s.mastery ? GS.s.mastery[c] : 0) / 100, '#86e36f'); yy += 9; }
     Gui.begin();
     if (Gui.button(g, 'enter', px + 10, 172, pw - 20, 22, done ? 'Volver a jugar' : 'Entrar al capítulo', { style: un && LEVELS[n.id] ? 'good' : 'ghost', icon: 'play', disabled: !un || !LEVELS[n.id] })) this.enterLevel();
     // barra inferior

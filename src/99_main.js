@@ -72,3 +72,27 @@ TESTS.level = { enter() { const q = new URLSearchParams(location.search); const 
 TESTS.title = { enter() { Game.setScene(TitleScene); }, update() { }, render() { } };
 TESTS.map = { enter() { for (let i = 0; i <= 10; i++) GS.s.unlocked.push(i); GS.s.completed.push(0, 1); Game.setScene(WorldMapScene, { focus: 2 }); }, update() { }, render() { } };
 TESTS.scene = { enter() { const q = new URLSearchParams(location.search); const sc = window[q.get('s')] || eval(q.get('s')); Game.setScene(sc, JSON.parse(q.get('p') || '{}')); }, update() { }, render() { } };
+TESTS.sim = { enter() { const q = new URLSearchParams(location.search); const lv = q.get('lv'); if (lv) { Game.setScene(GameplayScene, { level: parseInt(lv) }); GameplayScene.chapterCard.t = 9; } const sc = eval(q.get('s')); Game.push(sc, { phase: q.get('phase') || undefined, stopAfter: 'free', onDone: () => { } }); }, update() { }, render() { } };
+/* ---------- Piloto automático para pruebas de guion (solo ?test=) ---------- */
+function AUTOPILOT_ON(choices = []) {
+  if (window.__autopilot) return;
+  window.__autopilot = { choices: choices.slice(), log: [] };
+  const push = Game.push.bind(Game);
+  Game.push = function (scene, params = {}) {
+    const AP = window.__autopilot;
+    const resolve = (v) => setTimeout(() => params.onDone && params.onDone(v), 30);
+    if (scene === DialogueScene) {
+      const lines = params.lines || [];
+      const hasChoice = lines.some(l => l && (l.choices || (Array.isArray(l) && l[3] && l[3].choices)));
+      AP.log.push('dlg:' + lines.length);
+      return resolve(hasChoice ? (AP.choices.length ? AP.choices.shift() : 0) : null);
+    }
+    if (scene === SOLOScene) return resolve({ correct: 5, total: 5 });
+    if (scene === ExplainScene || scene === MicroCheckScene) return resolve(true);
+    if (typeof DroneScene !== 'undefined' && scene === DroneScene) return resolve({ choice: 'E', ok: true });
+    if (scene === LevelCompleteScene) return resolve();
+    if (scene.nextPhase) { AP.log.push('sim:' + (scene.title || '')); return resolve({ ok: true }); }
+    if (scene === PauseScene || scene === CodexScene || scene === EvidenceScene) return push(scene, params);
+    AP.log.push('scene?'); return resolve({ ok: true });
+  };
+}

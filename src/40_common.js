@@ -141,7 +141,7 @@ function makeSim(def) {
       // indicadores de fase
       def.phases.forEach((p2, i) => { const on = def.phases.indexOf(this.phase) >= i; frect(g, W - 110 + i * 14, 10, 10, 7, on ? '#86e36f' : '#1c2350'); });
       drawText(g, def.ra || '', W - 52, 11, { font: 'tiny', color: '#a6f4ff' });
-      if (this.msg) {
+      if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
         const lines = wrapText(m.text, 300);
         const hh = lines.length * 11 + 10;

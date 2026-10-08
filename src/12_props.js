@@ -115,30 +115,35 @@ ART.dunes = function (pb, yBase, amp, pal, seed, opts = {}) {
   while (x < w + 100) { const width = r.range(opts.minW || 80, opts.maxW || 180); crests.push({ x, w: width, hgt: amp * r.range(0.55, 1), back: r.range(0, 8) }); x += width * r.range(0.5, 0.8); }
   crests.sort((a, b) => a.back - b.back || a.hgt - b.hgt);
   const top = new Float32Array(w).fill(1e9);
-  const lit = opts.lit ?? 4, sh = opts.shadow ?? 2;
+  const lit = opts.lit ?? 4, sh = opts.shadow ?? 2, body = lit - 1;
   for (const c of crests) {
-    const peak = c.x + c.w * 0.6, base = yBase + c.back;
+    const peak = c.x + c.w * 0.6, base = Math.round(yBase + c.back), peakY = base - c.hgt;
     for (let xx = Math.max(0, Math.floor(c.x)); xx < Math.min(w, Math.ceil(c.x + c.w)); xx++) {
       let y, windward = xx < peak;
       if (windward) { const t = (xx - c.x) / (peak - c.x); y = base - c.hgt * Math.pow(Math.sin(t * Math.PI / 2), 1.5); }
       else { const t = (xx - peak) / (c.x + c.w - peak); y = base - c.hgt * Math.pow(1 - t, 1.25); }
       const y0 = Math.round(y);
       if (y0 < top[xx]) top[xx] = y0;
-      const lt = windward ? 0 : (xx - peak) / (c.x + c.w - peak);
       for (let yy = y0; yy < pb.h; yy++) {
         const d = yy - y0;
         let idx;
-        if (windward) {
+        if (yy > base + 2) {
+          // cuerpo compartido bajo la base: sin cortes verticales entre dunas
+          idx = body;
+          if (yy < base + 6 && bayer4(xx, yy) < (base + 6 - yy) / 5 * 0.5) idx = windward ? lit : sh + 1;
+        } else if (windward) {
           idx = lit;
-          if (d > c.hgt * 0.55 && bayer4(xx, yy) < 0.35) idx = lit - 1;
-          if (opts.ripples && d > 2 && ((yy * 3 + Math.floor(Math.sin(xx * 0.09 + yy * 0.25) * 3)) % 8 === 0)) idx = lit - 1;
+          if (d > c.hgt * 0.5 && bayer4(xx, yy) < 0.3) idx = body;
+          if (opts.ripples && d > 2 && ((yy * 3 + Math.floor(Math.sin(xx * 0.09 + yy * 0.25) * 3)) % 8 === 0)) idx = body;
         } else {
-          // la sombra de sotavento se curva: más ancha arriba, se disuelve hacia la base
-          const shadowDepth = c.hgt * (1.1 - lt * 0.6);
-          idx = d < shadowDepth ? sh : (bayer4(xx, yy) < 0.5 ? sh : lit - 1);
-          if (d < shadowDepth && d > shadowDepth - 3 && bayer4(xx, yy) < 0.5) idx = sh + 1;
+          // cara de sotavento: la frontera luz/sombra se curva bajo la cresta
+          const dd = yy - peakY;
+          const edge = peak + Math.pow(Math.max(0, dd), 1.2) * 0.42;
+          const k = xx - edge;
+          idx = k > 1 ? sh : k > -1 ? (bayer4(xx, yy) < 0.5 ? sh : body) : body;
+          if (k > 1 && k < 4 && bayer4(xx, yy) < 0.35) idx = sh + 1;
         }
-        if (d === 0) idx = windward ? lit + 1 : sh + 1;
+        if (d === 0) idx = windward ? lit + 1 : (idx === sh ? sh + 1 : lit);
         pb.set(xx, yy, pal[clamp(idx, 0, pal.length - 1)]);
       }
     }

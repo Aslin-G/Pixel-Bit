@@ -98,7 +98,7 @@ const GameplayScene = {
     let best = null, bd = 1e9;
     for (const e of this.world.entities) {
       if (e instanceof Station && e.near(P)) { const d = Math.abs(e.x - P.x); if (d < bd) { bd = d; best = e; } }
-      if (e instanceof Actor && e.talkable && e.onTalk && Math.abs(e.x - P.x) < 30 && Math.abs(e.y - P.y) < 40) { const d = Math.abs(e.x - P.x) + 4; if (d < bd) { bd = d; best = e; } }
+      if (e instanceof Actor && !e.hidden && e.talkable && e.onTalk && Math.abs(e.x - P.x) < 30 && Math.abs(e.y - P.y) < 40) { const d = Math.abs(e.x - P.x) + 4; if (d < bd) { bd = d; best = e; } }
     }
     return best;
   },
@@ -136,6 +136,7 @@ const GameplayScene = {
   },
   useTool() {
     const P = this.player;
+    if (this.def.onTool && this.def.onTool(this) === true) return;
     // corrige adversarios conceptuales cercanos
     const adv = this.world.entities.find(e => e instanceof Adversary && !e.calm && Math.abs(e.x - P.x) < 90 && Math.abs(e.y - (P.y - 28)) < 60);
     if (adv && GS.s.tools.length) {
@@ -205,9 +206,9 @@ const GameplayScene = {
     // rejilla técnica
     if (k > 0.5) { g.fillStyle = 'rgba(86,229,255,0.10)'; for (let x = -(cam.x % 32); x < W; x += 32) g.fillRect(Math.round(x), 0, 1, H); for (let y = -(cam.y % 32); y < H; y += 32) g.fillRect(0, Math.round(y), W, 1); }
     if (this.def.lens) this.def.lens(g, this, cam, k);
-    UIK.panel(g, W / 2 - 92, H - 26, 184, 18, 'glass');
-    Icons.draw(g, 'lens', W / 2 - 86, H - 24);
-    drawText(g, 'LENTE NEXO · flujos y unidades', W / 2 + 8, H - 21, { align: 'center', color: '#a6f4ff', shadow: '#070a1c' });
+    UIK.panel(g, W - 192, H - 26, 184, 18, 'glass');
+    Icons.draw(g, 'lens', W - 186, H - 24);
+    drawText(g, 'LENTE NEXO · flujos y unidades', W - 92, H - 21, { align: 'center', color: '#a6f4ff', shadow: '#070a1c' });
   },
   renderHUD(g) {
     if (this.hideHUD) return;
@@ -243,7 +244,7 @@ const GameplayScene = {
       slot('book', keyName(Input.codesFor('codex')[0]), false);
       slot('eye', 'TAB', false);
       if (GS.hasTool('lente')) slot('lens', keyName(Input.codesFor('lens')[0]), this.lens);
-      if (tools.length) { const t = TOOLS[GS.s.activeTool || tools[tools.length - 1]]; if (t) slot(t.icon, keyName(Input.codesFor('tool')[0]), false); }
+      const tl = tools.filter(t => t !== 'lente'); if (tl.length) { const t = TOOLS[GS.s.activeTool || tl[tl.length - 1]]; if (t) slot(t.icon, keyName(Input.codesFor('tool')[0]), false); }
       slot('hint', keyName(Input.codesFor('hint')[0]), false);
     }
     if (def.hud) def.hud(g, this);

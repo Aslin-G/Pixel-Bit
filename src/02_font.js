@@ -84,6 +84,7 @@ const FONT_SRC = {
   '-': ['...', '...', '...', '...', '###'],
   '–': ['....', '....', '....', '....', '####'],
   '—': ['......', '......', '......', '......', '######'],
+  '…': ['.....', '.....', '.....', '.....', '.....', '.....', '#.#.#'],
   '_': ['....', '....', '....', '....', '....', '....', '....', '####'],
   '+': ['.....', '.....', '..#..', '..#..', '#####', '..#..', '..#..'],
   '=': ['....', '....', '....', '####', '....', '####'],
@@ -161,7 +162,7 @@ const TINY_SRC = {
   '↓': ['.#.', '.#.', '.#.', '###', '.#.'], '!': ['#', '#', '#', '.', '#'], '?': ['##.', '..#', '.#.', '...', '.#.'],
   '_': ['...', '...', '...', '...', '###'], '₂': ['...', '...', '##.', '.#.', '.##'], 'Δ': ['.#.', '.#.', '#.#', '#.#', '###'],
   'η': ['##.', '#.#', '#.#', '#.#', '..#'], '|': ['#', '#', '#', '#', '#'], '$': ['.##', '##.', '.#.', '.##', '##.'],
-  '≈': ['...', '.#.', '#.#', '...', '...'], '~': ['...', '.#.', '#.#', '...', '...'], '*': ['#.#', '.#.', '#.#', '...', '...'], '#': ['#.#', '###', '#.#', '###', '#.#'],
+  '≈': ['...', '.#.', '#.#', '...', '...'], '~': ['...', '.#.', '#.#', '...', '...'], '*': ['#.#', '.#.', '#.#', '...', '...'], '#': ['#.#', '###', '#.#', '###', '#.#'], '…': ['.....', '.....', '.....', '.....', '#.#.#'],
 };
 const TINY_MAP = { 'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N', 'Ü': 'U', 'á': 'A', 'é': 'E', 'í': 'I', 'ó': 'O', 'ú': 'U', 'ñ': 'N', 'ü': 'U', '¿': '?', '¡': '!', 'µ': 'U' };
 
@@ -245,7 +246,21 @@ function stripMarkup(t) { return String(t).replace(/\{[a-z\/]\}/g, ''); }
 const FONTS = {};
 function initFonts() {
   FONTS.main = new BitmapFont(FONT_SRC, { cellH: 11, top: 2, lineH: 11, accented: ACCENTED });
-  FONTS.tiny = new BitmapFont(TINY_SRC, { cellH: 6, top: 0, lineH: 7, upper: true, map: TINY_MAP });
+  // la fuente diminuta reserva una fila superior para tildes (desplazada al dibujar)
+  const tinyAcc = {};
+  for (const [ch, base, mark] of [['Á', 'A', '.#'], ['É', 'E', '.#'], ['Í', 'I', '.#'], ['Ó', 'O', '.#'], ['Ú', 'U', '.#'], ['Ñ', 'N', '.##.'], ['Ü', 'U', '#.#']]) {
+    const b = TINY_SRC[base], w = b[0].length;
+    const m = mark.length >= w ? mark.slice(0, w) : ('.'.repeat(Math.floor((w - mark.length) / 2) + (mark === '.#' && w >= 3 ? 1 : 0)) + mark).padEnd(w, '.').slice(0, w);
+    tinyAcc[ch] = [m].concat(b);
+  }
+  const tinySrc = {};
+  for (const k in TINY_SRC) tinySrc[k] = ['.'.repeat(TINY_SRC[k][0].length)].concat(TINY_SRC[k]);
+  Object.assign(tinySrc, tinyAcc);
+  const tinyMap = Object.assign({}, TINY_MAP);
+  for (const k of ['Á', 'É', 'Í', 'Ó', 'Ú', 'Ñ', 'Ü']) delete tinyMap[k];
+  for (const [lo, up] of [['á', 'Á'], ['é', 'É'], ['í', 'Í'], ['ó', 'Ó'], ['ú', 'Ú'], ['ñ', 'Ñ'], ['ü', 'Ü']]) tinyMap[lo] = up;
+  FONTS.tiny = new BitmapFont(tinySrc, { cellH: 7, top: 0, lineH: 7, upper: true, map: tinyMap });
+  FONTS.tiny.shift = 1;
 }
 
 /** Separa texto con marcado en segmentos {text,color} */
@@ -318,7 +333,7 @@ function drawText(g, text, x, y, opts = {}) {
         shown++;
         if (ch === '\n') continue;
         const gl = font.glyph(ch);
-        if (ch !== ' ') for (const [ox, oy] of pass.offs) g.drawImage(atlas, gl.x, 0, gl.w, font.cellH, cx + ox * scale, y + oy * scale, gl.w * scale, font.cellH * scale);
+        if (ch !== ' ') for (const [ox, oy] of pass.offs) g.drawImage(atlas, gl.x, 0, gl.w, font.cellH, cx + ox * scale, y + (oy - (font.shift || 0)) * scale, gl.w * scale, font.cellH * scale);
         cx += (gl.w + font.spacing) * scale;
       }
     }

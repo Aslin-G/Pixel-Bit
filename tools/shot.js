@@ -20,6 +20,7 @@ const path = require('path');
     if (k.startsWith('wait:')) { await page.waitForTimeout(parseInt(k.slice(5))); continue; }
     if (k.startsWith('click:')) { const [x, y] = k.slice(6).split(',').map(Number); await page.mouse.click(x * scale, y * scale); await page.waitForTimeout(120); continue; }
     if (k.startsWith('hold:')) { const [key, ms] = k.slice(5).split(','); await page.keyboard.down(key); await page.waitForTimeout(parseInt(ms)); await page.keyboard.up(key); continue; }
+    if (k.startsWith('log:')) { const v = await page.evaluate(k.slice(4)); console.log('LOG', JSON.stringify(v)); continue; }
     if (k.startsWith('eval:')) { await page.evaluate(k.slice(5)); await page.waitForTimeout(60); continue; }
     await page.keyboard.press(k); await page.waitForTimeout(140);
   }

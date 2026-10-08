@@ -21,6 +21,7 @@ const TERRAIN_MATS = {
   metal: { ramp: RAMP.metal, top: ['#cfe8ee', '#98c6d2'], deco: 'plates', base: 4 },
   tile: { ramp: ['#3a2a4a', '#5a3e5e', '#8a5a6e', '#b87a7a', '#d8a08a', '#f0c8a8', '#fff0d8'], top: ['#fff0d8', '#f0c8a8'], deco: 'tiles', base: 4 },
   stone: { ramp: ['#4a2e2e', '#6a4440', '#8a5e50', '#a87a62', '#c69878', '#e2b890', '#f6d8b0'], top: ['#fbe8c8', '#f6d8b0'], deco: 'cobble', base: 5 },
+  plaza: { ramp: ['#3a1e2a', '#5a2e32', '#7a4038', '#9a5640', '#b86e4a', '#d48a5a', '#ecb07a'], top: ['#fff4e0', '#f6dcb8'], deco: 'plaza', base: 5 },
   grassland: { ramp: RAMP.soil, top: ['#c2f58e', '#86e36f'], deco: 'roots', base: 4, grass: true },
 };
 
@@ -102,6 +103,22 @@ function renderTerrain(world) {
         if (M.deco === 'strata' && ((y + Math.floor(fbm1(x * 0.015, 2, 3) * 8)) % 9 === 1)) k += 1;
         if (M.deco === 'plates') { if (y % 16 === 0 || x % 32 === 0) k = 1; else if ((x % 32 === 3 || x % 32 === 28) && (y % 16 === 3 || y % 16 === 12)) k = 6; else k = 3 + ((y % 16) < 3 ? 1 : 0); }
         if (M.deco === 'tiles') { if (y % 8 === 0 || (x + (Math.floor(y / 8) % 2) * 8) % 16 === 0) k = 2; else k = 4; }
+        if (M.deco === 'plaza') {
+          const FR = ['#20d6c7', '#ff6b6b', '#ffe14d', '#8d6bff'];
+          if (d < 6) { c = (x % 14 === 0) ? '#e8c8a0' : (d < 3 ? '#f6dcb8' : '#eccaa0'); pb.data[y * wd + x] = U(c); continue; }
+          if (d < 8) { pb.data[y * wd + x] = U(d === 6 ? '#7a4038' : '#a05a42'); continue; }
+          if (d < 18) {
+            const cx = Math.floor(x / 12), lx = x % 12 - 5.5, ly = d - 12.5;
+            const dm = Math.abs(lx) + Math.abs(ly);
+            c = dm < 3 ? FR[(cx + 1) % 4] : dm < 5 ? FR[cx % 4] : dm < 5.6 ? '#fff4e0' : '#f2e2c4';
+            if (x % 12 === 0) c = '#d8bc96';
+            pb.data[y * wd + x] = U(c); continue;
+          }
+          if (d < 20) { pb.data[y * wd + x] = U(d === 18 ? '#7a4038' : '#9a5640'); continue; }
+          const row = Math.floor((d - 20) / 12), jx = (x + (row % 2) * 12) % 24, jy = (d - 20) % 12;
+          k = (jx === 0 || jy === 0) ? 2 : (jy === 1 || jx === 1) ? 5 : 4 - Math.floor((d - 20) / 30) + (hash2(Math.floor((x + (row % 2) * 12) / 24), row, 7) > 0.7 ? -1 : 0);
+          if (jx > 2 && jy > 2 && hash2(x, y, 8) < 0.03) k -= 1;
+        }
         if (M.deco === 'cobble') { const cx = Math.floor(x / 9), cy = Math.floor(y / 7); const jx = (x + (cy % 2) * 4) % 9, jy = y % 7; k = (jx === 0 || jy === 0) ? 2 : 4 + (hash2(cx, cy, 2) > 0.6 ? 1 : 0); }
         if (M.deco === 'ripples' && d < 30 && ((y * 2 + Math.floor(Math.sin(x * 0.05) * 4)) % 9 === 0)) k -= 1;
         k = clamp(k, 0, M.ramp.length - 1);
@@ -384,8 +401,10 @@ class Actor extends Entity {
     if (!this.fly) this.y = this.world.supportAt(this.x, this.y - 2, this.y + 1, false);
   }
   render(g, cam) {
+    if (this.hidden) return;
     const x = this.x - cam.ox, y = this.y - cam.oy;
     if (x < -80 || x > W + 80) return;
+    if (this.preDraw) this.preDraw(g, x, y);
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant });
   }
   renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 74), this.bubble.text, '#ffe14d', this.bubble.t); }
@@ -484,6 +503,7 @@ class Pickup extends Entity {
   }
   render(g, cam) {
     const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy);
+    if (this.draw) { this.draw(g, x, y, this); return; }
     if (this.kind === 'echo') {
       const r = 4 + Math.sin(this.t * 5);
       fdisc(g, x, y, r + 2, '#3f2690'); fdisc(g, x, y, r, '#8d6bff'); fdisc(g, x - 1, y - 1, r * 0.45, '#dcd0ff');
