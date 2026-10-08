@@ -1,0 +1,4 @@
+html,body{margin:0;padding:0;background:#0b0718;height:100%;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#1d1438 0%,#0b0718 70%)}
+#game{image-rendering:pixelated;image-rendering:crisp-edges;outline:none;display:block;background:#140d26}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
