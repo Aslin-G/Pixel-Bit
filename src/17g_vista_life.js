@@ -171,6 +171,79 @@
     }
     return { steps, falls };
   };
+  /**
+   * Terrazas talladas en una ladera ya pintada (info de VISTA.relief): cada escalón existe
+   * solo donde la colina sube por encima de su cota, así siguen el contorno del cerro.
+   * o = {x0, x1, yTop, yBot, stepH:[a,b], wallK (0..1 fracción de muro), k, seed, kinds[], falls:[{x,w,from}], channel}
+   * → {steps:[{y,wallTop,topY,spans:[[a,b]]}], falls}
+   */
+  V.carveTerraces = function (pb, info, o) {
+    const r = RNG(o.seed || 1), k = o.k || 0;
+    const Wl = ramp(o.wall || WALL, k), So = ramp(SOIL, k), Cr = ramp(o.crop || CROP, k), Ch = ramp(CHAN, k);
+    const nW = Wl.length, nC = Cr.length;
+    const steps = [];
+    for (let y = o.yTop; y < o.yBot;) {
+      const sh = r.int(o.stepH?.[0] ?? 10, o.stepH?.[1] ?? 14), wh = Math.max(4, Math.round(sh * (o.wallK ?? 0.55)));
+      steps.push({ topY: y, wallTop: y + sh - wh, foot: y + sh, kind: (o.kinds && o.kinds[steps.length % o.kinds.length]) || r.pick(['rows', 'rows', 'vine', 'orchard']) });
+      y += sh;
+    }
+    const ok = (x, y) => info.top[x] != null && info.top[x] < y; // hay ladera por encima de y en x
+    for (let si = 0; si < steps.length; si++) {
+      const s = steps[si];
+      s.spans = [];
+      let a = -1;
+      for (let x = o.x0; x <= o.x1; x++) {
+        const inside = x < o.x1 && ok(x, s.topY + 1);
+        if (inside && a < 0) a = x; else if (!inside && a >= 0) { if (x - a > 8) s.spans.push([a, x - 1]); a = -1; }
+      }
+      for (const [xa, xb] of s.spans) {
+        // cara superior con hileras (se ven en 3/4)
+        for (let y = s.topY; y < s.wallTop; y++) for (let x = xa; x <= xb; x++) {
+          const v = (y - s.topY) / Math.max(1, s.wallTop - s.topY);
+          let u;
+          if (s.kind === 'rows') { const row = (y - s.topY) % 2; u = row ? So[2 + (hash2(x, y, 3) < 0.3 ? 1 : 0)] : Cr[clamp(Math.round(nC * 0.45 + (1 - v) * 2.5 + (hash2(x >> 1, y, 9) < 0.3 ? -1 : 0) + (((x + si * 5) >> 4) % 2)), 0, nC - 1)]; }
+          else if (s.kind === 'vine') u = (x % 3 === 0) ? So[3] : Cr[clamp(Math.round(nC * 0.35 + (1 - v) * 3 + (hash2(x, y, 4) < 0.3 ? 1 : 0)), 0, nC - 1)];
+          else if (s.kind === 'flowers') { const h_ = hash2(x, y, 6); u = h_ < 0.18 ? U(V.hzc(h_ < 0.09 ? '#f060b8' : '#ffd84a', k)) : Cr[clamp(Math.round(nC * 0.4 + (1 - v) * 2), 0, nC - 1)]; }
+          else u = So[1 + (hash2(x, y, 5) < 0.4 ? 1 : 0)];
+          if (x === xa || x === xb) u = V.shU(u, -0.2, 20);
+          V.put(pb, x, y, u);
+        }
+        if (s.kind === 'orchard') for (let x = xa + 3; x < xb - 2; x += r.int(5, 7)) V.tree(pb, x, s.wallTop - 1, r.int(2, 3), x * 7 + si, { k, ramp: o.crop || CROP });
+        // muro de roca
+        const bw = r.int(5, 8);
+        for (let y = s.wallTop; y < s.foot; y++) for (let x = xa; x <= xb; x++) {
+          const v = (y - s.wallTop) / Math.max(1, s.foot - s.wallTop);
+          const by = Math.floor((y - s.wallTop) / 3), bx = Math.floor((x + (by % 2) * 3) / bw);
+          const crackV = (x + (by % 2) * 3) % bw === 0, crackH = (y - s.wallTop) % 3 === 2;
+          const blk = hash2(bx, by + si * 17, 11);
+          let i = Math.round(nW * 0.62 - v * 2.4 + (blk - 0.5) * 2);
+          if (crackV || crackH) i = 1 + (blk < 0.5 ? 0 : 1);
+          if (x <= xa + 1) i = Math.min(i, 3);
+          if (x >= xb - 1) i = Math.max(0, i - 2);
+          if (y === s.wallTop) i = nW - 1;
+          if (y >= s.foot - 1) i = 0;
+          V.put(pb, x, y, Wl[clamp(i, 0, nW - 1)]);
+        }
+        // canal turquesa al borde y plantas colgantes
+        if (o.channel !== false && (si % 2 === 1)) for (let x = xa + 2; x < xb - 1; x++) { V.put(pb, x, s.wallTop - 1, Ch[(x + si) % 9 === 0 ? 4 : 2]); }
+        for (let x = xa + 1; x < xb; x++) if (hash2(x, si, 21) < 0.14) { const len = 1 + (hash2(x, si, 22) * 3 | 0); for (let q = 0; q < len; q++) V.put(pb, x, s.wallTop + 1 + q, Cr[Math.max(0, 3 - q)]); }
+      }
+    }
+    // cascadas: bajan por los muros de los escalones que cruzan
+    const falls = [];
+    for (const f of (o.falls || [])) {
+      const fx = Math.round(f.x), w = f.w || 4;
+      for (let si = f.from ?? 0; si < steps.length; si++) {
+        const s = steps[si];
+        if (!s.spans.some(([a, b]) => fx >= a && fx + w <= b)) continue;
+        const y0 = s.wallTop - 1, y1 = s.foot;
+        V.fall(pb, fx, y0, y1, w, { k });
+        falls.push({ x: fx, y0, y1, w });
+        for (let x = fx - 2; x < fx + w + 2; x++) { V.put(pb, x, y1, Ch[3]); V.put(pb, x, y1 + 1, Ch[2]); }
+      }
+    }
+    return { steps, falls };
+  };
   const FALL = ['#4a7a94', '#73a8c4', '#9cc9df', '#bedfed', '#e5f2f3', '#ffffff'];
   /** Cascada estática: vetas verticales, borde de luz, espuma y niebla en la base */
   V.fall = function (pb, x, y0, y1, w, o = {}) {
@@ -209,9 +282,12 @@
       const sx = f.x + ox, sy = f.y0 + oy, hh = f.y1 - f.y0;
       if (sx > W || sx + f.w < 0 || sy > H || sy + hh < 0) continue;
       g.globalAlpha = o.alpha ?? 0.85;
-      for (let y = 0; y < hh; y += T.h) {
-        const seg = Math.min(T.h, hh - y);
-        g.drawImage(T.c, (f.x & 3), T.h - off, Math.min(f.w, T.w - (f.x & 3)), seg, sx, sy + y, Math.min(f.w, T.w - (f.x & 3)), seg);
+      for (let x = 0; x < f.w; x += T.w) {
+        const cw = Math.min(T.w, f.w - x);
+        for (let y = 0; y < hh; y += T.h) {
+          const seg = Math.min(T.h, hh - y);
+          g.drawImage(T.c, 0, T.h - ((off + x * 13) % T.h), cw, seg, sx + x, sy + y, cw, seg);
+        }
       }
       g.globalAlpha = 1;
       // espuma de base (2 fillRect)

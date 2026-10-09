@@ -187,12 +187,43 @@ const VISTA = (() => {
 /* ---------- rampas del panorama por plano (medidas en la referencia a 640×360) ---------- */
 VISTA.RAMPS = {
   far: ['#5f5a82', '#6f6a94', '#7d7aa6', '#8c88b4', '#9d92b9', '#b0a0be', '#c4aec2', '#d6bcc4'],
-  mid: ['#4a4a78', '#5a5888', '#6e6896', '#87739e', '#a07c98', '#b98a98', '#cf9c9a', '#e2b2a2', '#efc8b2', '#f6dcc8'],
-  hill: ['#3e3448', '#58405a', '#695266', '#87545a', '#9f6358', '#b46e5c', '#c07b5f', '#d08c68', '#de9c76', '#e9b48e', '#f2cfae'],
-  low: ['#4a2a28', '#64352e', '#805142', '#9a5c3c', '#bd764a', '#d4884e', '#e19d61', '#eeb26c', '#f6c17c', '#fbd992'],
-  vegMid: ['#4d5a52', '#5d6e56', '#74845e', '#8e9a6a', '#a8b07a'],
-  vegHill: ['#2c3a2c', '#3f5434', '#5a6e3c', '#7a8e44', '#9cad54', '#bfc76a'],
-  vegLow: ['#1c3534', '#2e4a2c', '#4d6e4a', '#6a8a3e', '#99b874', '#bfcf6a', '#dfd88c'],
+  mid: ['#4a4472', '#5e507e', '#7a5a80', '#97647c', '#b2707a', '#c8827a', '#dc9a80', '#e8b28c', '#f2c8a0', '#f8dcbc'],
+  hill: ['#3a2a44', '#56324a', '#76404a', '#964e42', '#b4603e', '#cc7442', '#de8c4c', '#eaa65c', '#f4c078', '#fcdca4'],
+  low: ['#3e1c1c', '#5e2a20', '#804028', '#a0522c', '#bf6a34', '#d6823c', '#e69c4c', '#f2b660', '#f8cc7c', '#fde6a8'],
+  vegMid: ['#4a5a4c', '#5a6e50', '#728458', '#8c9a62', '#a8b070'],
+  vegHill: ['#1e2e18', '#2e4418', '#46601c', '#62801e', '#84a228', '#a8c034', '#ccd858'],
+  vegLow: ['#16260e', '#243c12', '#3a5818', '#56761c', '#78962a', '#9cb434', '#c4d248', '#e4e070'],
+};
+
+/* ---------- etiquetas lejanas: evitar choques con las del plano jugable ---------- */
+/** Rectángulo de pantalla [x, y, w, h] de una etiqueta (contrato de WorldLabels) */
+VISTA.labelRect = function (L, cam, sc) {
+  if (typeof WorldLabels === 'undefined') return null;
+  const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
+  const b = WorldLabels.box(L.title, sub, L.kind || 'water');
+  const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+  const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy);
+  return [sx - Math.floor(b.w / 2), sy - b.h, b.w, b.h];
+};
+/** ¿Choca la etiqueta L (de fondo) con alguna etiqueta del nivel visible ahora? */
+VISTA.labelClash = function (L, sc, pad = 6) {
+  if (!sc || !sc.def || !sc.cam) return false;
+  const cam = { x: sc.cam.ox ?? sc.cam.x ?? 0, y: sc.cam.oy ?? sc.cam.y ?? 0 };
+  if (L.camX && (cam.x < L.camX[0] || cam.x > L.camX[1])) return true;
+  const a = VISTA.labelRect(L, cam, sc); if (!a) return false;
+  if (a[0] > W || a[0] + a[2] < 0) return false;
+  // no tapar a la protagonista ni a KIRU
+  for (const e of [sc.player, sc.kiru]) {
+    if (!e) continue;
+    const ex = Math.round(e.x - cam.x), ey = Math.round(e.y - cam.y);
+    if (a[0] < ex + 26 && ex - 26 < a[0] + a[2] && a[1] < ey + 4 && ey - 84 < a[1] + a[3]) return true;
+  }
+  for (const O of (sc.def.labels || [])) {
+    if (O.when && !O.when(sc)) continue;
+    const b = VISTA.labelRect(O, cam, sc); if (!b) continue;
+    if (a[0] < b[0] + b[2] + pad && b[0] < a[0] + a[2] + pad && a[1] < b[1] + b[3] + pad && b[1] < a[1] + a[3] + pad) return true;
+  }
+  return false;
 };
 
 /* ---------- ayudantes aditivos de Backdrop (solo panorama) ---------- */

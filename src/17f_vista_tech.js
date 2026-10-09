@@ -219,8 +219,8 @@
     V.cylV(pb, ax0 + S(26), top, S(6), S(14), V.ARCH.WHITE, { k, dome: 0.5, bands: [[S(5), 3, PERM]] });
     A.potable = { x: ax0 + S(14), y: top - S(22) };
     // tubería de permeado luminosa (sale del depósito y sube por la ladera)
-    const perm = [[ax0 + S(33), top - S(6)], [ax0 + S(46), top - S(6)], [ax0 + S(46), top - S(20) - (o.climb || 0)]];
-    if (o.permTo) perm.push(...o.permTo);
+    const perm = [[ax0 + S(33), top - S(6)], [ax0 + S(46), top - S(6)]];
+    if (o.permTo) { perm.push([ax0 + S(46), o.permTo[0][1]]); perm.push(...o.permTo); } else perm.push([ax0 + S(46), top - S(20) - (o.climb || 0)]);
     V.pipe(pb, perm, 1, PERM, { k: k * 0.5 });
     // 5. SALMUERA: tubería grafito que baja al mar (emisario)
     const sx0 = mx0 + S(42);

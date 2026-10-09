@@ -134,9 +134,10 @@
     const RD = Math.round(30 * s), HD = Math.round(27 * s); // cúpula
     const towers = [];
     // torres traseras (detrás del anillo)
-    for (const [ox, hh, ww] of [[-58, 64, 7], [-44, 50, 6], [-70, 40, 5], [52, 70, 7], [64, 46, 6], [40, 56, 5], [76, 34, 5]]) {
+    const TG = ['#24405e', '#33587c', '#4a7aa2', '#6c9cc4', '#98c0de', '#c4def0', '#eef8ff'];
+    for (const [ox, hh, ww, cap] of [[-50, 40, 8, 'spire'], [-62, 28, 7, 'flat'], [-38, 30, 6, 'flat'], [-72, 20, 6, 'spire'], [46, 46, 8, 'spire'], [60, 30, 7, 'flat'], [36, 26, 6, 'flat'], [72, 22, 6, 'spire']]) {
       const tx = Math.round(cx + ox * s - ww / 2), th = Math.round(hh * s);
-      towers.push(V.tower(pb, tx, y - Math.round(10 * s), Math.max(3, Math.round(ww * s)), th, tx, { k: k + 0.05 }));
+      towers.push(V.tower(pb, tx, y - Math.round(12 * s), Math.max(3, Math.round(ww * s)), th, tx, { k: k + 0.05, glass: TG, cap }));
     }
     // armadura exterior (media corona translúcida detrás de la cúpula)
     const yD = y - H1 - H2 - Math.round(2 * s);
@@ -199,7 +200,7 @@
       const side = i % 2 ? 1 : -1, px = cx + side * (R1 - 4 + r.int(0, 18)) , py = y + r.int(-2, 6);
       for (let q = 0; q < 6; q++) V.put(pb, px + r.int(-2, 2), py + r.int(-1, 1), F[r.int(2, 6)]);
     }
-    const falls = [cx - Math.round(18 * s), cx - Math.round(2 * s), cx + Math.round(14 * s)];
+    const falls = [{ x: cx - Math.round(11 * s), w: Math.round(22 * s) }, { x: cx - Math.round(34 * s), w: 4 }, { x: cx + Math.round(28 * s), w: 4 }];
     return { top: yD - HD - Math.round(16 * s), left: cx - R1, right: cx + R1, base: y + Math.round(5 * s), falls, towers };
   };
   /** Invernadero en 3/4 (bóveda de cristal con nervios) */

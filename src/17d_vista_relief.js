@@ -33,7 +33,8 @@
         const ang = Math.atan2((v - bp.v) * (bp.w / bp.d), u - bp.x);
         const rad = 1 - bq;
         const sp = V.ridged(ang * spurs / TAU * 4 + warp + (bp.x * 0.013), rad * 2.4 + warp * 0.3, 4, seed);
-        rn = sp * 0.6 + iso * 0.4;
+        const sw = o.spurW ?? 0.6;
+        rn = sp * sw + iso * (1 - sw);
       } else rn = iso;
       const fine = vnoise(u * sc * 3, v * sc * 2.4 + 7.7, seed + 9);
       const front = o.apron ? smooth(clamp(v / o.apron, 0, 1)) : 1;
@@ -112,15 +113,17 @@
     }
     // vegetación en clusters (2–5 px) con punto de luz arriba-izquierda
     if (o.veg && veg.length) {
-      const VR = V.P32(o.veg.ramp || V.hz(RAMP.foliageR, 0.3));
+      const VR = V.P32(o.veg.ramp || V.hz(RAMP.foliageR, 0.3)), nv_ = VR.length;
+      const big = o.veg.size ?? 2.2;
       for (const [x, y, t] of veg) {
-        const s = 1 + (hash2(x, y, 5) * 2.2 | 0);
-        for (let yy = 0; yy <= s; yy++) for (let xx = -s; xx <= s; xx++) {
-          if (xx * xx + yy * yy * 2.2 > s * s + 1) continue;
-          const lit = xx < 0 && yy === 0 ? 3 : yy === 0 ? 2 : yy === s ? 0 : 1;
-          const px = x + xx, py = y + yy + 1;
-          if (px < 0 || px >= w || py < 0 || py >= pb.h || !(pb.data[py * w + px] >>> 24)) continue;
-          pb.data[py * w + px] = VR[clamp(lit + (t > 0.6 ? 1 : 0), 0, VR.length - 1)];
+        const s = 1 + (hash2(x, y, 5) * big | 0), cy = y - Math.round(s * 0.4);
+        for (let yy = -s; yy <= s; yy++) for (let xx = -s - 1; xx <= s + 1; xx++) {
+          const d = (xx * xx) / ((s + 1) * (s + 1)) + (yy * yy) / (s * s + 0.5);
+          if (d > 1 || (d > 0.6 && hash2(x + xx, cy + yy, 7) < 0.35)) continue;
+          const px = x + xx, py = cy + yy + 1;
+          if (px < 0 || px >= w || py < 0 || py >= pb.h) continue;
+          const sh = clamp(0.55 - xx / (s + 1) * 0.3 - yy / (s + 0.5) * 0.4 + (t - 0.5) * 0.3 + (hash2(px, py, 9) - 0.5) * 0.2, 0, 0.999);
+          pb.data[py * w + px] = VR[Math.floor(sh * nv_)];
         }
       }
     }

@@ -45,7 +45,7 @@ BIOMES.coast = function (L) {
     }
     V.relief(pb, {
       yBase: h - 1, nv: 44, dvy: 0.32, seed: 7, hMax: 52,
-      H: V.massif(peaks, { seed: 7, rough: 0.5, scale: 0.05, apron: 5 }),
+      H: V.massif(peaks, { seed: 7, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }),
       ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55,
       haze: { col: '#b9bde0', k0: 0.0, k: 0.22 }, mist: { col: '#c3c7e6', h: 12, k: 0.5 }, rim: '#e8c2b4', tex: 0.04,
     });
@@ -65,7 +65,7 @@ BIOMES.coast = function (L) {
     }
     const info = V.relief(pb, {
       yBase: h - 1, nv: 56, dvy: 0.4, seed: 19, hMax: 112,
-      H: V.massif(peaks, { seed: 19, rough: 0.6, scale: 0.04, apron: 7 }),
+      H: V.massif(peaks, { seed: 19, rough: 0.6, scale: 0.034, apron: 7, spurs: 6, spurW: 0.45 }),
       ramp: V.RAMPS.mid, contrast: 2.1,
       haze: { col: '#a9a6cc', k0: 0.0, k: 0.14 }, mist: { col: '#b4b4d8', h: 30, k: 0.55 }, rim: '#f6dcc8', tex: 0.05,
       veg: { ramp: V.RAMPS.vegMid, density: 0.025, maxSlope: 0.6, minY: 72 },
@@ -85,19 +85,19 @@ BIOMES.coast = function (L) {
   B.vplane(0.26, 0, 194, (pb, w, h) => {
     const k = 0.1, r = RNG(41);
     const peaks = [
-      { x: CITY_X, v: 22, h: 100, w: 170, d: 30 }, { x: 420, v: 16, h: 64, w: 92, d: 22 }, { x: 318, v: 12, h: 44, w: 74, d: 18 },
-      { x: 650, v: 14, h: 64, w: 96, d: 22 }, { x: 770, v: 10, h: 40, w: 82, d: 18 }, { x: 880, v: 10, h: 34, w: 70, d: 16 },
-      { x: 1010, v: 20, h: 82, w: 124, d: 26 }, { x: 1115, v: 14, h: 54, w: 90, d: 20 },
+      { x: CITY_X, v: 24, h: 128, w: 170, d: 32, k: 0.8 }, { x: CITY_X - 92, v: 14, h: 70, w: 96, d: 22 }, { x: 330, v: 12, h: 50, w: 80, d: 18 },
+      { x: CITY_X + 100, v: 14, h: 72, w: 100, d: 22 }, { x: 770, v: 10, h: 46, w: 82, d: 18 }, { x: 880, v: 10, h: 38, w: 70, d: 16 },
+      { x: 1010, v: 20, h: 84, w: 124, d: 26, k: 0.9 }, { x: 1115, v: 14, h: 56, w: 90, d: 20 }, { x: 250, v: 8, h: 26, w: 60, d: 14 },
     ];
     const info = V.relief(pb, {
       yBase: h - 1, nv: 46, dvy: 0.3, seed: 41, hMax: 100,
-      H: V.massif(peaks, { seed: 41, rough: 0.55, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 64, h: 92 }, { x: 1010, w: 40, h: 74 }] }),
-      ramp: V.RAMPS.hill, contrast: 1.95,
-      haze: { col: '#b0a8d0', k0: 0.02, k: 0.12 }, mist: { col: '#c6bcd8', h: 16, k: 0.35 }, rim: '#fcd8ae', tex: 0.06,
-      veg: { ramp: V.RAMPS.vegHill, density: 0.06, maxSlope: 0.9, minY: 96 },
+      H: V.massif(peaks, { seed: 41, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 76, h: 98 }, { x: 1010, w: 44, h: 78 }] }),
+      ramp: V.RAMPS.hill, contrast: 1.9, t0: 0.54,
+      haze: { col: '#b0a8d0', k0: 0.0, k: 0.1 }, mist: { col: '#c6bcd8', h: 14, k: 0.3 }, rim: '#fcd8ae', tex: 0.06,
+      veg: { ramp: V.RAMPS.vegHill, density: 0.12, maxSlope: 1.1, minY: 92, size: 3 },
     });
-    // vegetación en las crestas
-    V.scatterVeg(pb, (x) => (x > CITY_X - 60 && x < CITY_X + 60) ? null : info.top[x] + 1, 260, w, 4101, { k: k + 0.04, gap: 8, mix: { tree: 3, shrub: 4, palm: 1 } });
+    // vegetación densa en las crestas (copas redondas, matorral, palmeras)
+    V.scatterVeg(pb, (x) => (x > CITY_X - 58 && x < CITY_X + 58) ? null : info.top[x] + 1, 240, w, 4101, { k: k + 0.02, gap: 6, mix: { tree: 4, shrub: 4, palm: 1 }, ramp: V.RAMPS.vegHill });
     // casas blancas en las laderas
     for (let i = 0; i < 26; i++) {
       const x = r.pick([r.int(360, 470), r.int(575, 720), r.int(940, 1100), r.int(800, 900)]);
@@ -105,27 +105,28 @@ BIOMES.coast = function (L) {
       V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 4200 + i, { k: k + 0.02 });
     }
     // aerogeneradores en la cresta izquierda y en la segunda colina
-    for (const [x, th, R] of [[300, 40, 15], [348, 46, 16], [398, 38, 14], [446, 44, 16], [905, 36, 14], [1080, 42, 15]]) {
+    for (const [x, th, R] of [[296, 46, 17], [346, 52, 19], [396, 42, 16], [444, 50, 18], [905, 40, 16], [1084, 46, 17]]) {
       let bx = x; for (let q = -8; q <= 8; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
       const y = info.top[bx] + 2; const hub = V.turbineTower(pb, bx, y, th, { k: 0.12 });
       cityT.push({ x: hub.hx, y: hub.hy, R, k: 0.12, sp: 2.2 + (x % 5) * 0.35, ph: x * 0.37 });
     }
     // ciudad de ARIDIA sobre la meseta y torres del segundo distrito
     const py = info.top[CITY_X];
-    const dc = V.domeCity(pb, CITY_X, py + 6, { k: 0.06, s: 1 });
+    const dc = V.domeCity(pb, CITY_X, py + 8, { k: 0.04, s: 0.86 });
     for (const [x, hh, ww] of [[985, 30, 5], [996, 44, 6], [1010, 36, 5], [1024, 50, 6], [1038, 28, 5]]) V.tower(pb, x, info.top[x] + 3, ww, hh, x, { k: 0.12 });
     cityGlints.push([CITY_X - 12, dc.top + 24], [CITY_X + 8, dc.top + 30]);
-    // cascadas desde la base de la ciudad, en 3 escalones con espuma
-    for (const fx of dc.falls) {
-      let y0 = dc.base, x0 = fx;
-      const tiers = [0.38, 0.36, 0.26], total = h - 6 - y0;
+    // cascadas desde la base de la ciudad, en escalones con repisa de roca, poza y espuma
+    for (const F of dc.falls) {
+      let y0 = dc.base, x0 = F.x, wf = F.w;
+      const tiers = F.w > 8 ? [0.3, 0.27, 0.24, 0.19] : [0.45, 0.55], total = h - 4 - y0;
       for (let ti = 0; ti < tiers.length; ti++) {
-        const y1 = Math.round(y0 + total * tiers[ti]); const wf = ti === 0 ? 5 : 4;
-        V.fall(pb, x0, y0, y1, wf, { k: 0.04 });
+        const y1 = Math.round(y0 + total * tiers[ti]);
+        V.fall(pb, x0, y0, y1, wf, { k: 0.02 });
         cityFalls.push({ x: x0, y0, y1, w: wf });
-        // repisa de roca bajo la espuma
-        for (let xx = x0 - 3; xx < x0 + wf + 3; xx++) { V.put(pb, xx, y1 + 1, U(V.hzc('#8a5a48', k))); V.put(pb, xx, y1, U(V.hzc('#e0a070', k))); }
-        y0 = y1 + 2; x0 += (ti % 2 ? -1 : 1);
+        // repisa de roca (labio iluminado) y poza turquesa bajo la espuma
+        const RK = V.P32(V.RAMPS.hill);
+        for (let xx = x0 - 4; xx < x0 + wf + 4; xx++) { V.put(pb, xx, y1 + 2, RK[2]); V.put(pb, xx, y1 + 1, RK[7]); V.put(pb, xx, y1, U(xx < x0 || xx >= x0 + wf ? '#3adcf1' : '#e8f8fc')); }
+        y0 = y1 + 2; x0 += (ti % 2 ? -2 : 2); if (wf > 8) wf += 2;
       }
     }
     // árboles en los hombros de la meseta
@@ -141,36 +142,32 @@ BIOMES.coast = function (L) {
   });
   /* ---------------- terrazas agrícolas (0,36) ---------------- */
   const terrFalls = [], terrFauna = [];
-  const TERR_YS = 64, TERR_LY = planeY(0.36, TERR_YS);
-  B.vplane(0.36, TERR_YS, 134, (pb, w, h) => {
+  const TERR_YS = 36, TERR_LY = planeY(0.36, TERR_YS);
+  B.vplane(0.36, TERR_YS, 162, (pb, w, h) => {
     const k = 0.05, r = RNG(61);
-    // lomas bajas cálidas sobre las que se asientan las terrazas
+    // cerros cálidos en los que se tallan las terrazas (siguen su contorno)
     const info = V.relief(pb, {
-      yBase: h - 1, nv: 30, dvy: 0.3, seed: 63, hMax: 50,
-      H: V.massif([{ x: 560, v: 10, h: 30, w: 90, d: 16 }, { x: 930, v: 12, h: 34, w: 100, d: 18 }, { x: 1180, v: 10, h: 28, w: 90, d: 16 }, { x: 1330, v: 12, h: 36, w: 80, d: 16 }], { seed: 63, rough: 0.45, scale: 0.05, apron: 4 }),
-      ramp: V.RAMPS.low, contrast: 1.8, haze: { col: '#c0a8c0', k0: 0.06, k: 0.08 }, rim: '#fde0a8', tex: 0.06,
-      veg: { ramp: V.RAMPS.vegLow, density: 0.08, maxSlope: 1, minY: 60 },
+      yBase: h - 1, nv: 34, dvy: 0.3, seed: 63, hMax: 112,
+      H: V.massif([
+        { x: 730, v: 16, h: 112, w: 190, d: 24, k: 0.8 }, { x: 600, v: 10, h: 62, w: 100, d: 16 }, { x: 905, v: 10, h: 56, w: 90, d: 16 },
+        { x: 1190, v: 14, h: 96, w: 160, d: 22, k: 0.85 }, { x: 1320, v: 10, h: 54, w: 80, d: 16 }, { x: 1010, v: 8, h: 26, w: 60, d: 14 }, { x: 470, v: 8, h: 28, w: 70, d: 14 },
+      ], { seed: 63, rough: 0.42, scale: 0.05, apron: 4 }),
+      ramp: V.RAMPS.low, contrast: 1.8, haze: { col: '#c0a8c0', k0: 0.04, k: 0.06 }, rim: '#fde0a8', tex: 0.06,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.12, maxSlope: 1.2, minY: 40, size: 3 },
     });
-    const TA = V.terraces(pb, {
-      x0: 600, x1: 900, yBase: h - 3, steps: 7, wallH: [6, 9], topD: [4, 6], shrink: [8, 16], k, seed: 61,
-      kinds: ['rows', 'vine', 'rows', 'orchard', 'rows', 'vine', 'rows'],
-      falls: [{ x: 708, from: 6, w: 4 }, { x: 792, from: 4, w: 3 }],
-    });
-    const TB = V.terraces(pb, {
-      x0: 1060, x1: 1300, yBase: h - 3, steps: 5, wallH: [6, 9], topD: [4, 6], shrink: [10, 16], k, seed: 67, leftK: 0.6,
-      kinds: ['rows', 'orchard', 'rows', 'vine', 'rows'], falls: [{ x: 1150, from: 4, w: 3 }],
-    });
+    const TA = V.carveTerraces(pb, info, { x0: 560, x1: 920, yTop: 58, yBot: h - 16, stepH: [10, 13], k, seed: 61, kinds: ['rows', 'vine', 'flowers', 'rows', 'orchard', 'rows', 'vine'], falls: [{ x: 704, w: 6, from: 0 }, { x: 788, w: 3, from: 2 }] });
+    const TB = V.carveTerraces(pb, info, { x0: 1060, x1: 1340, yTop: 76, yBot: h - 16, stepH: [10, 12], k, seed: 67, kinds: ['rows', 'orchard', 'rows', 'vine', 'flowers'], falls: [{ x: 1166, w: 4, from: 0 }] });
     terrFalls.push(...TA.falls, ...TB.falls);
-    // invernadero, casas de labor, palmeras y huertos
-    const topA = TA.steps[TA.steps.length - 1];
-    V.greenhouse(pb, 930, h - 18, 30, 12, { k });
-    V.greenhouse(pb, 1320, h - 14, 24, 10, { k });
-    for (const [x, y, ww, hh, s] of [[968, h - 10, 9, 6, 1], [520, h - 12, 8, 5, 2], [1000, h - 16, 7, 5, 3], [1240, TB.steps[TB.steps.length - 1].topY - 1, 8, 5, 4]]) V.house(pb, x, y, ww, hh, 6100 + s, { k });
-    V.scatterVeg(pb, (x) => info.top[x] < h - 1 ? info.top[x] + 1 : null, 380, w, 6200, { k, gap: 7, mix: { tree: 4, shrub: 3, palm: 2, flower: 1 } });
-    for (let x = 610; x < 900; x += r.int(10, 18)) V.palm(pb, x, h - 2, r.int(16, 24), r.range(-4, 4), 6300 + x, { k });
-    // dron agrícola y etiqueta
-    terrFauna.push({ kind: 'drone', x: 760, y: topA.topY - 22, r: 30 }, { kind: 'drone', x: 1180, y: TB.steps[TB.steps.length - 1].topY - 18, r: 24 });
-    labels.push({ x: (topA.x0 + topA.x1) / 2 + 30, y: TERR_LY + topA.topY - 14, f: 0.36, title: 'AGRICULTURA', sub: 'Sostenible', kind: 'green', ax: (topA.x0 + topA.x1) / 2 + 30, ay: TERR_LY + topA.topY - 2 });
+    // invernaderos, casas de labor, palmeras y huertos
+    V.greenhouse(pb, 952, h - 16, 30, 12, { k });
+    V.greenhouse(pb, 1350, h - 12, 24, 10, { k });
+    for (const [x, ww, hh, s] of [[990, 9, 6, 1], [500, 8, 5, 2], [1024, 7, 5, 3], [640, 7, 5, 4], [846, 8, 5, 5]]) { const y = info.onSurf(x, 10); if (y != null) V.house(pb, x, y + 1, ww, hh, 6100 + s, { k, roof: s % 2 ? 'terrace' : 'solar' }); }
+    V.scatterVeg(pb, (x) => info.top[x] < h - 1 ? info.top[x] + 1 : null, 380, w, 6200, { k, gap: 6, mix: { tree: 5, shrub: 3, palm: 2, flower: 1 }, ramp: V.RAMPS.vegLow });
+    for (let x = 440; x < w; x += r.int(14, 30)) if (info.top[x] < h - 6) V.palm(pb, x, h - 2, r.int(18, 28), r.range(-4, 4), 6300 + x, { k });
+    // drones agrícolas y etiqueta
+    const tA = info.top[730];
+    terrFauna.push({ kind: 'drone', x: 790, y: tA - 16, r: 30 }, { kind: 'drone', x: 1200, y: info.top[1190] - 14, r: 24 });
+    labels.push({ x: 800, y: TERR_LY + tA - 30, f: 0.36, title: 'AGRICULTURA', sub: 'Sostenible', kind: 'green', ax: 770, ay: TERR_LY + tA + 12 });
   }, {
     tag: 'terr', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
@@ -179,21 +176,21 @@ BIOMES.coast = function (L) {
     },
   });
   /* ---------------- costa: FV, H₂, planta SYNARA (0,5) ---------------- */
-  const COAST_YS = 102, COAST_LY = planeY(0.5, COAST_YS);
+  const COAST_YS = 96, COAST_LY = planeY(0.5, COAST_YS);
   const coastFx = { pv: [], glows: [], perm: null, outfall: null, fauna: [] };
-  B.vplane(0.5, COAST_YS, 106, (pb, w, h) => {
+  B.vplane(0.5, COAST_YS, 112, (pb, w, h) => {
     const k = 0.03, r = RNG(81);
     const yB = h - 16; // línea de costa (pantalla ≈ 192)
     const peaks = [
-      { x: 360, v: 14, h: 34, w: 70, d: 18 }, { x: 452, v: 12, h: 26, w: 60, d: 16 }, { x: 860, v: 14, h: 30, w: 70, d: 18 },
-      { x: 950, v: 16, h: 44, w: 90, d: 20 }, { x: 1060, v: 12, h: 34, w: 80, d: 18 }, { x: 1180, v: 10, h: 22, w: 70, d: 16 },
-      { x: 1330, v: 14, h: 30, w: 90, d: 18 }, { x: 1480, v: 16, h: 46, w: 100, d: 20 }, { x: 1600, v: 12, h: 30, w: 70, d: 16 },
+      { x: 370, v: 14, h: 46, w: 80, d: 18 }, { x: 460, v: 12, h: 38, w: 70, d: 16 }, { x: 850, v: 14, h: 44, w: 70, d: 18 },
+      { x: 950, v: 16, h: 58, w: 100, d: 20, k: 0.9 }, { x: 1060, v: 12, h: 46, w: 80, d: 18 }, { x: 1180, v: 10, h: 30, w: 70, d: 16 },
+      { x: 1330, v: 14, h: 40, w: 100, d: 18 }, { x: 1480, v: 16, h: 62, w: 100, d: 20 }, { x: 1600, v: 12, h: 44, w: 70, d: 16 },
     ];
     const info = V.relief(pb, {
-      yBase: yB, nv: 30, dvy: 0.32, seed: 83, hMax: 46,
-      H: V.massif(peaks, { seed: 83, rough: 0.45, scale: 0.055, apron: 3, plateaus: [{ x: 420, w: 50, h: 14 }, { x: 940, w: 46, h: 22 }, { x: 1300, w: 60, h: 14 }] }),
-      ramp: V.RAMPS.low, contrast: 1.7, haze: { col: '#c8b0c0', k0: 0.0, k: 0.06 }, rim: '#fde6b0', tex: 0.07,
-      veg: { ramp: V.RAMPS.vegLow, density: 0.07, maxSlope: 1, minY: 30 },
+      yBase: yB, nv: 30, dvy: 0.32, seed: 83, hMax: 60,
+      H: V.massif(peaks, { seed: 83, rough: 0.45, scale: 0.055, apron: 3, plateaus: [{ x: 422, w: 52, h: 22 }, { x: 944, w: 50, h: 32 }, { x: 1306, w: 64, h: 22 }] }),
+      ramp: V.RAMPS.low, contrast: 1.7, haze: { col: '#c8b0c0', k0: 0.0, k: 0.05 }, rim: '#fde6b0', tex: 0.07,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.1, maxSlope: 1.1, minY: 20, size: 3 },
     });
     // playa y espuma donde la tierra toca el mar
     const SAND = V.P32(['#c58440', '#edaf5f', '#fccf85']), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
@@ -215,17 +212,18 @@ BIOMES.coast = function (L) {
     // planta de hidrógeno verde en la meseta central
     const h2 = V.h2Plant(pb, 896, info.yAt(940, 8) - 1, { k, s: 1 });
     coastFx.glows.push(...h2.glows);
-    labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Electrólisis', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
+    labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Hidrógeno', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
     // cadena desaladora SYNARA en su plataforma sobre la orilla
-    const dc = V.desalChain(pb, 560, yB + 4, { k, s: 1, climb: 0, permTo: [[862, 74], [880, 74], [880, 60]] });
-    // depósito de agua potable en la ladera (fin de la tubería de permeado)
-    V.cylV(pb, 880, 60, 6, 10, V.ARCH.WHITE, { k, dome: 0.5, bands: [[3, 2, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
+    // depósito de agua potable en la ladera (fin de la tubería de permeado, sube hacia el pueblo)
+    const tkX = 846, tkY = (info.onSurf(tkX, 10) ?? 60) + 1;
+    const dc = V.desalChain(pb, 560, yB + 4, { k, s: 1, climb: 0, permTo: [[tkX - 8, yB - 20], [tkX - 8, tkY - 4], [tkX - 6, tkY - 4]] });
+    V.cylV(pb, tkX, tkY, 6, 11, V.ARCH.WHITE, { k, dome: 0.5, bands: [[3, 3, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
     coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
     const A = dc.anchors;
     labels.push(
-      { x: A.membranas.x, y: COAST_LY + A.membranas.y - 4, f: 0.5, title: 'MEMBRANAS', kind: 'water', ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 6 },
-      { x: A.potable.x + 6, y: COAST_LY + A.potable.y - 8, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: A.potable.x + 4, ay: COAST_LY + A.potable.y + 6 },
-      { x: A.salmuera.x + 30, y: COAST_LY + A.salmuera.y + 2, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: A.salmuera.x + 2, ay: COAST_LY + A.salmuera.y + 2 },
+      { x: A.membranas.x - 10, y: COAST_LY + A.membranas.y - 4, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
+      { x: A.potable.x + 26, y: COAST_LY + A.potable.y - 16, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
+      { x: A.salmuera.x + 42, y: COAST_LY + A.salmuera.y - 8, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
     );
     // rocas en la orilla con espuma
     for (let x = 300; x < w; x += r.int(30, 90)) {
@@ -275,6 +273,8 @@ BIOMES.coast = function (L) {
       V.drawRotor(g, tb.rot, x, y, t * tb.sp + tb.ph);
     }
   }
+  // las etiquetas lejanas se ocultan si chocan con las del plano jugable (sc.def.labels)
+  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc);
   BIOME_LABELS.coast = labels;
   B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
   return B;
