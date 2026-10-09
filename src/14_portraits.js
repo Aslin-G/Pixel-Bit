@@ -422,7 +422,7 @@ function phFaceShade(A, def) {
   const F = A.face, sh = def.shadeK ?? 1;
   return (x, y) => {
     let i = 4;
-    if (F(x - 5.5 * sh, y + 2.2 * sh) > -0.3) i = 3;
+    if (F(x - 4.2 * sh, y + 1.8 * sh) > -0.3) i = 3;
     if (F(x - 2, y + 0.8) > 0) i = 2;
     if (i === 4) {
       const fx = (x - (A.HX + 7)) / 11, fy = (y - (A.HY - 4)) / 6;
@@ -508,7 +508,7 @@ PDEFS.amaya = () => {
     tie: PK.mat(C.tieAm, '#2a1404', C.tieAm[1]),
   };
   return {
-    M, iris: { R: '#0e0201', D: '#1e0704', P: '#080100', M: '#45180a', L: '#7a3a1a', l: '#b06a36' },
+    M, iris: { R: '#0c0201', D: '#1a0603', P: '#060100', M: '#33120a', L: '#5e2c16', l: '#9a5a32' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
     lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff7a6a', blushAlways: 0.5, rimColor: '#ffc89a', rimK: 0.16,
     build(P, A) {
       // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
@@ -531,10 +531,10 @@ PDEFS.amaya = () => {
         [[32, 22], [31, 36], [30, 48], [26, 58], 5],
       ], { z: 9, group: 'pony', base: 3, tex: ptx, cast: false, taper: 1.6, bev: 0.8, hiT: 0.55 });
       // chaqueta roja de manga corta abierta sobre top blanco
-      P.poly([[-3, 98], [1, 91], [11, 85], [27, 81], [44, 78], [54, 78], [72, 78], [84, 80], [93, 85], [99, 91], [99, 98]], { mat: M.jacket, z: 10, group: 'jacket', base: 4, bevel: 7, tex: (x, y, i) => (Math.abs(x - 22 - (y - 84) * 0.15) < 0.6 && y > 85 ? Math.max(1, i - 1) : i) });
+      P.poly([[-3, 98], [1, 91], [11, 85], [27, 81], [44, 78], [54, 78], [72, 78], [84, 80], [93, 85], [99, 91], [99, 98]], { mat: M.jacket, z: 10, group: 'jacket', base: 3, bevel: 7, tex: (x, y, i) => (Math.abs(x - 22 - (y - 84) * 0.15) < 0.6 && y > 85 ? Math.max(1, i - 1) : i) });
       P.poly([[49, 98], [51, 87], [56, 81], [67, 81], [72, 87], [73, 98]], { mat: M.top, z: 11, group: 'top', base: 4, bevel: 3 });
-      P.poly([[41, 98], [44, 87], [51, 80], [56, 81], [51, 89], [48, 98]], { mat: M.jacket, z: 12, group: 'lapelL', base: 4, bevel: 2 });
-      P.poly([[74, 98], [72, 89], [67, 81], [72, 80], [78, 87], [80, 98]], { mat: M.jacket, z: 12, group: 'lapelR', base: 5, bevel: 2 });
+      P.poly([[41, 98], [44, 87], [51, 80], [56, 81], [51, 89], [48, 98]], { mat: M.jacket, z: 12, group: 'lapelL', base: 3, bevel: 2 });
+      P.poly([[74, 98], [72, 89], [67, 81], [72, 80], [78, 87], [80, 98]], { mat: M.jacket, z: 12, group: 'lapelR', base: 4, bevel: 2 });
       // cuello de la chaqueta levantado (detrás del cuello)
       P.poly([[43, 84], [46, 72], [53, 70], [55, 80]], { mat: M.jacket, z: 20, group: 'collarL', base: 3, bevel: 2 });
       P.poly([[68, 80], [70, 70], [77, 72], [79, 83]], { mat: M.jacket, z: 20, group: 'collarR', base: 5, bevel: 2 });
@@ -1307,7 +1307,9 @@ PDEFS.kiru = () => {
       }
     });
     // halo 1 px
-    for (const k of cells.keys()) { const r = Math.floor(k / 64), x = (k % 64) - 32; for (const [ax, ay] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { const kk = (r + ay) * 64 + (x + ax + 32); if (!cells.has(kk)) pb.set(cx + x + ax, cy - Math.floor(h / 2) + r + ay, PAL.g); } }
+    // halo de 2 anillos (sin tramado): navy claro exterior + azul interior
+    const ring = (dist, col) => { for (const k of cells.keys()) { const r = Math.floor(k / 64), x = (k % 64) - 32; for (let ay = -dist; ay <= dist; ay++) for (let ax = -dist; ax <= dist; ax++) { if (Math.abs(ax) + Math.abs(ay) !== dist && !(dist === 2 && Math.abs(ax) === 1 && Math.abs(ay) === 1)) continue; const kk = (r + ay) * 64 + (x + ax + 32); if (!cells.has(kk)) pb.set(cx + x + ax, cy - Math.floor(h / 2) + r + ay, col); } } };
+    ring(2, PAL.G); ring(1, PAL.g);
     for (const [k, t] of cells) { const r = Math.floor(k / 64), x = (k % 64) - 32; pb.set(cx + x, cy - Math.floor(h / 2) + r, PAL[t]); }
   }
   function bar(pb, cx, cy, w) {
