@@ -46,7 +46,7 @@ BIOMES.plaza = function (L) {
       : { n: 6, len: 230, col: '#fff6dc', a: 0.07, spread: 1.6, ang: Math.PI / 2 + 0.15, w: 0.04, seed: 4, yMax: HZ });
     return pb.toCanvas();
   });
-  B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, EV ? 46 : 38, EV ? '#ffb070' : '#fff0c0', EV ? 0.22 : 0.16, T()), { tag: 'bloom' });
+  B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, EV ? 48 : 40, EV ? '#ffb070' : '#fff0c0', EV ? 0.24 : 0.2, T()), { tag: 'bloom' });
   /* ---------------- nubes altas ---------------- */
   B.cloudDeck({ kind: 'cirrus', n: 6, seed: 31, f: [0.01, 0.03], y: [6, 46], w: [70, 160], speed: [1, 2], pal: EV ? ['#c88aa8', '#e8a8a8', '#f8c8b0', '#fff0d0'] : null });
   B.cloudDeck({ n: 8, seed: 37, f: [0.03, 0.07], y: [-6, 50], w: [50, 124], bias: 0.6, speed: [2, 3.5], sunX: SUN.x, pal: CLOUD });
@@ -113,8 +113,7 @@ BIOMES.plaza = function (L) {
       veg: { ramp: V.RAMPS.vegLow, density: 0.12 * vegK, maxSlope: 1.1, minY: 0, size: 2 },
     });
     // tierra baja hasta el borde inferior (tapada casi siempre por la colina)
-    const LO = V.P32(V.hz(V.RAMPS.low, 0.12, HZC));
-    for (let x = 0; x < w; x++) for (let y = yB + 3; y < h; y++) V.put(pb, x, y, LO[5 + ((hash2(x >> 1, y >> 1, 3) < 0.3) ? 1 : 0) - (y > h - 20 ? 1 : 0)]);
+    V.fields(pb, 0, w, yB + 3, h, { k: 0.08, seed: 75, gold: EV ? 0.45 : 0.15, irrig: true });
     const SAND = V.P32(V.hz(['#c58440', '#edaf5f', '#fccf85'], k)), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
     for (let x = 0; x < w; x++) { V.put(pb, x, yB, SAND[2]); V.put(pb, x, yB + 1, SAND[1]); V.put(pb, x, yB + 2, SAND[0]); if (info.top[x] >= yB) V.put(pb, x, yB - 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); }
     // desaladora SYNARA en miniatura sobre la orilla (mismo orden de proceso que el Nivel 1)
@@ -157,7 +156,7 @@ BIOMES.plaza = function (L) {
       veg: { ramp: V.RAMPS.vegHill, density: 0.13 * vegK, maxSlope: 1.1, minY: 96, size: 3 },
     });
     // terrazas de cultivo talladas en los flancos (cosecha dorada en el epílogo)
-    const TA = V.carveTerraces(pb, info, { x0: 560, x1: 700, yTop: 150, yBot: h - 30, stepH: [8, 11], wallK: 0.42, k, seed: 85, kinds: EV ? ['rows', 'orchard', 'flowers', 'rows', 'vine'] : ['rows', 'vine', 'rows', 'orchard'], crop: EV ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 620, w: 3, from: 0 }] });
+    const TA = V.carveTerraces(pb, info, { x0: 560, x1: 700, yTop: 118, yBot: 172, stepH: [8, 11], wallK: 0.42, k, seed: 85, kinds: EV ? ['rows', 'orchard', 'flowers', 'rows', 'vine'] : ['rows', 'vine', 'rows', 'orchard'], crop: EV ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 620, w: 3, from: 0 }] });
     const TB = V.carveTerraces(pb, info, { x0: 940, x1: 1080, yTop: 168, yBot: h - 24, stepH: [8, 10], wallK: 0.42, k, seed: 87, kinds: ['rows', 'orchard', 'rows', 'flowers'], falls: [] });
     hillFalls.push(...TA.falls, ...TB.falls);
     V.scatterVeg(pb, (x) => (Math.abs(x - CITY_X) < 60 || Math.abs(x - TOWER_X) < 22) ? null : info.top[x] + 1, 100, w, 8101, { k: k + 0.02, gap: 7, mix: { tree: 4, shrub: 3, palm: 1 }, ramp: V.RAMPS.vegHill });
@@ -195,7 +194,7 @@ BIOMES.plaza = function (L) {
     }
     for (let i = 0; i < 20; i++) { const x = CITY_X + r.pick([-1, 1]) * r.int(50, 84); const y = info.onSurf(x, r.int(4, 18)); if (y != null) V.tree(pb, x, y + 1, r.int(3, 5), 8300 + i, { k }); }
     hillFauna.push({ kind: 'eagle', x: 360, y: 40, r: 90 }, { kind: 'drone', x: CITY_X + 70, y: info.top[CITY_X] - 40, r: 30 }, { kind: 'drone', x: 960, y: 120, r: 26 });
-    if (!EV) labels.push({ x: 640, y: 140, f: 0.26, title: 'AGRICULTURA', sub: 'Terrazas con riego', kind: 'green', ax: 630, ay: 162, camX: [700, 1700] });
+    if (!EV) labels.push({ x: 646, y: 112, f: 0.26, title: 'AGRICULTURA', sub: 'Terrazas con riego', kind: 'green', ax: 632, ay: 134, camX: [700, 1700] });
   }, {
     tag: 'hill', dyn: (g, cam, Ly) => {
       drawTurbines(g, cam, Ly, hillT);

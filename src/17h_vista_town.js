@@ -290,6 +290,37 @@
     return out;
   };
   /**
+   * Mosaico de huertas en perspectiva (llano lejano): parcelas de cultivo en
+   * hileras, barbecho, setos y caminos; las parcelas crecen hacia el espectador.
+   * o: {k, seed, gold (0..1 cosecha dorada), irrig (canales turquesa)}
+   */
+  V.fields = function (pb, x0, x1, y0, y1, o = {}) {
+    const r = RNG(o.seed || 3), k = o.k || 0;
+    const CROPS = [['#2e5426', '#3f6e2e', '#5a8a34', '#7aa83c'], ['#46601c', '#62801e', '#84a228', '#a8c034'], ['#5a431c', '#86502d', '#a8683a', '#cb824a'], ['#8a6a1c', '#b08a24', '#d4ac34', '#ecc84a'], ['#3a5818', '#56761c', '#78962a', '#9cb434']];
+    const HED = ramp(['#16260e', '#243c12', '#3a5818'], k), PATH = ramp(['#b4946e', '#ceb08a', '#e2caa4'], k), CH = ramp(['#0a8ab0', '#11bedd', '#3adcf1'], k);
+    let y = y0;
+    while (y < y1) {
+      const t = (y - y0) / Math.max(1, y1 - y0), bh = Math.max(2, Math.round(2 + t * 7));
+      for (let x = x0 - r.int(0, 30); x < x1;) {
+        const bw = r.int(18, 60) + Math.round(t * 30);
+        let ci = r.int(0, CROPS.length - 1); if (o.gold && r.chance(o.gold)) ci = 3;
+        const C = ramp(CROPS[ci], k);
+        for (let yy = y; yy < Math.min(y1, y + bh); yy++) for (let xx = Math.max(x0, x); xx < Math.min(x1, x + bw); xx++) {
+          const row = ((xx + (yy - y) * 2) % 3) === 0;
+          V.put(pb, xx, yy, C[yy === y ? 3 : row ? 0 : 1 + (hash2(xx >> 1, yy, 5) < 0.4 ? 1 : 0)]);
+        }
+        // seto o camino en el borde derecho de la parcela
+        const edge = r.chance(0.5) ? HED : PATH;
+        for (let yy = y; yy < Math.min(y1, y + bh); yy++) V.put(pb, x + bw, yy, edge[1]);
+        x += bw + 1;
+      }
+      // linde inferior: seto con copas, a veces canal de riego
+      const irr = o.irrig && r.chance(0.35);
+      for (let xx = x0; xx < x1; xx++) { V.put(pb, xx, y + bh, irr ? CH[1 + ((xx >> 2) & 1)] : HED[hash2(xx >> 1, y, 7) < 0.5 ? 0 : 1]); if (!irr && hash2(xx, y, 9) < 0.12) V.put(pb, xx, y + bh - 1, HED[2]); }
+      y += bh + 1;
+    }
+  };
+  /**
    * Edificio cívico: 'arcade' (mercado con soportales en arco y teja), 'church'
    * (nave con campanario y cúpula azul), 'school' (pabellón con cubierta FV).
    */
