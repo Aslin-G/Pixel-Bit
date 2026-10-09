@@ -193,7 +193,7 @@ const WorldLabels = (() => {
         if (alpha <= 0.05) continue;
       }
       const R = rectOf(L, cam, sc); if (!R) continue;
-      if (R.x + R.w < 0 || R.x > W) continue;
+      if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
       const far = (L.f ?? 1) !== 1;
       let dy = 0, ok = !placed.some(p => hit(R, p));

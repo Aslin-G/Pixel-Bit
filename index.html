@@ -5486,8 +5486,26 @@ function renderLimen(anim, t, opts) {
   const P = TAU * t;
   const cx = 36, cy = 46 + Math.round(Math.sin(P) * 1.5);
   const mood = opts.expr || 'calm';
-  const L = RAMP.limen;
-  const facet = (pts, base, z, group) => R.poly(pts, { ramp: L, base, z, group, flat: true, lineCol: '#0e2b4a' });
+  // cristal de 8 tonos (navy → cian → blanco) con matiz violeta en la sombra
+  const L = ['#120a34', '#0e2b4a', '#165a7a', '#1f8aa8', '#3cc0d6', '#7ee8f0', '#c4fbff', '#ffffff'];
+  let fseed = 0;
+  /** Faceta de cristal: degradado hacia la luz (arriba-izquierda), arista iluminada, veta de refracción
+      diagonal y reflejo violeta en la parte baja (STYLE LOCK §6: rampas con desplazamiento de tono) */
+  const facet = (pts, base, z, group) => {
+    let mx = 0, my = 0; pts.forEach(p => { mx += p[0]; my += p[1]; }); mx /= pts.length; my /= pts.length;
+    let ext = 1; pts.forEach(p => { ext = Math.max(ext, Math.hypot(p[0] - mx, p[1] - my)); });
+    const sd = (fseed++ * 3.7) % 9, streak = (fseed % 3) !== 0;
+    R.poly(pts, { ramp: L, base, z, group, bevel: 0.9, lineCol: '#165a7a',
+      texture: (x, y, idx, ramp, col, d) => {
+        const X = x / CH_SCALE, Y = y / CH_SCALE;
+        const g = ((mx - X) * 0.6 + (my - Y) * 0.8) / ext;
+        let k = base + Math.round(g * 1.4);
+        if (-d < 1.3 * CH_SCALE && g > 0.05) k += 1;                                   // arista iluminada
+        if (streak && Math.abs(((X + Y * 0.55 + sd) % 10) - 5) < 0.55) k += 2;          // veta de refracción
+        if (g < -0.55 && hash2(x >> 1, y >> 1, 41) < 0.35) return '#3a2a7a';           // reflejo violeta
+        return L[clamp(k, 1, 7)];
+      } });
+  };
   const off = (i) => Math.sin(P + i * 1.3) * 1.2;
   for (const side of [-1, 1]) {
     const ax = cx + side * 17, ay = cy - 2 + off(side + 2);
@@ -5535,6 +5553,22 @@ function renderLimen(anim, t, opts) {
     const B = pb.base || pb, gy = Math.round((cy - 20 + ((t * 7) % 1) * 50) * CH_SCALE);
     for (let x = 0; x < B.w - 1; x++) if (B.alpha(x, gy) && hash2(x, gy, Math.floor(t * 8)) < 0.4) B.set(x + 1, gy, '#b49cff');
   }, 100);
+  // halo emisivo del núcleo en anillos (sin tramado, sin contorno) y destellos de borde
+  R.glow(pb => {
+    const B = pb.base || pb, s = CH_SCALE, X0 = cx * s, Y0 = cy * s;
+    const cc = mood === 'alert' ? [255, 107, 107] : mood === 'warn' ? [255, 225, 77] : [86, 229, 255];
+    const pulse = 0.5 + 0.5 * Math.sin(P * 2);
+    for (let yy = Math.floor(Y0 - 13); yy <= Y0 + 13; yy++) for (let xx = Math.floor(X0 - 13); xx <= X0 + 13; xx++) {
+      const dd = Math.hypot(xx + 0.5 - X0, yy + 0.5 - Y0); if (dd < 7.2 || dd > 12.5) continue;
+      const ring = dd < 9 ? 0.55 : dd < 11 ? 0.3 : 0.14;
+      const a = Math.round(255 * ring * (0.75 + 0.25 * pulse));
+      const cur = B.data[yy * B.w + xx];
+      if (cur >>> 24 === 255) { // sobre el cristal: aclara hacia el color del núcleo
+        const r0 = cur & 255, g0 = (cur >>> 8) & 255, b0 = (cur >>> 16) & 255, k = ring * 0.7;
+        B.data[yy * B.w + xx] = ((255 << 24) | (Math.round(b0 + (cc[2] - b0) * k) << 16) | (Math.round(g0 + (cc[1] - g0) * k) << 8) | Math.round(r0 + (cc[0] - r0) * k)) >>> 0;
+      } else if (!(cur >>> 24)) B.data[yy * B.w + xx] = ((a << 24) | (cc[2] << 16) | (cc[1] << 8) | cc[0]) >>> 0;
+    }
+  });
   const pb = R.render({ env: opts.env, outlineColor: '#0b2238', outlineAll: '#0b2238', rim: 0.2 });
   pb.anchors = { head: { x: cx * CH_SCALE, y: hy * CH_SCALE }, core: { x: cx * CH_SCALE, y: cy * CH_SCALE } };
   return pb;
@@ -5565,7 +5599,11 @@ function renderTwin(anim, t, opts, mosaic) {
     const iso = Math.sin(x * 0.16 + y * 0.07) + Math.sin(y * 0.13 - x * 0.04 + P);
     if (Math.abs(iso) < 0.08) c = '#fff6ff';
     if ((x + y) % 11 === 0 && idx > 3) c = '#ffd84a';
-    if (idx <= 1) c = shadeM(c, -0.35);
+    // volumen: costados en sombra violeta, centro iluminado, pliegues verticales y líneas de barrido holográfico
+    const X = x / CH_SCALE, fold = Math.sin((X - cx) * 0.55 + Math.sin(y * 0.03) * 1.5);
+    if (idx <= 1) c = shadeM(c, -0.45); else if (idx === 2) c = shadeM(c, -0.25); else if (idx >= 5) c = shadeM(c, 0.12);
+    if (fold > 0.86 && y > hy * CH_SCALE + 30) c = shadeM(c, -0.3);
+    if ((Math.floor(y) + Math.floor(t * 24)) % 4 === 0) c = shadeM(c, 0.18);
     return c;
   };
   const gown = [[cx - 9, hy + 18], [cx + 9, hy + 18], [cx + 14, hy + 40], [cx + 30 + Math.sin(P) * 2, 128 + hov * 0.3], [cx - 30 - Math.sin(P) * 2, 128 + hov * 0.3], [cx - 14, hy + 40]];
@@ -5605,6 +5643,20 @@ function renderTwin(anim, t, opts, mosaic) {
       }
     }
   }, 100);
+  // el bajo del vestido se deshace en píxeles que suben (holograma), sin contorno
+  R.glow(pb => {
+    const B = pb.base || pb, s = CH_SCALE, yh = Math.round((128 + hov * 0.3) * s), fr = Math.floor(t * 8);
+    for (let y = yh - 20; y <= yh + 3; y++) for (let x = 0; x < B.w; x++) {
+      const i = y * B.w + x; if (y < 0 || y >= B.h || !(B.data[i] >>> 24)) continue;
+      if (hash2(x >> 1, y >> 1, fr) < (y - (yh - 20)) / 23 * 0.8) B.data[i] = 0;
+    }
+    const pal = mosaic ? MOSAIC_LAYERS : ['#ff8ad0', '#56e5ff', '#fff6ff', '#e050c8'];
+    for (let k = 0; k < 14; k++) {
+      const ph = (t * (1 + hash1(k, 6)) + k / 14) % 1;
+      const x = Math.round((cx - 28 + hash1(k, 5) * 56) * s), y = Math.round((130 - ph * 34) * s);
+      if (ph < 0.85) B.rect(x, y, ph < 0.4 ? 2 : 1, ph < 0.4 ? 2 : 1, pal[k % pal.length]);
+    }
+  });
   const oc = mosaic ? '#06100a' : '#1d0b3a';
   const pb = R.render({ env: opts.env, outlineColor: oc, outlineAll: oc, rim: 0.15 });
   pb.anchors = { head: { x: cx * CH_SCALE, y: hy * CH_SCALE } };
@@ -5637,7 +5689,22 @@ function renderBeta(anim, t, opts) {
     for (let y = by + 2; y < by + 9; y += 2) pb.hline(cx - 7, cx + 7, y, steel[2]);
     pb.set(cx, by - 14, anim === 'talk' && (Math.floor(t * 6) % 2) ? '#ff4e5d' : '#ffe14d');
     pb.set(cx - 7, by - 9, '#ffffff');
+    // reflejo de la pantalla, franja de aviso amarilla/negra, tornillos, aletas de disipación y LED de estado
+    pb.line(cx - 5, by - 7, cx - 3, by - 7, '#2a3a6a'); pb.set(cx + 4, by - 7, '#2a3a6a');
+    for (let k = 0; k < 14; k++) pb.set(cx - 7 + k, by + 10, ((k >> 1) % 2) ? '#1a1418' : '#ffd84a');
+    for (const [bx, by2] of [[-8, -10], [8, -10], [-8, 9], [8, 9]]) { pb.set(cx + bx, by + by2, '#f4fbff'); pb.set(cx + bx, by + by2 + 1, steel[1]); }
+    for (let y = by - 4; y < by + 8; y += 2) { pb.set(cx + 9, y, steel[1]); pb.set(cx - 9, y, steel[6]); }
+    pb.set(cx + 6, by + 3, Math.floor(t * 4) % 2 ? '#56e5ff' : '#1491aa');
+    // borne + (terminal de batería) en la tapa
+    pb.set(cx + 4, by - 13, '#ff4e5d'); pb.set(cx + 3, by - 13, '#ff4e5d'); pb.set(cx + 5, by - 13, '#ff4e5d'); pb.set(cx + 4, by - 14, '#ff4e5d');
+    // ruedas de la oruga
+    for (let k = -6; k <= 6; k += 4) { pb.set(cx + k, 41, '#5a5961'); pb.set(cx + k + ((Math.floor(t * 8)) % 2), 42, '#8f8f95'); }
   }, 100);
+  // halo del panel de SOC (emisivo, sin contorno)
+  R.glow(pb => {
+    const col = soc < 0.2 ? '#ff4e5d' : soc < 0.4 ? '#ffb83e' : '#86e36f', n = Math.round(soc * 10);
+    for (let i = 0; i < n; i++) pb.set(cx - 5 + i, by - 1, mixHex(col, '#0a1030', 0.55));
+  });
   const pb = R.render({ env: opts.env, outlineColor: '#0a0c16' });
   pb.anchors = { head: { x: cx * CH_SCALE, y: (by - 8) * CH_SCALE } };
   return pb;
@@ -11489,7 +11556,7 @@ const WorldLabels = (() => {
         if (alpha <= 0.05) continue;
       }
       const R = rectOf(L, cam, sc); if (!R) continue;
-      if (R.x + R.w < 0 || R.x > W) continue;
+      if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
       const far = (L.f ?? 1) !== 1;
       let dy = 0, ok = !placed.some(p => hit(R, p));
