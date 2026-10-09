@@ -1,511 +1,722 @@
 /* =====================================================================
-   14_portraits.js — Retratos pixel 128x128 para diálogos.
-   Mismo motor SDF del rig con sombra proyectada del pelo, ojos con iris,
-   pupila y brillos, cejas, nariz, labios y expresiones.
+   14_portraits.js — Retratos de diálogo del rediseño (STYLE LOCK §10,
+   02_personajes §5, 01_referencia §4.3).
+
+   · Arte en un espacio de 96 unidades (S = tamaño/96). Portraits.get →
+     lienzo 96×96 transparente y sin marco (3/4 mirando a la derecha,
+     luz clave arriba-delante: la cara iluminada, sombra en la nuca).
+   · Portraits.bust(id, expr) → lienzo 48×46 del HUD re-rasterizado a
+     S = 0,5 con plantillas de ojo/boca propias (no es una reducción).
+   · Motor propio PK: partes SDF en coordenadas del mundo 96, sombreado
+     por bandas o por función, sombras proyectadas (flequillo → frente,
+     mentón → cuello), líneas internas por material, luz de borde,
+     contorno por material (V ≤ 0,15) y limpieza. Sin tramado.
+   · La base de cada personaje (cuerpo, pelo, ropa) se pinta una vez por
+     escala/variante; las expresiones (ojos, cejas, boca, rubor,
+     lágrimas) se sellan sobre una copia → ~1 ms por expresión.
    ===================================================================== */
 
+/* ---------- Motor de pintura de retratos ---------- */
+const PK = {
+  L: (() => { const l = [0.5, -0.8, 0.45]; const n = Math.hypot(...l); return l.map(v => v / n); })(),
+  /** Material de retrato: rampa (oscuro → claro), contorno exterior y línea interior */
+  mat(ramp, outline, line) {
+    const m = { ramp, outline: outline || outlineOf(ramp[0], 0.14), line: line || ramp[1] };
+    m.rampU = ramp.map(c => U(c)); m.outlineU = U(m.outline); m.lineU = U(m.line);
+    return m;
+  },
+};
+/** Lienzo de retrato: w×h píxeles, escala S, origen del mundo (ox, oy) */
+class PPaint {
+  constructor(w, h, S = 1, ox = 0, oy = 0) { this.w = w; this.h = h; this.S = S; this.ox = ox; this.oy = oy; this.parts = []; this.stamps = []; this.posts = []; this.zc = 0; }
+  /** px → mundo y mundo → px */
+  wx(px) { return (px + 0.5) / this.S + this.ox; }
+  wy(py) { return (py + 0.5) / this.S + this.oy; }
+  X(x) { return Math.floor((x - this.ox) * this.S); }
+  Y(y) { return Math.floor((y - this.oy) * this.S); }
+  /**
+   * o: mat, z, group, base, bevel, shiny, hiT, dark, flat, shade(x,y,d,P)→idx, tex(x,y,idx,P)→idx|hex,
+   * cast {on:[grupos], dx, dy, k}, line (false = sin línea interior), lineU, rim (bool), out (false = sin contorno)
+   */
+  add(sdf, bbox, o) {
+    const p = Object.assign({ sdf, bbox, z: this.zc++, base: 3, bevel: 3, group: 'g' + this.parts.length, dark: 0, hiT: 0.7, rim: true }, o);
+    if (Array.isArray(p.mat)) p.mat = PK.mat(p.mat);
+    this.parts.push(p); return p;
+  }
+  ellipse(cx, cy, rx, ry, o, rot = 0) { const m = Math.max(rx, ry) + 1; return this.add(SDF.ellipse(cx, cy, rx, ry, rot), [cx - m, cy - m, cx + m, cy + m], Object.assign({ bevel: Math.min(rx, ry) * 0.55 }, o)); }
+  circle(cx, cy, r, o) { return this.add(SDF.circle(cx, cy, r), [cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1], Object.assign({ bevel: r * 0.55 }, o)); }
+  poly(pts, o) { return this.add(SDF.poly(pts), polyBBox(pts), o); }
+  capsule(ax, ay, bx, by, ra, rb, o) { const m = Math.max(ra, rb) + 1; return this.add(SDF.capsule(ax, ay, bx, by, ra, rb), [Math.min(ax, bx) - m, Math.min(ay, by) - m, Math.max(ax, bx) + m, Math.max(ay, by) + m], Object.assign({ bevel: Math.max(ra, rb) * 0.55 }, o)); }
+  box(cx, cy, hw, hh, r, o, rot = 0) { const m = Math.hypot(hw, hh) + 1; return this.add(SDF.box(cx, cy, hw, hh, r, rot), [cx - m, cy - m, cx + m, cy + m], o); }
+  /** Mechón afilado: pts [[x,y]…], radio r0 → r1 (taper = exponente) */
+  strand(pts, r0, r1, o = {}) {
+    let tot = 0; const acc = [0];
+    for (let i = 1; i < pts.length; i++) { tot += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); acc.push(tot); }
+    const radii = acc.map(a => lerp(r0, r1, tot ? Math.pow(a / tot, o.taper || 1) : 0));
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    pts.forEach(([x, y], i) => { const r = radii[i] + 1; x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); });
+    return this.add(SDF.strand(pts, radii), [x0, y0, x1, y1], Object.assign({ bevel: Math.max(0.9, r0 * 0.6), shiny: true }, o));
+  }
+  custom(sdf, bbox, o) { return this.add(sdf, bbox, o); }
+  /** Sello antes del contorno: fn(pb, ctx) */
+  stamp(fn, z = 0) { this.stamps.push({ fn, z }); }
+  /** Sello después del contorno (brillos emisivos) */
+  post(fn, z = 0) { this.posts.push({ fn, z }); }
+
+  render(opt = {}) {
+    const W2 = this.w, H2 = this.h, N = W2 * H2, S = this.S, L = opt.light || PK.L;
+    const pb = new PixelBuffer(W2, H2), D = pb.data;
+    const zb = new Int16Array(N).fill(-1), ib = new Int8Array(N), cu = new Uint32Array(N);
+    const parts = this.parts.slice().sort((a, b) => a.z - b.z);
+    parts.forEach((p, pi) => {
+      const ramp = p.mat.ramp, n = ramp.length;
+      const x0 = Math.max(0, this.X(p.bbox[0]) - 1), y0 = Math.max(0, this.Y(p.bbox[1]) - 1);
+      const x1 = Math.min(W2 - 1, this.X(p.bbox[2]) + 1), y1 = Math.min(H2 - 1, this.Y(p.bbox[3]) + 1);
+      const f = p.sdf, bev = Math.max(0.6, p.bevel), hiT = p.hiT;
+      for (let y = y0; y <= y1; y++) {
+        const wy = this.wy(y);
+        for (let x = x0; x <= x1; x++) {
+          const wx = this.wx(x);
+          const d = f(wx, wy);
+          if (d > 0) continue;
+          let idx = p.base, col = 0;
+          if (p.shade) {
+            const r = p.shade(wx, wy, d, p);
+            if (typeof r === 'string') { col = U(r); } else idx = r;
+          } else if (!p.flat) {
+            const k = clamp(-d / bev, 0, 1);
+            let gx = 0, gy = 0, gl = 1;
+            if (k < 1) { gx = f(wx + 0.5, wy) - f(wx - 0.5, wy); gy = f(wx, wy + 0.5) - f(wx, wy - 0.5); gl = Math.sqrt(gx * gx + gy * gy) || 1; }
+            const nx = gx / gl * (1 - k), ny = gy / gl * (1 - k), nz = k;
+            const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+            let dd = (nx * L[0] + ny * L[1] + nz * L[2]) / nl;
+            if (p.tilt) dd += p.tilt;
+            if (dd < -0.15) idx -= 2; else if (dd < 0.25) idx -= 1; else if (dd > 0.9 && p.shiny) idx += 2; else if (dd > hiT) idx += 1;
+            idx -= p.dark;
+          }
+          idx = clamp(Math.round(idx), 0, n - 1);
+          if (p.tex) { const t = p.tex(wx, wy, idx, p, d); if (typeof t === 'string') col = U(t); else if (t != null) idx = clamp(t, 0, n - 1); }
+          const i = y * W2 + x;
+          zb[i] = pi; ib[i] = idx; cu[i] = col;
+        }
+      }
+    });
+    // sombras proyectadas: el emisor desplazado (dx, dy) oscurece k bandas de los grupos destino que tiene detrás
+    parts.forEach((C, ci) => {
+      if (!C.cast) return;
+      const { on, k = 1 } = C.cast;
+      const dx = Math.round((C.cast.dx ?? -1) * S) || Math.sign(C.cast.dx ?? -1), dy = Math.round((C.cast.dy ?? 2) * S) || Math.sign(C.cast.dy ?? 2);
+      const x0 = Math.max(0, this.X(C.bbox[0]) + dx - 1), y0 = Math.max(0, this.Y(C.bbox[1]) + dy - 1);
+      const x1 = Math.min(W2 - 1, this.X(C.bbox[2]) + dx + 1), y1 = Math.min(H2 - 1, this.Y(C.bbox[3]) + dy + 1);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = y * W2 + x, ti = zb[i];
+        if (ti < 0 || ti >= ci) continue;
+        const T = parts[ti];
+        if (!on.includes(T.group)) continue;
+        const sx = x - dx, sy = y - dy;
+        if (sx < 0 || sy < 0 || sx >= W2 || sy >= H2 || zb[sy * W2 + sx] !== ci) continue;
+        ib[i] = Math.max(T.minCast ?? 1, ib[i] - k); cu[i] = 0;
+      }
+    });
+    // color + líneas internas (parte trasera junto a una delantera de otro grupo)
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+      const i = y * W2 + x, pi = zb[i];
+      if (pi < 0) continue;
+      const P = parts[pi];
+      let c = cu[i] || P.mat.rampU[ib[i]];
+      if (P.line !== false) {
+        for (let k = 0; k < 4; k++) {
+          const q = k === 0 ? (x > 0 ? zb[i - 1] : -1) : k === 1 ? (x < W2 - 1 ? zb[i + 1] : -1) : k === 2 ? (y > 0 ? zb[i - W2] : -1) : (y < H2 - 1 ? zb[i + W2] : -1);
+          if (q > pi && parts[q].group !== P.group && parts[q].lineOver !== false) { c = P.lineU || P.mat.lineU; break; }
+        }
+      }
+      D[i] = c;
+    }
+    const ctx = { pt: this, pb, zb, ib, parts, S, X: (x) => this.X(x), Y: (y) => this.Y(y), group: (x, y) => { if (x < 0 || y < 0 || x >= W2 || y >= H2) return null; const p = zb[y * W2 + x]; return p >= 0 ? parts[p].group : null; } };
+    this.stamps.sort((a, b) => a.z - b.z).forEach(s => s.fn(pb, ctx));
+    pb.cleanup();
+    // luz de borde 1 px en la espalda y la coronilla (izquierda / arriba)
+    if (opt.rim !== false) {
+      const rr = hexToRgb(opt.rimColor || '#9fe8ff'), kk = opt.rimK ?? 0.3, out = new Uint32Array(D);
+      for (let y = 1; y < H2; y++) for (let x = 1; x < W2 - 1; x++) {
+        const i = y * W2 + x;
+        if (!(D[i] >>> 24) || zb[i] < 0) continue;
+        const P = parts[zb[i]];
+        if (!P.rim) continue;
+        const side = !(D[i - 1] >>> 24), top = !(D[i - W2] >>> 24);
+        if (!side && !top) continue;
+        const c = D[i], r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255, kq = side && top ? kk * 1.3 : kk;
+        out[i] = ((255 << 24) | (Math.round(b + (rr[2] - b) * kq) << 16) | (Math.round(g + (rr[1] - g) * kq) << 8) | Math.round(r + (rr[0] - r) * kq)) >>> 0;
+      }
+      D.set(out);
+    }
+    if (opt.outline !== false) {
+      const zbo = new Int32Array(N); for (let i = 0; i < N; i++) zbo[i] = zb[i];
+      const outParts = parts.map(p => (p.out === false ? { mat: null } : { mat: { outlineU: p.mat.outlineU } }));
+      // las partes sin contorno no lo emiten: se marcan como «sello» y usan el contorno del vecino
+      const mask = pb.outlineByPart(zbo, outParts, opt.outlineColor || '#14060a');
+      if (parts.some(p => p.out === false)) for (let i = 0; i < N; i++) if (mask[i]) { /* nada: conservado */ }
+      pb.cleanup(mask);
+    }
+    this.posts.sort((a, b) => a.z - b.z).forEach(s => s.fn(pb, ctx));
+    return { pb, zb, ib, parts, ctx, S, ox: this.ox, oy: this.oy };
+  }
+}
+/** Copia de un PixelBuffer */
+function pbClone(src) { const pb = new PixelBuffer(src.w, src.h); pb.data.set(src.data); return pb; }
+
+/* =====================================================================
+   Expresiones de retrato (02_personajes §5.3). Cada nombre usado en el
+   guion (y los alias de KIRU en español) resuelve a una cara distinta:
+   eye: forma del párpado · look: [dx,dy] del iris · brow · mouth · talk:
+   boca al hablar · blush (0–2) · tear · sweat · pupil ('small').
+   ===================================================================== */
 const PEXPR = {
-  neutral: { eye: 'open', brow: 'neutral', mouth: 'line' },
-  smile: { eye: 'open', brow: 'neutral', mouth: 'smile' },
-  happy: { eye: 'happy', brow: 'up', mouth: 'smile', blush: true },
-  joy: { eye: 'happy', brow: 'up', mouth: 'grin', blush: true },
-  surprised: { eye: 'wide', brow: 'raised', mouth: 'o' },
-  worried: { eye: 'open', brow: 'worried', mouth: 'wavy' },
-  sad: { eye: 'sad', brow: 'worried', mouth: 'frown' },
-  crying: { eye: 'sad', brow: 'worried', mouth: 'frown', tear: true },
-  angry: { eye: 'angry', brow: 'angry', mouth: 'frown' },
-  determined: { eye: 'angry', brow: 'determined', mouth: 'flat' },
-  thinking: { eye: 'half', brow: 'skeptical', mouth: 'flat', look: 0.6 },
-  skeptical: { eye: 'half', brow: 'skeptical', mouth: 'smirk' },
-  guilty: { eye: 'down', brow: 'worried', mouth: 'flat' },
-  calm: { eye: 'half', brow: 'neutral', mouth: 'smile' },
-  scared: { eye: 'wide', brow: 'worried', mouth: 'wavy' },
-  tired: { eye: 'half', brow: 'worried', mouth: 'flat' },
-  proud: { eye: 'happy', brow: 'neutral', mouth: 'smirk', blush: true },
-  embarrassed: { eye: 'down', brow: 'worried', mouth: 'wavy', blush: true },
+  neutral: { eye: 'open', brow: 'neutral', mouth: 'line', talk: 'talkS' },
+  smile: { eye: 'open', brow: 'neutral', mouth: 'smile', talk: 'open', blush: 1 },
+  happy: { eye: 'happy', brow: 'up', mouth: 'grinS', talk: 'open', blush: 1 },
+  joy: { eye: 'happy', brow: 'raised', mouth: 'grin', talk: 'grinT', blush: 2 },
+  surprised: { eye: 'wide', brow: 'raised', mouth: 'o', talk: 'oT', pupil: 'small' },
+  worried: { eye: 'worried', brow: 'worried', mouth: 'wavy', talk: 'talkW', sweat: 1 },
+  sad: { eye: 'sad', brow: 'sad', mouth: 'frown', talk: 'talkW', look: [-1, 1] },
+  crying: { eye: 'sad', brow: 'sad', mouth: 'frownO', talk: 'talkW', tear: 1, look: [-1, 1] },
+  angry: { eye: 'angry', brow: 'angry', mouth: 'clench', talk: 'shout' },
+  frustrated: { eye: 'angry', brow: 'angry', mouth: 'clench', talk: 'shout', sweat: 1 },
+  determined: { eye: 'determined', brow: 'determined', mouth: 'firm', talk: 'talkS' },
+  thinking: { eye: 'look', brow: 'skeptical', mouth: 'side', talk: 'talkS', look: [2, -1] },
+  focused: { eye: 'look', brow: 'determined', mouth: 'side', talk: 'talkS', look: [2, 0] },
+  curious: { eye: 'open', brow: 'raised1', mouth: 'oSmall', talk: 'talkS', look: [1, -1] },
+  skeptical: { eye: 'half', brow: 'skeptical', mouth: 'smirk', talk: 'talkS', look: [1, 0] },
+  guilty: { eye: 'down', brow: 'sad', mouth: 'flat', talk: 'talkW', look: [-1, 2] },
+  calm: { eye: 'soft', brow: 'neutral', mouth: 'smile', talk: 'talkS' },
+  relieved: { eye: 'closed', brow: 'up', mouth: 'smile', talk: 'talkS', blush: 1 },
+  scared: { eye: 'wide', brow: 'worried', mouth: 'wavyO', talk: 'oT', pupil: 'small', sweat: 1 },
+  tired: { eye: 'tired', brow: 'sad', mouth: 'flat', talk: 'talkS', look: [0, 1] },
+  proud: { eye: 'soft', brow: 'up', mouth: 'smirk', talk: 'open', blush: 1 },
+  embarrassed: { eye: 'down', brow: 'worried', mouth: 'wavy', talk: 'talkW', blush: 2, sweat: 1, look: [-2, 1] },
+  alert: { eye: 'wide', brow: 'raised', mouth: 'flat', talk: 'talkS' },
+  speak: { eye: 'open', brow: 'neutral', mouth: 'talkS', talk: 'open' },
+  warn: { eye: 'determined', brow: 'worried', mouth: 'flat', talk: 'talkS' },
 };
+/** Alias (KIRU y nombres sueltos del guion) → expresión base */
+const PEXPR_ALIAS = {
+  curioso: 'curious', alegre: 'happy', alarmado: 'scared', confundido: 'skeptical', culpable: 'guilty', valiente: 'determined',
+  agotado: 'tired', esperanzado: 'relieved', frustrate: 'frustrated', anger: 'angry', sadness: 'sad', fear: 'scared', worry: 'worried',
+};
+function pexpr(name) { return PEXPR[name] || PEXPR[PEXPR_ALIAS[name]] || PEXPR.neutral; }
+/** Nombre canónico (para claves de caché) */
+function pexprName(name) { return PEXPR[name] ? name : PEXPR_ALIAS[name] && PEXPR[PEXPR_ALIAS[name]] ? PEXPR_ALIAS[name] : 'neutral'; }
 
-const PF = {
-  /** Ojo de retrato. (cx,cy) centro; w,h tamaño; iris: rampa; look desplazamiento horizontal */
-  eye(pb, cx, cy, w, h, kind, o) {
-    const ink = o.ink || '#1a0c18', lid = o.lid || '#2a1420', sk = o.skin;
-    const sclera = '#fffaf0', scl2 = '#d8d0ec';
-    cx = Math.round(cx); cy = Math.round(cy);
-    const hw = w / 2, hh = h / 2;
-    const look = o.look || 0;
-    const drawOpen = (topCut = 0, wide = 1) => {
-      // esclerótica
-      for (let y = -hh * wide; y <= hh * wide; y++) for (let x = -hw; x <= hw; x++) {
-        const d = (x * x) / (hw * hw) + (y * y) / (hh * hh * wide * wide);
-        if (d > 1) continue;
-        if (y < -hh * wide + topCut) { pb.set(cx + x, cy + y, sk[3]); continue; }
-        pb.set(cx + x, cy + y, y > hh * 0.4 ? scl2 : sclera);
-      }
-      // iris
-      const ir = Math.max(2, w * (wide > 1 ? 0.26 : 0.33)), iy = hh * 0.42 * wide;
-      const icx = cx + look * hw * 0.35 + (o.far ? 1 : 0);
-      for (let y = -iy - 1; y <= iy + 1; y++) for (let x = -ir; x <= ir; x++) {
-        if ((x * x) / (ir * ir) + (y * y) / ((iy + 1) * (iy + 1)) > 1) continue;
-        const yy = cy + 1 + y;
-        if (yy < cy - hh * wide + topCut) continue;
-        const ed = (x * x) / (ir * ir) + (y * y) / ((iy + 1) * (iy + 1));
-        const t = (y + iy) / (2 * iy + 2);
-        let c = o.iris[t < 0.3 ? 1 : t < 0.65 ? 2 : 3];
-        if (ed > 0.75) c = o.iris[0];
-        pb.set(Math.round(icx + x), yy, c);
-      }
-      // pupila
-      pb.rect(Math.round(icx - 1), cy, 3, Math.max(2, Math.round(iy * 0.9)), ink);
-      // brillos
-      pb.rect(Math.round(icx - ir * 0.7), Math.max(cy - Math.round(iy * 0.6), cy - hh * wide + topCut + 1), 2, 2, '#ffffff');
-      pb.set(Math.round(icx + ir * 0.5), cy + Math.round(iy * 0.7), '#ffffff');
-      // párpado superior grueso + pestaña exterior
-      for (let x = -hw - 1; x <= hw + 1; x++) {
-        const yv = -Math.sqrt(Math.max(0, 1 - (x * x) / ((hw + 1) * (hw + 1)))) * hh * wide + topCut;
-        pb.set(cx + x, Math.round(cy + yv) - 1, lid); pb.set(cx + x, Math.round(cy + yv), lid);
-      }
-      if (!o.far) { pb.set(cx + hw + 2, cy - hh * wide + topCut + 1, lid); pb.set(cx + hw + 3, cy - hh * wide + topCut, lid); }
-      else { pb.set(cx + hw + 1, cy - hh * wide + topCut + 1, lid); }
-      // párpado inferior
-      for (let x = -hw + 2; x <= hw - 1; x++) { const yv = Math.sqrt(Math.max(0, 1 - (x * x) / (hw * hw))) * hh * wide; pb.set(cx + x, Math.round(cy + yv) + 1, sk[2]); }
-    };
-    switch (kind) {
-      case 'happy': {
-        for (let x = -hw; x <= hw; x++) { const yv = -Math.sqrt(Math.max(0, 1 - (x * x) / (hw * hw))) * hh * 0.6; pb.set(cx + x, Math.round(cy + yv + 2), lid); pb.set(cx + x, Math.round(cy + yv + 3), lid); }
-        pb.set(cx + hw + 1, cy + 1, lid); pb.set(cx - hw - 1, cy + 2, lid);
-        break;
-      }
-      case 'closed': for (let x = -hw; x <= hw; x++) { const yv = Math.sqrt(Math.max(0, 1 - (x * x) / (hw * hw))) * 2; pb.set(cx + x, Math.round(cy + yv + 1), lid); pb.set(cx + x, Math.round(cy + yv + 2), lid); } pb.set(cx + hw + 1, cy + 1, lid); break;
-      case 'half': drawOpen(Math.round(hh * 0.85)); break;
-      case 'down': drawOpen(Math.round(hh * 0.95)); break;
-      case 'wide': drawOpen(0, 1.12); break;
-      case 'angry': {
-        drawOpen(Math.round(hh * 0.55));
-        // párpado inclinado hacia el lagrimal
-        for (let x = -hw; x <= hw; x++) { const inner = o.far ? -1 : 1; const yy = Math.round(cy - hh * 0.4 + (x * inner) / hw * 2.5); pb.set(cx + x, yy, lid); pb.set(cx + x, yy - 1, lid); for (let k = 2; k < 6; k++) pb.set(cx + x, yy - k, sk[3]); }
-        break;
-      }
-      case 'sad': {
-        drawOpen(Math.round(hh * 0.45));
-        for (let x = -hw; x <= hw; x++) { const outer = o.far ? 1 : -1; const yy = Math.round(cy - hh * 0.45 + (x * outer) / hw * 2.5); pb.set(cx + x, yy, lid); for (let k = 1; k < 5; k++) pb.set(cx + x, yy - k, sk[3]); }
-        pb.set(cx - 2, cy + hh - 1, '#a6f4ff');
-        break;
-      }
-      default: drawOpen(0);
+/* =====================================================================
+   Ojos de retrato (96): abertura procedimental (curvas de párpado por
+   columna u, u = 0 en el rabillo exterior) + iris de plantilla colocado
+   en pantalla (la mirada base va a la derecha, hacia donde mira el
+   personaje). Tokens: K pestaña · k pestaña suave · W blanco en sombra
+   · w blanco · R aro del iris · D iris oscuro · P pupila · M iris medio
+   · L iris claro · l iris muy claro · h brillo · s piel en sombra.
+   ===================================================================== */
+const PEYE = {
+  near: { W: 10, T: [-4, -5, -6, -6, -6, -6, -6, -6, -5, -4], B: [3, 4, 4, 5, 5, 5, 5, 4, 4, 3], ix: 0.5, iy: -5,
+    iris: ['.RRRRR.', 'RDDDDDR', 'RDPPPDR', 'RDPPPDR', 'RDPPPDR', 'RMPPPMR', 'RMMMMMR', 'RLMMMLR', 'RLLLLLR', '.RlllR.'],
+    irisS: ['.RRR.', 'RDDDR', 'RDPDR', 'RMPMR', 'RMMMR', 'RLLLR', '.RlR.'] },
+  far: { W: 7, T: [-4, -5, -6, -6, -6, -5, -4], B: [3, 4, 5, 5, 5, 4, 3], ix: 0.5, iy: -5,
+    iris: ['.RRR.', 'RDDDR', 'RDPPR', 'RDPPR', 'RDPPR', 'RMPMR', 'RMMMR', 'RLMLR', 'RLLLR', '.RlR.'],
+    irisS: ['.RR.', 'RDDR', 'RDPR', 'RMMR', 'RLLR', '.Rl.'] },
+};
+/**
+ * Ojo 96. side 'near' (rabillo exterior a la izquierda) | 'far' (exterior a la derecha);
+ * kind = forma del párpado; look = [dx, dy] en pantalla; pal = tokens → color.
+ */
+function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
+  const G = PEYE[side], Wd = G.W;
+  const flip = side === 'far';
+  const half = Wd >> 1;
+  const SX = (u) => flip ? cx + (Wd - 1 - half) - u : cx - half + u;
+  const put = (u, r, t) => { const c = pal[t]; if (c != null) pb.set(SX(u), cy + r, c); };
+  // formas cerradas: ^ (feliz), ‿ (cerrado / alivio), parpadeo
+  if (kind === 'happy' || kind === 'closed' || kind === 'blink') {
+    for (let u = 0; u < Wd; u++) {
+      const s = Math.sin(Math.PI * (u + 0.5) / Wd);
+      if (kind === 'happy') { const r = Math.round(0.6 - s * 3.2); put(u, r, 'K'); if (u > 0 && u < Wd - 1) put(u, r + 1, 'K'); }
+      else { const r = Math.round(0.8 + s * (kind === 'blink' ? 1.1 : 2.2)); put(u, r, 'K'); if (u > 0 && u < Wd - 1) put(u, r - 1, u < Wd - 2 ? 'K' : 'k'); }
     }
+    if (kind === 'happy') { put(-1, 1, 'K'); put(-2, 2, 'k'); for (let u = 2; u < Wd - 2; u++) put(u, 3, 's'); }
+    else { put(-1, 0, 'K'); put(-2, -1, 'K'); put(-1, 1, 'k'); for (let u = 2; u < Wd - 2; u++) put(u, Math.round(2.4 + Math.sin(Math.PI * (u + 0.5) / Wd) * 2.2), 's'); }
+    return;
+  }
+  // abertura: T[u] = fila de la pestaña (abre en T+1), B[u] = última fila abierta
+  const T = G.T.slice(), Bt = G.B.slice(), top = Math.min(...G.T);
+  const lid = (fn) => { for (let u = 0; u < Wd; u++) T[u] = Math.max(T[u], Math.round(fn(u / (Wd - 1)))); };
+  switch (kind) {
+    case 'half': lid(() => top + 3.6); break;
+    case 'look': lid((t) => top + 1.5 + t * 0.8); break;
+    case 'soft': lid((t) => top + 4.2 + Math.sin(Math.PI * t) * 0.6); for (let u = 1; u < Wd - 1; u++) Bt[u] -= 1; break;
+    case 'tired': lid(() => top + 5.4); break;
+    case 'down': lid((t) => top + 4.4 + t * 0.6); break;
+    case 'angry': lid((t) => top + 1 + t * 5); break;
+    case 'determined': lid((t) => top + 1.8 + t * 2.6); break;
+    case 'sad': lid((t) => top + 4.8 - t * 4); break;
+    case 'worried': lid((t) => top + 3 - t * 2.6); break;
+    case 'wide': for (let u = 0; u < Wd; u++) T[u] -= 1; for (let u = 1; u < Wd - 1; u++) Bt[u] += 1; break;
+    default: break;
+  }
+  const open = new Set(), shaded = new Set();
+  const key = (x, y) => y * 4096 + x;
+  for (let u = 0; u < Wd; u++) for (let r = T[u] + 1; r <= Bt[u]; r++) {
+    put(u, r, r === T[u] + 1 ? 'W' : 'w'); open.add(key(SX(u), cy + r)); if (r === T[u] + 1) shaded.add(key(SX(u), cy + r));
+  }
+  // iris (mirada base a la derecha; pupila pequeña en sorpresa/miedo)
+  const IT = opt.pupil === 'small' ? G.irisS : G.iris;
+  const iw = IT[0].length, ih = IT.length;
+  const lx = look ? look[0] : 0, ly = look ? look[1] : 0;
+  const ix0 = Math.round(cx + G.ix - iw / 2 + lx), iy0 = cy + G.iy + Math.round(ly) + (opt.pupil === 'small' ? 2 : 0);
+  for (let j = 0; j < ih; j++) for (let i = 0; i < iw; i++) {
+    const ch = IT[j][i]; if (ch === '.') continue;
+    const x = ix0 + i, y = iy0 + j, k = key(x, y);
+    if (!open.has(k)) continue;
+    pb.set(x, y, pal[shaded.has(k) ? (ch === 'L' || ch === 'l' ? 'M' : 'R') : ch]);
+  }
+  // brillos: 2×2 arriba-izquierda + 1 px abajo-derecha (solo dentro de la abertura)
+  const hi = (x, y) => { if (open.has(key(x, y))) pb.set(x, y, pal.h); };
+  let firstOpen = Infinity; for (let u = 0; u < Wd; u++) firstOpen = Math.min(firstOpen, T[u] + 1);
+  const hx = ix0 + 1, hy = Math.max(iy0 + 2, cy + firstOpen + 1);
+  hi(hx, hy); hi(hx + 1, hy); hi(hx, hy + 1); hi(hx + 1, hy + 1);
+  hi(ix0 + iw - 2, iy0 + ih - 3);
+  // pestaña superior 2 px (1 px en el lagrimal) con remate hacia arriba en el rabillo
+  for (let u = 0; u < Wd; u++) { put(u, T[u], 'K'); if (u < Wd - 1) put(u, T[u] - 1, u >= Wd - 3 ? 'k' : 'K'); }
+  put(-1, T[0] - 1, 'K'); put(-1, T[0], 'K'); put(-2, T[0] - 2, 'K'); put(-2, T[0] - 1, 'k'); put(-1, T[0] + 1, 'k');
+  // párpado inferior suave (pestaña corta en el rabillo + línea de piel)
+  for (let u = 1; u < Wd - 2; u++) put(u, Bt[u] + 1, u < 3 ? 'k' : 's');
+  if (kind === 'tired') for (let u = 1; u < Wd - 2; u++) put(u, Bt[u] + 3, 's');
+}
+/* ---------- Ojos del busto (48): plantillas a mano por forma; fila 0 = cy − 2 ---------- */
+const PEYE_MINI = {
+  near: {
+    open: ['KKKKKK', '.whDDK', '.wDPD.', '.wMMD.', '..ML..'],
+    look: ['KKKKKK', '.wwhDK', '.wwDD.', '.wwML.', '......'],
+    half: ['......', 'KKKKKK', '.wDPD.', '.wMMD.', '..ML..'],
+    soft: ['......', '......', 'KKKKK.', '.sMMs.', '......'],
+    tired: ['......', '......', 'KKKKKK', '.wMMD.', '.ssss.'],
+    down: ['......', 'KKKKKK', '.wDDD.', '.wMLM.', '..ss..'],
+    angry: ['KK....', '.KKK..', '.whKKK', '.wDPD.', '..ML..'],
+    determined: ['......', 'KKKK..', '.whKKK', '.wDPD.', '..ML..'],
+    sad: ['....KK', '..KK..', 'KKhDD.', '.wDPD.', '..ML..'],
+    worried: ['....KK', '.KKKK.', 'KwhDD.', '.wDPD.', '..ML..'],
+    wide: ['.KKKK.', 'Kwwhw.', '.wDDw.', '.wDDw.', '..ww..'],
+    happy: ['......', '..KK..', '.K..K.', 'K....K', '......'],
+    closed: ['......', '......', 'K....K', '.KKKK.', '......'],
+    blink: ['......', '......', '......', 'KKKKKK', '..ss..'],
   },
-  brow(pb, cx, cy, w, kind, col, far) {
-    cx = Math.round(cx); cy = Math.round(cy);
-    const s = far ? -1 : 1; // interior hacia +x en ojo cercano
-    let y0 = 0, y1 = 0, arch = 1.5;
-    switch (kind) {
-      case 'angry': case 'determined': y0 = -3; y1 = 2.5 * (kind === 'angry' ? 1.2 : 0.8); arch = 0.4; break;
-      case 'worried': y0 = 1.5; y1 = -3; arch = 0.6; break;
-      case 'raised': y0 = -3; y1 = -3; arch = 2.2; break;
-      case 'up': y0 = -1; y1 = -1; arch = 2; break;
-      case 'skeptical': y0 = far ? -3 : 0; y1 = far ? -3 : 0; arch = far ? 2.5 : 0.6; break;
-    }
-    for (let i = 0; i <= w; i++) {
-      const t = i / w; // 0 exterior → 1 interior
-      const x = cx + (far ? (w / 2 - i) : (i - w / 2));
-      const y = cy + lerp(y0, y1, t) - Math.sin(t * Math.PI) * arch;
-      const th = t < 0.2 ? 1 : 2;
-      for (let k = 0; k < th + 1; k++) pb.set(Math.round(x), Math.round(y) + k, k === 0 ? shade(col, 0.15) : col);
-    }
-  },
-  mouth(pb, cx, cy, w, kind, o) {
-    cx = Math.round(cx); cy = Math.round(cy);
-    const ink = o.ink || '#3a1218', lip = o.lip || '#a8505a', tongue = '#e2606a', teeth = '#fffaf0';
-    const hw = Math.round(w / 2);
-    switch (kind) {
-      case 'smile':
-        for (let x = -hw; x <= hw; x++) { const y = Math.round(-Math.cos((x / hw) * Math.PI / 2) * 2.4); pb.set(cx + x, cy - y, ink); }
-        pb.set(cx + hw + 1, cy - 2, ink); pb.set(cx - hw - 1, cy - 1, ink); pb.hline(cx - hw + 2, cx + hw - 2, cy + 3, lip);
-        break;
-      case 'grin': {
-        for (let x = -hw - 1; x <= hw + 1; x++) { const d = Math.round(Math.cos((x / (hw + 1)) * Math.PI / 2) * 5); for (let y = 0; y <= d; y++) pb.set(cx + x, cy - 1 + y, y === 0 ? teeth : y > d - 2 ? tongue : ink); }
-        pb.hline(cx - hw - 1, cx + hw + 1, cy - 2, ink); pb.set(cx + hw + 2, cy - 3, ink); pb.set(cx - hw - 2, cy - 3, ink);
-        break;
-      }
-      case 'o': pb.ellipse(cx, cy + 1, 2.6, 3.4, ink); pb.ellipse(cx, cy + 2.5, 1.5, 1.3, tongue); break;
-      case 'open': pb.ellipse(cx, cy + 1, hw * 0.7, 3.2, ink); pb.ellipse(cx, cy + 2.6, hw * 0.45, 1.3, tongue); pb.hline(cx - Math.round(hw * 0.5), cx + Math.round(hw * 0.5), cy - 1, teeth); break;
-      case 'talkSmall': pb.ellipse(cx, cy + 0.5, hw * 0.55, 2.2, ink); pb.hline(cx - 1, cx + 1, cy + 2, tongue); break;
-      case 'frown': for (let x = -hw; x <= hw; x++) { const y = Math.round(-Math.cos((x / hw) * Math.PI / 2) * 2); pb.set(cx + x, cy + 2 + y, ink); } break;
-      case 'wavy': for (let x = -hw; x <= hw; x++) pb.set(cx + x, cy + Math.round(Math.sin(x * 0.9) * 1.2), ink); break;
-      case 'smirk': for (let x = -hw; x <= hw; x++) pb.set(cx + x, cy - (x > hw * 0.3 ? Math.round((x - hw * 0.3) * 0.5) : 0), ink); pb.hline(cx - hw + 2, cx + hw - 3, cy + 3, lip); break;
-      case 'flat': pb.hline(cx - hw + 1, cx + hw - 1, cy, ink); pb.hline(cx - hw + 3, cx + hw - 3, cy + 3, lip); break;
-      default: pb.hline(cx - hw + 1, cx + hw - 1, cy, ink); pb.set(cx + hw, cy - 1, ink); pb.hline(cx - hw + 3, cx + hw - 3, cy + 3, lip);
-    }
+  far: {
+    open: ['KKKKK', 'whDD.', 'wDPD.', '.MMD.', '.ML..'],
+    look: ['KKKKK', 'wwhD.', 'wwDD.', 'wwML.', '.....'],
+    half: ['.....', 'KKKKK', 'wDPD.', '.MMD.', '.ML..'],
+    soft: ['.....', '.....', 'KKKK.', 'sMMs.', '.....'],
+    tired: ['.....', '.....', 'KKKKK', 'wMMD.', 'ssss.'],
+    down: ['.....', 'KKKKK', 'wDDD.', 'wMLM.', '.ss..'],
+    angry: ['...KK', '.KKK.', 'KKhD.', 'wDPD.', '.ML..'],
+    determined: ['.....', '.KKKK', 'KKhD.', 'wDPD.', '.ML..'],
+    sad: ['KK...', '..KK.', '.hDKK', 'wDPD.', '.ML..'],
+    worried: ['KK...', '.KKKK', 'whDDK', 'wDPD.', '.ML..'],
+    wide: ['.KKK.', 'wwhwK', 'wDDw.', 'wDDw.', '.ww..'],
+    happy: ['.....', '.KK..', 'K..K.', '.....', '.....'],
+    closed: ['.....', '.....', 'K..K.', '.KK..', '.....'],
+    blink: ['.....', '.....', '.....', 'KKKK.', '.ss..'],
   },
 };
-
-/* ---------- Constructor de retrato humanoide ---------- */
-function buildPortraitHumanoid(D, exprName, talk, blink) {
-  const R = new Rig(128, 128);
-  const E = PEXPR[exprName] || PEXPR.neutral;
-  const HX = 60 + (D.dx || 0), HY = 60 + (D.dy || 0);
-  const rx = D.headRX || 27.5, ry = D.headRY || 31;
-  const skin = D.skin, hair = D.hair;
-  const o = { HX, HY, rx, ry, R, D, E };
-  // torso / ropa
-  D.outfit(R, o);
-  // cuello
-  R.capsule(HX - 3, HY + 20, HX - 5, HY + 38, 8, 9, { ramp: skin, base: 3, z: 20, group: 'neck', bevel: 6, cast: null });
-  R.stamp(pb => { for (let x = HX - 14; x < HX + 8; x++) for (let y = HY + 27; y < HY + 31; y++) { const c = pb.get(x, y); if (c === U(skin[3]) && bayer4(x, y) < 0.5) pb.set(x, y, skin[2]); } }, 60);
-  // cabeza
-  R.ellipse(HX, HY, rx, ry, { ramp: skin, base: 4, z: 30, group: 'face', bevel: rx * 0.72 }, 0.05);
-  R.ellipse(HX + 7, HY + 15, rx * 0.72, ry * 0.52, { ramp: skin, base: 4, z: 31, group: 'face', bevel: 10 }, -0.2);
-  // oreja
-  R.ellipse(HX - rx * 0.62, HY + 6, 4.5, 7.5, { ramp: skin, base: 3, z: 32, group: 'ear', bevel: 3.5 });
-  R.stamp(pb => { const ex = Math.round(HX - rx * 0.62), ey = Math.round(HY + 6); pb.line(ex - 1, ey - 4, ex + 1, ey + 3, skin[2]); pb.line(ex + 1, ey - 3, ex + 2, ey + 1, skin[2]); }, 50);
-  // pelo trasero
-  if (D.hairBack) D.hairBack(R, o);
-  // pelo frontal (proyecta sombra sobre la cara)
-  if (D.hairFront) D.hairFront(R, o);
-  if (D.accessory) D.accessory(R, o);
-  // rasgos
-  R.stamp(pb => {
-    const eyeY = HY + (D.eyeY ?? 4);
-    const e1 = HX - 4 + (D.eyeDX || 0), e2 = HX + 16 + (D.eyeDX || 0);
-    const eo = { iris: D.iris, skin, look: E.look || 0.2, lid: D.lid };
-    const ek = blink ? 'closed' : E.eye;
-    PF.eye(pb, e1, eyeY, D.eyeW || 11, D.eyeH || 12, ek, eo);
-    PF.eye(pb, e2, eyeY, (D.eyeW || 11) - 3, (D.eyeH || 12) - 1, ek, Object.assign({}, eo, { far: true }));
-    const bc = D.browCol || hair[1];
-    PF.brow(pb, e1, eyeY - 11, 11, E.brow, bc, false);
-    PF.brow(pb, e2 + 1, eyeY - 11, 8, E.brow, bc, true);
-    // nariz
-    const nx = HX + 23, ny = HY + 15;
-    pb.line(nx - 3, eyeY + 4, nx - 1, ny - 2, skin[3]); pb.set(nx, ny - 1, skin[2]); pb.set(nx - 1, ny, skin[1]); pb.set(nx - 3, ny + 1, skin[2]); pb.set(nx + 1, ny - 3, skin[5]);
-    // boca
-    let mk = E.mouth;
-    if (talk) mk = (E.mouth === 'smile' || E.mouth === 'grin') ? 'open' : (E.mouth === 'o' ? 'o' : 'talkSmall');
-    PF.mouth(pb, HX + 12 + (D.mouthDX || 0), HY + 24 + (D.mouthDY || 0), D.mouthW || 11, mk, { lip: D.lip || skin[2] });
-    if (E.blush || D.alwaysBlush) { const bcol = D.blush || '#e8806a'; pb.dither(e1 - 6, eyeY + 8, 9, 3, null, bcol, 0.5); pb.dither(e2 + 1, eyeY + 8, 6, 3, null, bcol, 0.5); }
-    if (E.tear) { pb.set(e1 - 2, eyeY + 7, '#a6f4ff'); pb.set(e1 - 2, eyeY + 8, '#56e5ff'); pb.set(e1 - 3, eyeY + 9, '#a6f4ff'); }
-    if (D.freckles) for (const [fx, fy] of [[-8, 9], [-5, 11], [-2, 9], [19, 10], [22, 12], [-6, 13]]) pb.set(HX + fx, eyeY + fy, skin[2]);
-    if (D.faceDetail) D.faceDetail(pb, Object.assign({}, o, { e1, e2, eyeY, mk }));
-  }, 200);
-  const pb = R.render();
-  return pb;
+function drawPEyeMini(pb, cx, cy, side, kind, look, pal) {
+  const set = PEYE_MINI[side];
+  let T = set[kind] || set.open;
+  // mirada lateral en el busto: plantilla 'look' si mira a un lado con el ojo abierto
+  if (kind === 'open' && look && Math.abs(look[0]) >= 2) T = set.look;
+  const w = T[0].length;
+  const x0 = side === 'near' ? cx - 3 : cx - 2;
+  pb.stampMap(x0, cy - 2, T, pal);
 }
 
-/* ---------- Definiciones de retrato ---------- */
-const PORTRAIT_DEFS = {};
-PORTRAIT_DEFS.amaya = {
-  skin: RAMP.skinA, hair: RAMP.hairA, iris: ['#2a1420', '#5a3020', '#8a5030', '#c08048'], blush: '#e86a5a', lip: '#9a4a40',
-  outfit(R, o) {
-    const { HX, HY } = o;
-    R.poly([[4, 128], [10, 108], [34, 96], [86, 94], [112, 104], [124, 128]], { ramp: MAT.amayaJacket, base: 3, z: 10, group: 'jacket', bevel: 12 });
-    R.poly([[46, 128], [52, 98], [70, 98], [78, 128]], { ramp: MAT.amayaShirt, base: 4, z: 11, group: 'shirt', bevel: 5 });
-    R.poly([[40, 100], [56, 96], [58, 120], [44, 128]], { ramp: MAT.amayaJacket, base: 4, z: 12, group: 'lapelL', bevel: 3 });
-    R.poly([[70, 96], [86, 98], [82, 128], [72, 120]], { ramp: MAT.amayaJacket, base: 4, z: 12, group: 'lapelR', bevel: 3 });
-    R.stamp(pb => {
-      for (let y = 104; y < 128; y += 4) pb.set(62, y, '#d0fff2');
-      // insignia SYNARA
-      pb.ellipse(30, 114, 4, 4, '#0e5a5e'); pb.poly([[30, 108], [34, 115], [26, 115]], '#20d6c7'); pb.ellipse(30, 115, 3, 3, '#20d6c7'); pb.set(29, 113, '#d0fff2');
-      pb.line(14, 112, 24, 104, MAT.amayaJacket[2]); pb.line(98, 104, 108, 114, MAT.amayaJacket[2]);
-    }, 60);
+/* ---------- Bocas (plantillas por escala; x = columna central) ---------- */
+const PMOUTH = {
+  P: {
+    line: ['.KKKK', 'K....'], smile: ['K....K', '.KKKK.', '..ll..'], grinS: ['KKKKKK', 'KmttmK', '.KKKK.'], grin: ['KKKKKKK', 'KwwwwwK', 'KmmttmK', '.KKKKK.'],
+    o: ['.KKK.', 'KmmmK', 'KmttK', '.KKK.'], oSmall: ['.KK.', 'KmmK', '.KK.'], frown: ['.KKKK.', 'K....K'], frownO: ['.KKKK.', 'KmmmmK', 'K....K'],
+    wavy: ['.K..K.', 'K.KK.K'], wavyO: ['.KKKK.', 'KmKKmK', '.K..K.'], smirk: ['.....K', '.KKKK.', 'K.....'], flat: ['KKKKK'], firm: ['KKKKK', '.lll.'],
+    clench: ['KKKKKK', 'KwwwwK', 'KKKKKK'], side: ['...KK', '.KK..'], talkS: ['.KKK.', 'KmtmK', '.KKK.'], talkW: ['.KKKK.', 'KmmttK', 'K.KK.K'],
+    open: ['KKKKKK', 'KmmmmK', 'KmttmK', '.KKKK.'], grinT: ['KKKKKKK', 'KwwwwwK', 'KmmtttK', 'KmttttK', '.KKKKK.'], oT: ['.KKK.', 'KmmmK', 'KmmmK', 'KmttK', '.KKK.'],
+    shout: ['KKKKKK', 'KwwwwK', 'KmttmK', 'KwwwwK', '.KKKK.'],
   },
-  hairBack(R, o) {
-    const { HX, HY } = o;
-    const curls = [[-14, -36, 12], [0, -40, 12], [14, -36, 10], [-26, -26, 10], [24, -26, 8], [-8, -28, 11], [8, -30, 10], [-30, -12, 9], [-20, -48, 9], [-4, -52, 9], [12, -48, 8], [-32, -36, 7], [26, -40, 7]];
-    curls.forEach(([dx, dy, r], i) => R.circle(HX + dx - 4, HY + dy - 4, r, { ramp: RAMP.hairA, base: 3, z: 5 + (dy + 60) * 0.001, group: 'curl' + i, bevel: r * 0.95, shiny: true, lineIdx: 1 }));
-    R.ellipse(HX - 6, HY - 26, 9, 4, { ramp: MAT.amayaJacket, base: 4, z: 34, group: 'scrunch', bevel: 3 }, -0.3);
-  },
-  hairFront(R, o) {
-    const { HX, HY, rx } = o;
-    const cap = SDF.sub(SDF.ellipse(HX - 3, HY - 10, rx + 2, 24), SDF.ellipse(HX + 13, HY + 12, 26, 26));
-    R.custom(cap, [HX - rx - 6, HY - 40, HX + rx + 6, HY + 20], { ramp: RAMP.hairA, base: 3, z: 40, group: 'hair', bevel: 8, shiny: true, cast: { on: ['face', 'ear'], dx: 2, dy: 3 } });
-    [[18, -20, 6], [8, -24, 6.5], [-2, -26, 6], [26, -12, 5], [-18, 2, 6.5], [-16, 14, 5.5], [-22, -12, 6]].forEach(([dx, dy, r], i) => R.circle(HX + dx, HY + dy, r, { ramp: RAMP.hairA, base: 3, z: 41 + i * 0.01, group: 'fc' + i, bevel: r, shiny: true, lineIdx: 1, cast: { on: ['face', 'ear'], dx: 1, dy: 3 } }));
-    R.capsule(HX + 27, HY - 10, HX + 30, HY + 6, 3, 2.5, { ramp: RAMP.hairA, base: 4, z: 42, group: 'lock', bevel: 2.5, shiny: true });
-  },
-  accessory(R, o) {
-    const { HX, HY } = o;
-    R.capsule(HX - 26, HY - 12, HX + 22, HY - 26, 2.4, 2.4, { ramp: MAT.ink, base: 3, z: 45, group: 'strap', bevel: 2 });
-    R.ellipse(HX + 6, HY - 26, 7, 6, { ramp: RAMP.metal, base: 4, z: 46, group: 'g1', bevel: 3, shiny: true });
-    R.ellipse(HX + 20, HY - 24, 5.5, 5.5, { ramp: RAMP.metal, base: 4, z: 46.5, group: 'g2', bevel: 3, shiny: true });
-    R.stamp(pb => {
-      pb.ellipse(HX + 6, HY - 26, 4.5, 3.8, '#1491aa'); pb.ellipse(HX + 6, HY - 26.5, 3.5, 2.6, '#22bdd0'); pb.rect(HX + 3, HY - 29, 2, 2, '#e6fdff');
-      pb.ellipse(HX + 20, HY - 24, 3.4, 3.4, '#1491aa'); pb.ellipse(HX + 20, HY - 24.5, 2.4, 2.2, '#22bdd0'); pb.set(HX + 18, HY - 26, '#e6fdff');
-      // pendiente
-      pb.ellipse(HX - 16, HY + 16, 2, 2, '#ffd84a'); pb.set(HX - 17, HY + 15, '#fff09a');
-    }, 120);
+  B: {
+    line: ['KK'], smile: ['K..K', '.KK.'], grinS: ['KKK', '.t.'], grin: ['KKKK', 'wtt.'], o: ['.K.', 'KmK', '.K.'], oSmall: ['KK'], frown: ['.KK.', 'K..K'],
+    frownO: ['.KK.', 'KmmK'], wavy: ['K.K', '.K.'], wavyO: ['KmK', '.K.'], smirk: ['..K', 'KK.'], flat: ['KKK'], firm: ['KKK'], clench: ['KKK', 'www'], side: ['.KK'],
+    talkS: ['KK', 'mt'], talkW: ['KKK', 'mtm'], open: ['KKK', 'mtm', '.K.'], grinT: ['KKKK', 'wttm', '.KK.'], oT: ['KK', 'mt', 'KK'], shout: ['KKK', 'mtm', 'www'],
   },
 };
-PORTRAIT_DEFS.naira = {
-  skin: RAMP.skinN, hair: RAMP.hairN, iris: ['#100c18', '#2a2040', '#463a66', '#6a5a90'], blush: '#b05040', lip: '#7a3a2e', eyeH: 11,
-  outfit(R, o) {
-    R.poly([[4, 128], [12, 106], [36, 96], [86, 94], [112, 104], [124, 128]], { ramp: MAT.nairaShirt, base: 3, z: 10, group: 'shirt', bevel: 12 });
-    R.poly([[4, 128], [12, 106], [36, 96], [50, 98], [54, 128]], { ramp: MAT.nairaVest, base: 3, z: 11, group: 'vest', bevel: 6, texture: (x, y, idx, ramp) => ((x + y) % 5 === 0 ? ramp[clamp(idx - 1, 1, 6)] : ((x - y + 128) % 5 === 0 && idx > 2 ? ramp[clamp(idx + 1, 1, 6)] : null)) });
-    R.poly([[80, 96], [100, 100], [112, 128], [86, 128]], { ramp: MAT.nairaVest, base: 3, z: 11, group: 'vest2', bevel: 6, texture: (x, y, idx, ramp) => ((x + y) % 5 === 0 ? ramp[clamp(idx - 1, 1, 6)] : null) });
-    R.capsule(30, 100, 96, 128, 2.6, 2.6, { ramp: MAT.leather, base: 4, z: 12, group: 'strap', bevel: 2 });
-  },
-  hairBack(R, o) {
-    const { HX, HY } = o;
-    R.ellipse(HX - 6, HY - 4, 30, 32, { ramp: RAMP.hairN, base: 3, z: 6, group: 'hairB', bevel: 10, shiny: true });
-    // trenza al frente
-    for (let i = 0; i < 9; i++) R.circle(HX - 18 + i * 1.6, HY + 22 + i * 7, 6.2 - i * 0.2, { ramp: RAMP.hairN, base: 3, z: 50 + i * 0.01, group: 'br' + (i % 2), bevel: 5, shiny: true, lineIdx: 1 });
-    R.circle(HX - 4, HY + 88, 3, { ramp: RAMP.yellow, base: 4, z: 51, group: 'tie', bevel: 2 });
-  },
-  hairFront(R, o) {
-    const { HX, HY, rx } = o;
-    const cap = SDF.sub(SDF.ellipse(HX - 2, HY - 8, rx + 1, 24), SDF.ellipse(HX + 14, HY + 12, 26, 25));
-    R.custom(cap, [HX - rx - 6, HY - 40, HX + rx + 6, HY + 20], { ramp: RAMP.hairN, base: 3, z: 40, group: 'hair', bevel: 7, shiny: true, cast: { on: ['face', 'ear'], dx: 2, dy: 3 } });
-    R.capsule(HX + 22, HY - 14, HX + 28, HY + 10, 3.5, 2, { ramp: RAMP.hairN, base: 3, z: 41, group: 'lock', bevel: 3, shiny: true });
-  },
-  accessory(R, o) {
-    const { HX, HY } = o;
-    const straw = (x, y, idx, ramp) => ((y % 3 === 0 && (x + (y >> 1)) % 4 < 2) ? ramp[clamp(idx - 1, 1, 6)] : ((x * 2 + y) % 7 === 0 ? ramp[clamp(idx + 1, 1, 6)] : null));
-    R.ellipse(HX - 2, HY - 34, 25, 14, { ramp: MAT.straw, base: 3, z: 60, group: 'crown', bevel: 10, texture: straw });
-    R.ellipse(HX + 2, HY - 24, 54, 9, { ramp: MAT.straw, base: 4, z: 61, group: 'brim', bevel: 6, texture: straw, cast: { on: ['face', 'ear', 'hair'], dx: 3, dy: 6, k: 1 } }, -0.06);
-    R.box(HX - 2, HY - 28, 24, 3.4, 1.5, { ramp: MAT.nairaVest, base: 4, z: 62, group: 'band', bevel: 2 });
-    R.stamp(pb => {
-      const fx = HX + 14, fy = HY - 32;
-      for (let k = 0; k < 5; k++) { const a = k * TAU / 5; pb.ellipse(fx + Math.cos(a) * 4, fy + Math.sin(a) * 4, 3, 3, k % 2 ? '#ffe14d' : '#fff08a'); }
-      pb.ellipse(fx, fy, 2.5, 2.5, '#ff8e34'); pb.set(fx - 1, fy - 1, '#ffbc6c');
-      pb.ellipse(fx + 9, fy + 3, 4, 2, '#4ccb70'); pb.line(fx + 6, fy + 3, fx + 12, fy + 3, '#1f854c');
-      pb.set(HX - 16, HY + 16, '#4ccb70'); pb.set(HX - 16, HY + 17, '#33a552');
-    }, 130);
-  },
+function drawPMouth(pb, cx, cy, scale, kind, pal) {
+  const T = PMOUTH[scale][kind] || PMOUTH[scale].line;
+  const w = T[0].length;
+  pb.stampMap(cx - Math.floor(w / 2), cy, T, pal);
+}
+/* ---------- Cejas: puntos [u (0 = exterior → 1 = interior), dy] por forma ---------- */
+const PBROW = {
+  neutral: [[0, 1], [0.3, 0], [0.65, 0], [1, 0.6]], up: [[0, 0], [0.3, -1], [0.65, -1], [1, -0.5]], raised: [[0, -1], [0.3, -2.6], [0.7, -2.6], [1, -1.6]],
+  raised1: [[0, 0], [0.3, -1.6], [0.7, -1.6], [1, -0.6]], angry: [[0, -1.6], [0.35, -0.6], [0.7, 1], [1, 2.4]], determined: [[0, -0.6], [0.4, 0], [0.75, 0.8], [1, 1.6]],
+  worried: [[0, 1.4], [0.35, 0.6], [0.7, -0.8], [1, -2.2]], sad: [[0, 1.8], [0.35, 1.2], [0.7, -0.2], [1, -1.4]],
+  skeptical: [[0, 0.4], [0.3, 0], [0.7, 0], [1, 0.4]], skepticalHi: [[0, -0.6], [0.3, -2.4], [0.7, -2.4], [1, -1.2]],
 };
-PORTRAIT_DEFS.dante = {
-  skin: RAMP.skinD, hair: RAMP.hairD, iris: ['#0c2414', '#1a4a2a', '#2a7040', '#4a9a5a'], freckles: true, lip: '#b06050', eyeH: 11,
-  outfit(R, o) {
-    R.poly([[4, 128], [12, 106], [36, 96], [86, 94], [112, 104], [124, 128]], { ramp: MAT.tshirtW, base: 3, z: 10, group: 'tee', bevel: 12 });
-    R.poly([[26, 128], [30, 112], [96, 112], [100, 128]], { ramp: MAT.danteOver, base: 3, z: 11, group: 'over', bevel: 6 });
-    R.capsule(32, 98, 34, 116, 4, 4, { ramp: MAT.danteOver, base: 3, z: 12, group: 'su1', bevel: 3 });
-    R.capsule(90, 98, 92, 116, 4, 4, { ramp: MAT.danteOver, base: 4, z: 12, group: 'su2', bevel: 3 });
-    R.ellipse(62, 98, 26, 7, { ramp: MAT.bandana, base: 3, z: 13, group: 'scarf', bevel: 4 });
-    R.poly([[60, 100], [76, 100], [66, 116]], { ramp: MAT.bandana, base: 4, z: 14, group: 'scarf2', bevel: 3 });
-    R.stamp(pb => { pb.ellipse(33, 116, 2.5, 2.5, '#ffe14d'); pb.ellipse(91, 116, 2.5, 2.5, '#ffe14d'); for (let x = 30; x < 98; x++) { pb.set(x, 122, MAT.safety[4]); pb.set(x, 123, MAT.safety[3]); } }, 60);
-  },
-  hairBack(R, o) { const { HX, HY } = o; [[-30, -10, -44, -2, 5], [-30, 0, -42, 10, 4.5], [-24, 10, -32, 22, 4], [-8, -28, -20, -40, 4], [22, -12, 32, -4, 3.5]].forEach(([ax, ay, bx, by, w], i) => R.poly([[HX + ax - w, HY + ay], [HX + ax + w, HY + ay + 2], [HX + bx, HY + by]], { ramp: RAMP.hairD, base: 3, z: 7 + i * 0.01, group: 'sp' + i, bevel: 3, shiny: true, lineIdx: 1 })); },
-  hairFront(R, o) {
-    const { HX, HY, rx } = o;
-    const cap = SDF.sub(SDF.ellipse(HX - 3, HY - 6, rx + 1, 22), SDF.ellipse(HX + 14, HY + 12, 26, 26));
-    R.custom(cap, [HX - rx - 6, HY - 40, HX + rx + 6, HY + 20], { ramp: RAMP.hairD, base: 3, z: 40, group: 'hair', bevel: 6, shiny: true, cast: { on: ['face', 'ear'], dx: 2, dy: 3 } });
-    [[24, -16, 30, -2, 3], [16, -18, 20, -6, 3], [6, -20, 8, -8, 3]].forEach(([ax, ay, bx, by, w], i) => R.poly([[HX + ax - w, HY + ay], [HX + ax + w, HY + ay], [HX + bx, HY + by]], { ramp: RAMP.hairD, base: 4, z: 41 + i * 0.01, group: 'bang' + i, bevel: 2, shiny: true, lineIdx: 1, cast: { on: ['face'], dx: 1, dy: 2 } }));
-  },
-  accessory(R, o) {
-    const { HX, HY } = o;
-    R.custom(SDF.sub(SDF.ellipse(HX - 2, HY - 20, 31, 24), SDF.box(HX, HY + 6, 50, 14, 0)), [HX - 36, HY - 46, HX + 36, HY - 6], { ramp: MAT.hardhat, base: 3, z: 60, group: 'hat', bevel: 14, shiny: true });
-    R.box(HX + 6, HY - 9, 38, 3.4, 2, { ramp: MAT.hardhat, base: 3, z: 61, group: 'brim', bevel: 2, cast: { on: ['face', 'ear', 'hair'], dx: 2, dy: 5 } });
-    R.stamp(pb => { pb.vline(HX - 6, HY - 42, HY - 13, MAT.hardhat[5]); pb.vline(HX - 5, HY - 42, HY - 13, MAT.hardhat[4]); pb.rect(HX + 10, HY - 30, 9, 8, '#2a4caa'); pb.rect(HX + 12, HY - 28, 5, 4, '#6a90e4'); pb.set(HX + 13, HY - 27, '#fff'); }, 130);
-  },
-};
-PORTRAIT_DEFS.eliana = {
-  skin: RAMP.skinE, hair: RAMP.hairE, iris: ['#1a100a', '#3a2214', '#5a3820', '#7a5030'], lip: '#9a5a48', browCol: '#6a6c8c', eyeH: 10,
-  outfit(R, o) {
-    R.poly([[4, 128], [12, 104], [36, 94], [86, 92], [112, 102], [124, 128]], { ramp: MAT.labcoat, base: 3, z: 10, group: 'coat', bevel: 12 });
-    R.poly([[44, 128], [48, 96], [76, 96], [80, 128]], { ramp: MAT.violetTop, base: 3, z: 11, group: 'turtle', bevel: 6 });
-    R.ellipse(62, 96, 16, 6, { ramp: MAT.violetTop, base: 4, z: 12, group: 'collar', bevel: 4 });
-    R.poly([[36, 96], [50, 94], [54, 128], [40, 128]], { ramp: MAT.labcoat, base: 4, z: 13, group: 'lap1', bevel: 3 });
-    R.poly([[76, 94], [90, 96], [84, 128], [72, 128]], { ramp: MAT.labcoat, base: 4, z: 13, group: 'lap2', bevel: 3 });
-    R.stamp(pb => { pb.line(54, 100, 60, 124, '#56e5ff'); pb.rect(56, 118, 9, 10, '#f4fdff'); pb.hline(57, 63, 121, '#2c63c0'); pb.vline(22, 108, 116, '#ffe14d'); pb.vline(25, 106, 116, '#ff6b6b'); pb.hline(18, 30, 116, MAT.labcoat[2]); }, 60);
-  },
-  hairBack(R, o) { const { HX, HY } = o; R.circle(HX - 20, HY - 30, 13, { ramp: RAMP.hairE, base: 3, z: 6, group: 'bun', bevel: 11, shiny: true }); R.stamp(pb => { pb.line(HX - 40, HY - 46, HX - 6, HY - 20, '#ffd84a'); pb.line(HX - 40, HY - 45, HX - 6, HY - 19, '#eab02a'); pb.rect(HX - 42, HY - 48, 3, 3, '#ff6b6b'); pb.line(HX - 28, HY - 36, HX - 12, HY - 26, RAMP.hairE[1]); }, 20); },
-  hairFront(R, o) {
-    const { HX, HY, rx } = o;
-    const cap = SDF.sub(SDF.ellipse(HX - 3, HY - 8, rx + 1.5, 23), SDF.ellipse(HX + 15, HY + 13, 26, 26));
-    R.custom(cap, [HX - rx - 6, HY - 40, HX + rx + 6, HY + 20], { ramp: RAMP.hairE, base: 3, z: 40, group: 'hair', bevel: 7, shiny: true, cast: { on: ['face', 'ear'], dx: 2, dy: 3 }, texture: (x, y, idx, ramp) => ((x * 2 + y * 3) % 11 === 0 ? ramp[clamp(idx - 1, 1, 5)] : null) });
-    R.capsule(HX + 22, HY - 14, HX + 26, HY + 4, 3, 2, { ramp: RAMP.hairE, base: 3, z: 41, group: 'lock', bevel: 2.5, shiny: true });
-    R.stamp(pb => { pb.line(HX - 10, HY - 30, HX + 12, HY - 24, RAMP.hairE[1]); pb.line(HX - 10, HY - 29, HX + 12, HY - 23, RAMP.hairE[2]); }, 45);
-  },
-  faceDetail(pb, o) {
-    const col = '#8a5e14', hi = '#ffd84a';
-    for (const [ex, w] of [[o.e1, 9], [o.e2, 7]]) {
-      for (let a = 0; a < 48; a++) { const an = a / 48 * TAU; pb.set(Math.round(ex + Math.cos(an) * w), Math.round(o.eyeY + Math.sin(an) * (w - 1)), a < 10 ? hi : col); }
-      pb.set(ex + w - 3, o.eyeY - w + 3, '#e6fdff'); pb.set(ex + w - 4, o.eyeY - w + 4, '#e6fdff');
-    }
-    pb.hline(o.e1 + 9, o.e2 - 7, o.eyeY - 2, col);
-    pb.line(o.e1 - 9, o.eyeY - 1, o.e1 - 16, o.eyeY - 3, col);
-    pb.set(o.e1 - 6, o.eyeY + 9, o.D.skin[2]); pb.set(o.e2 + 6, o.eyeY + 8, o.D.skin[2]);
-  },
-};
+/** Ceja: x0 = extremo exterior, x1 = interior; grosor 2 px hacia el interior (1 px en la cola) */
+function drawPBrow(pb, x0, x1, y, kind, col, thick, canPaint) {
+  const pts = PBROW[kind] || PBROW.neutral;
+  const n = Math.abs(x1 - x0), dir = Math.sign(x1 - x0) || 1;
+  for (let s = 0; s <= n; s++) {
+    const t = s / Math.max(1, n);
+    let k = 0; while (k < pts.length - 2 && t > pts[k + 1][0]) k++;
+    const a = pts[k], b = pts[k + 1], tt = clamp((t - a[0]) / ((b[0] - a[0]) || 1), 0, 1);
+    const yy = Math.round(y + lerp(a[1], b[1], tt)), xx = x0 + s * dir;
+    if (canPaint(xx, yy)) pb.set(xx, yy, col);
+    if (thick > 1 && t > 0.25 && canPaint(xx, yy + 1)) pb.set(xx, yy + 1, col);
+  }
+}
 
-/* NPC con retratos genéricos parametrizados */
-function npcPortrait(cfg) {
+/* =====================================================================
+   Utilidades de color u32 para sellos de expresión
+   ===================================================================== */
+function pkMixU(a, b, t) {
+  const ar = a & 255, ag = (a >>> 8) & 255, ab = (a >>> 16) & 255, br = b & 255, bg = (b >>> 8) & 255, bb = (b >>> 16) & 255;
+  return ((255 << 24) | (Math.round(ab + (bb - ab) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ar + (br - ar) * t)) >>> 0;
+}
+
+/* =====================================================================
+   Humanos. Encuadre medido sobre el retrato del HUD de la referencia
+   (ventana 48×46 ×2): cabeza a la derecha del centro (HX, HY) = (60, 42),
+   cara redonda de ~46 de ancho, mentón suave en (64, 75), ojo cercano
+   (53, 50), lejano (76, 49,5), boca (64, 64), oreja (36, 53).
+   Sombreado de cara por medialunas (luz arriba-derecha): base piel[4],
+   sombra piel[3] a la izquierda/abajo, borde piel[2], brillos piel[5].
+   ===================================================================== */
+function phHead(def) {
+  const HX = 60 + (def.dx || 0), HY = 42 + (def.dy || 0);
+  const g = def.head || {};
+  const rx = g.rx ?? 26.5, ry = g.ry ?? 28.5, cy = g.cy ?? 0, chinY = g.chinY ?? 33, chinX = g.chinX ?? 4, jw = g.jawW ?? 0, jd = g.jawDrop ?? 0, ch = g.cheek ?? 0;
+  const jaw = [[-22 - jw, 8], [-16.5 - jw, 20 + jd * 0.6], [-8.5 - jw * 0.6, chinY - 5 + jd * 0.8], [-1 - jw * 0.3, chinY - 1.2 + jd], [chinX, chinY + jd], [chinX + 5.5, chinY - 2.2 + jd], [18.5 + ch * 0.5, 24 + jd * 0.6], [25.5 + ch, 13], [27.5 + ch * 0.6, 2], [26, -6], [-22, -6]].map(([x, y]) => [HX + x, HY + y]);
+  const cran = SDF.ellipse(HX, HY + cy, rx, ry);
+  const face = SDF.smoothUnion(g.soft ?? 4, cran, SDF.poly(jaw));
+  const F = def.face || {};
+  const ey = F.eyeY ?? 8;
   return {
-    skin: RAMP[cfg.skin], hair: cfg.hair, iris: cfg.iris || ['#100808', '#2a1a14', '#4a3020', '#6a4a30'], lip: cfg.lip, browCol: cfg.brow, eyeH: cfg.eyeH || 11, eyeW: cfg.eyeW, freckles: cfg.freckles, blush: cfg.blush, alwaysBlush: cfg.child,
-    headRX: cfg.child ? 28.5 : 27.5, headRY: cfg.child ? 29 : 31,
-    outfit(R, o) {
-      R.poly([[4, 128], [12, 106], [36, 96], [86, 94], [112, 104], [124, 128]], { ramp: cfg.top, base: 3, z: 10, group: 'top', bevel: 12 });
-      if (cfg.apron) R.poly([[38, 128], [42, 104], [82, 104], [86, 128]], { ramp: cfg.apron, base: 3, z: 11, group: 'apron', bevel: 6 });
-      if (cfg.scarf) { R.ellipse(62, 98, 28, 8, { ramp: cfg.scarf, base: 3, z: 12, group: 'scarf', bevel: 5 }); R.poly([[54, 100], [70, 100], [60, 124]], { ramp: cfg.scarf, base: 4, z: 13, group: 'scarf2', bevel: 3 }); }
-      if (cfg.collar) R.poly([[40, 96], [58, 96], [52, 112]], { ramp: cfg.collar, base: 4, z: 12, group: 'col', bevel: 3 }), R.poly([[66, 96], [84, 96], [74, 112]], { ramp: cfg.collar, base: 4, z: 12, group: 'col2', bevel: 3 });
-    },
-    hairBack(R, o) {
-      const { HX, HY } = o;
-      if (cfg.style === 'bun') R.circle(HX - 18, HY - 30, 12, { ramp: cfg.hair, base: 3, z: 6, group: 'bun', bevel: 10, shiny: true });
-      if (cfg.style === 'long' || cfg.style === 'braid') R.ellipse(HX - 8, HY + 4, 28, 38, { ramp: cfg.hair, base: 3, z: 6, group: 'long', bevel: 10, shiny: true });
-      if (cfg.style === 'braid') for (let i = 0; i < 7; i++) R.circle(HX - 22 + i, HY + 30 + i * 7, 5.5 - i * 0.2, { ramp: cfg.hair, base: 3, z: 50 + i * 0.01, group: 'b' + (i % 2), bevel: 4, shiny: true, lineIdx: 1 });
-      if (cfg.style === 'curly' || cfg.child) [[-24, -24, 11], [-6, -34, 11], [12, -32, 9], [-30, -6, 9]].forEach(([dx, dy, r], i) => R.circle(HX + dx, HY + dy, r, { ramp: cfg.hair, base: 3, z: 6 + i * 0.01, group: 'c' + i, bevel: r, shiny: true, lineIdx: 1 }));
-      if (cfg.child && cfg.pigtails) { R.circle(HX - 34, HY - 2, 10, { ramp: cfg.hair, base: 3, z: 5, group: 'pt1', bevel: 8, shiny: true }); R.circle(HX - 30, HY + 18, 9, { ramp: cfg.hair, base: 3, z: 5, group: 'pt2', bevel: 7, shiny: true }); }
-    },
-    hairFront(R, o) {
-      const { HX, HY, rx } = o;
-      if (cfg.style === 'bald') { R.ellipse(HX - 18, HY + 2, 8, 14, { ramp: cfg.hair, base: 3, z: 40, group: 'side', bevel: 5, shiny: true }); return; }
-      const cap = SDF.sub(SDF.ellipse(HX - 3, HY - 8, rx + 1.5, cfg.style === 'short' ? 21 : 24), SDF.ellipse(HX + 14, HY + 12, 26, 26));
-      R.custom(cap, [HX - rx - 6, HY - 40, HX + rx + 6, HY + 20], { ramp: cfg.hair, base: 3, z: 40, group: 'hair', bevel: 7, shiny: true, cast: { on: ['face', 'ear'], dx: 2, dy: 3 } });
-    },
-    accessory(R, o) {
-      const { HX, HY } = o;
-      if (cfg.hat === 'bucket') {
-        R.ellipse(HX - 2, HY - 32, 25, 14, { ramp: cfg.hatCol, base: 3, z: 60, group: 'crown', bevel: 9 });
-        R.ellipse(HX + 2, HY - 22, 36, 8, { ramp: cfg.hatCol, base: 2, z: 61, group: 'brim', bevel: 5, cast: { on: ['face', 'ear', 'hair'], dx: 2, dy: 5 } }, -0.08);
-      }
-      if (cfg.hat === 'cap') {
-        R.custom(SDF.sub(SDF.ellipse(HX - 2, HY - 18, 29, 20), SDF.box(HX, HY + 6, 50, 15, 0)), [HX - 34, HY - 42, HX + 34, HY - 8], { ramp: cfg.hatCol, base: 3, z: 60, group: 'cap', bevel: 10 });
-        R.box(HX + 26, HY - 10, 16, 3, 2, { ramp: cfg.hatCol, base: 2, z: 61, group: 'visor', bevel: 2, cast: { on: ['face'], dx: 1, dy: 4 } });
-      }
-      if (cfg.hat === 'aviator') {
-        R.custom(SDF.sub(SDF.ellipse(HX - 3, HY - 10, 30, 30), SDF.ellipse(HX + 14, HY + 12, 26, 26)), [HX - 36, HY - 44, HX + 36, HY + 24], { ramp: MAT.leather, base: 3, z: 60, group: 'av', bevel: 9 });
-        R.ellipse(HX + 4, HY - 28, 7, 5.5, { ramp: RAMP.metal, base: 5, z: 62, group: 'g1', bevel: 3, shiny: true }); R.ellipse(HX + 18, HY - 27, 5, 5, { ramp: RAMP.metal, base: 5, z: 62, group: 'g2', bevel: 3, shiny: true });
-      }
-      if (cfg.flowers) R.stamp(pb => { [[-14, -30, '#f78acb'], [-2, -36, '#ffe14d'], [10, -34, '#56e5ff'], [20, -28, '#86e36f']].forEach(([dx, dy, c]) => { pb.ellipse(HX + dx, HY + dy, 3, 3, c); pb.set(HX + dx, HY + dy, '#fffaf0'); }); }, 130);
-      if (cfg.goggles) { R.capsule(HX - 24, HY - 14, HX + 22, HY - 24, 2, 2, { ramp: MAT.leather, base: 3, z: 61, group: 'gstrap', bevel: 2 }); R.ellipse(HX + 6, HY - 26, 6, 5, { ramp: RAMP.copper, base: 4, z: 62, group: 'gg', bevel: 3, shiny: true }); R.ellipse(HX + 19, HY - 25, 5, 5, { ramp: RAMP.copper, base: 4, z: 62, group: 'gg2', bevel: 3, shiny: true }); }
-    },
-    faceDetail(pb, o) {
-      if (cfg.mustache) { pb.ellipse(o.HX + 16, o.HY + 20, 9, 3, cfg.mustache); pb.ellipse(o.HX + 10, o.HY + 21, 5, 2.5, cfg.mustache); pb.hline(o.HX + 8, o.HX + 22, o.HY + 18, shade(cfg.mustache, 0.2)); }
-      if (cfg.glasses) for (const [ex, w] of [[o.e1, 8], [o.e2, 6]]) { pb.rect(ex - w, o.eyeY - 6, w * 2, 1, cfg.glasses); pb.rect(ex - w, o.eyeY + 6, w * 2, 1, cfg.glasses); pb.vline(ex - w, o.eyeY - 6, o.eyeY + 6, cfg.glasses); pb.vline(ex + w, o.eyeY - 6, o.eyeY + 6, cfg.glasses); }
-      if (cfg.wrinkles) { pb.line(o.e1 - 9, o.eyeY + 2, o.e1 - 12, o.eyeY + 4, o.D.skin[2]); pb.line(o.HX + 2, o.HY + 22, o.HX + 0, o.HY + 28, o.D.skin[2]); pb.line(o.HX + 26, o.HY + 20, o.HX + 27, o.HY + 26, o.D.skin[2]); }
-    },
+    HX, HY, face, cran, rx, ry,
+    eyeN: [HX + (F.eyeNX ?? -7), HY + ey], eyeF: [HX + (F.eyeFX ?? 16), HY + ey - 0.5],
+    nose: [HX + (F.noseX ?? 7), HY + (F.noseY ?? 15)], mouth: [HX + (F.mouthX ?? 4), HY + (F.mouthY ?? 22)],
+    ear: [HX + (F.earX ?? -24), HY + (F.earY ?? 11)],
   };
 }
-PORTRAIT_DEFS.marea = npcPortrait({ skin: 'skinM', hair: RAMP.hairE, style: 'braid', top: MAT.danteOver, hat: 'bucket', hatCol: MAT.kiruBody, wrinkles: true, collar: MAT.tshirtW });
-PORTRAIT_DEFS.cobre = npcPortrait({ skin: 'skinE', hair: RAMP.hairE, style: 'bald', top: MAT.tshirtW, apron: RAMP.copper, mustache: '#cdcfe2', goggles: true, wrinkles: true, brow: '#a8aac6' });
-PORTRAIT_DEFS.alma = npcPortrait({ skin: 'skinA', hair: RAMP.hairA, style: 'curly', child: true, pigtails: true, top: MAT.nairaShirt, flowers: true, eyeH: 13, eyeW: 12, blush: '#ff8a7a' });
-PORTRAIT_DEFS.nimbo = npcPortrait({ skin: 'skinD', hair: RAMP.hairE, style: 'short', top: NPC_CLOTH[5], hat: 'aviator', mustache: '#a8aac6', scarf: RAMP.coral, wrinkles: true });
-PORTRAIT_DEFS.consejal = npcPortrait({ skin: 'skinN', hair: RAMP.hairN, style: 'bun', top: NPC_CLOTH[0], glasses: '#8a5e14', collar: NPC_CLOTH[2] });
-PORTRAIT_DEFS.operador = npcPortrait({ skin: 'skinM', hair: RAMP.hairN, style: 'short', top: MAT.safety, hat: 'cap', hatCol: NPC_CLOTH[1] });
-PORTRAIT_DEFS.pastora = npcPortrait({ skin: 'skinA', hair: RAMP.hairE, style: 'long', top: NPC_CLOTH[7], scarf: NPC_CLOTH[2], wrinkles: true });
-PORTRAIT_DEFS.financia = npcPortrait({ skin: 'skinE', hair: RAMP.hairN, style: 'short', top: NPC_CLOTH[5], glasses: '#263442', collar: MAT.tshirtW });
+/** Sombreado de cara por medialunas + brillos */
+function phFaceShade(A, def) {
+  const F = A.face, sh = def.shadeK ?? 1;
+  return (x, y) => {
+    let i = 4;
+    if (F(x - 5.5 * sh, y + 2.2 * sh) > -0.3) i = 3;
+    if (F(x - 2, y + 0.8) > 0) i = 2;
+    if (i === 4) {
+      const fx = (x - (A.HX + 7)) / 11, fy = (y - (A.HY - 4)) / 6;
+      const cx = (x - (A.HX + 21)) / 3.4, cy = (y - (A.HY + 15)) / 5;
+      const nx = (x - (A.nose[0] - 1)) / 1.5, ny = (y - (A.nose[1] - 5)) / 4.5;
+      if (fx * fx + fy * fy < 1 || cx * cx + cy * cy < 1 || nx * nx + ny * ny < 1) i = 5;
+    }
+    return i;
+  };
+}
+/** Cabeza, cuello y oreja (las capas de pelo/ropa las pone la definición) */
+function phAddHead(P, A, def, M) {
+  const nk = def.neck || {}, nw = nk.w ?? 7.5, sm = P.S < 1;
+  // cuello delgado (el mentón proyecta su sombra)
+  P.poly([[A.HX - nw, A.HY + 18], [A.HX + nw + 1, A.HY + 23], [A.HX + nw + 1.5, A.HY + 44], [A.HX - nw - 1, A.HY + 44]], { mat: M.skin, z: 22, group: 'neck', base: 3, bevel: 3, shade: (x) => (x < A.HX - nw + 3 ? 2 : 3), rim: false });
+  // cara (línea interior junto al pelo más oscura en el busto)
+  P.custom(A.face, [A.HX - A.rx - 2, A.HY - A.ry - 3, A.HX + A.rx + 3, A.HY + 40], { mat: M.skin, z: 30, group: 'face', shade: phFaceShade(A, def), cast: { on: ['neck'], dx: 0, dy: def.chinCast ?? 4, k: 1 }, rim: false, lineU: sm ? M.skin.outlineU : undefined });
+  // oreja
+  const [ex, ey] = A.ear;
+  P.ellipse(ex, ey, 5, 7.6, { mat: M.skin, z: 33, group: 'ear', bevel: 2.5, shade: (x, y) => { const dx = x - ex, dy = y - ey; return dx > 1.4 && dy < 2.5 ? 4 : (dx < -2.6 ? 2 : 3); }, rim: false }, 0.15);
+  P.stamp((pb, c) => {
+    const X = c.X, Y = c.Y, s = M.skin.rampU;
+    if (c.S >= 1) {
+      // pliegue interior de la oreja (curva en C) + lóbulo
+      for (const [dx, dy, k] of [[0, -4, 1], [-1, -3, 1], [-1, -2, 1], [-1, -1, 2], [-1, 0, 2], [-1, 1, 2], [0, 2, 2], [1, 2, 1], [1, -2, 2], [1, -1, 2], [1, 0, 3], [2, 4, 3], [0, -5, 5], [1, -5, 5]]) { const x = X(ex + dx), y = Y(ey + dy); if (c.group(x, y) === 'ear') pb.set(x, y, s[k]); }
+    } else { const x = X(ex), y = Y(ey); if (c.group(x, y) === 'ear') { pb.set(x, y, s[2]); pb.set(x, y + 1, s[2]); } }
+  }, 1);
+}
 
-/* ---------- Retratos no humanoides ---------- */
-function portraitKiru(expr, talk, blink) {
-  const R = new Rig(128, 128);
-  const mood = KIRU_EYES[expr] || (PEXPR[expr] ? ({ happy: 'happy', joy: 'happy', surprised: 'big', sad: 'down', worried: 'down', determined: 'brave', thinking: 'mixed', scared: 'big', tired: 'tired', guilty: 'down', smile: 'happy', calm: 'open' }[expr] || 'open') : 'open');
-  const HX = 62, HY = 70;
-  R.poly([[HX - 20, HY - 12], [HX - 44, HY - 66], [HX - 4, HY - 26]], { ramp: MAT.kiruPanel, base: 3, z: 5, group: 'earB', bevel: 4, dark: 1 });
-  R.ellipse(HX, HY + 44, 34, 18, { ramp: MAT.kiruBody, base: 3, z: 6, group: 'body', bevel: 12 });
-  R.ellipse(HX, HY, 42, 36, { ramp: MAT.kiruBody, base: 4, z: 10, group: 'head', bevel: 24 });
-  R.poly([[HX + 2, HY - 24], [HX + 18, HY - 78], [HX + 40, HY - 14]], { ramp: MAT.kiruPanel, base: 4, z: 12, group: 'earF', bevel: 4 });
-  R.ellipse(HX + 8, HY + 4, 30, 23, { ramp: MAT.ink, base: 2, z: 14, group: 'screen', bevel: 6, flat: true });
-  R.ellipse(HX + 40, HY + 16, 10, 8, { ramp: MAT.kiruOrange, base: 4, z: 15, group: 'nose', bevel: 6 });
-  R.ellipse(HX + 4, HY + 48, 18, 7, { ramp: MAT.kiruOrange, base: 4, z: 8, group: 'belly', bevel: 4 });
-  R.stamp(pb => {
-    // celdas solares
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const x = HX + 12 + i * 5 + j * 1.5, y = HY - 52 + j * 9 + i * 1; pb.rect(Math.round(x), Math.round(y), 4, 7, '#2a5cc4'); pb.set(Math.round(x), Math.round(y), '#9cc8ff'); }
-    pb.ellipse(HX + 18, HY - 76, 3, 3, '#ff8e34');
-    const c1 = '#56e5ff', c2 = '#e6fdff', c3 = '#106884';
-    const lx = HX - 6, rx = HX + 18, yy = HY - 2;
-    const eye = (x) => {
-      if (blink) { pb.rect(x - 5, yy + 4, 10, 2, c1); return; }
-      switch (mood) {
-        case 'happy': for (let k = -5; k <= 5; k++) { const y = Math.round(yy + 4 - Math.sqrt(25 - k * k) * 0.8); pb.rect(x + k, y, 1, 2, c1); } break;
-        case 'big': pb.ellipse(x, yy + 2, 7, 9, c1); pb.ellipse(x, yy + 2, 4, 6, c3); pb.rect(x - 4, yy - 4, 3, 3, c2); break;
-        case 'down': pb.rect(x - 5, yy + 2, 10, 6, c1); pb.rect(x - 5, yy + 2, 10, 2, c3); pb.line(x - 6, yy - 2, x + 5, yy, c1); break;
-        case 'brave': pb.rect(x - 5, yy, 10, 9, c1); pb.line(x - 6, yy - 1, x + 5, yy + 2, '#0a0816'); pb.line(x - 6, yy, x + 5, yy + 3, '#0a0816'); pb.rect(x - 3, yy + 3, 2, 2, c2); break;
-        case 'tired': pb.rect(x - 5, yy + 5, 10, 2, c1); pb.rect(x - 4, yy + 7, 8, 1, c3); break;
-        case 'mixed': if (x === lx) { pb.ellipse(x, yy + 2, 5, 7, c1); pb.rect(x - 2, yy - 2, 2, 2, c2); } else { pb.rect(x - 4, yy + 3, 8, 2, c1); pb.rect(x + 6, yy - 6, 2, 4, '#ffe14d'); pb.set(x + 7, yy - 1, '#ffe14d'); } break;
-        case 'star': for (let k = -5; k <= 5; k++) { pb.set(x + k, yy + 2, '#ffe14d'); pb.set(x, yy + 2 + k, '#ffe14d'); } pb.rect(x - 1, yy + 1, 3, 3, c2); break;
-        default: pb.ellipse(x, yy + 2, 5, 7.5, c1); pb.rect(x - 3, yy - 3, 3, 3, c2); pb.rect(x + 1, yy + 6, 2, 2, c3);
+/* ---------- Kit de pelo ---------- */
+const PHAIR = {
+  /** Textura de mechones radiales desde un remolino + anillo de brillo («angel ring») */
+  tex(M, o = {}) {
+    const wx = o.whorl, step = o.step ?? 0.18, n = M.hair.ramp.length;
+    const ringC = o.ringC, rr = o.ringR || [20, 16], a0 = o.ring0 ?? -2.6, a1 = o.ring1 ?? -0.5;
+    return (x, y, idx) => {
+      const ang = Math.atan2(y - wx[1], x - wx[0]);
+      const f = ((ang / step) % 1 + 1) % 1;
+      const gap = f < 0.15;
+      if (ringC) {
+        const dx = (x - ringC[0]) / rr[0], dy = (y - ringC[1]) / rr[1], dr = Math.sqrt(dx * dx + dy * dy), ra = Math.atan2(dy, dx);
+        if (ra > a0 && ra < a1) {
+          if (Math.abs(dr - 1) < (o.ringW ?? 0.07) && !gap && idx >= (o.ringMin ?? 2)) return Math.min(n - 1, idx + 2);
+          if (Math.abs(dr - 1) < (o.ringW ?? 0.07) * 2.2 && f > 0.45 && f < 0.8 && idx >= 2) return Math.min(n - 1, idx + 1);
+        }
+      }
+      if (gap && idx > 1) return idx - 1;
+      if (f > 0.5 && f < 0.62 && idx >= 3 && idx < n - 2 && o.streak !== false) return idx + 1;
+      return idx;
+    };
+  },
+  /** Mechones: lista [[x,y]… , r0] en coordenadas absolutas; cast = sombra sobre la cara */
+  clumps(P, M, list, o = {}) {
+    list.forEach((b, i) => {
+      const r0 = b[b.length - 1], pts = b.slice(0, -1);
+      P.strand(pts, r0, o.tip ?? 0.4, { mat: M.hair, z: (o.z ?? 40) + i * 0.01, group: (o.group || 'bang') + i, base: o.base ?? 3, taper: o.taper ?? 1.5, bevel: Math.max(1.2, r0 * (o.bev ?? 0.7)), tex: o.tex, hiT: o.hiT ?? 0.62,
+        cast: o.cast === false ? undefined : { on: o.castOn || ['face', 'ear', 'neck'], dx: -1, dy: o.castDy ?? 3, k: 1 } });
+    });
+  },
+};
+const PH_BANG_GROUPS = ['hair', 'bang0', 'bang1', 'bang2', 'bang3', 'bang4', 'bang5', 'bang6', 'bang7', 'bang8', 'bang9', 'side0', 'side1', 'side2', 'side3', 'face'];
+
+/* =====================================================================
+   Definiciones de personaje (perezosas: las rampas del rediseño se cargan
+   en 17a_kit_palette.js, después de este archivo)
+   ===================================================================== */
+const PDEFS = {};
+const _pdefCache = new Map();
+function pdef(id) {
+  let d = _pdefCache.get(id);
+  if (!d) { const f = PDEFS[id] || PDEFS.amaya; d = f(); _pdefCache.set(id, d); }
+  return d;
+}
+
+/* ---------- AMAYA (canon de la referencia) ---------- */
+PDEFS.amaya = () => {
+  const R = RAMP, C = RAMP_CH;
+  const M = {
+    skin: PK.mat(R.skinAm, '#602316', R.skinAm[2]), hair: PK.mat(['#1c0503', '#33100a', '#4e1c10', '#6e2c18', '#8e4022', '#b05a30', '#d07c46', '#eaa064'], '#1a0405', '#33100a'),
+    jacket: PK.mat(R.jacketAm, '#4b0706', R.jacketAm[2]), top: PK.mat(R.topAm, '#2a1a20', R.topAm[2]),
+    pack: PK.mat(R.packSteel, '#171d35', R.packSteel[1]), flap: PK.mat(C.flapAm, '#1e0a04', C.flapAm[1]), leather: PK.mat(R.leatherAm, '#1e0a04', R.leatherAm[1]),
+    strap: PK.mat(C.strapNavy, '#070813', C.strapNavy[0]), frame: PK.mat(R.gogFrame, '#0e0a14', R.gogFrame[1]), lens: PK.mat(R.gogLens, '#06202e', R.gogLens[1]),
+    tie: PK.mat(C.tieAm, '#2a1404', C.tieAm[1]),
+  };
+  return {
+    M, iris: { R: '#0e0201', D: '#1e0704', P: '#080100', M: '#45180a', L: '#7a3a1a', l: '#b06a36' },
+    lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff7a6a', blushAlways: 0.5,
+    build(P, A) {
+      // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
+      P.box(10, 92, 14, 14, 3, { mat: M.pack, z: 4, group: 'pack', base: 3, bevel: 5 }, -0.1);
+      P.poly([[-3, 82], [5, 75], [24, 74], [28, 82], [20, 88], [-2, 89]], { mat: M.flap, z: 5, group: 'flap', base: 4, bevel: 3 });
+      P.stamp((pb, c) => {
+        const X = c.X, Y = c.Y;
+        if (c.S >= 1) { pb.rect(X(12), Y(85), 3, 5, '#e6b422'); pb.set(X(12), Y(85), '#fff08a'); pb.rect(X(5), Y(93), 3, 3, '#56e5ff'); pb.set(X(5), Y(93), '#e6fdff'); pb.hline(X(0), X(20), Y(80), C.flapAm[5]); }
+        else { pb.set(X(12), Y(86), '#e6b422'); pb.set(X(5), Y(93), '#56e5ff'); }
+      }, 2);
+      // coleta alta voluminosa: masa redonda + mechones curvos con puntas abajo-izquierda
+      const sm = P.S < 1;
+      const ptx = PHAIR.tex(M, { whorl: [30, 17], step: sm ? 0.32 : 0.2, streak: !sm, ringC: [18, 26], ringR: [13, 14], ring0: -2.9, ring1: -1.2, ringW: 0.07 });
+      P.ellipse(18, 28, 15, 19, { mat: M.hair, z: 8, group: 'ponyM', base: 3, bevel: 8, shiny: true, tex: ptx }, 0.3);
+      PHAIR.clumps(P, M, [
+        [[30, 15], [20, 7], [9, 9], [3, 18], [1, 30], 8],
+        [[30, 17], [17, 17], [8, 29], [4, 43], 8.5],
+        [[30, 19], [20, 28], [13, 42], [10, 56], 8.5],
+        [[31, 21], [25, 35], [21, 49], [21, 63], 7.5],
+        [[32, 22], [30, 38], [31, 51], [34, 62], 5],
+      ], { z: 9, group: 'pony', base: 3, tex: ptx, cast: false, taper: 1.6, bev: 0.8, hiT: 0.55 });
+      // chaqueta roja de manga corta abierta sobre top blanco
+      P.poly([[-3, 98], [1, 91], [11, 85], [27, 81], [44, 78], [54, 78], [72, 78], [84, 80], [93, 85], [99, 91], [99, 98]], { mat: M.jacket, z: 10, group: 'jacket', base: 4, bevel: 7, tex: (x, y, i) => (Math.abs(x - 22 - (y - 84) * 0.15) < 0.6 && y > 85 ? Math.max(1, i - 1) : i) });
+      P.poly([[49, 98], [51, 87], [56, 81], [67, 81], [72, 87], [73, 98]], { mat: M.top, z: 11, group: 'top', base: 4, bevel: 3 });
+      P.poly([[41, 98], [44, 87], [51, 80], [56, 81], [51, 89], [48, 98]], { mat: M.jacket, z: 12, group: 'lapelL', base: 4, bevel: 2 });
+      P.poly([[74, 98], [72, 89], [67, 81], [72, 80], [78, 87], [80, 98]], { mat: M.jacket, z: 12, group: 'lapelR', base: 5, bevel: 2 });
+      // cuello de la chaqueta levantado (detrás del cuello)
+      P.poly([[43, 84], [46, 72], [53, 70], [55, 80]], { mat: M.jacket, z: 20, group: 'collarL', base: 3, bevel: 2 });
+      P.poly([[68, 80], [70, 70], [77, 72], [79, 83]], { mat: M.jacket, z: 20, group: 'collarR', base: 5, bevel: 2 });
+      // tirante de la mochila (cuero) sobre el hombro cercano
+      P.poly([[24, 84], [32, 80], [45, 99], [36, 99]], { mat: M.leather, z: 13, group: 'strap', base: 4, bevel: 2 });
+      P.stamp((pb, c) => {
+        const X = c.X, Y = c.Y;
+        if (c.S >= 1) {
+          pb.rect(X(36), Y(89), 5, 5, '#e6b422'); pb.rect(X(37), Y(90), 3, 3, '#7a5a10'); pb.set(X(36), Y(89), '#fff08a');
+          for (let y = 84; y < 98; y += 3) pb.set(X(33 + (y - 84) * 0.62), Y(y), M.leather.ramp[2]);
+          pb.stampMap(X(81), Y(86), ['..a..', '.aba.', 'abcba', 'abbba', '.aaa.'], { a: '#0e5a5e', b: '#1aa894', c: '#d0fff2' });
+        } else {
+          pb.rect(X(36), Y(90), 2, 2, '#e6b422');
+          pb.stampMap(X(81), Y(87), ['.a.', 'aba'], { a: '#0e5a5e', b: '#7ff0dc' });
+        }
+      }, 3);
+    },
+    hair(P, A) {
+      const sm = P.S < 1;
+      // casquete peinado hacia atrás (los mechones convergen en el lazo de la coleta)
+      const tx = PHAIR.tex(M, { whorl: [30, 17], step: sm ? 0.3 : 0.16, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: 0.06, streak: !sm });
+      const mass = SDF.ellipse(58, 38, 30, 30), win = SDF.ellipse(64, 57, 25.5, 24.5);
+      // borde frontal en dientes (puntas cortas del flequillo sobre la línea del pelo)
+      const teeth = (x, y) => { const k = (x - 46) / 6.2; const ph = k - Math.floor(k); const tip = 35 + Math.abs(ph - 0.5) * -7 + (x > 70 ? (x - 70) * 0.35 : 0); return y - tip; };
+      const capS = SDF.sub(mass, SDF.inter(win, (x, y) => (x > 44 && x < 86 ? -teeth(x, y) : -1)));
+      P.custom(capS, [26, 5, 92, 70], { mat: M.hair, z: 32, group: 'hair', base: 3, bevel: 8, shiny: true, hiT: 0.6, tex: tx, cast: { on: ['face', 'ear', 'neck'], dx: -1, dy: 3, k: 1 } });
+      // lazo amarillo de la coleta
+      P.ellipse(31, 17, 2.6, 6, { mat: M.tie, z: 34, group: 'tie', base: 4, bevel: 1.5, shiny: true }, 0.7);
+      // mechones que cruzan la frente (barrido hacia la izquierda) + mechones laterales largos
+      const btx = PHAIR.tex(M, { whorl: [66, 8], step: sm ? 0.32 : 0.22, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: 0.06, ringMin: 3, streak: !sm });
+      PHAIR.clumps(P, M, sm ? [
+        [[60, 24], [54, 33], [47, 41], 5],
+        [[72, 24], [74, 32], [73, 39], 4.4],
+      ] : [
+        [[60, 22], [55, 31], [47, 41], 5],
+        [[56, 24], [51, 31], [45, 36], 3.6],
+        [[66, 24], [65, 32], [61, 39], 4],
+        [[73, 24], [75, 31], [74, 38], 4.4],
+      ], { z: 40, group: 'bang', base: 3, tex: btx });
+      PHAIR.clumps(P, M, [
+        [[80, 25], [86, 35], [88, 47], [89, 58], [86, 68], 4.8],
+        [[84, 28], [91, 40], [94, 52], [93, 62], 3.4],
+      ], { z: 41, group: 'side', base: 3, tex: btx, taper: 1.2, castDy: 2 });
+      // mechón de la sien cercana (detrás de la oreja) y nuca
+      PHAIR.clumps(P, M, [
+        [[43, 30], [38, 42], [36, 54], [38, 63], 4.2],
+        [[36, 36], [31, 48], [30, 60], 4.6],
+      ], { z: 31.5, group: 'nape', base: 3, tex: tx, taper: 1.2, cast: false });
+    },
+    acc(P, A) {
+      // gafas de aviador sobre la frente: correa navy, montura gris gruesa, lentes cian con brillo
+      const gcast = { on: PH_BANG_GROUPS, dx: -1, dy: 2, k: 1 };
+      P.strand([[45, 21], [38, 23.5], [33, 25]], 2.4, 2.2, { mat: M.strap, z: 33, group: 'gstrap', base: 3, bevel: 1.2, shiny: false });
+      P.strand([[64, 18], [71, 18.5]], 2.4, 2.4, { mat: M.frame, z: 60.5, group: 'gbridge', base: 3, bevel: 1, shiny: false });
+      P.ellipse(54, 19.5, 10.5, 8, { mat: M.frame, z: 61, group: 'gframe1', base: 4, bevel: 2.6, shiny: true, cast: gcast });
+      P.ellipse(80.5, 20.5, 7.6, 7.2, { mat: M.frame, z: 61.5, group: 'gframe2', base: 3, bevel: 2.2, shiny: true, cast: gcast });
+      const lensShade = (cx, cy, rx, ry) => (x, y) => { const u = (x - cx) / rx, v = (y - cy) / ry; return u + v > 0.8 ? 3 : u + v > 0.15 ? 4 : (u < -0.2 && v < -0.15 ? 6 : 5); };
+      P.ellipse(54.5, 19.5, 7.4, 5.4, { mat: M.lens, z: 62, group: 'lens1', shade: lensShade(54.5, 19.5, 7.4, 5.4), line: false, rim: false });
+      P.ellipse(81, 20.5, 4.8, 4.8, { mat: M.lens, z: 62.5, group: 'lens2', shade: lensShade(81, 20.5, 4.8, 4.8), line: false, rim: false });
+      P.post((pb, c) => {
+        const X = c.X, Y = c.Y;
+        if (c.S >= 1) { pb.rect(X(50), Y(16), 3, 2, '#e6fdff'); pb.set(X(53), Y(17), '#e6fdff'); pb.set(X(50), Y(18), '#e6fdff'); pb.rect(X(79), Y(18), 2, 2, '#e6fdff'); pb.set(X(58), Y(23), '#7fd8f6'); }
+        else { pb.set(X(51), Y(17), '#e6fdff'); pb.set(X(79), Y(19), '#e6fdff'); }
+      });
+    },
+  };
+};
+
+/* ---------- Construcción de la base y de cada expresión ---------- */
+const PSCALE = {
+  P: { w: 96, h: 96, S: 1, ox: 0, oy: 0 },
+  B: { w: 48, h: 46, S: 0.5, ox: 0, oy: 2 },
+};
+function buildPortraitBase(id, scale) {
+  const def = pdef(id), sc = PSCALE[scale];
+  const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
+  const A = phHead(def);
+  def.build && def.build(P, A);
+  phAddHead(P, A, def, def.M);
+  def.hair && def.hair(P, A);
+  def.acc && def.acc(P, A);
+  const r = P.render({ rimK: def.rimK ?? 0.26, rimColor: def.rimColor });
+  r.A = A; r.def = def;
+  return r;
+}
+/** Sella la expresión sobre una copia de la base humana */
+function stampHumanFace(base, scale, E, talk, blink) {
+  const pb = pbClone(base.pb), def = base.def, A = base.A, c = base.ctx, S = base.S;
+  const X = (x) => Math.floor((x - base.ox) * S), Y = (y) => Math.floor((y - base.oy) * S);
+  const sk = def.M.skin.rampU;
+  const pal = {
+    K: def.lash, k: def.lashSoft || def.lash, W: def.white2 || '#e8c4b4', w: def.white || '#fff4ea', R: def.iris.R, D: def.iris.D, P: def.iris.P, M: def.iris.M, L: def.iris.L, l: def.iris.l,
+    h: '#ffffff', s: sk[2],
+  };
+  const sm = scale === 'B';
+  const ek = blink ? (E.eye === 'happy' ? 'happy' : 'blink') : E.eye;
+  const enx = X(A.eyeN[0]), eny = Y(A.eyeN[1]), efx = X(A.eyeF[0]), efy = Y(A.eyeF[1]);
+  const isFace = (x, y) => c.group(x, y) === 'face';
+  // rubor (antes de los ojos): óvalo suave mezclado hacia el color de rubor, sin tramado
+  const bl = Math.max(E.blush || 0, def.blushAlways || 0);
+  if (bl) {
+    const bcU = U(def.blush || '#ff8a6a');
+    const cheek = (cx, cy, rx, ry, k) => {
+      for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+        const d = ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2;
+        if (d > 1 || !isFace(x, y)) continue;
+        const i = y * pb.w + x; pb.data[i] = pkMixU(pb.data[i], bcU, (d < 0.4 ? 0.6 : 0.34) * k);
       }
     };
-    eye(lx); eye(rx);
-    if (talk) { pb.rect(HX + 2, HY + 16, 10, 3, c1); pb.rect(HX + 4, HY + 19, 6, 1, c3); }
-    else if (mood === 'happy') { pb.set(HX + 2, HY + 15, c1); pb.hline(HX + 3, HX + 9, HY + 16, c1); pb.set(HX + 10, HY + 15, c1); }
-    // ventanilla del compartimento
-    pb.rect(HX - 2, HY + 46, 10, 5, '#2a1a10'); pb.rect(HX, HY + 47, 3, 2, '#56e5ff');
-    // scanline de pantalla
-    for (let y = HY - 16; y < HY + 24; y += 3) for (let x = HX - 18; x < HX + 34; x++) if (pb.get(x, y) === U(MAT.ink[2])) pb.set(x, y, '#191230');
-  }, 100);
-  return R.render();
-}
-function portraitLimen(expr, talk, blink) {
-  const R = new Rig(128, 128);
-  const L = RAMP.limen, cx = 64, cy = 66;
-  const facet = (pts, base, z, gname) => R.poly(pts, { ramp: L, base, z, group: gname, flat: true, lineCol: '#0e2b4a' });
-  facet([[cx, cy - 58], [cx + 30, cy - 10], [cx, cy + 2]], 3, 10, 'a'); facet([[cx, cy - 58], [cx - 30, cy - 10], [cx, cy + 2]], 5, 10.1, 'b');
-  facet([[cx - 30, cy - 10], [cx, cy + 2], [cx, cy + 40]], 4, 10.2, 'c'); facet([[cx + 30, cy - 10], [cx, cy + 2], [cx, cy + 40]], 1, 10.3, 'd');
-  for (const s of [-1, 1]) { facet([[cx + s * 30, cy + 20], [cx + s * 56, cy + 46], [cx + s * 36, cy + 70], [cx + s * 16, cy + 52]], s < 0 ? 5 : 2, 5, 'sh' + s); facet([[cx + s * 16, cy + 52], [cx + s * 36, cy + 70], [cx + s * 10, cy + 70]], s < 0 ? 4 : 1, 5.1, 'sh2' + s); }
-  const mood = expr === 'alert' || expr === 'angry' ? 'alert' : expr === 'worried' || expr === 'warn' ? 'warn' : 'calm';
-  const coreR = mood === 'alert' ? RAMP.coral : mood === 'warn' ? RAMP.yellow : RAMP.cyan;
-  R.circle(cx, cy - 12, 13, { ramp: MAT.ink, base: 2, z: 20, group: 'ring', flat: true });
-  R.circle(cx, cy - 12, 10, { ramp: coreR, base: 5, z: 21, group: 'core', bevel: 9, shiny: true });
-  R.stamp(pb => {
-    if (blink) pb.rect(cx - 7, cy - 13, 14, 2, '#0e2b4a');
-    else { pb.rect(cx - 1, cy - 19, 3, 14, '#0e2b4a'); if (talk) pb.rect(cx - 3, cy - 15, 7, 6, '#0e2b4a'); }
-    pb.rect(cx - 6, cy - 18, 3, 3, '#ffffff');
-    pb.line(cx - 26, cy - 12, cx - 4, cy - 52, '#ffffff'); pb.line(cx + 4, cy + 30, cx + 20, cy + 6, '#c4fbff');
-    for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + 0.4; const x = Math.round(cx + Math.cos(a) * 50), y = Math.round(cy - 10 + Math.sin(a) * 26); pb.rect(x, y, 2, 3, '#56e5ff'); pb.set(x, y, '#e6fdff'); }
-  }, 100);
-  return R.render({ outlineColor: '#0b2238' });
-}
-function portraitTwin(expr, talk, blink, mosaic) {
-  const R = new Rig(128, 128);
-  const cx = 64, cy = 58;
-  const tex = mosaic ? (x, y, idx) => { if (x % 6 === 0 || y % 6 === 0) return '#0e1a2a'; const c = MOSAIC_LAYERS[Math.floor(hash2(x / 6 | 0, y / 6 | 0, 11) * 7)]; return idx <= 2 ? shade(c, -0.25) : idx >= 5 ? shade(c, 0.15) : c; }
-    : (x, y, idx) => { const cols = ['#a830b8', '#e050c8', '#ff8ad0', '#56e5ff', '#ffd0e8', '#6a1c94']; const b = Math.floor((y * 0.5 + Math.sin(x * 0.12) * 5) / 4) % 6; let c = cols[b]; if (Math.abs(Math.sin(x * 0.2 + y * 0.08) + Math.sin(y * 0.15 - x * 0.04)) < 0.06) c = '#fff6ff'; return idx <= 1 ? shade(c, -0.35) : c; };
-  R.poly([[4, 128], [20, 100], [44, 92], [84, 92], [108, 100], [124, 128]], { ramp: RAMP.mirage, base: 4, z: 5, group: 'body', bevel: 14, texture: tex });
-  R.capsule(cx, cy + 24, cx, cy + 46, 9, 12, { ramp: RAMP.mirage, base: 4, z: 6, group: 'neck', bevel: 8, texture: tex });
-  R.ellipse(cx, cy, 30, 38, { ramp: RAMP.mirage, base: 5, z: 10, group: 'head', bevel: 14, texture: mosaic ? tex : (x, y, idx) => {
-    const k = (y - cy + 38) / 76; const sky = ['#ffd0e8', '#fff6ff', '#c4fbff', '#56e5ff', '#e050c8', '#6a1c94'];
-    let c = sky[clamp(Math.floor(k * 6 + Math.sin(x * 0.2) * 0.5), 0, 5)];
-    if (Math.abs((x - cx) + (y - cy) * 0.55 + 8) < 2.4) c = '#ffffff';
-    if (Math.abs((x - cx) + (y - cy) * 0.55 + 16) < 1) c = '#fff6ff';
-    return idx <= 2 ? shade(c, -0.3) : c;
-  } });
-  R.stamp(pb => {
-    for (let i = 0; i < 17; i++) { const a = -Math.PI + i * Math.PI / 16; const x = Math.round(cx + Math.cos(a) * 42), y = Math.round(cy - 4 + Math.sin(a) * 46); pb.rect(x, y, 2, 2, mosaic ? MOSAIC_LAYERS[i % 7] : (i % 2 ? '#56e5ff' : '#ffd84a')); }
-    if (mosaic) {
-      if (blink) { pb.rect(cx - 14, cy, 8, 2, '#0e1a2a'); pb.rect(cx + 6, cy, 8, 2, '#0e1a2a'); }
-      else { pb.ellipse(cx - 10, cy, 4, 5, '#0e1a2a'); pb.ellipse(cx + 10, cy, 4, 5, '#0e1a2a'); pb.rect(cx - 12, cy - 3, 2, 2, '#fff'); pb.rect(cx + 8, cy - 3, 2, 2, '#fff'); }
-      if (talk) pb.ellipse(cx, cy + 18, 5, 3, '#0e1a2a'); else { pb.set(cx - 6, cy + 16, '#0e1a2a'); pb.hline(cx - 5, cx + 5, cy + 17, '#0e1a2a'); pb.set(cx + 6, cy + 16, '#0e1a2a'); }
-    } else {
-      // reflejo de un mapa perfecto (sin personas)
-      for (let i = 0; i < 5; i++) pb.hline(cx - 14 + i * 2, cx + 10 - i, cy + 6 + i * 3, '#e050c8');
-      if (talk) for (let i = 0; i < 3; i++) pb.hline(cx - 8, cx + 8, cy + 20 + i * 2, (Game.frame >> 2) % 2 ? '#56e5ff' : '#ffd84a');
-    }
-  }, 100);
-  return R.render({ outlineColor: mosaic ? '#06100a' : '#1d0b3a' });
-}
-function portraitBeta(expr, talk) {
-  const R = new Rig(128, 128);
-  R.box(64, 84, 40, 42, 10, { ramp: RAMP.metal, base: 4, z: 5, group: 'body', bevel: 16 });
-  R.box(64, 38, 16, 6, 3, { ramp: RAMP.metal, base: 5, z: 6, group: 'cap', bevel: 4, shiny: true });
-  R.stamp(pb => {
-    pb.rect(36, 56, 56, 34, '#0a1030');
-    const soc = expr === 'sad' || expr === 'worried' ? 0.22 : 0.65;
-    const col = soc < 0.25 ? '#ff4e5d' : '#86e36f';
-    for (let i = 0; i < 10; i++) pb.rect(40 + i * 5, 82, 4, 4, i < soc * 10 ? col : '#1c2350');
-    if (soc < 0.25) { pb.rect(48, 64, 5, 5, col); pb.rect(75, 64, 5, 5, col); pb.rect(54, 76, 20, 2, col); pb.rect(51, 78, 3, 2, col); pb.rect(74, 78, 3, 2, col); }
-    else { pb.rect(48, 62, 5, 7, col); pb.rect(75, 62, 5, 7, col); pb.rect(54, 74, 20, 2, col); pb.rect(51, 72, 3, 2, col); pb.rect(74, 72, 3, 2, col); }
-    if (talk) pb.rect(58, 76, 12, 3, col);
-    for (let y = 96; y < 122; y += 5) pb.hline(28, 100, y, RAMP.metal[2]);
-  }, 100);
-  return R.render();
+    const k = Math.min(1.3, bl > 1 ? 1.3 : bl);
+    if (sm) { cheek(enx - 0.5, eny + 4, 2.4, 1.2, k); cheek(efx + 1.5, efy + 4, 1.3, 1.1, k * 0.8); }
+    else { cheek(enx - 1, eny + 8.5, 5 * (bl > 1 ? 1.15 : 1), 2.6, k); cheek(efx + 2.5, efy + 8, 2.8, 2.2, k * 0.85); if (bl > 1) for (const dx of [-3, 0, 3]) { const x = enx - 2 + dx, y = eny + 8; if (isFace(x, y)) pb.set(x, y + (dx === 0 ? 0 : 1), pkMixU(pb.get(x, y), bcU, 0.9)); } }
+  }
+  // ojos
+  if (sm) { drawPEyeMini(pb, efx, efy, 'far', ek, E.look, pal); drawPEyeMini(pb, enx, eny, 'near', ek, E.look, pal); }
+  else { drawPEye(pb, efx, efy, 'far', ek, E.look, pal, { pupil: E.pupil }); drawPEye(pb, enx, eny, 'near', ek, E.look, pal, { pupil: E.pupil }); }
+  // cejas (sobre la cara; el flequillo las tapa en parte)
+  const bc = def.brow || def.M.hair.ramp[1];
+  const canB = (x, y) => isFace(x, y) || (def.browOverHair && /^(bang|side)/.test(c.group(x, y) || ''));
+  const bk = E.brow, bkF = bk === 'skeptical' ? 'skepticalHi' : bk;
+  if (sm) {
+    drawPBrow(pb, enx - 3, enx + 2, eny - 4 + Math.round((def.browDY || 0) * 0.5), bk, bc, 1, canB);
+    drawPBrow(pb, efx + 2, efx - 1, efy - 4 + Math.round((def.browDY || 0) * 0.5), bkF, bc, 1, canB);
+  } else {
+    drawPBrow(pb, enx - 6, enx + 4, eny - 10 + (def.browDY || 0), bk, bc, 2, canB);
+    drawPBrow(pb, efx + 4, efx - 3, efy - 10 + (def.browDY || 0), bkF, bc, 2, canB);
+  }
+  // nariz: sombra de 1–2 px abajo-izquierda de la punta + brillo
+  const nx = X(A.nose[0]), ny = Y(A.nose[1]);
+  if (sm) pb.set(nx, ny, sk[2]);
+  else { pb.set(nx, ny, sk[2]); pb.set(nx - 1, ny, sk[3]); pb.set(nx + 1, ny - 1, sk[3]); pb.set(nx + 1, ny - 3, sk[6]); }
+  // boca
+  const mk = talk ? (E.talk || 'talkS') : E.mouth;
+  const mpal = { K: def.mouthInk, m: def.mouthIn, t: def.tongue, w: '#fff4ea', l: sk[5], s: sk[3] };
+  drawPMouth(pb, X(A.mouth[0]), Y(A.mouth[1]), scale, mk, mpal);
+  // lágrimas y sudor
+  if (E.tear && !blink) {
+    if (sm) { pb.set(enx - 3, eny + 2, '#a6f4ff'); pb.set(enx - 3, eny + 3, '#56e5ff'); }
+    else { for (let k = 0; k < 7; k++) pb.set(enx - 5 + (k > 4 ? 1 : 0), eny + 5 + k, k === 6 ? '#e6fdff' : '#7fd8f6'); pb.set(enx - 5, eny + 5, '#e6fdff'); }
+  }
+  if (E.sweat) {
+    const sx = X(A.HX + 24), sy = Y(A.HY - 2);
+    if (sm) { pb.set(sx, sy, '#a6f4ff'); pb.set(sx, sy + 1, '#56e5ff'); }
+    else pb.stampMap(sx - 1, sy - 2, ['.o.', '.a.', 'oab', 'abb', '.o.'], { o: '#1a4a6a', a: '#e6fdff', b: '#7fd8f6' });
+  }
+  if (def.faceExtra) def.faceExtra(pb, { X, Y, A, S, sm, E, talk, blink, isFace, c, def, enx, eny, efx, efy });
+  return pb;
 }
 
 const Portraits = {
   cache: new Map(),
+  bases: new Map(),
+  base(id, scale, variant = '') {
+    const k = id + '|' + scale + '|' + variant;
+    let b = this.bases.get(k);
+    if (!b) {
+      const def = pdef(id);
+      b = def.custom ? def.custom(scale, PSCALE[scale], variant) : buildPortraitBase(id, scale);
+      this.bases.set(k, b);
+    }
+    return b;
+  },
+  _make(id, expr, talk, blink, scale) {
+    const id2 = PDEFS[id] ? id : 'amaya';
+    const def = pdef(id2);
+    const E = pexpr(expr);
+    if (def.face) return def.face(this, scale, pexprName(expr), E, talk, blink, id2);
+    return stampHumanFace(this.base(id2, scale), scale, E, talk, blink);
+  },
+  /** Retrato de diálogo 96×96 (transparente, sin marco) */
   get(id, expr = 'neutral', talk = 0, blink = false) {
-    const k = id + '|' + expr + '|' + talk + '|' + (blink ? 1 : 0);
+    const k = id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + (blink ? 1 : 0);
     let c = this.cache.get(k);
     if (c) return c;
-    let pb;
-    if (id === 'kiru') pb = portraitKiru(expr, talk, blink);
-    else if (id === 'limen') pb = portraitLimen(expr, talk, blink);
-    else if (id === 'mirage') pb = portraitTwin(expr, talk, blink, false);
-    else if (id === 'mosaico') pb = portraitTwin(expr, talk, blink, true);
-    else if (id === 'beta9') pb = portraitBeta(expr, talk);
-    else pb = buildPortraitHumanoid(PORTRAIT_DEFS[id] || PORTRAIT_DEFS.amaya, expr, talk, blink);
-    c = pb.toCanvas();
+    c = this._make(id, expr, talk ? 1 : 0, !!blink, 'P').toCanvas();
     this.cache.set(k, c);
     if (this.cache.size > 400) this.cache.delete(this.cache.keys().next().value);
     return c;
   },
+  /** Busto del HUD 48×46 (re-rasterizado a escala 0,5 con plantillas propias) */
+  bust(id, expr = 'smile', talk = 0, blink = false) {
+    const k = 'B|' + id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + (blink ? 1 : 0);
+    let c = this.cache.get(k);
+    if (c) return c;
+    c = this._make(id, expr, talk ? 1 : 0, !!blink, 'B').toCanvas();
+    this.cache.set(k, c);
+    if (this.cache.size > 400) this.cache.delete(this.cache.keys().next().value);
+    return c;
+  },
+  /** alias del análisis (02_personajes §5.5) */
+  mini(id, expr) { return this.bust(id, expr); },
   /** precalienta retratos frecuentes (llamar en carga de nivel) */
   warm(ids, exprs = ['neutral', 'smile']) { for (const id of ids) for (const e of exprs) { this.get(id, e, 0); this.get(id, e, 1); } },
 };
