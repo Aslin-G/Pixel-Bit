@@ -89,7 +89,7 @@ LEVELS[8] = {
     // mariposas y abejas en el corredor
     for (let i = 0; i < 10; i++) { const bx = 1600 + ((t * 20 + i * 61) % 600) - ox, by = gy(1600) - 14 - Math.abs(Math.sin(t * 3 + i)) * 10; fpx(g, bx, by, i % 2 ? '#ffe14d' : '#b49cff'); fpx(g, bx + 1, by - (Math.floor(t * 8 + i) % 2), i % 2 ? '#fff6a0' : '#e0d8ff'); }
     // brillo del compartimento de KIRU en el árbol
-    if (S.memGlow) fdither(g, 2400 - ox, gy(2420) - 60, 40, 40, '#b49cff', 0.2 + 0.1 * Math.sin(t * 4));
+    if (S.memGlow) VISTA.drawGlow(g, 2420 - ox, gy(2420) - 40, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
     // flujo de riego por el nodo hidráulico
     Charts.flow(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
     Charts.flow(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);

@@ -10602,6 +10602,377 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
   };
 })();
 
+/* ===== 17n_vista_agro.js ===== */
+/* =====================================================================
+   17n_vista_agro.js — Kit VISTA (rollout B): luz y agroecología.
+   Generadores nuevos (solo añaden; 17b–17g no se tocan):
+     VISTA.dunes(pb, {y0, y1, rows, hBack, hFront, wMin, wMax, ramp, hazeCol, k0, k1, seed, fillTo}) → {tops:[Int16Array], crests:[[x,y]]}
+     VISTA.pond(pb, cx, y, hw, d, {k, seed, ramp, bank}) → {x0, x1, y, d}
+     VISTA.reeds(pb, x0, x1, y, {k, seed, h, density})
+     VISTA.adobe(pb, x, y, w, h, seed, {k, d, door}) → {top}
+     VISTA.shadeHouse(pb, x, y, w, h, {k})
+     VISTA.waterTower(pb, x, y, h, {k}) → {top}
+     VISTA.cropRows(pb, x0, x1, y0, y1, {k, seed, kinds, channelEvery}) → {channels:[[x0,x1,y]]}
+     VISTA.orchard(pb, x0, x1, y0, y1, {k, seed, rows, r0, r1, gap, fruit})
+     VISTA.contourTerraces(pb, {cx, yTop, steps, stepH, hwTop, hwBot, bow, k, seed, kinds, falls}) → {steps, falls, yEnd}
+     VISTA.windPump(pb, x, y, h, {k}) → {hx, hy};  VISTA.pumpWheel(R, {k}) → tira 6 cuadros
+     VISTA.egret(pb, x, y, {k, flip})                     garza blanca posada (4×7)
+     VISTA.drawFlock(g, fl, ox, oy, t)                    bandada en V (3 fillRect/ave)
+     VISTA.sunBloom(g, sun, t, {a, r, col})               halo aditivo del sol (2 drawImage)
+     VISTA.rays(w, h, sx, sy, {n, len, a0, col, seed}) → lienzo de rayos crepusculares en bandas
+     VISTA.drawSandWisps(g, crests, ox, oy, t, {col, n}) arena que vuela de las crestas
+   Sin tramado: todo en bandas con borde de ruido en clusters.
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  const ramp = (r, k, hz) => V.P32(V.hz(r, k || 0, hz));
+  const DUNE = ['#4a3a6a', '#66487a', '#84587a', '#a2686e', '#c07e60', '#d6965c', '#e6b064', '#f2c674', '#f8da92', '#fdecbe'];
+  const ADOBE = ['#4a2214', '#6a3420', '#8a4a2c', '#a8623a', '#c27a48', '#d6935a', '#e6ae72', '#f2c890', '#fae0b4'];
+  const WATER = ['#0a3e52', '#0c5a6c', '#127a8a', '#1c98a6', '#36b6bc', '#64ccc8', '#9ee2d8', '#d6f6ec'];
+  const REED = ['#22300e', '#344812', '#4c6418', '#688020', '#88a02a', '#acbc3e', '#d0d460'];
+  const ORCH = ['#0e2010', '#1a3414', '#284c1a', '#3a661e', '#548424', '#72a02e', '#96bc3c', '#bcd454'];
+  const WOOD = ['#2a1408', '#4a2a14', '#6a4220', '#8a5a2e', '#a87440', '#c89458'];
+  V.AGRO = { DUNE, ADOBE, WATER, REED, ORCH, WOOD };
+
+  /* ---------------- dunas ---------------- */
+  /** Filas de dunas (barlovento largo e iluminado, cara de avalancha corta en sombra violeta, rizos) */
+  V.dunes = function (pb, o) {
+    const r = RNG(o.seed || 1), w = pb.w, n = o.rows || 3;
+    const tops = [], crests = [];
+    for (let ri = 0; ri < n; ri++) {
+      const u = n === 1 ? 1 : ri / (n - 1);
+      const yb = Math.round(lerp(o.y0, o.y1, u));
+      const k = lerp(o.k0 ?? 0.4, o.k1 ?? 0.08, u);
+      const R = ramp(o.ramp || DUNE, k, o.hazeCol), nR = R.length;
+      const hMax = lerp(o.hBack ?? 16, o.hFront ?? 30, u);
+      const prof = new Float32Array(w + 2);
+      for (let x = -80; x < w + 60;) {
+        const ww = r.int(o.wMin ?? 50, o.wMax ?? 130) * lerp(0.75, 1.2, u), hh = hMax * r.range(0.4, 1), cx = x + ww * 0.72;
+        for (let xx = Math.floor(x); xx < x + ww; xx++) {
+          if (xx < -1 || xx > w) continue;
+          const h = xx <= cx ? hh * Math.pow(smooth(clamp((xx - x) / (ww * 0.72), 0, 1)), 1.2) : hh * Math.pow(Math.max(0, 1 - (xx - cx) / (ww * 0.28)), 1.7);
+          if (h > prof[xx + 1]) prof[xx + 1] = h;
+        }
+        if (cx > 0 && cx < w) crests.push([Math.round(cx), Math.round(yb - hh), ri]);
+        x += ww * r.range(0.42, 0.8);
+      }
+      for (let x = 0; x < w + 2; x++) prof[x] += 2 + fbm1((x - 1) * 0.018, 2, (o.seed || 1) + ri * 7) * 4;
+      const top = new Int16Array(w);
+      const yEnd = ri === n - 1 ? (o.fillTo ?? pb.h) : Math.min(pb.h, yb + 10);
+      for (let x = 0; x < w; x++) {
+        const p = prof[x + 1], s = (prof[x + 2] - prof[x]) * 0.5;
+        const yt = Math.round(yb - p); top[x] = yt;
+        const crest = prof[x + 1] >= prof[x] && prof[x + 1] >= prof[x + 2] && s > -0.4 && p > 6;
+        for (let y = Math.max(0, yt); y < yEnd; y++) {
+          const d = y - yt;
+          const sl = clamp(s * 0.42, -0.34, 0.3) * Math.exp(-d / 9);
+          let t = 0.58 + sl - d * 0.006;
+          if (s > 0.05 && ((y + Math.round(Math.sin(x * 0.07 + ri) * 2.2 + x * 0.12)) % 5 === 0)) t -= 0.07; // rizos
+          if (d === 0) t += s > 0 ? 0.16 : 0.05;
+          if (crest && d < 2) t = 0.97;
+          pb.data[y * w + x] = R[V.band(clamp(t, 0, 0.999), nR, x, y, 0.035, (o.seed || 1) + ri)];
+        }
+      }
+      tops.push(top);
+    }
+    return { tops, crests };
+  };
+
+  /* ---------------- laguna y carrizal ---------------- */
+  V.pond = function (pb, cx, y, hw, d, o = {}) {
+    const k = o.k || 0, R = ramp(o.ramp || WATER, k), n = R.length, seed = o.seed || 3;
+    const BANK = ramp(['#3a2a14', '#5a4020', '#7a5a2c', '#a07a40', '#c89c5a', '#e8c47c'], k);
+    const REF = ramp(REED, k + 0.15);
+    for (let x = Math.floor(cx - hw); x <= cx + hw; x++) {
+      const q = 1 - ((x - cx) / hw) ** 2; if (q <= 0) continue;
+      const y0 = y + Math.round((vnoise(x * 0.07, 1, seed) - 0.5) * 3);
+      const y1 = y + Math.round(d * Math.sqrt(q) * (0.8 + 0.4 * vnoise(x * 0.05, 3, seed)));
+      if (y1 <= y0 + 1) continue;
+      for (let yy = y0; yy < y1; yy++) {
+        const v = (yy - y0) / Math.max(1, y1 - y0);
+        let t = 0.8 - v * 0.55;
+        const wv = vnoise(x * 0.11, yy * 0.9, seed + 4);
+        if (wv > 0.74) t += 0.14; else if (wv < 0.2) t -= 0.08;
+        let u = R[V.band(clamp(t, 0, 0.999), n, x, yy, 0.04, seed)];
+        if (yy < y0 + 2 && o.bank !== false) u = REF[1 + ((x >> 2) & 1)]; // reflejo de la orilla lejana
+        V.put(pb, x, yy, u);
+      }
+      V.put(pb, x, y0 - 1, BANK[1]); V.put(pb, x, y1, BANK[4 + (hash2(x, 1, seed) < 0.4 ? 1 : 0)]); V.put(pb, x, y1 + 1, BANK[2]);
+    }
+    return { x0: cx - hw, x1: cx + hw, y, d };
+  };
+  V.reeds = function (pb, x0, x1, y, o = {}) {
+    const k = o.k || 0, R = ramp(REED, k), r = RNG(o.seed || 5), hM = o.h || 9, den = o.density ?? 0.55;
+    const CAT = ramp(['#3a1a0a', '#6a3a1a', '#8a5226'], k);
+    for (let x = Math.round(x0); x < x1; x++) {
+      if (vnoise(x * 0.09, 2, o.seed || 5) > den + 0.25 || !r.chance(0.6)) continue;
+      const h = r.int(Math.round(hM * 0.4), hM), lean = r.range(-0.25, 0.3);
+      for (let i = 0; i < h; i++) { const px = Math.round(x + lean * i), t = i / h; V.put(pb, px, y - i, R[clamp(Math.round(1 + t * 4 + (x & 1)), 0, R.length - 1)]); }
+      if (r.chance(0.18)) { const px = Math.round(x + lean * h); V.put(pb, px, y - h, CAT[2]); V.put(pb, px, y - h + 1, CAT[1]); V.put(pb, px, y - h + 2, CAT[0]); }
+    }
+  };
+  /* ---------------- arquitectura rural ---------------- */
+  const DOORS = [['#0a4a4a', '#18a294', '#56dcc6'], ['#6a1424', '#c8384a', '#ff7a6a'], ['#7a5a0a', '#d8a428', '#ffe070'], ['#2a1e6a', '#5a44b8', '#a08ef0']];
+  V.adobe = function (pb, x, y, w, h, seed, o = {}) {
+    const k = o.k || 0, r = RNG(seed), d = o.d ?? Math.max(3, Math.round(w * 0.42));
+    const { dy } = V.box3q(pb, x, y, w, h, d, { ramp: ADOBE, k, front: 6, side: 3, top: 7 });
+    const D = ramp(ADOBE, k), WN = ramp(V.ARCH.BLUEW, k);
+    // vigas que asoman bajo la cornisa
+    for (let xx = x + 1; xx < x + w - 1; xx += 3) { V.put(pb, xx, y - h + 1, D[1]); V.put(pb, xx, y - h + 2, D[3]); }
+    // puerta de color y ventana
+    const DC = ramp(o.door || r.pick(DOORS), k);
+    if (h >= 5) {
+      const px = x + Math.max(1, Math.round(w * 0.35)), dh = Math.min(h - 2, 5);
+      for (let yy = y - dh; yy < y; yy++) { V.put(pb, px, yy, DC[2]); V.put(pb, px + 1, yy, DC[1]); if (w > 9) V.put(pb, px + 2, yy, DC[0]); }
+      if (w > 7) { const wx = x + w - 4; V.put(pb, wx, y - h + 3, WN[2]); V.put(pb, wx + 1, y - h + 3, WN[3]); V.put(pb, wx, y - h + 4, WN[1]); V.put(pb, wx + 1, y - h + 4, WN[2]); }
+    }
+    // macetas y parra en la azotea
+    const G = ramp(ORCH, k);
+    if (r.chance(0.6)) for (let i = 0; i < 3; i++) { const px = x + 1 + r.int(0, Math.max(0, w - 2)), py = y - h - 1 - r.int(0, Math.max(0, dy - 1)); V.put(pb, px, py, G[5]); V.put(pb, px + 1, py, G[4]); V.put(pb, px, py - 1, G[6]); }
+    return { top: y - h - dy };
+  };
+  V.shadeHouse = function (pb, x, y, w, h, o = {}) {
+    const k = o.k || 0, MESH = U(V.hzc('#163026', k)), LINE = U(V.hzc('#4a6a52', k)), P = ramp(WOOD, k), G = ramp(ORCH, k);
+    const d = Math.round(w * 0.22), dx = Math.round(d * 0.55), dy = Math.round(d * 0.5);
+    // plantas en mesas dentro
+    for (let xx = x + 2; xx < x + w - 1; xx += 2) { const py = y - 2 - (xx & 2 ? 1 : 0); V.put(pb, xx, py, G[4 + (xx % 3 === 0 ? 2 : 0)]); V.put(pb, xx, py + 1, G[2]); }
+    for (let xx = x + 1; xx < x + w; xx++) V.put(pb, xx, y - 1, P[1]);
+    // malla de sombreo (frente y techo) translúcida con retícula
+    for (let yy = y - h; yy < y - 1; yy++) for (let xx = x; xx < x + w; xx++) V.blend(pb, xx, yy, ((xx - x) % 4 === 0 || (yy - y) % 4 === 0) ? LINE : MESH, yy < y - h + 2 ? 0.85 : 0.5);
+    V.poly(pb, [[x, y - h], [x + w, y - h], [x + w + dx, y - h - dy], [x + dx, y - h - dy]], (px, py) => V.mixU(V.get(pb, px, py) || MESH, (px % 4 === 0) ? LINE : MESH, 0.75));
+    // postes
+    for (const px of [x, x + Math.round(w / 2), x + w - 1]) for (let yy = y - h; yy < y; yy++) V.put(pb, px, yy, P[px === x ? 4 : 2]);
+  };
+  V.waterTower = function (pb, x, y, h, o = {}) {
+    const k = o.k || 0, S = ramp(V.TECH.STEEL, k), hl = Math.round(h * 0.58), rx = Math.max(3, Math.round(h * 0.16));
+    for (let i = 0; i < hl; i++) { const sp = Math.round(rx * (0.6 + 0.5 * (i / hl))); V.put(pb, x - sp, y - i, S[2]); V.put(pb, x + sp, y - i, S[1]); if (i % 5 === 2) for (let q = -sp; q <= sp; q++) if ((q + i) % 2 === 0) V.put(pb, x + q, y - i, S[3]); }
+    const t = V.cylV(pb, x, y - hl, rx, h - hl, V.ARCH.WHITE, { k, dome: 0.45, bands: [[2, 2, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
+    return { top: t.top, x, y: y - hl };
+  };
+  /* ---------------- cultivos ---------------- */
+  const CROPK = {
+    lettuce: (pb, x, y, s, G, F) => { V.put(pb, x, y - 1, G[5]); V.put(pb, x + 1, y - 1, G[6]); V.put(pb, x, y, G[3]); V.put(pb, x + 1, y, G[4]); if (s > 1.6) { V.put(pb, x - 1, y, G[2]); V.put(pb, x + 1, y - 2, G[6]); } },
+    tomato: (pb, x, y, s, G, F) => { V.put(pb, x, y - 2, G[4]); V.put(pb, x, y - 1, G[3]); V.put(pb, x + 1, y - 1, F.red); V.put(pb, x, y, G[2]); if (s > 1.6) V.put(pb, x - 1, y - 2, F.red2); },
+    maize: (pb, x, y, s, G, F) => { const hh = Math.round(2 + s * 1.5); for (let i = 0; i < hh; i++) V.put(pb, x, y - i, G[2 + Math.min(4, i)]); V.put(pb, x + 1, y - hh + 1, G[6]); V.put(pb, x, y - hh, F.gold); },
+    flowers: (pb, x, y, s, G, F) => { V.put(pb, x, y, G[3]); V.put(pb, x, y - 1, F.pal[(x >> 1) & 3]); V.put(pb, x + 1, y - 1, F.pal[((x >> 1) + 1) & 3]); },
+    squash: (pb, x, y, s, G, F) => { V.put(pb, x, y, G[3]); V.put(pb, x + 1, y, G[4]); V.put(pb, x - 1, y, G[2]); if ((x & 3) === 0) V.put(pb, x, y - 1, F.orange); else V.put(pb, x, y - 1, G[5]); },
+  };
+  V.cropRows = function (pb, x0, x1, y0, y1, o = {}) {
+    const k = o.k || 0, r = RNG(o.seed || 7), G = ramp(o.crop || ORCH, k);
+    const SOIL = ramp(['#3a2210', '#5a3618', '#7a4a22', '#9a5e2e', '#b8743a'], k), CH = ramp(['#065481', '#0a8ab0', '#11bedd', '#3adcf1', '#bde9f2'], k);
+    const F = { red: U(V.hzc('#e8402a', k)), red2: U(V.hzc('#ff7a5a', k)), gold: U(V.hzc('#f0d050', k)), orange: U(V.hzc('#f08a2a', k)),
+      pal: [U(V.hzc('#f060b8', k)), U(V.hzc('#ffd84a', k)), U(V.hzc('#fff4f0', k)), U(V.hzc('#ff7a5a', k))] };
+    const kinds = o.kinds || ['lettuce', 'tomato', 'maize', 'flowers', 'squash'];
+    const channels = [];
+    // suelo labrado con borde superior irregular y murete delantero
+    const sd = o.seed || 7, topAt = (x) => y0 + Math.round((vnoise(x * 0.035, 7, sd) - 0.5) * 6 + (vnoise(x * 0.2, 9, sd) - 0.5) * 1.5);
+    const LIP = ramp(V.AGRO.ADOBE, k);
+    for (let x = Math.round(x0); x < x1; x++) {
+      for (let y = topAt(x); y < y1; y++) V.put(pb, x, y, SOIL[1 + ((y & 1) ? 0 : 1) + (hash2(x >> 1, y, 3) < 0.2 ? 1 : 0)]);
+      V.put(pb, x, y1, LIP[6 + (hash2(x >> 2, 1, sd) < 0.3 ? 1 : 0)]); V.put(pb, x, y1 + 1, LIP[3 + ((x >> 3) & 1)]); V.put(pb, x, y1 + 2, LIP[1]);
+    }
+    let y = y0 + 1, ri = 0;
+    while (y < y1) {
+      const v = (y - y0) / Math.max(1, y1 - y0), s = lerp(1, 2.4, v), sp = Math.round(lerp(2, 4, v));
+      const kind = kinds[ri % kinds.length];
+      if (o.channelEvery && ri % o.channelEvery === o.channelEvery - 1) {
+        for (let x = Math.round(x0) + 1; x < x1 - 1; x++) if (y > topAt(x)) { V.put(pb, x, y, CH[(x + ri) % 11 === 0 ? 4 : 2]); V.put(pb, x, y + 1, CH[1]); }
+        channels.push([Math.round(x0) + 1, Math.round(x1) - 1, y]);
+        y += 3; ri++; continue;
+      }
+      const per = kind === 'maize' ? 2 : 3;
+      for (let x = Math.round(x0) + 1 + (ri & 1); x < x1 - 1; x += per) if (y > topAt(x) + 1) CROPK[kind](pb, x, y, s, G, F);
+      y += sp + 1; ri++;
+    }
+    return { channels };
+  };
+  V.orchard = function (pb, x0, x1, y0, y1, o = {}) {
+    const k = o.k || 0, r = RNG(o.seed || 9), rows = o.rows || 4, SH = U(V.hzc('#2a2014', k));
+    const FR = [U(V.hzc('#ff8a2a', k)), U(V.hzc('#ffd040', k)), U(V.hzc('#e8402a', k))];
+    for (let ri = 0; ri < rows; ri++) {
+      const v = rows === 1 ? 1 : ri / (rows - 1), y = Math.round(lerp(y0, y1, v)), rr = Math.round(lerp(o.r0 ?? 2, o.r1 ?? 4, v));
+      const gap = Math.round(rr * 2 + (o.gap ?? 3));
+      for (let x = x0 + (ri & 1) * Math.round(gap / 2); x < x1; x += gap + r.int(-1, 1)) {
+        for (let q = -rr; q <= rr; q++) V.blend(pb, x + q + 1, y + 1, SH, 0.45);
+        V.tree(pb, x, y, rr, (o.seed || 9) * 31 + x + ri * 7, { k, ramp: o.ramp || ORCH });
+        if (o.fruit !== false) for (let i = 0; i < rr; i++) { const fx = x + r.int(-rr, rr), fy = y - Math.round(rr * 0.7) - rr - r.int(-rr + 1, rr - 1); if (V.get(pb, fx, fy) >>> 24) V.put(pb, fx, fy, FR[(fx + fy) % 3 === 0 ? 2 : r.int(0, 1)]); }
+      }
+    }
+  };
+  /* ---------------- terrazas en curvas de nivel ---------------- */
+  const TWALL = ['#3e1a14', '#5e2a1e', '#82494a', '#a0583a', '#c0703e', '#e1956c', '#f0b07a', '#f8c888'];
+  const TSOIL = ['#4a3418', '#5a431c', '#7a5a2a', '#86502d', '#a8683a', '#cb824a'];
+  const TCROP = ['#1c3a1c', '#2e5426', '#3f6e2e', '#5a8a34', '#7aa83c', '#99c04a', '#bfd85a', '#e0e87a'];
+  const TCHAN = ['#065481', '#0a8ab0', '#11bedd', '#3adcf1', '#bde9f2'];
+  /**
+   * Terrazas que abrazan un cerro en 3/4: cada escalón es un arco ∪ (el centro, más cercano,
+   * queda más bajo), más ancho cuanto más abajo, con muro de piedra, cara de cultivo,
+   * canal turquesa y cascadas entre escalones. o = {cx, yTop, steps, stepH:[a,b], hwTop, hwBot,
+   * bow, wallK, k, seed, kinds[], falls:[{x,w,from}], wobble} → {steps, falls, yEnd}
+   */
+  V.contourTerraces = function (pb, o) {
+    const r = RNG(o.seed || 1), k = o.k || 0;
+    const Wl = ramp(o.wall || TWALL, k), So = ramp(TSOIL, k), Cr = ramp(o.crop || TCROP, k), Ch = ramp(TCHAN, k);
+    const nW = Wl.length, nC = Cr.length, n = o.steps || 6, kinds = o.kinds || ['rows', 'vine', 'rows', 'orchard'];
+    const FLW = [U(V.hzc('#f060b8', k)), U(V.hzc('#ffd84a', k)), U(V.hzc('#fff4f0', k)), U(V.hzc('#ff7a5a', k))];
+    const steps = [];
+    let y = o.yTop;
+    for (let i = 0; i < n; i++) {
+      const sh = r.int(o.stepH?.[0] ?? 9, o.stepH?.[1] ?? 12), wh = Math.max(3, Math.round(sh * (o.wallK ?? 0.42)));
+      const v = n === 1 ? 1 : i / (n - 1);
+      steps.push({ i, y, sh, wh, td: sh - wh, hw: lerp(o.hwTop, o.hwBot, v) * r.range(0.93, 1.07), c: o.cx + r.range(-1, 1) * (o.wobble ?? 5), bow: (o.bow ?? 8) * (0.55 + 0.45 * v), kind: kinds[i % kinds.length], seed: r.int(1, 9999) });
+      y += sh;
+    }
+    const geo = (s, x) => {
+      const u = (x - s.c) / s.hw; if (Math.abs(u) > 1 - (hash2(x >> 1, s.i, 31) * 0.05)) return null;
+      const e = Math.sqrt(Math.max(0, 1 - u * u));
+      const yf = Math.round(s.y + s.bow * (1 - u * u));
+      return { u, e, yf, td: Math.max(1, Math.round(s.td * (0.45 + 0.55 * e))), wh: Math.max(1, Math.round(s.wh * (0.3 + 0.7 * e))) };
+    };
+    for (const s of steps) {
+      const x0 = Math.floor(s.c - s.hw), x1 = Math.ceil(s.c + s.hw), bw = r.int(5, 8);
+      for (let x = x0; x <= x1; x++) {
+        const G = geo(s, x); if (!G) continue;
+        // cara de cultivo
+        for (let yy = G.yf; yy < G.yf + G.td; yy++) V.put(pb, x, yy, So[1 + ((yy - G.yf) & 1) + (hash2(x, yy, 5) < 0.25 ? 1 : 0)]);
+        // muro de piedra (bloques, borde superior claro, AO al pie); lado izquierdo más iluminado
+        const yw = G.yf + G.td;
+        for (let yy = yw; yy < yw + G.wh; yy++) {
+          const v = (yy - yw) / Math.max(1, G.wh);
+          const blk = hash2(Math.floor(x / bw), s.i * 17 + ((yy - yw) >> 2), 11);
+          let i = Math.round(nW * 0.68 - v * 2 + (blk - 0.5) * 2 - G.u * 1.4);
+          if (x % bw === 0 && yy > yw) i = 2 + (blk < 0.5 ? 0 : 1);
+          if (yy === yw) i = nW - 1 - (G.u > 0.5 ? 1 : 0);
+          if (yy === yw + G.wh - 1) i = 1;
+          V.put(pb, x, yy, Wl[clamp(i, 0, nW - 1)]);
+        }
+        V.put(pb, x, yw + G.wh, V.shU(V.get(pb, x, yw + G.wh) || Wl[1], -0.25, 260));
+        // canal turquesa en el borde de la cara (escalones alternos)
+        if (s.i % 2 === 1 && G.e > 0.25) V.put(pb, x, yw - 1, Ch[(x + s.i) % 9 === 0 ? 4 : 2]);
+        // plantas colgantes del borde
+        if (hash2(x, s.i, 21) < 0.12) { const len = 1 + (hash2(x, s.i, 22) * 3 | 0); for (let q = 0; q < len; q++) V.put(pb, x, yw + 1 + q, Cr[Math.max(0, 3 - q)]); }
+      }
+      // hileras de cultivo que siguen el arco
+      const per = s.kind === 'vine' ? 2 : 3;
+      for (let x = x0 + 1; x < x1; x++) {
+        const G = geo(s, x); if (!G || G.td < 2) continue;
+        const rowsN = Math.max(1, Math.floor(G.td / 2));
+        for (let ri = 0; ri < rowsN; ri++) {
+          if ((x + ri * 2) % per) continue;
+          const ry = G.yf + ri * 2 + 1, hb = hash2(x, ry, 13 + s.i);
+          const base = clamp(Math.round(nC * 0.34 + (ri / Math.max(1, rowsN - 1)) * 1.5 + (hb - 0.5) * 2 - G.u * 0.8), 1, nC - 3);
+          if (s.kind === 'flowers' && hb < 0.4) { V.put(pb, x, ry - 1, FLW[(x + ri) & 3]); V.put(pb, x + 1, ry - 1, FLW[(x + ri + 1) & 3]); V.put(pb, x, ry, Cr[base]); continue; }
+          if (s.kind === 'vine') { V.put(pb, x, ry - 2, Cr[base + 2]); V.put(pb, x, ry - 1, Cr[base + 1]); V.put(pb, x, ry, Cr[base]); continue; }
+          V.put(pb, x, ry - 1, Cr[base + 2]); V.put(pb, x + 1, ry - 1, Cr[base + 1]); V.put(pb, x, ry, Cr[base + 1]); V.put(pb, x + 1, ry, Cr[base - 1]);
+        }
+        if (hash2(x, G.yf, 23) < 0.5) V.put(pb, x, G.yf + G.td - 1, Cr[clamp(Math.round(nC * 0.55 + (hash2(x, 1, 24) - 0.5) * 3), 1, nC - 1)]);
+      }
+      if (s.kind === 'orchard') for (let x = x0 + 4; x < x1 - 3; x += r.int(5, 8)) { const G = geo(s, x); if (G && G.td > 2) V.tree(pb, x, G.yf + G.td - 1, r.int(2, 3), s.seed + x, { k, ramp: o.crop || TCROP }); }
+    }
+    // cascadas entre escalones
+    const falls = [];
+    for (const f of (o.falls || [])) {
+      const w = f.w || 4;
+      for (let si = f.from ?? 0; si < Math.min(steps.length, (f.to ?? 99) + 1); si++) {
+        const s = steps[si], G = geo(s, f.x + w / 2); if (!G || Math.abs(G.u) > 0.85) continue;
+        const y0 = G.yf + G.td - 1, y1 = y0 + G.wh + 1;
+        V.fall(pb, Math.round(f.x), y0, y1, w, { k });
+        falls.push({ x: Math.round(f.x), y0, y1, w });
+        for (let x = f.x - 2; x < f.x + w + 2; x++) { V.put(pb, x, y1, Ch[3]); V.put(pb, x, y1 + 1, Ch[2]); }
+      }
+    }
+    return { steps, falls, yEnd: y };
+  };
+  /* ---------------- molino de bombeo ---------------- */
+  V.windPump = function (pb, x, y, h, o = {}) {
+    const k = o.k || 0, S = ramp(V.TECH.STEEL, k);
+    for (let i = 0; i < h; i++) {
+      const sp = Math.round(lerp(4, 1, i / h));
+      V.put(pb, x - sp, y - i, S[3]); V.put(pb, x + sp, y - i, S[1]);
+      if (i % 6 === 3 && sp > 1) for (let q = -sp + 1; q < sp; q++) V.put(pb, x + q, y - i + (q & 1), S[2]);
+    }
+    // cola (veleta) a la derecha
+    const hy = y - h - 1;
+    for (let q = 1; q < 9; q++) V.put(pb, x + q, hy, S[4]);
+    V.rect(pb, x + 7, hy - 3, 3, 4, S[6]); V.put(pb, x + 7, hy - 3, S[7]);
+    return { hx: x, hy };
+  };
+  const _wheel = new Map();
+  V.pumpWheel = function (R, o = {}) {
+    const key = R + '|' + (o.k || 0); let s = _wheel.get(key); if (s) return s;
+    const C = ramp(V.TECH.STEEL, o.k), S = R * 2 + 3, c = R + 1;
+    s = V.strip(6, S, S, (pb, f) => {
+      for (let b = 0; b < 12; b++) {
+        const a = b / 12 * TAU + f / 6 * (TAU / 12);
+        for (let i = 2; i <= R; i++) V.put(pb, Math.round(c + Math.cos(a) * i), Math.round(c + Math.sin(a) * i), C[i > R - 2 ? 7 : (b & 1) ? 5 : 6]);
+      }
+      for (let a = 0; a < TAU; a += 0.2) V.put(pb, Math.round(c + Math.cos(a) * R), Math.round(c + Math.sin(a) * R), C[3]);
+      V.put(pb, c, c, C[1]);
+    });
+    s.c0 = c; _wheel.set(key, s); return s;
+  };
+  /** Garza blanca posada (lejana) */
+  V.egret = function (pb, x, y, o = {}) {
+    const k = o.k || 0, Wt = ramp(['#8a90a8', '#c8ccd8', '#f4f6fb', '#ffffff'], k), BK = U(V.hzc('#e8b030', k)), LG = U(V.hzc('#3a3028', k));
+    const f = o.flip ? -1 : 1;
+    V.put(pb, x, y, LG); V.put(pb, x, y - 1, LG); V.put(pb, x + f, y - 1, LG);
+    for (let yy = 2; yy < 5; yy++) { V.put(pb, x, y - yy, Wt[2]); V.put(pb, x - f, y - yy, Wt[1]); }
+    V.put(pb, x + f, y - 4, Wt[3]); V.put(pb, x + f, y - 5, Wt[2]); V.put(pb, x + f, y - 6, Wt[3]); V.put(pb, x + 2 * f, y - 6, BK);
+  };
+  /* ---------------- dinámico: bandadas, sol, rayos, arena ---------------- */
+  V.drawFlock = function (g, fl, ox, oy, t) {
+    const span = fl.span || 900, n = fl.n || 7, dir = (fl.sp || 10) < 0 ? -1 : 1;
+    const hx = fl.x + (((t * (fl.sp || 10) + (fl.ph || 0)) % span) + span) % span - span / 2, hy = fl.y + Math.sin(t * 0.3 + fl.x) * 4;
+    g.fillStyle = fl.col || '#f8f8ff';
+    for (let j = 0; j < n; j++) {
+      const m = j - (n - 1) / 2, x = Math.round(hx + ox - Math.abs(m) * 5 * dir), y = Math.round(hy + oy + Math.abs(m) * 2.5 + Math.sin(t * 1.3 + j) * 0.8);
+      if (x < -4 || x > W + 4) continue;
+      const up = (Math.floor(t * 5 + j * 0.7) % 2) === 0;
+      g.fillRect(x - 2, y - (up ? 1 : 0), 2, 1); g.fillRect(x + 1, y - (up ? 1 : 0), 2, 1); g.fillRect(x, y, 1, 1);
+    }
+  };
+  /** Halo aditivo del sol: corona amplia en anillos + núcleo; pulsa muy despacio */
+  V.sunBloom = function (g, sun, t, o = {}) {
+    const R1 = o.r || Math.round(sun.halo * 2.6), a = (o.a ?? 0.3) * (1 + 0.05 * Math.sin(t * 0.6));
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = a; g.drawImage(V.glow(R1, o.col || '#ffe8b0', 7, 0.34), Math.round(sun.x - R1), Math.round(sun.y - R1));
+    const R2 = Math.round(sun.r * 2.2);
+    g.globalAlpha = a * 1.4; g.drawImage(V.glow(R2, '#fff8dc', 4, 0.45), Math.round(sun.x - R2), Math.round(sun.y - R2));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  };
+  /** Rayos crepusculares en 3 niveles de alfa, abiertos en abanico desde (sx, sy) */
+  V.rays = function (w, h, sx, sy, o = {}) {
+    const r = RNG(o.seed || 17), n = o.n || 9, len = o.len || h * 1.2, a0 = o.a0 ?? 0.16;
+    const pb = new PixelBuffer(w, h), u = U(o.col || '#fff0c8') & 0xffffff;
+    const rays = [];
+    for (let i = 0; i < n; i++) rays.push([lerp(o.a1 ?? 0.35, o.a2 ?? 2.8, (i + r.range(0.2, 0.8)) / n), r.range(0.025, 0.06), r.range(0.5, 1)]);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = x - sx, dy = y - sy, d = Math.hypot(dx, dy); if (d < 6 || dy < -4) continue;
+      const ang = Math.atan2(dy, dx);
+      let I = 0;
+      for (const [ra, rw, rs] of rays) { const q = 1 - Math.abs(ang - ra) / rw; if (q > I / rs) I = Math.max(I, q * rs); }
+      if (I <= 0) continue;
+      const fade = clamp(1 - d / len, 0, 1);
+      const lv = Math.floor(I * fade * 3.2); if (lv <= 0) continue;
+      pb.data[y * w + x] = ((Math.round(a0 * Math.min(3, lv) / 3 * 255) << 24) | u) >>> 0;
+    }
+    return pb.toCanvas();
+  };
+  V.drawSandWisps = function (g, crests, ox, oy, t, o = {}) {
+    const n = o.n || 4, wind = o.wind ?? 1;
+    g.fillStyle = o.col || '#fde6b4';
+    for (let ci = 0; ci < crests.length; ci++) {
+      const [cx, cy] = crests[ci], sx = cx + ox; if (sx < -30 || sx > W + 10) continue;
+      for (let i = 0; i < n; i++) {
+        const u = ((t * 0.5 * wind + i / n + ci * 0.37) % 1);
+        g.globalAlpha = (1 - u) * (o.a ?? 0.6);
+        g.fillRect(Math.round(sx + u * 22 * wind), Math.round(cy + oy - u * 3 + Math.sin(u * 9 + ci) * 1.2), u < 0.3 ? 2 : 1, 1);
+      }
+    }
+    g.globalAlpha = 1;
+  };
+})();
+
 /* ===== 17z_vista_test.js ===== */
 /* =====================================================================
    17z_vista_test.js — Banco de pruebas del panorama (solo fondo).
@@ -13266,6 +13637,318 @@ BIOMES.coast = function (L) {
 };
 
 BIOME_LABELS.coast = BIOME_LABELS.coast || [];
+
+/* ===== 1e_bio_oasis.js ===== */
+/* =====================================================================
+   1e_bio_oasis.js — BIOMA OASIS (Nivel 08 «El Oasis de las Raíces»)
+   con el kit VISTA. Sustituye a BIOMES.oasis de 16_biomes.js.
+   El oasis está al sureste de la isla: al fondo las cordilleras lilas y,
+   muy lejos, la cúpula de ARIDIA; un mar de dunas rodea el valle; las
+   mesetas llevan aerogeneradores, FV y la tubería de permeado que llega
+   desde SYNARA; la colina del oasis tiene terrazas con canales y
+   cascadas, aldea de adobe, invernaderos y banco de semillas; delante,
+   un humedal con garzas y, junto al plano jugable, huertos y frutales.
+   Planos (atrás → delante): cielo+sol+rayos (0) · cirros · cúmulos altos ·
+   cordillera lila (0,06) · cúmulos bajos · dunas (0,12) · mesetas con
+   energía (0,2) · colina del oasis (0,3) · humedal (0,42) · huertos (0,56)
+   La cámara del nivel queda en cam.y = 0 (suelo jugable en y ≈ 282).
+   ===================================================================== */
+var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+
+BIOMES.oasis = function (L) {
+  const V = VISTA;
+  const B = new Backdrop(L.width, L.height);
+  const CY0 = 0; // cam.y típica de este nivel
+  /** y de pantalla real (con cam.y = CY0) → yScreen de vplane */
+  const at = (f, y) => Math.round(y - (V.CAMY - CY0) * f * 0.3);
+  const HZ = 160;
+  const SUN = { x: 452, y: 34, r: 11, halo: 26 };
+  const labels = [];
+  const T = () => Game.time;
+  B.horizon = HZ;
+  B.sun = SUN;
+  B.sky = V.timed('sky', () => V.sky(W, H, {
+    horizonY: HZ, sun: SUN,
+    stops: ['#1468e0', '#1a76e8', '#2484ee', '#3092f4', '#3c9ef8', '#50aaf8', '#6cb8f6', '#8ec6f2', '#b0d0ec', '#cad4e6'],
+    haze: ['#d6cad6', '#e0cccc', '#ead4c6', '#f0dcc4'],
+  }).toCanvas());
+  // halo del sol y rayos crepusculares (aditivos, detrás de todo el relieve)
+  const raysC = V.timed('rays', () => V.rays(W, 200, SUN.x, SUN.y, { n: 8, len: 220, a0: 0.13, a1: 0.5, a2: 2.7, seed: 8 }));
+  B.vdyn(0, (g) => {
+    const t = T();
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.7 + 0.3 * Math.sin(t * 0.25);
+    g.drawImage(raysC, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    V.sunBloom(g, SUN, t, { a: 0.34 });
+  }, { tag: 'sun' });
+  /* ---------------- nubes altas ---------------- */
+  B.cloudDeck({ kind: 'cirrus', n: 6, seed: 31, f: [0.01, 0.03], y: [6, 46], w: [70, 160], speed: [1, 2] });
+  B.cloudDeck({ n: 7, seed: 37, f: [0.03, 0.07], y: [-6, 56], w: [50, 124], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
+  /* ---------------- cúmulos bajos (tras la cordillera) ---------------- */
+  B.cloudDeck({ n: 6, seed: 41, f: [0.08, 0.11], y: [54, 100], w: [86, 130], speed: [1.4, 2.4], sunX: SUN.x, tall: true, haze: 0.08, hazeCol: '#e0d0d8' });
+  /* ---------------- cordillera lila lejana con ARIDIA (0,06) ---------------- */
+  const farGl = [];
+  B.vplane(0.06, at(0.06, HZ - 74), 76, (pb, w, h) => {
+    const r = RNG(171), peaks = [];
+    for (let x = -40; x < w + 60;) {
+      if (r.chance(0.25)) { x += r.int(50, 120); continue; }
+      const ww = r.int(44, 120);
+      peaks.push({ x: x + ww * 0.5, v: r.int(14, 34), h: r.int(20, 60), w: ww, d: r.int(16, 30) });
+      x += r.int(30, 80);
+    }
+    peaks.push({ x: 236, v: 20, h: 48, w: 90, d: 24, k: 0.9 });
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 44, dvy: 0.32, seed: 173, hMax: 60,
+      H: V.massif(peaks, { seed: 173, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4, plateaus: [{ x: 236, w: 22, h: 44 }] }),
+      ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55,
+      haze: { col: '#c4bcdc', k0: 0.02, k: 0.22 }, mist: { col: '#d4c8dc', h: 14, k: 0.55 }, rim: '#f0c8b4', tex: 0.04,
+    });
+    // ARIDIA muy lejos: cúpula y torres diminutas, casi disueltas en la bruma
+    const dc = V.domeCity(pb, 236, info.top[236] + 9, { k: 0.52, s: 0.27, label: false });
+    farGl.push([236 - 3, dc.top + 8]);
+  }, { tag: 'far', dyn: (g, cam, Ly) => { const [ox, oy] = B.vofs(Ly, cam), t = T(); for (const [x, y] of farGl) V.drawGlow(g, x + ox, y + oy, 2, '#d8fcff', 0.3 + 0.25 * Math.sin(t * 1.1)); } });
+  /* ---------------- mar de dunas (0,12) ---------------- */
+  let duneCrests = [];
+  B.vplane(0.12, at(0.12, 126), 62, (pb, w, h) => {
+    const D = V.dunes(pb, { y0: 30, y1: 56, rows: 3, hBack: 14, hFront: 26, wMin: 60, wMax: 150, k0: 0.36, k1: 0.12, hazeCol: '#dccad6', seed: 121 });
+    duneCrests = D.crests.filter(c => c[2] === 2).map(([x, y]) => [x, y]);
+    // caravana diminuta sobre la duna delantera (silueta cálida)
+    const C = V.P32(['#3a2418', '#6a4028', '#9a6038']);
+    for (const cx of [410, 424, 438]) { const y = D.tops[2][cx] - 1; V.put(pb, cx, y - 2, C[1]); V.put(pb, cx + 1, y - 2, C[1]); V.put(pb, cx + 2, y - 3, C[2]); V.put(pb, cx, y - 1, C[0]); V.put(pb, cx + 2, y - 1, C[0]); }
+  }, { tag: 'dunes', dyn: (g, cam, Ly) => { const [ox, oy] = B.vofs(Ly, cam); V.drawSandWisps(g, duneCrests, ox, oy, T(), { n: 3, a: 0.5 }); } });
+  /* ---------------- mesetas con energía y tubería de permeado (0,2) ---------------- */
+  const mesaT = [], mesaFx = { flow: [], pv: [], glows: [] };
+  B.vplane(0.2, at(0.2, 92), 116, (pb, w, h) => {
+    const r = RNG(201), peaks = [], plats = [];
+    for (let x = -20; x < w + 60;) {
+      const ww = r.int(70, 140), hh = r.int(28, 62);
+      peaks.push({ x: x + ww * 0.5, v: r.int(10, 26), h: hh, w: ww, d: r.int(20, 32), k: 0.7 });
+      if (r.chance(0.6)) plats.push({ x: x + ww * 0.5, w: ww * 0.28, h: hh * 0.82 });
+      x += r.int(100, 170) + (r.chance(0.45) ? r.int(60, 130) : 0);
+    }
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 48, dvy: 0.36, seed: 203, hMax: 70,
+      H: V.massif(peaks, { seed: 203, rough: 0.55, scale: 0.04, apron: 6, spurs: 6, spurW: 0.5, plateaus: plats }),
+      ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.56, facet: 0.34, cav: 0.1,
+      haze: { col: '#c8a8c0', k0: 0.12, k: 0.16 }, mist: { col: '#e4cccc', h: 22, k: 0.55 }, rim: '#ffdcae', tex: 0.05,
+      veg: { ramp: V.RAMPS.vegMid, density: 0.02, maxSlope: 0.5, minY: 50 },
+    });
+    // aerogeneradores en las mesetas
+    for (const P of plats) {
+      const x = Math.round(P.x); if (x < 8 || x >= w - 8) continue;
+      for (const dx of [-14, 12]) {
+        const bx = x + dx, y = info.top[bx] + 1; if (y > h - 24) continue;
+        const hub = V.turbineTower(pb, bx, y, 30, { k: 0.18, w: 2 });
+        mesaT.push({ x: hub.hx, y: hub.hy, R: 12, k: 0.18, sp: 1.8 + (bx % 7) * 0.2, ph: bx });
+      }
+    }
+    // campo FV en el llano entre mesetas
+    for (const x0 of [300, 760]) if (x0 < w - 80) {
+      const P = V.pvArray(pb, x0, h - 12, { tables: 3, cols: 12, rows: 2, cw: 4, ch: 2, gap: 2, skew: 2, k: 0.16, shift: 3 });
+      mesaFx.pv.push(V.shadowCopy(pb, P.x0 - 2, P.y0 - 1, P.x1 - P.x0 + 6, P.y1 - P.y0 + 4));
+    }
+    // tubería de permeado desde SYNARA (sobre pilares) hasta el oasis: agua para mezclar con el pozo salobre
+    const py = h - 22, PERM = ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd'];
+    for (let x = 0; x < w; x += 18) for (let yy = py + 2; yy < h - 2; yy++) V.put(pb, x, yy, V.P32(V.hz(V.TECH.CONC, 0.2))[yy === py + 2 ? 6 : 3]);
+    V.pipe(pb, [[0, py], [w - 1, py]], 1, PERM, { k: 0.12, flange: 18 });
+    mesaFx.flow.push([[0, py], [w - 1, py]]);
+  }, {
+    tag: 'mesa', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      drawTurbines(g, cam, Ly, mesaT);
+      drawPvShade(g, mesaFx.pv, ox, oy, t);
+      for (const p of mesaFx.flow) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 16, gap: 9 });
+    },
+  });
+  /* ---------------- colina del oasis: terrazas, aldea, cascadas (0,3) ---------------- */
+  const hillFalls = [], hillFx = { fauna: [], glows: [], wheels: [] };
+  const HILL_YS = 40, HILL_LY = at(0.3, HILL_YS) + Math.round(V.CAMY * 0.09);
+  B.vplane(0.3, at(0.3, HILL_YS), 196, (pb, w, h) => {
+    const k = 0.07, r = RNG(301);
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 40, dvy: 0.3, seed: 303, hMax: 128,
+      H: V.massif([
+        { x: 330, v: 20, h: 134, w: 150, d: 28, k: 1.1 }, { x: 236, v: 10, h: 70, w: 150, d: 22, k: 0.55 }, { x: 456, v: 12, h: 88, w: 110, d: 22, k: 0.9 },
+        { x: 820, v: 18, h: 122, w: 140, d: 26, k: 1.1 }, { x: 740, v: 10, h: 64, w: 150, d: 20, k: 0.55 }, { x: 960, v: 12, h: 84, w: 110, d: 22 },
+        { x: 1150, v: 14, h: 106, w: 130, d: 24, k: 1.0 }, { x: 1230, v: 10, h: 58, w: 130, d: 18, k: 0.55 }, { x: 590, v: 8, h: 40, w: 80, d: 16 }, { x: 60, v: 10, h: 50, w: 100, d: 18 },
+      ], { seed: 303, rough: 0.5, scale: 0.05, apron: 5, spurs: 7, spurW: 0.5, plateaus: [{ x: 330, w: 26, h: 124 }, { x: 820, w: 22, h: 112 }, { x: 1150, w: 20, h: 98 }] }),
+      ramp: V.RAMPS.low, contrast: 2.0, t0: 0.54, facet: 0.32, cav: 0.1,
+      haze: { col: '#c8a8b8', k0: 0.06, k: 0.08 }, mist: { col: '#e8d4c4', h: 18, k: 0.4 }, rim: '#fde0a8', tex: 0.06,
+      veg: { ramp: V.RAMPS.vegHill, density: 0.16, maxSlope: 1.2, minY: 30, size: 3 },
+    });
+    // terrazas en curvas de nivel que abrazan cada cerro (la cima queda de roca con el manantial)
+    const TER = [
+      { cx: 330, steps: 8, hwTop: 34, hwBot: 124, bow: 11, seed: 307, kinds: ['rows', 'vine', 'flowers', 'rows', 'orchard', 'rows', 'vine', 'flowers'], falls: [{ x: 327, w: 6, from: 0, to: 5 }, { x: 268, w: 3, from: 3, to: 6 }] },
+      { cx: 820, steps: 7, hwTop: 30, hwBot: 110, bow: 10, seed: 311, kinds: ['orchard', 'rows', 'flowers', 'vine', 'rows', 'orchard', 'rows'], falls: [{ x: 817, w: 5, from: 0, to: 4 }] },
+      { cx: 1150, steps: 6, hwTop: 26, hwBot: 92, bow: 9, seed: 313, kinds: ['vine', 'rows', 'orchard', 'rows', 'flowers', 'rows'], falls: [{ x: 1148, w: 4, from: 0, to: 3 }, { x: 1190, w: 3, from: 2, to: 5 }] },
+    ];
+    for (const t of TER) {
+      t.yTop = info.top[t.cx] + 34;
+      const R = V.contourTerraces(pb, Object.assign({ stepH: [10, 12], wallK: 0.42, k }, t));
+      hillFalls.push(...R.falls);
+      // cascada del manantial: baja por la roca desde la cisterna de la cima hasta la primera terraza
+      const f0 = t.falls[0], y0 = info.top[t.cx] + 4, y1 = t.yTop + Math.round(t.bow * 0.55) + 1;
+      if (y1 - y0 > 5) {
+        const ym = Math.round((y0 + y1) / 2);
+        V.fall(pb, f0.x, y0, ym, f0.w - 1, { k }); hillFalls.push({ x: f0.x, y0, y1: ym, w: f0.w - 1 });
+        const RK = V.P32(V.RAMPS.low);
+        for (let xx = f0.x - 3; xx < f0.x + f0.w + 3; xx++) { V.put(pb, xx, ym + 2, RK[2]); V.put(pb, xx, ym + 1, RK[7]); V.put(pb, xx, ym, U(xx < f0.x || xx >= f0.x + f0.w ? '#3adcf1' : '#e8f8fc')); }
+        V.fall(pb, f0.x, ym + 2, y1, f0.w, { k }); hillFalls.push({ x: f0.x, y0: ym + 2, y1, w: f0.w });
+      }
+    }
+    // manantial con cisterna en la meseta superior de cada colina
+    for (const [x, ww] of [[330, 20], [820, 16], [1150, 14]]) {
+      const y = info.top[x] + 3;
+      V.box3q(pb, x - ww / 2 - 2, y + 2, ww + 4, 3, 6, { ramp: V.AGRO.ADOBE, k });
+      for (let xx = x - ww / 2; xx < x + ww / 2; xx++) { V.put(pb, xx, y - 1, U('#3adcf1')); V.put(pb, xx, y - 2, U(xx % 5 ? '#11bedd' : '#bde9f2')); }
+      hillFx.glows.push([x, y - 2]);
+    }
+    // aldea de adobe en los hombros, banco de semillas con cúpula y torre de agua
+    for (let i = 0; i < 30; i++) {
+      const x = r.pick([r.int(150, 215), r.int(470, 560), r.int(620, 705), r.int(955, 1060), r.int(1235, 1280), r.int(20, 120)]);
+      const y = info.onSurf(x, r.int(3, 14)); if (y == null || y < 40 || y > h - 10) continue;
+      V.adobe(pb, x, y + 1, r.int(7, 12), r.int(5, 8), 3100 + i, { k });
+    }
+    { const x = 540, y = info.onSurf(x, 6); if (y != null) { V.house(pb, x - 10, y + 1, 20, 10, 3201, { k, roof: 'dome', tint: '#e6ae72' }); hillFx.glows.push([x + 2, y - 14]); } }
+    { const x = 1000, y = info.onSurf(x, 6); if (y != null) V.waterTower(pb, x, y + 1, 30, { k }); }
+    // invernaderos y casa-malla junto a las terrazas
+    for (const [x, ww, hh] of [[480, 30, 11], [612, 26, 10], [960, 32, 12], [1240, 24, 10]]) { const y = info.onSurf(x + ww / 2, 4); if (y != null && y < h - 4) V.greenhouse(pb, x, y + 2, ww, hh, { k }); }
+    { const y = info.onSurf(150, 4); if (y != null) V.shadeHouse(pb, 136, y + 2, 34, 12, { k }); }
+    // molinos de bombeo (rueda animada)
+    for (const x of [610, 1040]) { const y = info.onSurf(x, 4); if (y == null) continue; const m = V.windPump(pb, x, y + 1, 22, { k }); hillFx.wheels.push({ x: m.hx, y: m.hy, R: 6 }); }
+    // palmeras y vegetación densa
+    V.scatterVeg(pb, (x) => (Math.abs(x - 330) < 22 || Math.abs(x - 820) < 18) ? null : info.top[x] + 1, 0, w, 3301, { k, gap: 6, mix: { tree: 4, shrub: 3, palm: 3, flower: 1 }, ramp: V.RAMPS.vegHill });
+    for (let x = 10; x < w; x += r.int(16, 34)) { const y = info.onSurf(x, r.int(0, 3)); if (y != null && y > h - 60) V.palm(pb, x, y + 2, r.int(20, 30), r.range(-4, 4), 3400 + x, { k }); }
+    // fauna: drones agrícolas, águila
+    hillFx.fauna.push({ kind: 'drone', x: 380, y: info.top[330] - 22, r: 26 }, { kind: 'drone', x: 880, y: info.top[820] - 18, r: 20 }, { kind: 'eagle', x: 700, y: 20, r: 120 });
+    labels.push({ x: 352, y: HILL_LY + info.top[330] - 26, f: 0.3, title: 'TERRAZAS', sub: 'Riego por gravedad', kind: 'green', ax: 330, ay: HILL_LY + info.top[330] + 8 });
+  }, {
+    tag: 'hill', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawFalls(g, hillFalls, ox, oy, t, { speed: 44, alpha: 0.85 });
+      for (const [x, y] of hillFx.glows) V.drawGlow(g, x + ox, y + oy, 4, '#7ff4ff', 0.35 + 0.2 * Math.sin(t * 1.7 + x));
+      for (const m of hillFx.wheels) { const x = m.x + ox; if (x < -20 || x > W + 20) continue; if (!m.s) m.s = V.pumpWheel(m.R, { k: 0.07 }); V.drawStrip(g, m.s, Math.floor(t * 9 + m.x), x - m.s.c0, m.y + oy - m.s.c0); }
+      V.drawFauna(g, hillFx.fauna, ox, oy, t);
+    },
+  });
+  /* ---------------- humedal con laguna, carrizo y garzas (0,42) ---------------- */
+  const wetFx = { ponds: [], flocks: [] };
+  const WET_YS = 172;
+  B.vplane(0.42, at(0.42, WET_YS), 84, (pb, w, h) => {
+    const k = 0.04, r = RNG(421);
+    // orilla baja de pradera húmeda
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 24, dvy: 0.4, seed: 423, hMax: 30,
+      H: V.massif([
+        { x: 120, v: 10, h: 26, w: 120, d: 16 }, { x: 420, v: 10, h: 22, w: 140, d: 16 }, { x: 760, v: 10, h: 28, w: 130, d: 16 },
+        { x: 1080, v: 10, h: 24, w: 150, d: 16 }, { x: 1400, v: 10, h: 26, w: 120, d: 16 }, { x: 1600, v: 10, h: 20, w: 100, d: 16 },
+      ], { seed: 423, rough: 0.35, scale: 0.06, apron: 3, base: 6 }),
+      ramp: ['#1e2a10', '#2e4014', '#46581a', '#5e7020', '#7a8a2a', '#98a438', '#b8bc4a', '#d4d064'], contrast: 1.5, t0: 0.58,
+      haze: { col: '#b8b8a8', k0: 0.04, k: 0.06 }, rim: '#f4f0a0', tex: 0.08,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.16, maxSlope: 1.4, minY: 0, size: 3 },
+    });
+    // lagunas (agua dulce mezclada que se depura en el humedal)
+    for (const [cx, hw] of [[260, 110], [620, 90], [960, 130], [1320, 100], [1700, 80]]) {
+      if (cx - hw > w) continue;
+      const y = h - 30;
+      const P = V.pond(pb, cx, y, hw, 22, { k, seed: cx });
+      wetFx.ponds.push(P);
+      V.reeds(pb, cx - hw - 6, cx - hw * 0.5, y + 4, { k, seed: cx + 1, h: 10 });
+      V.reeds(pb, cx + hw * 0.55, cx + hw + 8, y + 6, { k, seed: cx + 2, h: 11 });
+      V.reeds(pb, cx - hw * 0.4, cx + hw * 0.3, y + 1, { k: k + 0.04, seed: cx + 3, h: 6, density: 0.25 });
+      for (let i = 0; i < 4; i++) V.egret(pb, cx + r.int(-hw * 0.6, hw * 0.6), y + r.int(6, 14), { k, flip: r.chance(0.5) });
+    }
+    // borde delantero del humedal: carrizo y matorral de ribera
+    V.scatterVeg(pb, (x) => h - 3 - Math.round(vnoise(x * 0.05, 1, 9) * 4), 0, w, 4201, { k, gap: 5, mix: { shrub: 4, tree: 2, flower: 1 }, ramp: V.RAMPS.vegLow });
+    V.reeds(pb, 0, w, h - 1, { k, seed: 4211, h: 9, density: 0.45 });
+    // pasarela de madera sobre la laguna central
+    const WD = V.P32(V.hz(V.AGRO.WOOD, k));
+    for (let x = 870; x < 1060; x++) { V.put(pb, x, h - 18, WD[5]); V.put(pb, x, h - 17, WD[3]); if (x % 8 === 0) for (let yy = h - 16; yy < h - 10; yy++) V.put(pb, x, yy, WD[1]); if (x % 4 === 0) V.put(pb, x, h - 21, WD[4]); }
+    for (let x = 870; x < 1060; x++) V.put(pb, x, h - 21, WD[x % 4 === 0 ? 4 : 2]);
+    // palmeras datileras y arbolado de ribera
+    V.scatterVeg(pb, (x) => info.top[x] < h - 34 ? info.top[x] + 1 : null, 0, w, 4301, { k, gap: 9, mix: { tree: 4, shrub: 3, palm: 2 }, ramp: V.RAMPS.vegLow, scale: 1.2 });
+    for (let x = 30; x < w; x += r.int(40, 90)) { const y = info.top[x]; if (y < h - 30) V.palm(pb, x, y + 2, r.int(26, 38), r.range(-5, 5), 4400 + x, { k }); }
+    wetFx.flocks.push({ x: 600, y: 18, n: 7, sp: 9, span: 1500, col: '#fbfbff' }, { x: 1300, y: 4, n: 5, sp: -7, span: 1400, col: '#f2f4ff', ph: 400 });
+    labels.push({ x: 1000, y: at(0.42, WET_YS) + Math.round(V.CAMY * 0.126) + h - 64, f: 0.42, title: 'HUMEDAL', sub: 'Filtro vivo', kind: 'water', ax: 960, ay: at(0.42, WET_YS) + Math.round(V.CAMY * 0.126) + h - 26 });
+  }, {
+    tag: 'wet', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      for (const P of wetFx.ponds) {
+        const x0 = Math.round(P.x0 + ox); if (x0 > W || P.x1 + ox < 0) continue;
+        V.drawSeaFx(g, x0 + 10, P.y + oy + 1, P.x1 - P.x0 - 20, Math.round(P.d * 0.7), t, { density: 0.6, sunX: SUN.x > x0 && SUN.x < P.x1 + ox ? SUN.x : null });
+      }
+      for (const fl of wetFx.flocks) V.drawFlock(g, fl, ox, oy, t);
+    },
+  });
+  /* ---------------- huertos y frutales junto al plano jugable (0,56) ---------------- */
+  const nearFx = { ch: [], fauna: [] };
+  const NEAR_YS = 198;
+  B.vplane(0.56, at(0.56, NEAR_YS), 96, (pb, w, h) => {
+    const k = 0.02, r = RNG(561);
+    // banda de suelo: arena al oeste (borde del desierto), vega verde al este; costura orgánica en clusters
+    const nearH = V.massif([
+      { x: 40, v: 22, h: 16, w: 120, d: 14 }, { x: 300, v: 26, h: 14, w: 150, d: 16 }, { x: 640, v: 24, h: 12, w: 160, d: 16 }, { x: 960, v: 26, h: 14, w: 150, d: 16 },
+      { x: 1280, v: 24, h: 12, w: 170, d: 16 }, { x: 1600, v: 26, h: 14, w: 150, d: 16 }, { x: 1850, v: 22, h: 12, w: 120, d: 16 },
+    ], { seed: 563, rough: 0.3, scale: 0.05, apron: 3, base: 3 });
+    const relO = { yBase: h - 1, nv: 34, dvy: 1.4, seed: 563, hMax: 34, H: nearH, contrast: 1.5, t0: 0.6, haze: { col: '#c0b0a0', k0: 0.02, k: 0.04 }, rim: '#fff0a8', tex: 0.08 };
+    V.relief(pb, Object.assign({}, relO, { x1: 300, ramp: V.AGRO.DUNE }));
+    const sand = pb.data.slice();
+    const info = V.relief(pb, Object.assign({}, relO, {
+      x0: 150, ramp: ['#1a2a0c', '#2a3e10', '#3e5614', '#56701a', '#728a22', '#90a42e', '#b0bc40', '#ccd258'],
+      veg: { ramp: V.RAMPS.vegLow, density: 0.1, maxSlope: 1.4, minY: 0, size: 3 },
+    }));
+    for (let y = 0; y < h; y++) for (let x = 150; x < 300; x++) { const q = (x - 150) / 150 + (vnoise(x * 0.08, y * 0.12, 5) - 0.5) * 0.7; if (q < 0.5 && (sand[y * w + x] >>> 24)) pb.data[y * w + x] = sand[y * w + x]; }
+    for (let x = 14; x < 230; x += r.int(18, 40)) { const y = info.top[x] + 1; if (y < h - 4) ART.cactus(pb, x, y + 2, r.int(8, 14), x); }
+    // huertas (bancales con canal), frutales en hileras y palmeras datileras
+    let fi = 0;
+    for (let x0 = 236; x0 < w - 40; fi++) {
+      const fw = r.int(130, 180), x1 = Math.min(w - 2, x0 + fw), y0 = h - 54 + r.int(-3, 3), y1 = h - 24;
+      // seto de linde al fondo del bancal
+      V.orchard(pb, x0 + 4, x1 - 4, y0 - 1, y0 - 1, { k: k + 0.02, seed: x0 + 7, rows: 1, r0: 3, r1: 3, gap: 2, fruit: false });
+      if (fi % 2 === 0) { const C = V.cropRows(pb, x0, x1, y0, y1, { k, seed: x0, channelEvery: 4, kinds: r.shuffle(['lettuce', 'tomato', 'flowers', 'maize', 'squash']) }); nearFx.ch.push(...C.channels); }
+      else V.orchard(pb, x0 + 3, x1 - 3, y0 + 6, y1, { k, seed: x0, rows: 3, r0: 3, r1: 5, gap: 4 });
+      // linde: matorral y flores entre bancales
+      V.scatterVeg(pb, () => y1 - 2, x1 + 1, x1 + 18, x0 + 13, { k, gap: 4, mix: { shrub: 3, tree: 2, flower: 2 }, ramp: V.RAMPS.vegLow });
+      x0 = x1 + r.int(16, 26);
+    }
+    // casas de labor, casa-malla y torre de agua de la vega
+    for (const [x, ww, hh, s] of [[440, 12, 8, 1], [760, 14, 9, 2], [1060, 11, 7, 3], [1400, 13, 8, 4], [1690, 12, 8, 5]]) if (x < w - 10) V.adobe(pb, x, h - 22, ww, hh, 5600 + s, { k });
+    if (w > 1130) V.shadeHouse(pb, 1110, h - 22, 46, 14, { k });
+    if (w > 1460) V.waterTower(pb, 1460, h - 22, 38, { k });
+    for (let x = 200; x < w; x += r.int(36, 80)) V.palm(pb, x, h - 14, r.int(34, 50), r.range(-6, 6), 5700 + x, { k });
+    nearFx.fauna.push({ kind: 'drone', x: 700, y: h - 60, r: 30 }, { kind: 'drone', x: 1500, y: h - 64, r: 24 });
+  }, {
+    tag: 'near', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      // destellos que corren por los canales de riego
+      g.fillStyle = '#e8ffff';
+      for (const [x0, x1, y] of nearFx.ch) { const a = x0 + ox, b = x1 + ox; if (b < 0 || a > W) continue; for (let x = a + ((t * 18) % 14); x < b; x += 14) g.fillRect(Math.round(x), y + oy, 2, 1); }
+      V.drawFauna(g, nearFx.fauna, ox, oy, t);
+      V.drawMotes(g, 18, t, 11, { y0: 120, y1: 270, col: '#fff2b0' });
+    },
+  });
+  function drawTurbines(g, cam, Ly, list) {
+    const [ox, oy] = B.vofs(Ly, cam), t = T();
+    for (const tb of list) {
+      const x = tb.x + ox, y = tb.y + oy;
+      if (x < -30 || x > W + 30) continue;
+      if (!tb.rot) tb.rot = V.rotor(tb.R, { k: tb.k });
+      V.drawRotor(g, tb.rot, x, y, t * tb.sp + tb.ph);
+    }
+  }
+  function drawPvShade(g, list, ox, oy, t) {
+    for (const S of list) {
+      const span = S.w + 80, cx = ((t * 4.5 + S.x * 0.7) % span) - 40, cw = 22;
+      const a0 = Math.max(0, Math.round(cx - cw / 2)), a1 = Math.min(S.w, Math.round(cx + cw / 2));
+      if (a1 > a0) g.drawImage(S.c, a0, 0, a1 - a0, S.h, S.x + ox + a0, S.y + oy, a1 - a0, S.h);
+    }
+  }
+  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc);
+  BIOME_LABELS.oasis = labels;
+  B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
+  return B;
+};
+
+BIOME_LABELS.oasis = BIOME_LABELS.oasis || [];
 
 /* ===== 20_models.js ===== */
 /* =====================================================================
@@ -22012,7 +22695,7 @@ LEVELS[8] = {
     // mariposas y abejas en el corredor
     for (let i = 0; i < 10; i++) { const bx = 1600 + ((t * 20 + i * 61) % 600) - ox, by = gy(1600) - 14 - Math.abs(Math.sin(t * 3 + i)) * 10; fpx(g, bx, by, i % 2 ? '#ffe14d' : '#b49cff'); fpx(g, bx + 1, by - (Math.floor(t * 8 + i) % 2), i % 2 ? '#fff6a0' : '#e0d8ff'); }
     // brillo del compartimento de KIRU en el árbol
-    if (S.memGlow) fdither(g, 2400 - ox, gy(2420) - 60, 40, 40, '#b49cff', 0.2 + 0.1 * Math.sin(t * 4));
+    if (S.memGlow) VISTA.drawGlow(g, 2420 - ox, gy(2420) - 40, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
     // flujo de riego por el nodo hidráulico
     Charts.flow(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
     Charts.flow(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
