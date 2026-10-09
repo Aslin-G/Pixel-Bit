@@ -91,8 +91,8 @@ LEVELS[8] = {
     // brillo del compartimento de KIRU en el árbol
     if (S.memGlow) VISTA.drawGlow(g, 2420 - ox, gy(2420) - 40, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
     // flujo de riego por el nodo hidráulico
-    Charts.flow(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
-    Charts.flow(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
+    VISTA.flowClip(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
+    VISTA.flowClip(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
   },
   lens(g, sc, cam, k) {
     const S = sc.state, ox = cam.x, oy = cam.y, w = sc.world;

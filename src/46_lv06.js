@@ -71,7 +71,7 @@ LEVELS[6] = {
       if (!S.blackout) drawSOCStrip(g, sx + 8, gy(x) - 110, 48, soc, t, S.charging || 0);
     }
     // flujo por la barra de cobre: hacia el electrolizador (arriba) o a cargas críticas
-    if (!S.blackout) Charts.flow(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
+    if (!S.blackout) VISTA.flowClip(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
     // arcos eléctricos temporizados (peligro no letal)
     for (let i = 0; i < ARCS.length; i++) {
       const a = ARCS[i], hz = w.hazards[i];

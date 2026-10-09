@@ -89,8 +89,8 @@ LEVELS[7] = {
       frect(g, x + 8, gy - 70, 4, 3, on ? '#86e36f' : (S.leak && k === 1 ? ((Math.floor(t * 6) % 2) ? '#ff4e5d' : '#ffb93b') : '#3a3a4a'));
     }
     // flujo de agua ultrapura y de H2
-    Charts.flow(g, [[440 - ox, gy - 20], [760 - ox, gy - 20]], 'water', S.waterReady ? 1 : 0.2, 2);
-    Charts.flow(g, [[760 - ox, gy - 70], [1260 - ox, gy - 70]], 'h2', S.stacks && !S.leak ? 1 : 0, 2);
+    VISTA.flowClip(g, [[440 - ox, gy - 20], [760 - ox, gy - 20]], 'water', S.waterReady ? 1 : 0.2, 2);
+    VISTA.flowClip(g, [[760 - ox, gy - 70], [1260 - ox, gy - 70]], 'h2', S.stacks && !S.leak ? 1 : 0, 2);
     // fuga simulada: llama invisible (solo se ve con la cámara térmica)
     if (S.leak) {
       const lx = 950 - ox, ly = gy - 40;

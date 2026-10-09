@@ -183,8 +183,8 @@ function buildCitadel(L) {
       for (const [x, y, rr, c] of citFx.glows) V.drawGlow(g, x + ox, y + oy, rr, c, 0.4 + 0.16 * Math.sin(t * 1.8 + x));
       for (const [x, y, rr] of citFx.rings) V.drawGlow(g, x + ox, y + oy, rr + 3, '#5ee69a', 0.35 + 0.15 * Math.sin(t * 2.4 + x));
       for (const [x, y] of citFx.lamps) if (x + ox > -10 && x + ox < W + 10) V.drawGlow(g, x + ox, y + oy + 2, 6, '#ffd890', 0.45);
-      for (const p of citFx.flowsG) V.drawFlow(g, p, ox, oy, t, { col: '#c8ffe0', speed: 14, gap: 8 });
-      for (const p of citFx.flowsC) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
+      for (const p of citFx.flowsG) V.drawFlowC(g, p, ox, oy, t, { col: '#c8ffe0', speed: 14, gap: 8 });
+      for (const p of citFx.flowsC) V.drawFlowC(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
       for (let i = 0; i < citFx.beacons.length; i++) { const [x, y] = citFx.beacons[i]; if (x + ox < -4 || x + ox > W + 4) continue; const on = (Math.floor(t * 1.1 + i * 0.29) % 2) === 0; if (on) { g.fillStyle = '#ff5848'; g.fillRect(x + ox, y + oy, 1, 1); V.drawGlow(g, x + ox, y + oy, 3, '#ff4030', 0.55); } }
       for (const [x, y] of citFx.cells) if (x + ox > -6 && x + ox < W + 6) V.drawBubbles(g, x + ox - 2, y + oy + 4, 4, 8, t + x, { n: 2, col: '#d8fff0' });
       V.drawLights(g, citFx.lights, ox, oy, t, { blink: -0.2 });
@@ -242,8 +242,8 @@ function buildCitadel(L) {
       for (const [x, y, rr, c] of nearFx.glows) if (x + ox > -40 && x + ox < W + 40) V.drawGlow(g, x + ox, y + oy, rr, c, 0.38 + 0.14 * Math.sin(t * 1.5 + x));
       for (const [x, y, rr] of nearFx.rings) if (x + ox > -20 && x + ox < W + 20) V.drawGlow(g, x + ox, y + oy, rr + 4, '#5ee69a', 0.4 + 0.15 * Math.sin(t * 2.2 + x));
       for (const [x, y] of nearFx.cells) if (x + ox > -6 && x + ox < W + 6) V.drawBubbles(g, x + ox - 2, y + oy + 6, 4, 12, t + x, { n: 3, col: '#e0fff2' });
-      for (const p of nearFx.flows) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
-      for (const p of nearFx.flowsG || []) V.drawFlow(g, p, ox, oy, t, { col: '#d8ffe8', speed: 14, gap: 10 });
+      for (const p of nearFx.flows) V.drawFlowC(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
+      for (const p of nearFx.flowsG || []) V.drawFlowC(g, p, ox, oy, t, { col: '#d8ffe8', speed: 14, gap: 10 });
       for (let i = 0; i < nearFx.beacons.length; i++) { const [x, y] = nearFx.beacons[i]; if ((Math.floor(t * 1.1 + i * 0.41) % 2) === 0 && x + ox > -4 && x + ox < W + 4) { g.fillStyle = '#ff5848'; g.fillRect(x + ox, y + oy, 1, 1); V.drawGlow(g, x + ox, y + oy, 4, '#ff4030', 0.55); } }
       V.drawMotes(g, 12, t, 23, { y0: 120, y1: 280, col: '#c8f8ff' });
     },

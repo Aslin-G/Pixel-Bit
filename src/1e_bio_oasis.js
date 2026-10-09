@@ -115,7 +115,7 @@ BIOMES.oasis = function (L) {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
       drawTurbines(g, cam, Ly, mesaT);
       drawPvShade(g, mesaFx.pv, ox, oy, t);
-      for (const p of mesaFx.flow) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 16, gap: 9 });
+      for (const p of mesaFx.flow) V.drawFlowC(g, p, ox, oy, t, { col: '#e8feff', speed: 16, gap: 9 });
     },
   });
   /* ---------------- colina del oasis: terrazas, aldea, cascadas (0,3) ---------------- */

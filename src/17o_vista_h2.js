@@ -176,6 +176,40 @@
       g.fillStyle = L[2] || o.col || '#ffe8b0'; g.fillRect(Math.round(x), Math.round(L[1] + oy), 1, 1);
     }
   };
+  /** Chevrones por una polilínea, solo los que caen en pantalla (versión con recorte de V.drawFlow) */
+  V.drawFlowC = function (g, pts, ox, oy, t, o = {}) {
+    const sp = o.speed ?? 14, gap = o.gap ?? 7;
+    g.fillStyle = o.col || '#e8feff';
+    let acc = 0;
+    for (let s = 0; s + 1 < pts.length; s++) {
+      const [x0, y0] = pts[s], [x1, y1] = pts[s + 1];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (Math.max(x0, x1) + ox < -2 || Math.min(x0, x1) + ox > W + 2) { acc += len; continue; }
+      let d = (gap - ((t * sp - acc) % gap + gap) % gap);
+      if (y0 === y1 && len > 0) { const lo = (-2 - ox - Math.min(x0, x1)); if (lo > d) d += Math.ceil((lo - d) / gap) * gap; }
+      for (; d < len; d += gap) { const u = d / len, x = lerp(x0, x1, u) + ox; if (x > W + 2) { if (y0 === y1) break; continue; } if (x < -2) continue; g.fillRect(Math.round(x), Math.round(lerp(y0, y1, u) + oy), 1, 1); }
+      acc += len;
+    }
+  };
+  /**
+   * Charts.flow recortado a la pantalla: los tramos horizontales se recortan alineando el
+   * corte al espaciado de los pulsos (los pulsos siguen anclados al mundo); el resto se delega.
+   */
+  V.flowClip = function (g, pts, kind, rate = 1, width = 3) {
+    const K = (typeof FLOW_KINDS !== 'undefined' && FLOW_KINDS[kind]) || null, sp = (K && K.spacing) || 12;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      let [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+      if (y0 !== y1 || !K) { Charts.flow(g, [[x0, y0], [x1, y1]], kind, rate, width); continue; }
+      const dir = x1 >= x0 ? 1 : -1, lo = -6, hi = W + 6;
+      if (Math.max(x0, x1) < lo || Math.min(x0, x1) > hi) continue;
+      // recorte del inicio en múltiplos del espaciado; recorte libre del final
+      if (dir > 0 && x0 < lo) x0 += Math.floor((lo - x0) / sp) * sp;
+      if (dir < 0 && x0 > hi) x0 -= Math.floor((x0 - hi) / sp) * sp;
+      if (dir > 0 && x1 > hi) x1 = hi;
+      if (dir < 0 && x1 < lo) x1 = lo;
+      Charts.flow(g, [[x0, y0], [x1, y1]], kind, rate, width);
+    }
+  };
   /** Velo plano translúcido (sustituto sin tramado de fdither para lavados de color) */
   V.veil = function (g, x, y, w, h, col, a) {
     if (a <= 0) return;

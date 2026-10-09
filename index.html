@@ -11152,6 +11152,40 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
       g.fillStyle = L[2] || o.col || '#ffe8b0'; g.fillRect(Math.round(x), Math.round(L[1] + oy), 1, 1);
     }
   };
+  /** Chevrones por una polilínea, solo los que caen en pantalla (versión con recorte de V.drawFlow) */
+  V.drawFlowC = function (g, pts, ox, oy, t, o = {}) {
+    const sp = o.speed ?? 14, gap = o.gap ?? 7;
+    g.fillStyle = o.col || '#e8feff';
+    let acc = 0;
+    for (let s = 0; s + 1 < pts.length; s++) {
+      const [x0, y0] = pts[s], [x1, y1] = pts[s + 1];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (Math.max(x0, x1) + ox < -2 || Math.min(x0, x1) + ox > W + 2) { acc += len; continue; }
+      let d = (gap - ((t * sp - acc) % gap + gap) % gap);
+      if (y0 === y1 && len > 0) { const lo = (-2 - ox - Math.min(x0, x1)); if (lo > d) d += Math.ceil((lo - d) / gap) * gap; }
+      for (; d < len; d += gap) { const u = d / len, x = lerp(x0, x1, u) + ox; if (x > W + 2) { if (y0 === y1) break; continue; } if (x < -2) continue; g.fillRect(Math.round(x), Math.round(lerp(y0, y1, u) + oy), 1, 1); }
+      acc += len;
+    }
+  };
+  /**
+   * Charts.flow recortado a la pantalla: los tramos horizontales se recortan alineando el
+   * corte al espaciado de los pulsos (los pulsos siguen anclados al mundo); el resto se delega.
+   */
+  V.flowClip = function (g, pts, kind, rate = 1, width = 3) {
+    const K = (typeof FLOW_KINDS !== 'undefined' && FLOW_KINDS[kind]) || null, sp = (K && K.spacing) || 12;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      let [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+      if (y0 !== y1 || !K) { Charts.flow(g, [[x0, y0], [x1, y1]], kind, rate, width); continue; }
+      const dir = x1 >= x0 ? 1 : -1, lo = -6, hi = W + 6;
+      if (Math.max(x0, x1) < lo || Math.min(x0, x1) > hi) continue;
+      // recorte del inicio en múltiplos del espaciado; recorte libre del final
+      if (dir > 0 && x0 < lo) x0 += Math.floor((lo - x0) / sp) * sp;
+      if (dir < 0 && x0 > hi) x0 -= Math.floor((x0 - hi) / sp) * sp;
+      if (dir > 0 && x1 > hi) x1 = hi;
+      if (dir < 0 && x1 < lo) x1 = lo;
+      Charts.flow(g, [[x0, y0], [x1, y1]], kind, rate, width);
+    }
+  };
   /** Velo plano translúcido (sustituto sin tramado de fdither para lavados de color) */
   V.veil = function (g, x, y, w, h, col, a) {
     if (a <= 0) return;
@@ -14589,8 +14623,8 @@ function buildCitadel(L) {
       for (const [x, y, rr, c] of citFx.glows) V.drawGlow(g, x + ox, y + oy, rr, c, 0.4 + 0.16 * Math.sin(t * 1.8 + x));
       for (const [x, y, rr] of citFx.rings) V.drawGlow(g, x + ox, y + oy, rr + 3, '#5ee69a', 0.35 + 0.15 * Math.sin(t * 2.4 + x));
       for (const [x, y] of citFx.lamps) if (x + ox > -10 && x + ox < W + 10) V.drawGlow(g, x + ox, y + oy + 2, 6, '#ffd890', 0.45);
-      for (const p of citFx.flowsG) V.drawFlow(g, p, ox, oy, t, { col: '#c8ffe0', speed: 14, gap: 8 });
-      for (const p of citFx.flowsC) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
+      for (const p of citFx.flowsG) V.drawFlowC(g, p, ox, oy, t, { col: '#c8ffe0', speed: 14, gap: 8 });
+      for (const p of citFx.flowsC) V.drawFlowC(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
       for (let i = 0; i < citFx.beacons.length; i++) { const [x, y] = citFx.beacons[i]; if (x + ox < -4 || x + ox > W + 4) continue; const on = (Math.floor(t * 1.1 + i * 0.29) % 2) === 0; if (on) { g.fillStyle = '#ff5848'; g.fillRect(x + ox, y + oy, 1, 1); V.drawGlow(g, x + ox, y + oy, 3, '#ff4030', 0.55); } }
       for (const [x, y] of citFx.cells) if (x + ox > -6 && x + ox < W + 6) V.drawBubbles(g, x + ox - 2, y + oy + 4, 4, 8, t + x, { n: 2, col: '#d8fff0' });
       V.drawLights(g, citFx.lights, ox, oy, t, { blink: -0.2 });
@@ -14648,8 +14682,8 @@ function buildCitadel(L) {
       for (const [x, y, rr, c] of nearFx.glows) if (x + ox > -40 && x + ox < W + 40) V.drawGlow(g, x + ox, y + oy, rr, c, 0.38 + 0.14 * Math.sin(t * 1.5 + x));
       for (const [x, y, rr] of nearFx.rings) if (x + ox > -20 && x + ox < W + 20) V.drawGlow(g, x + ox, y + oy, rr + 4, '#5ee69a', 0.4 + 0.15 * Math.sin(t * 2.2 + x));
       for (const [x, y] of nearFx.cells) if (x + ox > -6 && x + ox < W + 6) V.drawBubbles(g, x + ox - 2, y + oy + 6, 4, 12, t + x, { n: 3, col: '#e0fff2' });
-      for (const p of nearFx.flows) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
-      for (const p of nearFx.flowsG || []) V.drawFlow(g, p, ox, oy, t, { col: '#d8ffe8', speed: 14, gap: 10 });
+      for (const p of nearFx.flows) V.drawFlowC(g, p, ox, oy, t, { col: '#e8feff', speed: 18, gap: 7 });
+      for (const p of nearFx.flowsG || []) V.drawFlowC(g, p, ox, oy, t, { col: '#d8ffe8', speed: 14, gap: 10 });
       for (let i = 0; i < nearFx.beacons.length; i++) { const [x, y] = nearFx.beacons[i]; if ((Math.floor(t * 1.1 + i * 0.41) % 2) === 0 && x + ox > -4 && x + ox < W + 4) { g.fillStyle = '#ff5848'; g.fillRect(x + ox, y + oy, 1, 1); V.drawGlow(g, x + ox, y + oy, 4, '#ff4030', 0.55); } }
       V.drawMotes(g, 12, t, 23, { y0: 120, y1: 280, col: '#c8f8ff' });
     },
@@ -14942,7 +14976,7 @@ BIOMES.oasis = function (L) {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
       drawTurbines(g, cam, Ly, mesaT);
       drawPvShade(g, mesaFx.pv, ox, oy, t);
-      for (const p of mesaFx.flow) V.drawFlow(g, p, ox, oy, t, { col: '#e8feff', speed: 16, gap: 9 });
+      for (const p of mesaFx.flow) V.drawFlowC(g, p, ox, oy, t, { col: '#e8feff', speed: 16, gap: 9 });
     },
   });
   /* ---------------- colina del oasis: terrazas, aldea, cascadas (0,3) ---------------- */
@@ -15277,7 +15311,7 @@ BIOMES.vault = function (L) {
         const col = S.soc < 0.3 ? '#ff6b6b' : '#b6f05a';
         g.fillStyle = col;
         for (let i = 0; i < hallFx.leds.length; i++) { const [x, y] = hallFx.leds[i], sx = x + ox; if (sx < -2 || sx > W + 2) continue; if (((Math.floor(t * 3) + i * 7) % 11) !== 0) g.fillRect(sx, y + oy, 2, 1); }
-        for (const [p, c] of hallFx.flows) V.drawFlow(g, p, ox, oy, t * (S.charging ? 1.6 : 0.8), { col: S.charging ? '#a8f4ff' : c, speed: 22, gap: 11 });
+        for (const [p, c] of hallFx.flows) V.drawFlowC(g, p, ox, oy, t * (S.charging ? 1.6 : 0.8), { col: S.charging ? '#a8f4ff' : c, speed: 22, gap: 11 });
         for (const [x, y, w, h] of hallFx.screens) { const sx = x + ox; if (sx < -12 || sx > W) continue; for (let i = 0; i < 3; i++) { g.fillStyle = i === 1 ? '#ff6b6b' : '#56e5ff'; g.fillRect(sx, y + oy + i + (i > 0 ? i : 0), 2 + ((i * 5 + Math.floor(t * 3)) % (w - 1)), 1); } }
         for (const [x, y, w, h] of hallFx.glass) if (x + ox > -w && x + ox < W) V.drawSoftGlow(g, x + ox + w / 2, y + oy + h / 2, 40, '#3a8ad8', 0.35);
       } else for (let i = 0; i < hallFx.leds.length; i += 9) { const [x, y] = hallFx.leds[i]; if ((Math.floor(t * 2) % 2) === 0) { g.fillStyle = '#ff4e5d'; g.fillRect(x + ox, y + oy, 1, 1); } }
@@ -23097,7 +23131,7 @@ LEVELS[6] = {
       if (!S.blackout) drawSOCStrip(g, sx + 8, gy(x) - 110, 48, soc, t, S.charging || 0);
     }
     // flujo por la barra de cobre: hacia el electrolizador (arriba) o a cargas críticas
-    if (!S.blackout) Charts.flow(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
+    if (!S.blackout) VISTA.flowClip(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
     // arcos eléctricos temporizados (peligro no letal)
     for (let i = 0; i < ARCS.length; i++) {
       const a = ARCS[i], hz = w.hazards[i];
@@ -23590,8 +23624,8 @@ LEVELS[7] = {
       frect(g, x + 8, gy - 70, 4, 3, on ? '#86e36f' : (S.leak && k === 1 ? ((Math.floor(t * 6) % 2) ? '#ff4e5d' : '#ffb93b') : '#3a3a4a'));
     }
     // flujo de agua ultrapura y de H2
-    Charts.flow(g, [[440 - ox, gy - 20], [760 - ox, gy - 20]], 'water', S.waterReady ? 1 : 0.2, 2);
-    Charts.flow(g, [[760 - ox, gy - 70], [1260 - ox, gy - 70]], 'h2', S.stacks && !S.leak ? 1 : 0, 2);
+    VISTA.flowClip(g, [[440 - ox, gy - 20], [760 - ox, gy - 20]], 'water', S.waterReady ? 1 : 0.2, 2);
+    VISTA.flowClip(g, [[760 - ox, gy - 70], [1260 - ox, gy - 70]], 'h2', S.stacks && !S.leak ? 1 : 0, 2);
     // fuga simulada: llama invisible (solo se ve con la cámara térmica)
     if (S.leak) {
       const lx = 950 - ox, ly = gy - 40;
@@ -24060,8 +24094,8 @@ LEVELS[8] = {
     // brillo del compartimento de KIRU en el árbol
     if (S.memGlow) VISTA.drawGlow(g, 2420 - ox, gy(2420) - 40, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
     // flujo de riego por el nodo hidráulico
-    Charts.flow(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
-    Charts.flow(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
+    VISTA.flowClip(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
+    VISTA.flowClip(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
   },
   lens(g, sc, cam, k) {
     const S = sc.state, ox = cam.x, oy = cam.y, w = sc.world;
@@ -25554,13 +25588,13 @@ LEVELS[10] = {
       for (let k = 0; k < 3; k++) { const fx = 660 + k * 44 - ox + 14, fy = gyw(660) - 50; const c = S.cards.toma ? (ntu > 60 ? '#ff4e5d' : ntu > 20 ? '#ffb93b' : '#86e36f') : ((Math.floor(t * 3) + k) % 2 ? '#ff4e5d' : '#6a1414'); frect(g, fx, fy, 5, 3, c); }
       const mode = S.cards.toma ? (ntu > 60 ? 'TOMA CERRADA' : ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA';
       frect(g, 650 - ox, gyw(650) - 104, 112, 11, '#05081d'); drawText(g, fmt0(ntu) + ' NTU · ' + mode, 706 - ox, gyw(650) - 102, { font: 'tiny', align: 'center', color: S.cards.toma ? '#ffe14d' : '#ff9a8a' });
-      Charts.flow(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
+      VISTA.flowClip(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
     } }
     // trenes de OI: luces por tren y permeado hacia el tanque
     { const x0 = 880 - ox; if (x0 > -320 && x0 < W + 20) {
       const on = S.cards.membranas ? (ntu > 60 && S.cards.toma ? 0 : 3) : 3;
       for (let k = 0; k < 3; k++) { const lx = 880 + 14 + k * 92 - ox, ly = gyw(880) - 62; frect(g, lx + 30, ly, 10, 3, k < on ? (S.cards.membranas ? '#86e36f' : '#ffb93b') : '#3a3a4a'); }
-      Charts.flow(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
+      VISTA.flowClip(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
       if (!S.cards.membranas) { VISTA.veil(g, 880 - ox, gyw(880) - 96, 300, 96, '#a8742c', 0.08 + 0.04 * Math.sin(t * 4)); }
       const lvl = clamp(S.tank / CalimaModel.TANK_CAP, 0, 1), tx = 1196 - ox + 4, ty = gyw(1196) - 6;
       frect(g, tx, ty - Math.round(70 * lvl), 32, Math.round(70 * lvl), '#22bdd0'); VISTA.veil(g, tx, ty - Math.round(70 * lvl), 32, 3, '#a6f4ff', 0.6);
@@ -25575,7 +25609,7 @@ LEVELS[10] = {
       const vx = 1520 - ox, vy = gyw(1520) - 16;
       frect(g, vx + 3, vy, 8, 6, hold ? '#ff4e5d' : '#86e36f');
       drawText(g, hold ? 'RETENIENDO' : 'DIFUSOR', vx + 7, vy - 10, { font: 'tiny', align: 'center', color: hold ? '#ff9a8a' : '#c2f58e' });
-      Charts.flow(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
+      VISTA.flowClip(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
     } }
     // turbinas con ráfagas y corte por velocidad
     for (const x of CAL_TURB) { const sx = x - ox; if (sx < -80 || sx > W + 80) continue; const gust = S.gust > 0.75; ART.turbine(g, sx, gyw(x), 70, S.rotor + x * 0.01, { stopped: gust && !S.clearK }); }

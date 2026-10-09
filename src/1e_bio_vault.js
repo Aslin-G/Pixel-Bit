@@ -138,7 +138,7 @@ BIOMES.vault = function (L) {
         const col = S.soc < 0.3 ? '#ff6b6b' : '#b6f05a';
         g.fillStyle = col;
         for (let i = 0; i < hallFx.leds.length; i++) { const [x, y] = hallFx.leds[i], sx = x + ox; if (sx < -2 || sx > W + 2) continue; if (((Math.floor(t * 3) + i * 7) % 11) !== 0) g.fillRect(sx, y + oy, 2, 1); }
-        for (const [p, c] of hallFx.flows) V.drawFlow(g, p, ox, oy, t * (S.charging ? 1.6 : 0.8), { col: S.charging ? '#a8f4ff' : c, speed: 22, gap: 11 });
+        for (const [p, c] of hallFx.flows) V.drawFlowC(g, p, ox, oy, t * (S.charging ? 1.6 : 0.8), { col: S.charging ? '#a8f4ff' : c, speed: 22, gap: 11 });
         for (const [x, y, w, h] of hallFx.screens) { const sx = x + ox; if (sx < -12 || sx > W) continue; for (let i = 0; i < 3; i++) { g.fillStyle = i === 1 ? '#ff6b6b' : '#56e5ff'; g.fillRect(sx, y + oy + i + (i > 0 ? i : 0), 2 + ((i * 5 + Math.floor(t * 3)) % (w - 1)), 1); } }
         for (const [x, y, w, h] of hallFx.glass) if (x + ox > -w && x + ox < W) V.drawSoftGlow(g, x + ox + w / 2, y + oy + h / 2, 40, '#3a8ad8', 0.35);
       } else for (let i = 0; i < hallFx.leds.length; i += 9) { const [x, y] = hallFx.leds[i]; if ((Math.floor(t * 2) % 2) === 0) { g.fillStyle = '#ff4e5d'; g.fillRect(x + ox, y + oy, 1, 1); } }

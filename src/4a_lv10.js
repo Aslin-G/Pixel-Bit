@@ -545,13 +545,13 @@ LEVELS[10] = {
       for (let k = 0; k < 3; k++) { const fx = 660 + k * 44 - ox + 14, fy = gyw(660) - 50; const c = S.cards.toma ? (ntu > 60 ? '#ff4e5d' : ntu > 20 ? '#ffb93b' : '#86e36f') : ((Math.floor(t * 3) + k) % 2 ? '#ff4e5d' : '#6a1414'); frect(g, fx, fy, 5, 3, c); }
       const mode = S.cards.toma ? (ntu > 60 ? 'TOMA CERRADA' : ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA';
       frect(g, 650 - ox, gyw(650) - 104, 112, 11, '#05081d'); drawText(g, fmt0(ntu) + ' NTU · ' + mode, 706 - ox, gyw(650) - 102, { font: 'tiny', align: 'center', color: S.cards.toma ? '#ffe14d' : '#ff9a8a' });
-      Charts.flow(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
+      VISTA.flowClip(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
     } }
     // trenes de OI: luces por tren y permeado hacia el tanque
     { const x0 = 880 - ox; if (x0 > -320 && x0 < W + 20) {
       const on = S.cards.membranas ? (ntu > 60 && S.cards.toma ? 0 : 3) : 3;
       for (let k = 0; k < 3; k++) { const lx = 880 + 14 + k * 92 - ox, ly = gyw(880) - 62; frect(g, lx + 30, ly, 10, 3, k < on ? (S.cards.membranas ? '#86e36f' : '#ffb93b') : '#3a3a4a'); }
-      Charts.flow(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
+      VISTA.flowClip(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
       if (!S.cards.membranas) { VISTA.veil(g, 880 - ox, gyw(880) - 96, 300, 96, '#a8742c', 0.08 + 0.04 * Math.sin(t * 4)); }
       const lvl = clamp(S.tank / CalimaModel.TANK_CAP, 0, 1), tx = 1196 - ox + 4, ty = gyw(1196) - 6;
       frect(g, tx, ty - Math.round(70 * lvl), 32, Math.round(70 * lvl), '#22bdd0'); VISTA.veil(g, tx, ty - Math.round(70 * lvl), 32, 3, '#a6f4ff', 0.6);
@@ -566,7 +566,7 @@ LEVELS[10] = {
       const vx = 1520 - ox, vy = gyw(1520) - 16;
       frect(g, vx + 3, vy, 8, 6, hold ? '#ff4e5d' : '#86e36f');
       drawText(g, hold ? 'RETENIENDO' : 'DIFUSOR', vx + 7, vy - 10, { font: 'tiny', align: 'center', color: hold ? '#ff9a8a' : '#c2f58e' });
-      Charts.flow(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
+      VISTA.flowClip(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
     } }
     // turbinas con ráfagas y corte por velocidad
     for (const x of CAL_TURB) { const sx = x - ox; if (sx < -80 || sx > W + 80) continue; const gust = S.gust > 0.75; ART.turbine(g, sx, gyw(x), 70, S.rotor + x * 0.01, { stopped: gust && !S.clearK }); }
