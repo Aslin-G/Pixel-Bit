@@ -47,7 +47,9 @@ const PFInfra = (() => {
   }
 
   /* ---------- cilindro vertical ---------- */
-  function colTone(f) { return f < 0.07 ? 0 : f < 0.18 ? 4 : f < 0.36 ? 6 : f < 0.52 ? 5 : f < 0.78 ? 3 : f < 0.9 ? 2 : f < 0.96 ? 3 : 1; }
+  /** Tono por columna de un cilindro iluminado arriba-izquierda: borde, luz, franja especular de 1–2 px
+      casi blanca al ~25 %, medios, sombra de núcleo, luz reflejada y borde (STYLE LOCK §6) */
+  function colTone(f) { return f < 0.06 ? 1 : f < 0.14 ? 4 : f < 0.2 ? 6 : f < 0.27 ? 7 : f < 0.36 ? 6 : f < 0.5 ? 5 : f < 0.6 ? 4 : f < 0.8 ? 2 : f < 0.9 ? 3 : f < 0.96 ? 2 : 1; }
   function cylV(pb, cx, yb, r, h, o = {}) {
     const P = PFK.P32(o.ramp || STEEL), B = PFK.P32(o.band || BAND);
     const ry = Math.max(1, Math.round(r * (o.ell ?? 0.32)));
@@ -277,22 +279,32 @@ const PFInfra = (() => {
   }
   /** Batería de filtros de medios: n tanques verticales sobre plinto con colector */
   function mediaFilters(pb, x, y, n = 4, o = {}) {
-    const r = o.r || 10, h = o.h || 44, gap = o.gap || 34;
-    box3q(pb, x - 8, y, n * gap + 6, 7, 14, { ramp: PFTerrain.CONC });
+    const r = o.r || 10, h = o.h || 44, gap = o.gap || 34, S = PFK.P32(STEEL);
+    const xe = x + 8 + (n - 1) * gap + r + 8;
+    box3q(pb, x - 8, y, xe - x + 8, 7, 14, { ramp: PFTerrain.CONC });
+    // bastidor de acero detrás de los tanques: pilares, viga con diagonales (se ve entre los tanques)
+    const fTop = y - 9 - h - 14;
+    for (const px of [x - 6, xe - 6]) for (let yy = fTop; yy < y - 7; yy++) { PFK.put(pb, px, yy, S[5]); PFK.put(pb, px + 1, yy, S[3]); PFK.put(pb, px + 2, yy, S[1]); }
+    for (let xx = x - 6; xx < xe - 3; xx++) { PFK.put(pb, xx, fTop, S[6]); PFK.put(pb, xx, fTop + 1, S[3]); PFK.put(pb, xx, fTop + 2, S[1]); }
+    for (let k = 0; k < n + 1; k++) { const bx = x - 6 + k * gap; PFK.lineFn(pb, bx, fTop + 3, bx + gap - 2, y - 12, () => S[2]); PFK.lineFn(pb, bx + gap - 2, fTop + 3, bx, y - 12, () => S[1]); }
     // colector superior de agua de mar por detrás de los domos
-    pipe(pb, [[x - 10, y - 9 - h - 7], [x + n * gap - 2, y - 9 - h - 7]], 2, 'sea', { flange: 17 });
+    pipe(pb, [[x - 10, y - 9 - h - 7], [xe, y - 9 - h - 7]], 3, 'sea', { flange: 17 });
     for (let k = 0; k < n; k++) {
       const cx = x + 8 + k * gap;
+      // sombra proyectada del tanque sobre el plinto (hacia la derecha-atrás) y sombra de contacto
+      for (let yy = y - 9 - 3; yy < y - 7; yy++) for (let xx = cx - r + 2; xx < cx + r + 5; xx++) { const c = PFK.get(pb, xx, yy); if (c >>> 24) PFK.put(pb, xx, yy, PFK.shU(c, -0.28, 15)); }
       cylV(pb, cx, y - 9, r, h, { dome: 0.6, bands: [{ y: 8, h: 3 }, { y: h - 6, h: 2 }], ladder: k === n - 1, plate: '#245f90', stain: true });
       // patas
       for (const lx of [cx - r + 1, cx + r - 2]) for (let yy = y - 9; yy < y - 6; yy++) { PFK.put(pb, lx, yy, U('#4f4d51')); PFK.put(pb, lx + 1, yy, U('#2a282e')); }
-      // válvula y manómetro frontales
-      gauge(pb, cx - 4, y - 9 - h + 12, 2);
-      valve(pb, cx + 4, y - 16);
+      // boca de hombre (escotilla atornillada) y manómetro frontales
+      PFK.ellipseFn(pb, cx - 2, y - 9 - Math.round(h * 0.42), 3.2, 3.2, (nx, ny, d) => d > 0.72 ? U(nx + ny < 0 ? '#f2efea' : '#4f4d51') : (d > 0.45 && ((Math.atan2(ny, nx) * 3 | 0) % 2) ? U('#2a282e') : U(ny < 0 ? '#d3ccc5' : '#948e91')));
+      gauge(pb, cx - 5, y - 9 - h + 12, 2);
+      valve(pb, cx + 5, y - 17);
+      // bajante de agua de mar desde el colector superior
+      pipe(pb, [[cx + r - 4, y - 9 - h - 7], [cx + r - 4, y - 9 - h + 5]], 1, 'sea', { flange: 0 });
     }
-    // colector inferior (agua pretratada) y superior (agua de mar)
-    pipe(pb, [[x - 4, y - 14], [x + n * gap - 4, y - 14]], 2, 'pre', { flange: 17 });
-    for (let k = 0; k < n; k++) { const cx = x + 8 + k * gap + r - 3; pipe(pb, [[cx, y - 9 - h - 7], [cx, y - 9 - h + 6]], 1, 'sea', { flange: 0 }); }
+    // colector inferior (agua pretratada), más grueso y visible, con bridas
+    pipe(pb, [[x - 4, y - 14], [xe, y - 14]], 3, 'pre', { flange: 15 });
   }
 
   /** Nave de rejas y tamices con techo abovedado de vidrio azul (como la CAPTACIÓN de la referencia) */

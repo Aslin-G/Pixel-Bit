@@ -43,13 +43,13 @@ LEVELS[1] = {
     ],
     /** Lecho marino del corte submarino (mundo) */
     bedAt(x) {
-      const B = [[262, 318], [330, 326], [420, 336], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
+      const B = [[262, 326], [300, 348], [360, 372], [460, 392], [600, 404], [780, 410], [900, 412], [1060, 414], [1150, 418], [1300, 422], [1450, 424], [1600, 420], [1750, 414], [1885, 396], [2000, 336]];
       let i = 0; while (i < B.length - 2 && B[i + 1][0] <= x) i++;
       const t = clamp((x - B[i][0]) / (B[i + 1][0] - B[i][0]), 0, 1);
       return Math.round(lerp(B[i][1], B[i + 1][1], smooth(t)) + Math.sin(x * 0.07) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
     },
     /** Elementos sumergidos: toma con rejilla (bajo la torre), succiones de bombas, arrecifes, cardumen */
-    water: { intake: { x: 1462, y: 374, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 24, fishX: [380, 1980] },
+    water: { intake: { x: 1462, y: 408, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 22, schools: 6, fishX: [380, 1980] },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
       { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
@@ -67,8 +67,8 @@ LEVELS[1] = {
   labels: [
     { x: 1226, y: 196, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 212 },
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
-    { x: 1500, y: 330, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 352 },
-    { x: 1250, y: 372, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 388 },
+    { x: 1506, y: 372, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 396 },
+    { x: 1250, y: 388, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 408 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
@@ -141,9 +141,9 @@ LEVELS[1] = {
     /* ===== 6. PRETRATAMIENTO (1612–1885): batería de filtros de arena, caseta, dosificación ===== */
     const py = gy(1700);
     controlRoom(pb, 1612, py - 4);
-    I.mediaFilters(pb, 1660, py - 4, 4, { r: 11, h: 44, gap: 36 });
+    I.mediaFilters(pb, 1660, py - 4, 5, { r: 12, h: 46, gap: 29 });
     // soportes de la pasarela (la pasarela se hornea en el terreno)
-    for (const x of [1644, 1716, 1786]) for (let y = 210; y < py - 10; y++) { PFK.put(pb, x, y, U('#948e91')); PFK.put(pb, x + 1, y, U('#4f4d51')); }
+    for (const x of [1644, 1711, 1769]) for (let y = 210; y < py - 10; y++) { PFK.put(pb, x, y, U('#948e91')); PFK.put(pb, x + 1, y, U('#4f4d51')); }
     dosingSkid(pb, 1812, py - 4);
     I.cylV(pb, 1862, py - 8, 9, 54, { dome: 0.45, bands: [{ y: 10, h: 3 }, { y: 40, h: 2 }], ladder: true, plate: '#11bedd', stain: true }); // tanque de lavado
     I.pipe(pb, [[1806, py - 18], [1872, py - 18], [1872, py - 14], [1995, py - 14], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], 3, 'pre', { flange: 24, supports: 44, supportTo: (x) => gy(x) - 6 });
@@ -207,7 +207,7 @@ LEVELS[1] = {
   lens(g, sc, cam, k) {
     const ox = cam.x, oy = cam.y, S = sc.state;
     lensBoundary(g, 1110 - ox, 150 - oy, 780, 150, '#ffe14d', 'LÍMITE: CAPTACIÓN + PRETRATAMIENTO');
-    Charts.flow(g, [[1462 - ox, 360 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
+    Charts.flow(g, [[1462 - ox, 398 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
     Charts.flow(g, [[1262 - ox, 254 - oy], [1622 - ox, 254 - oy], [1622 - ox, 218 - oy], [1652 - ox, 218 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
     Charts.flow(g, [[1872 - ox, 264 - oy], [1995 - ox, 264 - oy], [1995 - ox, 252 - oy], [2120 - ox, 252 - oy]], 'water', 1, 3);
     Charts.flow(g, [[1138 - ox, 238 - oy], [1182 - ox, 238 - oy]], 'power', 1, 2);
@@ -216,7 +216,7 @@ LEVELS[1] = {
     lensTag(g, 1660 - ox, 176 - oy, 'ΔP filtro ' + fmt(S.dp || 0.3, 2) + ' bar', '#ff9a8a', 'chart');
     lensTag(g, 1880 - ox, 238 - oy, '→ OI (agua pretratada)', '#a6f4ff', 'membrane');
     lensTag(g, 1180 - ox, 140 - oy, 'Bombas ~' + fmt0((S.q || 100) * 0.25) + ' kW', '#ffe14d', 'bolt');
-    lensTag(g, 1380 - ox, 344 - oy, 'v aprox. ' + fmt((S.q || 100) / 3600 / 1.6, 3) + ' m/s', '#86e36f', 'fish');
+    lensTag(g, 1380 - ox, 384 - oy, 'v aprox. ' + fmt((S.q || 100) / 3600 / 1.6, 3) + ' m/s', '#86e36f', 'fish');
   },
   hud(g, sc) {
     const S = sc.state;
@@ -310,7 +310,8 @@ const LV1_FLOWS = [
   { pts: [[1432, 238], [1398, 238]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
   { pts: [[1302, 238], [1272, 238]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
   { pts: [[1262, 254], [1622, 254], [1622, 218], [1652, 218]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
-  { pts: [[1806, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
+  { pts: [[1650, 216], [1804, 216]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
+  { pts: [[1656, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
 ];
 const LV1_LEDS = [
   { x: 1065, y: 271, col: '#3fe0a0', hz: 1 }, { x: 1067, y: 271, col: '#ffd84a', hz: 1.7, ph: 0.3 },

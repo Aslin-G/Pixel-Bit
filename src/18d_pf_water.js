@@ -14,7 +14,7 @@
 const PFWater = (() => {
   const UND = ['#041939', '#062448', '#072e51', '#06406a', '#065481', '#0879a4', '#0c97b6', '#08bcd6', '#07dde6', '#7ef0f4'];
   const SURF = ['#00568a', '#0182ae', '#027bbe', '#11bedd', '#27e2e8', '#c0ebf7', '#ffffff'];
-  const SANDW = ['#1a3a4a', '#2a5560', '#3f7272', '#5a8e80', '#7ea890', '#a8c0a0'];
+  const SANDW = ['#0a2236', '#123446', '#1e4a58', '#2e6468', '#4a8278', '#78a890'];
   const ROCKW = ['#061224', '#0c2234', '#14344a', '#1f4a5e', '#2f6474', '#4a8288'];
   const KELP = ['#0a2a1e', '#12402a', '#1e5a30', '#2f7a3a', '#4f9a44', '#86c05a'];
 
@@ -22,7 +22,8 @@ const PFWater = (() => {
   function waterAt(P, dz, x, y, maxD) {
     const t = clamp(1 - dz / maxD, 0, 1);
     const j = (hash2((x / 3) | 0, (y / 2) | 0, 5) - 0.5) * 0.07 + (PFK.vn(x * 0.03, y * 0.05, 6) - 0.5) * 0.08;
-    return P[clamp(Math.round((t * t * 0.55 + t * 0.45 + j) * 8), 0, 8)];
+    // agua luminosa como la referencia: turquesa brillante en la mitad superior, azul medio y navy solo al fondo
+    return P[clamp(Math.round((t * 0.35 + Math.sqrt(t) * 0.65 + j) * 8), 0, 8)];
   }
 
   function build(world, w) {
@@ -45,6 +46,7 @@ const PFWater = (() => {
         const Y = y0 + y;
         if (Y < wy) {
           if (!hole) continue;
+          if (Y <= (world.ground[X] ?? 0) + 3) continue; // nunca sobre la cara superior del muelle
           // mar visto bajo la cubierta: superficie que se aleja + sombra de la cubierta
           const k = Y < wy - 20 ? 0 : Y < wy - 14 ? 1 : 2 + ((Y + Math.round(Math.sin(X * 0.2) * 1.2)) % 5 === 0 ? 1 : 0);
           pb.data[y * wd + x] = SF[clamp(k + (hash2(X, Y, 3) < 0.03 ? 3 : 0), 0, 6)];
@@ -56,6 +58,11 @@ const PFWater = (() => {
         let u = waterAt(UW, Math.max(0, dz), X, Y, maxD + 10);
         if (col > 0.68 && Y > wy + 10) u = PFK.mixU(u, UW[8], clamp((col - 0.68) * 1.6, 0, 0.35) * (1 - (Y - wy) / (maxD + 40)));
         if (Y > wy + 50 && PFK.vn(X * 0.02, Y * 0.02, 33) > 0.62) u = PFK.mixU(u, U('#2a2470'), 0.28);
+        // manchas pictóricas más oscuras (azul medio) y vetas claras inclinadas cerca de la superficie
+        const bl = PFK.vn(X * 0.03, Y * 0.05, 34) + (PFK.cl(X, Y, 3, 35) - 0.5) * 0.12;
+        if (bl > 0.6 && Y > wy + 6) u = PFK.mixU(u, UW[clamp(Math.round(5 - (Y - wy) / 40), 2, 5)], clamp((bl - 0.6) * 1.8, 0, 0.45));
+        const vt = PFK.vn(X * 0.06 + Y * 0.11, Y * 0.02, 36);
+        if (vt > 0.74 && Y < wy + 46 && Y > wy + 4) u = PFK.mixU(u, UW[9], clamp((vt - 0.74) * 2.4, 0, 0.32) * (1 - (Y - wy) / 46));
         pb.data[y * wd + x] = u;
       }
     }
@@ -68,15 +75,46 @@ const PFWater = (() => {
         pb.data[i] = PFK.mixU(c, UW[2], 0.32 + (Y - top) / 140);
       }
     }
-    // 3. lecho: arena con ondas, rocas
+    // 3. lecho: arrecife rocoso (cantos en celdas de Worley con tapa iluminada desde la superficie)
+    //    y arena con ondas entre los cantos; los cantos asoman por encima de la línea del lecho
     const SW = PFK.P32(SANDW), RK = PFK.P32(ROCKW);
+    const BR = PFK.P32(['#04101e', '#071c30', '#0c2a42', '#123a52', '#1b4e64', '#286676', '#3f8488', '#62a49a', '#9ad4c4']);
+    const rockAt = (X, Y) => {
+      const big = PFK.vn(X * 0.01, Y * 0.01, 79) > 0.55, cw = big ? 26 : 14, ch = big ? 16 : 10, gx = Math.floor(X / cw), gyc = Math.floor(Y / ch);
+      let d1 = 9, d2 = 9, sx = 0, sy = 0, rr = 1, id = 0;
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+        const cx = gx + i, cy = gyc + j;
+        const px = (cx + 0.2 + hash2(cx, cy, 71) * 0.6) * cw, py = (cy + 0.2 + hash2(cx, cy, 72) * 0.6) * ch;
+        const rad = (0.4 + hash2(cx, cy, 73) * 0.6) * cw * 0.62;
+        const dd = Math.hypot((X - px) / rad, (Y - py) / (rad * 0.72));
+        if (dd < d1) { d2 = d1; d1 = dd; sx = px; sy = py; rr = rad; id = cx * 31 + cy; } else if (dd < d2) d2 = dd;
+      }
+      return { d1, d2, nx: (X - sx) / rr, ny: (Y - sy) / (rr * 0.72), id, sy };
+    };
     for (let x = 0; x < wd; x++) {
       const X = x0 + x, bed = bedAt(X);
-      for (let Y = bed; Y < world.h; Y++) {
-        const d = Y - bed;
-        let k = 4 - Math.round(d * 0.12) + ((Y * 2 + Math.round(Math.sin(X * 0.11) * 2)) % 5 === 0 ? -1 : 0) + (PFK.cl(X, Y, 2, 7) < 0.15 ? -1 : 0);
-        if (d === 0) k = 5;
-        pb.data[(Y - y0) * wd + x] = SW[clamp(k, 0, 5)];
+      for (let Y = bed - 9; Y < world.h; Y++) {
+        if (Y < y0) continue;
+        const d = Y - bed, R = rockAt(X, Y);
+        // los cantos se agrupan en arrecifes (ruido de baja frecuencia); entre ellos, arena con ondas
+        const cluster = PFK.vn(X * 0.012, 0.5, 77) + (hash2(R.id, 1, 78) - 0.5) * 0.35 + Math.max(0, d - 26) * 0.012;
+        const isRock = R.d1 < 1 && cluster > 0.5 && (d >= 0 || (R.sy > bed - 2 && hash2(R.id, 3, 74) < 0.7));
+        let u;
+        if (isRock) {
+          if (R.d2 - R.d1 < 0.08) u = BR[1];
+          else {
+            let t = 0.56 - R.ny * 0.42 - R.nx * 0.14 - Math.max(0, d) * 0.0045 + (PFK.cl(X, Y, 2, R.id) - 0.5) * 0.18;
+            if (R.d1 > 0.85) t -= 0.16;
+            u = BR[clamp(Math.round(t * 8), 1, 7)];
+            if (R.ny < -0.62 && R.d1 > 0.6 && d < 50) u = BR[8 - (hash2(X, Y, 75) < 0.5 ? 1 : 0)]; // luz cenital
+            if (hash2(X, Y, 76) < 0.012) u = U(['#d86a9a', '#f0c060', '#7ff0dc'][R.id & 3 % 3] || '#7ff0dc'); // motas de vida
+          }
+        } else if (d >= 0) {
+          let k = 4 - Math.round(d * 0.08) + ((Y * 2 + Math.round(Math.sin(X * 0.11) * 2)) % 5 === 0 ? -1 : 0) + (PFK.cl(X, Y, 2, 7) < 0.15 ? -1 : 0);
+          if (d === 0) k = 5;
+          u = SW[clamp(k, 0, 5)];
+        } else continue;
+        pb.data[(Y - y0) * wd + x] = u;
       }
     }
     const put = (X, Y, u) => PFK.put(pb, X - x0, Y - y0, u);
@@ -142,7 +180,7 @@ const PFWater = (() => {
       for (let Y = sBot; Y < sBot + 4; Y++) for (let k = -2 - (Y - sBot); k < 9 + (Y - sBot); k++) put(sx - 3 + k, Y, PFK.mixU(U(Y === sBot + 3 ? '#062438' : '#245f90'), UW[5], 0.45));
     }
     // 5. tiras animadas y sprites
-    const crest = crestStrip(), shaft = shaftSprite(), fishS = fishStrip(0), fishB = fishStrip(1), fishO = fishStrip(2);
+    const crest = crestStrip(), shaft = shaftSprite(), fishS = fishStrip(0), fishB = fishStrip(1), fishO = fishStrip(2), splash = splashStrip();
     // cardumen
     const fish = [];
     const nF = W_.fish ?? 9;
@@ -151,10 +189,17 @@ const PFWater = (() => {
       const xx = (W_.fishX ? W_.fishX[0] : x0) + r() * ((W_.fishX ? W_.fishX[1] : x1) - (W_.fishX ? W_.fishX[0] : x0));
       fish.push({ x: xx, y: wy + 16 + r() * (Math.max(30, bedAt(Math.round(xx)) - wy - 40)), vx: (r() < 0.5 ? -1 : 1) * (5 + r() * 6), kind, ph: r() * 10, home: xx, range: 60 + r() * 120 });
     }
+    // cardúmenes de peces pequeños (6–9 juntos, misma dirección)
+    const nSch = W_.schools ?? 0;
+    for (let k = 0; k < nSch; k++) {
+      const fx0 = (W_.fishX ? W_.fishX[0] : x0) + (k + 0.5) / nSch * ((W_.fishX ? W_.fishX[1] : x1) - (W_.fishX ? W_.fishX[0] : x0)) + (r() - 0.5) * 60;
+      const fy0 = wy + 24 + r() * Math.max(20, bedAt(Math.round(fx0)) - wy - 60), dir = r() < 0.5 ? -1 : 1, sp = 7 + r() * 4, n = 6 + r.int(0, 3);
+      for (let i = 0; i < n; i++) fish.push({ x: fx0 + (r() - 0.5) * 34, y: fy0 + (r() - 0.5) * 16, vx: dir * sp, kind: k % 3 === 2 ? 2 : 0, ph: r() * 10, home: fx0, range: 90 + k * 13 });
+    }
     const contacts = [x0 + 4];
     for (const [a, b] of holes) for (let px = a + 18, idx = 0; px < b - 6; px += 46, idx++) contacts.push(px + Math.round((hash1(idx, 31) - 0.5) * 8));
     for (const cx of (W_.contacts || [])) contacts.push(cx);
-    return { w, x0, x1, y0, wy, c: pb.toCanvas(), crest, shaft, fishS, fishB, fishO, fish, bedAt, holes, maxD, contacts };
+    return { w, x0, x1, y0, wy, c: pb.toCanvas(), crest, shaft, fishS, fishB, fishO, splash, fish, bedAt, holes, maxD, contacts };
   }
 
   /* ---------- tiras ---------- */
@@ -186,6 +231,31 @@ const PFWater = (() => {
         // rocío
         if (hash2(x, i, 9) < 0.09) PFK.put(pb, x, b - 2 - curlH - Math.floor(hash2(x, i, 10) * 5), U('#ffffff'));
         if (hash2(x, i, 11) < 0.04) PFK.put(pb, x, b - 4 - curlH - Math.floor(hash2(x, i, 12) * 4), U('#c0ebf7'));
+      }
+    });
+  }
+  /** Salpicadura contra pilotes y muros (8 cuadros de 18×24): columna de rocío que sube y cae, espuma en la base */
+  function splashStrip() {
+    const Hs = [3, 8, 13, 17, 18, 15, 10, 5];
+    return PFK.strip(8, 18, 24, (pb, i) => {
+      const h = Hs[i], base = 21, r = RNG(300 + i);
+      // espuma en la base (turbulenta, ancha)
+      for (let x = 1; x < 17; x++) {
+        const hh = 2 + Math.round(Math.max(0, 1 - Math.abs(x - 8.5) / 8.5) * (2 + (i < 5 ? i * 0.5 : 2)));
+        for (let k = 0; k < hh; k++) PFK.put(pb, x, base - k, U(k === hh - 1 ? '#ffffff' : k > hh - 3 ? '#e8f8fc' : '#9fd8e8'));
+        PFK.put(pb, x, base + 1, U('#c0ebf7'));
+      }
+      // columna de rocío pegada al pilote (lado izquierdo del cuadro = cara del pilote)
+      for (let k = 0; k < h; k++) {
+        const w0 = Math.max(1, Math.round((1 - k / (h + 1)) * 5));
+        for (let q = 0; q < w0; q++) if (r() < 0.8 - k * 0.025) PFK.put(pb, 6 + q - Math.round(k * 0.15), base - 3 - k, U(r() < 0.6 ? '#ffffff' : '#d2ecee'));
+      }
+      // gotas sueltas que caen alrededor (más al final del ciclo)
+      const nd = i < 3 ? 2 : 6;
+      for (let k = 0; k < nd; k++) {
+        const ang = -Math.PI / 2 + (r() - 0.35) * 1.8, rr = 3 + r() * (4 + i * 1.4);
+        const x = Math.round(8 + Math.cos(ang) * rr * 1.1), y = Math.round(base - 4 - Math.max(0, h - 3) * 0.7 + Math.sin(ang) * rr * 0.6 + (i > 4 ? (i - 4) * 2 : 0));
+        PFK.put(pb, x, y, U(r() < 0.5 ? '#ffffff' : '#c0ebf7'));
       }
     });
   }
@@ -319,15 +389,17 @@ const PFWater = (() => {
     for (let X = xs - ((xs - scroll + 6400) % 64); X < xe; X += 64) {
       const x = X - ox, cut0 = Math.max(0, Wt.x0 + (Wt.w.crestFrom || 0) - X), cut1 = Math.min(64, Wt.x1 - (Wt.w.crestTo || 0) - X);
       if (cut1 <= cut0) continue;
-      g.drawImage(cs.c, fr * 64 + cut0, 0, cut1 - cut0, cs.h, x + cut0, yS, cut1 - cut0, cs.h);
+      // cada tramo de 64 px con su propio desfase de cuadro: la cresta no se lee como un patrón repetido
+      const ft = (fr + Math.floor(hash1(Math.floor((X + 6400) / 64), 17) * 8)) % 8;
+      g.drawImage(cs.c, ft * 64 + cut0, 0, cut1 - cut0, cs.h, x + cut0, yS, cut1 - cut0, cs.h);
     }
     // espuma de contacto en pilotes y muros (salpicaduras animadas)
     for (const px of Wt.contacts) {
-      const x = px - ox; if (x < -10 || x > W + 10) continue;
-      const k = (t * 2.5 + px * 0.13) % 1;
-      g.fillStyle = '#ffffff';
-      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI, rr = 3 + k * 6; g.globalAlpha = 1 - k; g.fillRect(Math.round(x + Math.cos(a) * rr * 1.3), Math.round(Wt.wy - oy - 1 - Math.sin(a) * rr * 0.8), 1, 1); }
-      g.globalAlpha = 1; g.fillStyle = '#d2ecee'; g.fillRect(x - 5, Wt.wy - oy - 1, 11, 2);
+      const x = px - ox; if (x < -20 || x > W + 20) continue;
+      // golpe de ola: salpicadura animada (8 cuadros, ~1,4 s por ciclo, desfase por pilote) + franja de espuma
+      const fi = Math.floor(t * 6 + hash1(Math.round(px), 23) * 8) % 8;
+      PFK.drawStrip(g, Wt.splash, fi, x - 6, Wt.wy - oy - 22);
+      g.fillStyle = '#d2ecee'; g.fillRect(x - 7, Wt.wy - oy, 15, 1);
     }
     // rocío ocasional
     if (Math.random() < 0.25) { const X = ox + Math.random() * W; if (X > Wt.x0 + (Wt.w.crestFrom || 0) && X < Wt.x1 - (Wt.w.crestTo || 0)) sc.world.ps.emit('splash', X, Wt.wy - 4, (Math.random() - 0.5) * 20, -40, 2, 3); }

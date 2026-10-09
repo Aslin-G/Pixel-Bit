@@ -131,10 +131,13 @@ const PFTerrain = (() => {
       case 'cliff': return cliffPix(s, x, y, gy, RW);
       case 'rocks': {
         if (d <= 1) return U(d === 0 ? LIP : '#e29441');
-        const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 4 || hash2(id, 5, s.seed || 77) < clamp(1 - (cy - sea) / 46, 0.12, 1) } : {});
-        if (sea != null && y >= sea - 1) { // rocas sumergidas: tinte azul por profundidad, huecos de agua
+        // bajo la línea de agua solo queda la base del roquedal (cantos cuyo centro está a ≤ 9 px):
+        // borde inferior dentado como la orilla de arena; debajo se ve el corte submarino
+        const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 9 } : {});
+        if (sea != null && y >= sea - 1) {
           if (u === -1) return 0;
-          return PFK.mixU(u, UWU()[clamp(6 - Math.round((y - sea) / 22), 1, 6)], clamp(0.42 + (y - sea) / 110, 0.42, 0.8));
+          const dz = y - sea;
+          return PFK.mixU(u, UWU()[clamp(7 - Math.round(dz / 10), 3, 7)], clamp(0.3 + dz / 40, 0.3, 0.65));
         }
         if (u === -1) return RW[d > 60 ? 0 : 1];
         return d > 90 ? PFK.shU(u, -0.25, 15) : u;
