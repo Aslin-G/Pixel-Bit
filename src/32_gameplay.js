@@ -18,6 +18,8 @@ const GameplayScene = {
     this.propsC = null;
     if (def.props) { const pb = new PixelBuffer(this.world.w, this.world.h); def.props(pb, this.world); this.propsC = pb.toCanvas(); }
     if (def.propsFront) { const pb = new PixelBuffer(this.world.w, this.world.h); def.propsFront(pb, this.world); this.propsFrontC = pb.toCanvas(); } else this.propsFrontC = null;
+    // plano jugable con kit PF (opt-in por nivel): agua en corte, oclusores frontales, etiquetas
+    this.pf = (def.pf && typeof PFStage !== 'undefined') ? PFStage.build(this) : null;
     const sp = (p.checkpoint && def.checkpoints && def.checkpoints[p.checkpoint]) || def.spawn;
     this.player = this.world.add(new Player({ x: sp.x, y: sp.y, facing: sp.facing || 1 }));
     this.kiru = def.noKiru ? null : this.world.add(new Kiru({ x: sp.x - 30, y: sp.y }));
@@ -170,13 +172,16 @@ const GameplayScene = {
     if (def.skyFx) def.skyFx(g, this, camI);
     B.drawClouds(g, camI, 1 + (B.weather.wind || 0));
     B.render(g, camI, 'back');
+    if (this.pf) PFStage.renderBack(g, this);
     if (def.renderBack) def.renderBack(g, this, camI);
-    // accesorios estáticos de fondo (mundo)
+    // accesorios estáticos de fondo (mundo; con kit PF incluyen las caras superiores del suelo)
     if (this.propsC) g.drawImage(this.propsC, ox, oy, W, H, 0, 0, W, H);
     if (def.renderMid) def.renderMid(g, this, camI);
+    // cortes submarinos detrás del terreno (el terreno deja un hueco bajo el muelle)
+    if (this.pf) PFStage.renderWaterBack(g, this);
     // terreno
     g.drawImage(this.terrainC, ox, oy, W, H, 0, 0, W, H);
-    for (const p of this.world.platforms) drawPlatform(g, p, ox, oy);
+    for (const p of this.world.platforms) if (!p.baked) drawPlatform(g, p, ox, oy);
     for (const l of this.world.ladders) drawLadder(g, l, ox, oy);
     // entidades: estaciones, actores, kiru, jugadora
     const ents = this.world.entities.slice().sort((a, b) => (a.z || 0) - (b.z || 0) || ((a instanceof Station) ? -1 : 0) - ((b instanceof Station) ? -1 : 0));
@@ -184,14 +189,19 @@ const GameplayScene = {
     if (this.kiru) this.kiru.render(g, cam);
     this.player.render(g, cam);
     // agua delante (superficie translúcida tramada)
-    for (const w of this.world.water) drawWaterFront(g, w, ox, oy, this);
+    for (const w of this.world.water) if (!(w.pf && this.pf)) drawWaterFront(g, w, ox, oy, this);
+    if (this.pf) PFStage.renderWaterFront(g, this);
     if (def.renderFront) def.renderFront(g, this, camI);
     if (this.propsFrontC) g.drawImage(this.propsFrontC, ox, oy, W, H, 0, 0, W, H);
     this.world.ps.render(g, ox, oy);
     B.render(g, camI, 'front');
+    // planos frontales (f > 1): oclusores de encuadre
+    if (this.pf) PFStage.renderFrontPlane(g, this);
     // gradación de luz / clima
     if (def.renderGrade) def.renderGrade(g, this);
     else if (this.grade) { g.globalCompositeOperation = this.grade.op || 'multiply'; g.globalAlpha = this.grade.a ?? 1; frect(g, 0, 0, W, H, this.grade.col); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    // etiquetas científicas en el mundo (texto nítido, tras la gradación y antes de la lente)
+    if (typeof WorldLabels !== 'undefined') WorldLabels.draw(g, this);
     // Lente Nexo
     if (this.lensT > 0) this.renderLens(g, camI);
     // globos

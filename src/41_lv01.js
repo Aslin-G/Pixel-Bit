@@ -5,137 +5,195 @@
    ===================================================================== */
 
 LEVELS[1] = {
-  id: 1, title: 'La Boca del Mar', chapter: 'CAPÍTULO 01', biome: 'coast', music: 'coast', width: 2600, height: 360,
+  id: 1, title: 'La Boca del Mar', chapter: 'CAPÍTULO 01', biome: 'coast', music: 'coast', width: 2600, height: 460,
   ambience: { sea: 0.8, wind: 0.35, birds: 0.6 },
   portraits: ['amaya', 'kiru', 'dante', 'marea', 'limen'],
-  spawn: { x: 70, y: 282 },
-  checkpoints: { intake: { x: 1100, y: 296 }, filters: { x: 1600, y: 282 } },
-  ground: [[0, 282], [180, 278], [300, 284], [470, 286], [720, 290], [800, 268, 'lin'], [880, 262], [960, 270], [1040, 288], [1110, 296], [1150, 304], [1560, 304], [1610, 282], [1840, 282], [1960, 276], [2100, 258], [2300, 248], [2600, 242]],
-  terrain: [{ x0: 0, x1: 760, mat: 'beach' }, { x0: 760, x1: 1040, mat: 'rock' }, { x0: 1040, x1: 1600, mat: 'beach' }, { x0: 1600, x1: 1960, mat: 'stone' }, { x0: 1960, x1: 2600, mat: 'rock' }],
-  water: [{ x0: 1112, x1: 1580, y: 293, tint: '#20d6c7', deep: '#1063a6' }],
+  spawn: { x: 70, y: 248 },
+  checkpoints: { intake: { x: 1100, y: 270 }, filters: { x: 1600, y: 268 } },
+  /* Composición vertical (≥ 6 alturas): acantilado de inicio 246–248 → terraza 264 → playa 292–298 →
+     roquedal 262–292 → escalinata → muelle 268 sobre el corte submarino → explanada de filtros 282 →
+     sendero rocoso ascendente 274 → 262 → 246 → 230 hacia la salida. Altura extra (hasta 460) solo abajo. */
+  ground: [[0, 248], [120, 246], [236, 248, 'step'], [262, 264], [300, 266], [360, 290], [470, 292], [560, 293], [700, 294], [770, 290],
+    [810, 272, 'lin'], [880, 264], [960, 268], [1010, 280], [1050, 292], [1084, 292, 'step'], [1090, 286, 'step'], [1096, 280, 'step'], [1102, 274, 'step'],
+    [1108, 268], [1612, 268, 'step'], [1618, 274, 'step'], [1624, 280, 'step'], [1630, 282], [1860, 282], [1900, 278], [1960, 274],
+    [1990, 274, 'step'], [2010, 262], [2110, 256, 'step'], [2130, 246], [2250, 242], [2330, 238, 'step'], [2360, 230], [2600, 232]],
+  terrain: [{ x0: 0, x1: 360, mat: 'rock' }, { x0: 360, x1: 780, mat: 'beach' }, { x0: 780, x1: 1060, mat: 'rock' }, { x0: 1060, x1: 1880, mat: 'stone' }, { x0: 1880, x1: 2600, mat: 'rock' }],
+  /* Mar en corte: una sola masa de agua a lo largo de la costa (la playa, el roquedal, el muelle y la
+     explanada de filtros salen del agua). Su superficie (y 296) queda por debajo de toda la línea de paso. */
+  water: [{ x0: 338, x1: 1996, y: 296, tint: '#20d6c7', deep: '#1063a6', pf: true, cutaway: true, crestFrom: 4, crestTo: 2 }],
   platforms: [
-    { x: 1150, y: 268, w: 380, type: 'wood', post: 40 },
-    { x: 820, y: 236, w: 46, type: 'rock' }, { x: 900, y: 222, w: 52, type: 'rock' },
-    { x: 1640, y: 206, w: 150, type: 'metal' },
-    { x: 2050, y: 226, w: 60, type: 'rock' },
+    { x: 820, y: 236, w: 46, type: 'rock', baked: true }, { x: 900, y: 222, w: 52, type: 'rock', baked: true },
+    { x: 1640, y: 206, w: 150, type: 'metal', baked: true },
+    { x: 2050, y: 226, w: 60, type: 'rock', baked: true },
   ],
   ladders: [{ x: 1650, y0: 206, y1: 282 }],
   hazards: [],
-  cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
+  cam: { look: 50, vy: 0.60 },
+  /* ---------------- plano jugable con kit PF ---------------- */
+  pf: {
+    terrain: [
+      { x0: 0, x1: 345, surf: 'path', face: 'cliff', depth: 16 },
+      { x0: 345, x1: 785, surf: 'sand', face: 'beach', shore: true, depth: 14 },
+      { x0: 785, x1: 1060, surf: 'rock', face: 'rocks', depth: 14 },
+      { x0: 1060, x1: 1108, surf: 'paving', face: 'quay', depth: 16 },
+      { x0: 1108, x1: 1612, surf: 'deck', face: 'pier', depth: 20 },
+      { x0: 1612, x1: 1885, surf: 'paving', face: 'pier', depth: 18 },
+      { x0: 1885, x1: 1995, surf: 'path', face: 'rocks', depth: 14 },
+      { x0: 1995, x1: 2600, surf: 'path', face: 'cliff', depth: 16 },
+    ],
+    /** Lecho marino del corte submarino (mundo) */
+    bedAt(x) {
+      const B = [[330, 314], [420, 334], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
+      let i = 0; while (i < B.length - 2 && B[i + 1][0] <= x) i++;
+      const t = clamp((x - B[i][0]) / (B[i + 1][0] - B[i][0]), 0, 1);
+      return Math.round(lerp(B[i][1], B[i + 1][1], smooth(t)) + Math.sin(x * 0.07) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
+    },
+    /** Elementos sumergidos: toma con rejilla (bajo la torre), succiones de bombas, arrecifes, cardumen */
+    water: { intake: { x: 1462, y: 374, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 24, fishX: [380, 1980] },
+    /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
+    fg: [
+      { kind: 'canopy', x: -16, y: -6, w: 230, h: 74, seed: 31, side: -1, n: 14, vines: 4 },
+      { kind: 'clump', x: -14, w: 120, h: 92, seed: 3, spikes: 6, leaves: 11 },
+      { kind: 'clump', x: 600, w: 110, h: 70, seed: 8, spikes: 2, leaves: 9 },
+      { kind: 'clump', x: 1150, w: 100, h: 64, seed: 13, spikes: 3, leaves: 8 },
+      { kind: 'clump', x: 1640, w: 120, h: 66, seed: 17, spikes: 4, leaves: 10 },
+      { kind: 'canopy', x: 2050, y: -8, w: 200, h: 64, seed: 37, side: 1, n: 11, vines: 3 },
+      { kind: 'clump', x: 2330, w: 120, h: 82, seed: 21, spikes: 5, leaves: 10 },
+      { kind: 'clump', x: 2860, w: 140, h: 88, seed: 25, spikes: 5, leaves: 12 },
+      { kind: 'clump', x: 3150, w: 130, h: 80, seed: 27, spikes: 4, leaves: 10 },
+    ],
+  },
+  /** Etiquetas científicas en el mundo (WorldLabels) */
+  labels: [
+    { x: 1226, y: 150, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 168 },
+    { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
+    { x: 1500, y: 330, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 352 },
+    { x: 1250, y: 372, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 388 },
+    { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
+    { x: 2040, y: 232, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2018, ay: 262 },
+    { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
+  ],
+  /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
     const gy = (x) => world.groundAt(x);
-    // dunas de entrada con barrón (pasto de duna)
-    for (let x = 10; x < 420; x += 9) ART.grass(pb, x, gy(x), 3 + (x % 4), x);
-    for (let x = 30; x < 420; x += 70) ART.shrub(pb, x, gy(x) + 1, 5, x, RAMP.moss);
-    drawSign(pb, 160, gy(160), 'TOMA COSTERA', '#1491aa');
-    ART.palm(pb, 250, gy(250), 46, -6, 3); ART.palm(pb, 395, gy(395), 52, 5, 4);
-    // cabaña de Tía Marea (palafito)
-    const hx = 470, hb = gy(500);
-    for (const px of [hx + 2, hx + 40, hx + 78]) { pb.rect(px, hb - 24, 4, 24, '#5a3826'); pb.rect(px, hb - 24, 1, 24, '#8a5a3c'); }
-    pb.rect(hx - 6, hb - 28, 96, 5, '#8a5a3c'); pb.hline(hx - 6, hx + 89, hb - 28, '#c8925e');
-    pb.rect(hx, hb - 62, 84, 34, '#1aa894'); pb.rect(hx + 70, hb - 62, 14, 34, '#138078'); pb.rect(hx, hb - 62, 2, 34, '#7ff0dc');
-    for (let y = hb - 60; y < hb - 28; y += 4) pb.hline(hx, hx + 83, y, '#16947f');
-    pb.rect(hx + 12, hb - 52, 14, 12, '#2a1a2a'); pb.rect(hx + 12, hb - 52, 14, 3, '#5a6fb0'); pb.vline(hx + 19, hb - 52, hb - 41, '#1aa894');
-    pb.rect(hx + 50, hb - 54, 14, 26, '#3a2018'); pb.set(hx + 61, hb - 41, '#ffe14d');
-    // techo de palma
-    for (let k = 0; k < 16; k++) pb.line(hx - 10 + k * 7, hb - 62, hx + 42, hb - 84, k % 2 ? '#d4a84a' : '#a87e34');
-    pb.poly([[hx - 12, hb - 60], [hx + 42, hb - 86], [hx + 98, hb - 60]], '#c89a3e');
-    for (let y = hb - 84; y < hb - 60; y += 3) for (let x = hx - 10; x < hx + 96; x += 3) if (pb.alpha(x, y) && ((x + y) % 5 === 0)) pb.set(x, y, '#8a6420');
-    pb.hline(hx - 12, hx + 97, hb - 60, '#7a5420');
-    // redes, boya y antena con panel
-    for (let k = 0; k < 18; k++) pb.line(hx + 90 + k, hb - 30, hx + 96 + k, hb - 2, k % 3 ? '#cfe8ee' : '#98c6d2');
-    pb.rect(hx + 88, hb - 34, 30, 2, '#5a3826');
-    pb.disc(hx + 110, hb - 18, 3, '#ff6b6b'); pb.set(hx + 109, hb - 19, '#ffc6b4');
-    pb.vline(hx + 80, hb - 100, hb - 62, '#98c6d2'); pb.rect(hx + 72, hb - 74, 12, 6, '#1f469e'); pb.set(hx + 74, hb - 74, '#8cc4ff'); pb.set(hx + 80, hb - 101, '#ff4e5d');
-    // botes de colores sobre la arena
-    const boat = (x, c1, c2) => { const y = gy(x); for (let i = 0; i < 40; i++) { const t = i / 39; const d = Math.round(Math.sin(t * Math.PI) * 7); pb.vline(x + i, y - 9, y - 9 + d, i < 4 || i > 35 ? c2 : c1); pb.set(x + i, y - 9, '#fff6d8'); } pb.hline(x + 2, x + 37, y - 5, c2); pb.rect(x + 18, y - 22, 1, 13, '#5a3826'); };
-    boat(610, '#ff7656', '#a6303a'); boat(668, '#ffd84a', '#c8861a');
-    // rocas con charcas de marea
-    for (let x = 790; x < 1040; x += 34) { const y = gy(x); pb.ellipse(x, y - 3, 9, 5, '#b8564b'); pb.ellipse(x - 2, y - 5, 6, 3, '#d77558'); pb.set(x - 4, y - 7, '#f7c08e'); }
-    for (const x of [840, 930, 1000]) { const y = gy(x); pb.rect(x - 9, y, 18, 3, '#16a6cf'); pb.hline(x - 8, x + 8, y, '#a6f4ff'); pb.set(x - 2, y + 1, '#ff8ab8'); pb.set(x + 3, y + 2, '#ffe14d'); }
-    // plataforma del dron
-    const dpx = 1080, dpy = gy(dpx);
-    pb.rect(dpx - 16, dpy - 4, 32, 4, '#345a78'); pb.rect(dpx - 16, dpy - 4, 32, 1, '#98c6d2');
-    pb.hline(dpx - 6, dpx + 6, dpy - 3, '#ffe14d'); pb.vline(dpx - 4, dpy - 3, dpy - 2, '#ffe14d'); pb.vline(dpx + 4, dpy - 3, dpy - 2, '#ffe14d');
-    // casa de bombas
-    const bx = 1180, by = 268;
-    pb.rect(bx, by - 46, 92, 46, '#e8f0f4'); pb.rect(bx + 78, by - 46, 14, 46, '#a9bbd6'); pb.rect(bx, by - 46, 2, 46, '#ffffff');
-    pb.rect(bx, by - 30, 92, 5, '#20d6c7'); pb.hline(bx, bx + 91, by - 30, '#7ff0dc');
-    pb.rect(bx - 3, by - 50, 98, 4, '#5b6f96'); pb.hline(bx - 3, bx + 94, by - 50, '#cbdaea');
-    pb.rect(bx + 10, by - 44, 18, 10, '#1a2a4a'); pb.rect(bx + 10, by - 44, 18, 2, '#4a7aa8');
-    for (let k = 0; k < 4; k++) pb.rect(bx + 40 + k * 8, by - 44, 5, 10, '#1a2a4a');
-    pb.rect(bx + 46, by - 22, 14, 22, '#27405e'); pb.set(bx + 57, by - 11, '#ffe14d');
-    for (let k = 0; k < 3; k++) { pb.rect(bx + 6 + k * 20, by - 64, 16, 4, '#1f469e'); pb.set(bx + 7 + k * 20, by - 64, '#8cc4ff'); pb.vline(bx + 14 + k * 20, by - 60, by - 51, '#98c6d2'); }
-    // tubería de agua de mar: torre → casa de bombas → pretratamiento
-    ART.pipe(pb, 1290, 262, 1428, 262, 3, 'seawater');
-    ART.pipe(pb, 1180, 276, 1180, 290, 3, 'seawater');
-    ART.pipe(pb, 1272, 276, 1640, 276, 3, 'seawater');
-    // torre de toma
-    const tx = 1430;
-    pb.rect(tx, 210, 50, 94, '#c8d8e8'); pb.rect(tx + 38, 210, 12, 94, '#8396ba'); pb.rect(tx, 210, 2, 94, '#ffffff');
-    for (let y = 214; y < 300; y += 10) pb.hline(tx, tx + 49, y, '#a9bbd6');
-    pb.rect(tx - 4, 204, 58, 6, '#5b6f96'); pb.hline(tx - 4, tx + 53, 204, '#e6f0f7');
-    pb.rect(tx + 8, 240, 30, 26, '#1d2a48');
-    for (let x = tx + 9; x < tx + 38; x += 3) pb.vline(x, 241, 265, '#6aa0b4'); for (let y = 243; y < 266; y += 4) pb.hline(tx + 9, tx + 37, y, '#477a94');
-    pb.rect(tx + 14, 222, 18, 12, '#ffb93b'); pb.rect(tx + 15, 223, 16, 10, '#ffe14d'); pb.rect(tx + 21, 225, 4, 6, '#140d26');
-    pb.vline(tx + 52, 120, 204, '#98c6d2'); pb.rect(tx + 47, 118, 12, 4, '#ff4e5d');
-    // edificio de pretratamiento
-    const fx = 1630;
-    pb.rect(fx, 206, 220, 76, '#dfe8f0'); pb.rect(fx + 200, 206, 20, 76, '#a9bbd6'); pb.rect(fx, 206, 2, 76, '#ffffff');
-    pb.rect(fx, 246, 220, 4, '#20d6c7');
-    for (let k = 0; k < 4; k++) ART.tank(pb, fx + 30 + k * 40, 280, 28, 46, RAMP.steelW, { band: '#1aa894', label: true, labelCol: '#56e5ff' });
-    pb.rect(fx + 8, 214, 14, 10, '#1a2a4a'); pb.rect(fx + 8, 214, 14, 2, '#4a7aa8');
-    drawSign(pb, fx + 110, 206, 'PRETRATAMIENTO', '#1491aa');
-    ART.pipe(pb, fx + 220, 270, 2010, 270, 3, 'water');
-    // camino de acantilado
-    for (let x = 1980; x < 2600; x += 40) { const k = (x * 7) % 5; if (k < 2) ART.cactus(pb, x, gy(x) + 1, 22 + k * 6, x); else if (k < 3) ART.agave(pb, x, gy(x), 9); else ART.shrub(pb, x, gy(x) + 1, 6, x); }
-    drawSign(pb, 2520, gy(2520), 'PLANTA OI', '#8d6bff');
+    const segs = PFTerrain.surface(pb, world); // caras superiores del suelo (camino, arena, losas, cubierta)
+    const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
+    const r = RNG(1101);
+    const F = PFFlora, I = PFInfra;
+    /* ===== 1. ACANTILADO DE INICIO (0–345): letrero, flores, palmeras ===== */
+    F.palm(pb, 230, back(230) + 2, 66, -7, 12);
+    F.tree(pb, 150, back(150) + 3, 58, 14, { wide: 1.1 });
+    F.scatter(pb, (x) => back(x) + 2, 0, 345, 21, { gap: 8, mix: { tuft: 5, bush: 3, flowers: 2, agave: 1, fern: 2, lupine: 1, hibiscus: 1 } });
+    F.palm(pb, 10, back(10) + 3, 84, 7, 11, { frondK: 1.05 });
+    F.palm(pb, 322, back(322) + 2, 56, 4, 13);
+    rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 268, back(268) + 6, 18, 7, 4);
+    // letrero de destinos (como en la referencia)
+    PFSigns.post(pb, 14, gy(14) - 7, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7);
+    F.hibiscusBush(pb, 104, gy(104) - 5, 22, 16, 41);
+    for (let k = 0; k < 4; k++) F.lupine(pb, 124 + k * 4, gy(124) - 6, 14 + (k % 2) * 6, 43 + k);
+    F.flowerPatch(pb, 180, gy(180) - 4, 18, 45);
+    F.tuft(pb, 200, gy(200) - 3, 10, 9, 47); F.tuft(pb, 38, gy(38) - 3, 10, 8, 48);
+    // terraza baja
+    F.bush(pb, 284, gy(284) - 9, 22, 14, RAMP.foliageR, 51); F.agave(pb, 300, gy(300) - 5, 8, 52);
+    /* ===== 2. PLAYA (345–785): cabaña de Tía Marea, botes, redes ===== */
+    F.palm(pb, 398, back(398) + 2, 66, -6, 61); F.palm(pb, 445, back(445) + 2, 50, 5, 62);
+    F.scatter(pb, (x) => back(x) + 3, 350, 470, 63, { gap: 13, mix: { tuft: 4, dry: 3, agave: 1 } });
+    mareaHut(pb, 470, gy(500) - 6);
+    nets(pb, 584, gy(584) - 8);
+    boat(pb, 606, gy(606) - 5, ['#ff7656', '#a6303a', '#5a1018'], 71); boat(pb, 664, gy(664) - 7, ['#ffd84a', '#c8861a', '#6a3a08'], 72);
+    F.scatter(pb, (x) => back(x) + 3, 700, 785, 73, { gap: 12, mix: { tuft: 3, dry: 3, flowers: 1 } });
+    F.palm(pb, 762, back(762) + 2, 60, -8, 74);
+    I.crate(pb, 452, gy(452) - 4, 9, 7, 4); I.barrel(pb, 566, gy(566) - 5); I.barrel(pb, 573, gy(573) - 3, ['#5a1010', '#8a1a1a', '#c02a2a', '#e04a3a', '#f07a5a', '#ffb090']);
+    for (const x of [372, 530, 640, 720]) shells(pb, x, gy(x) - 3);
+    /* ===== 3. ROQUEDAL (785–1060): rocas, charcas de marea, matorral ===== */
+    for (let x = 790; x < 1060; x += 26 + r.int(0, 18)) rockPile(pb, x, back(x) + 5, 14 + r.int(0, 14), 6 + r.int(0, 6), x);
+    F.scatter(pb, (x) => back(x) + 4, 785, 1060, 81, { gap: 10, mix: { tuft: 4, bush: 2, agave: 2, flowers: 1, fern: 1 } });
+    for (const x of [846, 934, 1004]) tidePool(pb, x, gy(x) - 6, 13, 3);
+    F.tree(pb, 980, back(980) + 3, 50, 83, { wide: 0.9 });
+    /* ===== 4. EXPLANADA DEL DRON (1060–1108) y ESCALINATA ===== */
+    dronePad(pb, 1080, gy(1080) - 7);
+    I.cabinet(pb, 1063, gy(1063) - 10, 9, 14, 4); I.lamp(pb, 1100, gy(1100) - 12, 34);
+    /* ===== 5. MUELLE DE CAPTACIÓN (1108–1612): toma → rejas y tamices → bombeo → pretratamiento ===== */
+    const deckY = 268;
+    PFTerrain.railing(pb, 1112, 1606, deckY - 18, 8);
+    I.transformer(pb, 1128, deckY - 9);
+    I.pumpHouse(pb, 1180, deckY - 6, 92, 46, 16);
+    I.glassHall(pb, 1302, deckY - 6, 96, 26, 14);
+    I.intakeTower(pb, 1430, deckY - 4, 206, 50);
+    I.gantry(pb, 1508, deckY - 8, 64, 84);
+    // bandeja de cables: transformador → casa de bombas
+    for (let x = 1146; x < 1182; x++) { PFK.put(pb, x, 238, U('#2a282e')); PFK.put(pb, x, 239, U('#4f4d51')); if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76')); }
+    // succión: torre → nave de rejas → casa de bombas; impulsión: casa de bombas → filtros
+    I.pipe(pb, [[1432, 238], [1398, 238]], 3, 'sea', { flange: 12 });
+    I.pipe(pb, [[1302, 238], [1272, 238]], 3, 'sea', { flange: 12 });
+    I.pipe(pb, [[1262, 254], [1622, 254], [1622, 218], [1652, 218]], 3, 'sea', { flange: 22, supports: 40, supportTo: () => deckY - 6 });
+    I.pipe(pb, [[1300, 260], [1604, 260]], 1, 'steel', { flange: 30 }); // retorno de lavado
+    I.valve(pb, 1330, 254); I.valve(pb, 1470, 254); I.valve(pb, 1590, 254); I.gauge(pb, 1286, 243, 3, -1.2); I.gauge(pb, 1420, 243, 3, -0.4);
+    for (const x of [1124, 1352, 1500, 1598]) I.bollard(pb, x, deckY - 2);
+    I.lifeRing(pb, 1404, deckY - 13); I.lamp(pb, 1116, deckY - 14, 36); I.lamp(pb, 1590, deckY - 14, 36);
+    I.crate(pb, 1540, deckY - 8, 10, 8, 4); I.crate(pb, 1552, deckY - 8, 8, 6, 3); I.barrel(pb, 1566, deckY - 7); I.barrel(pb, 1573, deckY - 6, ['#5a1010', '#8a1a1a', '#c02a2a', '#e04a3a', '#f07a5a', '#ffb090']);
+    I.cabinet(pb, 1282, deckY - 7, 9, 13, 4); I.cabinet(pb, 1484, deckY - 7, 8, 11, 3);
+    ropeCoil(pb, 1504, deckY - 4);
+    /* ===== 6. PRETRATAMIENTO (1612–1885): batería de filtros de arena, caseta, dosificación ===== */
+    const py = gy(1700);
+    controlRoom(pb, 1612, py - 4);
+    I.mediaFilters(pb, 1660, py - 4, 4, { r: 11, h: 44, gap: 36 });
+    // soportes de la pasarela (la pasarela se hornea en el terreno)
+    for (const x of [1644, 1716, 1786]) for (let y = 210; y < py - 10; y++) { PFK.put(pb, x, y, U('#948e91')); PFK.put(pb, x + 1, y, U('#4f4d51')); }
+    dosingSkid(pb, 1812, py - 4);
+    I.cylV(pb, 1862, py - 8, 9, 54, { dome: 0.45, bands: [{ y: 10, h: 3 }, { y: 40, h: 2 }], ladder: true, plate: '#11bedd', stain: true }); // tanque de lavado
+    I.pipe(pb, [[1806, py - 18], [1872, py - 18], [1872, py - 14], [1995, py - 14], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], 3, 'pre', { flange: 24, supports: 44, supportTo: (x) => gy(x) - 6 });
+    /* ===== 7. SENDERO ROCOSO A LA PLANTA OI (1885–2600) ===== */
+    F.scatter(pb, (x) => back(x) + 2, 1885, 2600, 91, { gap: 9, mix: { tuft: 5, bush: 3, agave: 2, flowers: 2, fern: 1, lupine: 1, dry: 2 } });
+    for (const [x, h, l] of [[1940, 60, 6], [2160, 74, -6], [2290, 56, 4], [2440, 80, -8], [2580, 62, 5]]) F.palm(pb, x, back(x) + 2, h, l, x);
+    F.tree(pb, 2060, back(2060) + 3, 62, 93); F.tree(pb, 2390, back(2390) + 3, 54, 94, { wide: 1.1 });
+    for (let x = 1900; x < 2600; x += 40 + r.int(0, 40)) rockPile(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x + 7);
+    PFSigns.post(pb, 2488, gy(2488) - 7, [{ text: 'PLANTA OI' }, { text: 'LA TOMA', dir: -1 }], 19);
+    F.hibiscusBush(pb, 2470, gy(2470) - 5, 20, 14, 95);
   },
+  /** Primer plano a ras de suelo (delante de los pies): pasto alto, flores */
   propsFront(pb, world) {
-    for (let x = 0; x < 760; x += 7) if ((x * 13) % 5 < 2) ART.grass(pb, x, world.groundAt(x) + 2, 2, x + 5, RAMP.leaf);
-    for (let x = 1980; x < 2600; x += 11) if ((x * 7) % 4 === 0) ART.grass(pb, x, world.groundAt(x) + 2, 2, x, RAMP.moss);
+    const gy = (x) => world.groundAt(x), F = PFFlora;
+    for (let x = 6; x < 340; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (let x = 360; x < 780; x += 31) F.tuft(pb, x, gy(x) + 3, 8, 6, x + 3, PFFlora.DRY);
+    for (let x = 800; x < 1050; x += 37) F.tuft(pb, x, gy(x) + 3, 7, 6, x + 5);
+    for (let x = 1890; x < 2600; x += 29) if ((x * 7) % 4 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x + 9);
   },
   /* ---------------- dinámico ---------------- */
   renderBack(g, sc, cam) {
-    const S = sc.state, t = Game.time;
-    // pluma de turbidez en el mar lejano (avanza desde el horizonte)
+    const S = sc.state;
+    // pluma de turbidez en el mar lejano (avanza desde el horizonte) en bandas suaves, sin tramado
     if (S.plume > 0) {
-      const hz = sc.backdrop.horizon;
+      const B = sc.backdrop, hz = Math.round(typeof B.seaY === 'function' ? B.seaY(cam) : (B.horizon ?? 140) - cam.y * 0.1);
       const front = hz + 4 + S.plume * 120;
-      for (let y = hz + 2; y < Math.min(front, H); y += 1) {
+      g.fillStyle = '#a07a3a';
+      for (let y = hz + 2, i = 0; y < Math.min(front, H); y += 6, i++) {
         const k = 1 - (y - hz) / (front - hz + 1);
-        fdither(g, 0, y, W, 1, '#a07a3a', clamp(0.15 + k * 0.55 * S.plume, 0, 0.8));
+        g.globalAlpha = clamp((0.12 + k * 0.4) * S.plume, 0, 0.6);
+        g.fillRect(0, y + ((i % 2) ? 1 : 0), W, 6);
       }
+      g.globalAlpha = 1;
     }
-    // gaviotas
-    for (let i = 0; i < 5; i++) { const bx = ((t * (18 + i * 4) + i * 160) % (W + 80)) - 40, by = 70 + i * 13 + Math.sin(t + i) * 6; ART.bird(g, Math.round(bx), Math.round(by), t + i); }
   },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
-    // olas de orilla
-    for (let k = 0; k < 3; k++) {
-      const ph = ((t * 0.35 + k / 3) % 1);
-      const x0 = 1080 + ph * 40 - ox, y = 294 - oy;
-      g.globalAlpha = 1 - ph;
-      frect(g, Math.round(x0), y, 60 - ph * 30, 1, '#ffffff');
-      frect(g, Math.round(x0 + 10), y + 1, 40 - ph * 20, 1, '#c6fff2');
-      g.globalAlpha = 1;
-    }
-    // luz de advertencia de la torre y compuerta
-    const tx = 1430 - ox;
-    fdisc(g, tx + 53, 117 - oy, 2, (Math.floor(t * 2) % 2) ? (S.gateClosed ? '#ff4e5d' : '#86e36f') : '#3a1a20');
-    const gateH = Math.round((S.gateAnim || 0) * 24);
-    if (gateH > 0) { frect(g, tx + 8, 241 - oy, 30, gateH, '#ff6b6b'); for (let y = 0; y < gateH; y += 3) frect(g, tx + 8, 241 + y - oy, 30, 1, '#a82c40'); }
-    // dron en su plataforma
-    if (!S.droneOut) drawDrone(g, 1080 - ox, 286 - oy, t, false);
-    // peces saltando cerca del arrecife (salud ecológica)
+    // flujos en tuberías (chevrones): agua de mar turquesa y agua pretratada azul claro
+    PFInfra.drawFlows(g, sc, LV1_FLOWS);
+    PFInfra.drawLeds(g, sc, LV1_LEDS);
+    // luz de advertencia de la torre (mástil) — verde en servicio, roja con la compuerta cerrada
+    const on = Math.floor(t * 2) % 2;
+    if (on) { const lx = 1476 - ox, ly = 134 - oy; frect(g, lx - 1, ly, 3, 3, S.gateClosed ? '#ff4e5d' : '#3fe0a0'); PFK.drawGlow(g, lx + 0.5, ly + 1.5, 5, S.gateClosed ? '#ff4e5d' : '#3fe0a0', 0.6); }
+    // dron de muestreo en su plataforma
+    if (!S.droneOut) drawDrone(g, 1080 - ox, 284 - oy, t, false);
+    // peces que saltan cerca del arrecife (salud ecológica)
     const eco = 1 - (S.eco || 0.2);
-    if (eco > 0.4) { const ph = (t * 0.5) % 3; if (ph < 0.6) { const fx = 1340 + Math.sin(Math.floor(t * 0.5 / 3) * 7) * 80 - ox; const fy = 292 - Math.sin(ph / 0.6 * Math.PI) * 14 - oy; frect(g, Math.round(fx), Math.round(fy), 4, 2, '#ff9f43'); fpx(g, Math.round(fx) + 4, Math.round(fy), '#ffc06a'); } }
-    // manómetro del filtro sobre el techo
-    const gx = 1700 - ox, gy2 = 196 - oy;
-    fdisc(g, gx, gy2, 7, '#1d2a48'); fdisc(g, gx, gy2, 6, '#f4fdff');
+    if (eco > 0.4) { const ph = (t * 0.5) % 3; if (ph < 0.6) { const fx = 1250 + Math.sin(Math.floor(t * 0.5 / 3) * 7) * 80 - ox; const fy = 296 - Math.sin(ph / 0.6 * Math.PI) * 16 - oy; frect(g, Math.round(fx), Math.round(fy), 5, 2, '#f4f2dc'); fpx(g, Math.round(fx) + 5, Math.round(fy), '#e8c040'); fpx(g, Math.round(fx) - 1, Math.round(fy) + 1, '#e8c040'); } }
+    // manómetro diferencial del filtro (sobre la pasarela)
+    const gx = 1700 - ox, gy2 = 194 - oy;
+    frect(g, gx - 1, gy2 + 6, 2, 6, '#716f76');
+    fdisc(g, gx, gy2, 7, '#2a282e'); fdisc(g, gx, gy2, 6, '#d3ccc5'); fdisc(g, gx - 1, gy2 - 1, 5, '#f4fbff');
     const dp = clamp((S.dp || 0.3) / 1.6, 0, 1); const a = Math.PI * (0.8 + dp * 1.4);
+    frect(g, gx - 5, gy2 + 2, 3, 1, '#3fe0a0'); frect(g, gx + 3, gy2 + 2, 3, 1, '#ff4e5d');
     fline(g, gx, gy2, gx + Math.cos(a) * 5, gy2 + Math.sin(a) * 5, dp > 0.7 ? '#ff4e5d' : '#140d26');
   },
   renderGrade(g, sc) {
@@ -144,17 +202,17 @@ LEVELS[1] = {
   },
   lens(g, sc, cam, k) {
     const ox = cam.x, oy = cam.y, S = sc.state;
-    lensBoundary(g, 1150 - ox, 196 - oy, 720, 100, '#ffe14d', 'LÍMITE: CAPTACIÓN + PRETRATAMIENTO');
-    Charts.flow(g, [[1452 - ox, 296 - oy], [1452 - ox, 262 - oy], [1300 - ox, 262 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
-    Charts.flow(g, [[1272 - ox, 276 - oy], [1630 - ox, 276 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
-    Charts.flow(g, [[1850 - ox, 270 - oy], [2000 - ox, 270 - oy]], 'water', 1, 3);
-    Charts.flow(g, [[1225 - ox, 150 - oy], [1225 - ox, 214 - oy]], 'power', 1, 2);
-    lensTag(g, 1440 - ox, 190 - oy, 'Qtoma ' + fmt0(S.q || 100) + ' m³/h', '#6cf0db', 'water');
-    lensTag(g, 1300 - ox, 240 - oy, 'Turbidez ' + fmt(S.turb || 2.5, 1) + ' NTU', '#ffb93b', 'filter');
+    lensBoundary(g, 1110 - ox, 150 - oy, 780, 150, '#ffe14d', 'LÍMITE: CAPTACIÓN + PRETRATAMIENTO');
+    Charts.flow(g, [[1462 - ox, 360 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
+    Charts.flow(g, [[1262 - ox, 254 - oy], [1622 - ox, 254 - oy], [1622 - ox, 218 - oy], [1652 - ox, 218 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
+    Charts.flow(g, [[1872 - ox, 264 - oy], [1995 - ox, 264 - oy], [1995 - ox, 252 - oy], [2120 - ox, 252 - oy]], 'water', 1, 3);
+    Charts.flow(g, [[1138 - ox, 238 - oy], [1182 - ox, 238 - oy]], 'power', 1, 2);
+    lensTag(g, 1440 - ox, 176 - oy, 'Qtoma ' + fmt0(S.q || 100) + ' m³/h', '#6cf0db', 'water');
+    lensTag(g, 1300 - ox, 196 - oy, 'Turbidez ' + fmt(S.turb || 2.5, 1) + ' NTU', '#ffb93b', 'filter');
     lensTag(g, 1660 - ox, 176 - oy, 'ΔP filtro ' + fmt(S.dp || 0.3, 2) + ' bar', '#ff9a8a', 'chart');
-    lensTag(g, 1880 - ox, 254 - oy, '→ OI (agua pretratada)', '#a6f4ff', 'membrane');
+    lensTag(g, 1880 - ox, 238 - oy, '→ OI (agua pretratada)', '#a6f4ff', 'membrane');
     lensTag(g, 1180 - ox, 140 - oy, 'Bombas ~' + fmt0((S.q || 100) * 0.25) + ' kW', '#ffe14d', 'bolt');
-    lensTag(g, 1380 - ox, 306 - oy, 'v aprox. ' + fmt((S.q || 100) / 3600 / 1.6, 3) + ' m/s', '#86e36f', 'fish');
+    lensTag(g, 1380 - ox, 344 - oy, 'v aprox. ' + fmt((S.q || 100) / 3600 / 1.6, 3) + ' m/s', '#86e36f', 'fish');
   },
   hud(g, sc) {
     const S = sc.state;
@@ -242,6 +300,21 @@ LEVELS[1] = {
     { x: 960, w: 40, run: (sc) => { if (!sc.state.metDante) sc.dante && 0; } },
   ],
 };
+
+/* ---------------- datos animados del plano (kit PF) ---------------- */
+const LV1_FLOWS = [
+  { pts: [[1432, 238], [1398, 238]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
+  { pts: [[1302, 238], [1272, 238]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
+  { pts: [[1262, 254], [1622, 254], [1622, 218], [1652, 218]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
+  { pts: [[1806, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
+];
+const LV1_LEDS = [
+  { x: 1065, y: 271, col: '#3fe0a0', hz: 1 }, { x: 1067, y: 271, col: '#ffd84a', hz: 1.7, ph: 0.3 },
+  { x: 1284, y: 249, col: '#3fe0a0', hz: 1.2 }, { x: 1286, y: 249, col: '#ff5a4a', hz: 2, ph: 0.5 },
+  { x: 1486, y: 251, col: '#3fe0a0', hz: 1.4 }, { x: 1131, y: 247, col: '#ffd84a', hz: 1 },
+  { x: 1446, y: 220, col: '#17f3f7', hz: 1.5 }, { x: 1628, y: 240, col: '#3fe0a0', hz: 1.1 }, { x: 1817, y: 262, col: '#ff9f43', hz: 1.8 },
+];
+LEVELS[1].pf.fauna = { eagle: { x0: 60, x1: 760, y: 70 }, gulls: [{ x: 300, y: 90, n: 4 }, { x: 900, y: 110, n: 3 }, { x: 1500, y: 80, n: 4 }, { x: 2200, y: 100, n: 3 }], drones: [{ x: 1600, y: 168, r: 30 }, { x: 2300, y: 150, r: 40 }] };
 
 /* ---------------- piezas del guion ---------------- */
 function kiruEcho(sc, id, text) {
@@ -407,6 +480,7 @@ async function sideScreens(sc) {
    ===================================================================== */
 function drawDrone(g, x, y, t, flying) {
   x = Math.round(x); y = Math.round(y);
+  if (typeof PFFauna !== 'undefined' && !flying) { PFFauna.drawDroneAt(g, x, y, t, false); return; }
   const bob = flying ? Math.round(Math.sin(t * 6) * 1) : 0;
   frect(g, x - 6, y - 5 + bob, 12, 4, '#ff9f43'); frect(g, x - 6, y - 5 + bob, 12, 1, '#ffc06a'); frect(g, x - 4, y - 1 + bob, 8, 2, '#263442');
   fpx(g, x, y + 1 + bob, '#56e5ff');
@@ -751,3 +825,141 @@ const Sim01 = makeSim({
     if (!this.verdict && !this.msg) { }
   },
 });
+
+/* =====================================================================
+   Piezas de escenografía propias del Nivel 01 (kit PF, prerender)
+   ===================================================================== */
+/** Montón de cantos rodados en domo (cara iluminada arriba-izquierda) */
+function rockPile(pb, x, y, w, h, seed) {
+  const RW = PFK.P32(RAMP.rockWarmR);
+  for (let yy = Math.round(y - h); yy <= y; yy++) for (let xx = Math.round(x - w / 2); xx <= x + w / 2; xx++) {
+    const nx = (xx - x) / (w / 2), ny = (yy - y) / h;
+    if (nx * nx + ny * ny > 1 + (PFK.cl(xx, yy, 2, seed) - 0.5) * 0.25) continue;
+    const u = PFTerrain.boulderPix(xx, yy, seed, 9 + (seed % 5), 7, RW);
+    PFK.put(pb, xx, yy, u === -1 ? RW[1] : u);
+  }
+  for (let xx = Math.round(x - w / 2); xx <= x + w / 2; xx++) if (PFK.get(pb, xx, y) >>> 24) PFK.put(pb, xx, y + 1, RW[0]);
+}
+/** Conchas y piedrecitas */
+function shells(pb, x, y) {
+  PFK.put(pb, x, y, U('#fff2e0')); PFK.put(pb, x + 1, y, U('#f4a0b0')); PFK.put(pb, x + 5, y + 1, U('#fff6e8')); PFK.put(pb, x - 4, y + 1, U('#8a5a2c')); PFK.put(pb, x - 3, y + 1, U('#c8945e'));
+}
+/** Charca de marea con estrella de mar y erizo */
+function tidePool(pb, x, y, w, h) {
+  const S = PFK.P32(RAMP.shallowR);
+  PFK.ellipseFn(pb, x, y, w / 2 + 1, h / 2 + 1, (nx, ny, d) => d > 0.72 ? U(ny < 0 ? '#5e2210' : '#a55320') : S[clamp(Math.round(3.2 - ny * 1.5 + (PFK.cl(x + nx * 9, y + ny * 3, 1, 4) - 0.5)), 1, 5)]);
+  PFK.put(pb, x - 3, y - 1, U('#ffffff')); PFK.put(pb, x - 2, y - 1, U('#bde3ed')); PFK.put(pb, x + 2, y, U('#bde3ed'));
+  // estrella de mar
+  const sx = x + 3, sy = y;
+  for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-2, -1], [2, -1]]) PFK.put(pb, sx + dx, sy + dy, U(dx === 0 && dy === 0 ? '#ffb86b' : '#f07a3a'));
+  PFK.put(pb, x - 4, y + 1, U('#1a0f33')); PFK.put(pb, x - 5, y + 1, U('#311f57'));
+}
+/** Cabaña de Tía Marea: palafito en 3/4 con techo de palma, redes, panel y antena */
+function mareaHut(pb, x, y) {
+  const WD = ['#1e0e06', '#3a1e10', '#5a3420', '#7a4e30', '#9a6a44', '#c08e60', '#e2b88a'];
+  const TEAL = ['#06302e', '#0b4e4a', '#127a70', '#1aa894', '#4ccdb8', '#9cecdc'];
+  const TH = ['#3a2408', '#5e3c10', '#8a6020', '#b88a34', '#d8ae4e', '#f0d27a'];
+  const Wd = PFK.P32(WD), T = PFK.P32(TEAL), Th = PFK.P32(TH);
+  const floorY = y - 22, w = 82, h = 32, d = 14, dx = 6;
+  // pilotes (4 delante, 2 detrás)
+  for (const [px, back] of [[x + 2, 0], [x + 38, 0], [x + 76, 0], [x + 10 + dx, 1], [x + 70 + dx, 1]]) for (let yy = floorY - (back ? d : 0); yy < y + (back ? -d + 4 : 0); yy++) for (let k = 0; k < 4; k++) PFK.put(pb, px + k, yy, Wd[clamp((k === 0 ? 4 : k === 3 ? 1 : 3) - back, 0, 6)]);
+  // riostras
+  PFK.lineFn(pb, x + 4, floorY + 2, x + 38, y - 4, () => Wd[2]); PFK.lineFn(pb, x + 76, floorY + 2, x + 42, y - 4, () => Wd[2]);
+  // plataforma (cubierta de tablones en 3/4)
+  PFInfra.box3q(pb, x - 6, floorY + 4, w + 14, 4, d + 4, { skew: 0.45, ramp: WD, top: (xx, yy, u, v) => Wd[((xx - x) % 5 === 0) ? 3 : 5 - Math.round(v)] });
+  // paredes de tablas pintadas (frente) y lateral
+  PFInfra.box3q(pb, x, floorY, w, h, d, {
+    skew: 0.45, ramp: TEAL,
+    front: (xx, yy, u, v) => { let k = 3 + ((yy - floorY) % 4 === 0 ? -1 : 0) - (u > 0.86 ? 1 : 0) + (PFK.cl(xx, yy, 2, 5) < 0.12 ? -1 : 0); if (PFK.vn(xx * 0.2, yy * 0.4, 6) > 0.8) return Wd[4]; return T[clamp(k, 0, 5)]; },
+    side: (xx, yy) => T[clamp(1 + ((yy - floorY) % 4 === 0 ? -1 : 0), 0, 5)],
+    top: () => T[2],
+  });
+  // ventana con contraventanas, puerta con luz cálida
+  PFInfra.windowQ(pb, x + 12, floorY - h + 9, 14, 10);
+  for (let yy = floorY - h + 9; yy < floorY - h + 19; yy++) { PFK.put(pb, x + 9, yy, Wd[5]); PFK.put(pb, x + 10, yy, Wd[3]); PFK.put(pb, x + 28, yy, Wd[5]); PFK.put(pb, x + 29, yy, Wd[3]); }
+  for (let yy = floorY - 25; yy < floorY; yy++) for (let xx = x + 50; xx < x + 64; xx++) PFK.put(pb, xx, yy, xx === x + 50 ? Wd[0] : (xx - x) % 4 === 0 ? Wd[1] : Wd[2]);
+  for (let yy = floorY - 22; yy < floorY - 14; yy++) for (let xx = x + 53; xx < x + 61; xx++) PFK.put(pb, xx, yy, U(yy < floorY - 20 ? '#ffe7a0' : '#ffc860'));
+  PFK.put(pb, x + 61, floorY - 12, U('#ffe14d'));
+  // techo de palma a cuatro aguas visto en 3/4
+  const rt = floorY - h, ry = rt - 22;
+  PFK.polyFill(pb, [[x - 10, rt + 2], [x + w + 10, rt + 2], [x + w + dx + 4, ry + 4], [x + dx - 2, ry + 4]], (xx, yy) => {
+    const v = (rt + 2 - yy) / 22, stripe = (xx + Math.round(yy * 0.6)) % 4;
+    let k = 4 - Math.round(v * 1.2) + (stripe === 0 ? -1 : stripe === 2 ? 1 : 0) + (PFK.cl(xx, yy, 2, 9) < 0.15 ? -1 : 0);
+    if (xx > x + w - 2 + v * 8) k -= 2;
+    return Th[clamp(k, 0, 5)];
+  });
+  for (let xx = x - 10; xx <= x + w + 10; xx++) { PFK.put(pb, xx, rt + 2, Th[1]); if (hash2(xx, 1, 4) < 0.5) PFK.put(pb, xx, rt + 3, Th[2]); if (hash2(xx, 2, 4) < 0.3) PFK.put(pb, xx, rt + 4, Th[1]); }
+  for (let xx = x + dx - 2; xx < x + w + dx + 4; xx++) PFK.put(pb, xx, ry + 4, Th[5]);
+  // panel solar y antena
+  PFInfra.pvPanel(pb, x + 52, ry + 12, 16, 6);
+  for (let yy = ry - 22; yy < ry + 8; yy++) PFK.put(pb, x + 74, yy, U('#c8d8e0'));
+  PFK.put(pb, x + 74, ry - 23, U('#ff4e5d')); for (let k = -3; k <= 3; k++) PFK.put(pb, x + 74 + k, ry - 16, U('#98a8b8'));
+  // escalera de acceso, red colgada, boya
+  for (let yy = floorY + 4; yy < y; yy++) { PFK.put(pb, x + 86, yy, Wd[4]); PFK.put(pb, x + 92, yy, Wd[2]); if ((yy - floorY) % 4 === 0) for (let k = 87; k < 92; k++) PFK.put(pb, x + k, yy, Wd[3]); }
+  for (let k = 0; k < 14; k++) for (let j = 0; j < 12; j++) if ((k + j) % 3 === 0 || (k - j + 30) % 3 === 0) PFK.put(pb, x + 30 + k, floorY - 12 + j + Math.round(Math.sin(k / 13 * Math.PI) * 2), U('#cfe8ee'));
+  PFK.ellipseFn(pb, x + 46, floorY - 6, 2.4, 2.4, (nx, ny) => U(nx + ny < -0.5 ? '#ffc6b4' : '#ff6b6b'));
+  // macetas con plantas en la plataforma
+  for (const px of [x + 4, x + 70]) { PFInfra.box3q(pb, px, floorY + 1, 6, 4, 2, { ramp: ['#3a1408', '#6a2a10', '#a04a20', '#c86a30', '#e08a48'] }); PFFlora.bush(pb, px + 3, floorY - 3, 9, 8, RAMP.foliageR, px); }
+}
+/** Redes de pesca tendidas entre dos postes con flotadores */
+function nets(pb, x, y) {
+  const Wd = PFK.P32(PFSigns.WOOD);
+  for (const px of [x, x + 30]) for (let yy = y - 28; yy < y; yy++) { PFK.put(pb, px, yy, Wd[6]); PFK.put(pb, px + 1, yy, Wd[3]); }
+  for (let k = 0; k <= 30; k++) {
+    const sag = Math.round(Math.sin(k / 30 * Math.PI) * 6);
+    for (let j = 0; j < 16; j++) if ((k + j) % 3 === 0 || (k - j + 60) % 3 === 0) PFK.put(pb, x + k, y - 26 + sag + j, U(j > 13 ? '#7ab0c0' : '#d6eef2'));
+    if (k % 6 === 3) { PFK.put(pb, x + k, y - 27 + sag, U('#ff9f43')); PFK.put(pb, x + k + 1, y - 27 + sag, U('#e86a2a')); }
+  }
+}
+/** Bote de remos varado en 3/4 (interior visible) */
+function boat(pb, x, y, cols, seed) {
+  const H0 = U(cols[0]), H1 = U(cols[1]), INK = U(cols[2]);
+  const IN = PFK.P32(['#3a1e10', '#5a3420', '#7a4e30', '#9a6a44', '#c08e60']);
+  const L = 44;
+  for (let i = 0; i < L; i++) {
+    const t = i / (L - 1), s = Math.sin(t * Math.PI);
+    const top = y - 9 - Math.round(s * 3), bot = y - 1 + Math.round(s * 1.5), rimIn = top + Math.round(1 + s * 4);
+    for (let yy = top; yy <= bot; yy++) {
+      let c = yy === top ? U('#fff6e8') : yy < rimIn ? IN[clamp(1 + Math.round((yy - top) / 2), 0, 4)] : (yy > bot - 2 ? H1 : H0);
+      if (yy >= rimIn && yy === rimIn) c = U('#f4ece0');
+      if (t < 0.05 || t > 0.95) c = H1;
+      if (yy >= rimIn && PFK.cl(x + i, yy, 2, seed) < 0.08) c = U('#e8d8c0');
+      PFK.put(pb, x + i, yy, c);
+    }
+    PFK.put(pb, x + i, bot + 1, INK);
+  }
+  // bancadas y remo
+  for (const bx of [14, 28]) for (let yy = y - 9; yy < y - 5; yy++) PFK.put(pb, x + bx, yy, IN[4]);
+  PFK.lineFn(pb, x + 8, y - 12, x + 40, y - 6, (t) => U(t > 0.8 ? '#c08e60' : '#e2b88a'));
+  // sombra de contacto
+  for (let i = 2; i < L - 2; i++) PFK.put(pb, x + i, y + 1, U('#96592b'));
+}
+/** Plataforma del dron (marca H pintada en 3/4) */
+function dronePad(pb, x, y) {
+  PFK.ellipseFn(pb, x, y, 15, 5, (nx, ny, d) => d > 0.82 ? U('#e8c040') : d > 0.66 ? U('#3a3f4a') : U(ny < -0.2 ? '#6a7078' : '#585e68'));
+  for (const [dx, dy] of [[-3, -2], [-3, -1], [-3, 0], [-3, 1], [3, -2], [3, -1], [3, 0], [3, 1], [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0]]) PFK.put(pb, x + dx, y + dy, U('#fff2c0'));
+  for (const dx of [-17, 17]) { PFK.put(pb, x + dx, y - 2, U('#ff7a3a')); PFK.put(pb, x + dx, y - 1, U('#ffffff')); PFK.put(pb, x + dx - 1, y, U('#c84a1a')); PFK.put(pb, x + dx, y, U('#ff7a3a')); PFK.put(pb, x + dx + 1, y, U('#c84a1a')); }
+}
+function ropeCoil(pb, x, y) {
+  for (let k = 0; k < 3; k++) PFK.ellipseFn(pb, x, y - k, 5 - k, 2, (nx, ny, d) => d > 0.5 ? U(ny < 0 ? '#e8d4a8' : '#a88a5a') : 0);
+}
+/** Caseta de control del pretratamiento con paneles FV en el techo */
+function controlRoom(pb, x, y) {
+  const b = PFInfra.box3q(pb, x, y, 34, 36, 14, { ramp: PFInfra.STEEL, front: PFInfra.wallFront(x, y - 14), top: (xx, yy, u, v) => PFK.P32(PFInfra.ROOF)[clamp(Math.round(4 - v * 2), 1, 5)] });
+  PFInfra.windowQ(pb, x + 5, y - 30, 12, 8); PFInfra.windowQ(pb, x + 20, y - 30, 9, 8);
+  for (let yy = y - 18; yy < y; yy++) for (let xx = x + 22; xx < x + 31; xx++) PFK.put(pb, xx, yy, U(xx === x + 22 ? '#1a2230' : '#3a5068'));
+  PFInfra.pvPanel(pb, x + 2, y - 39, 14, 5); PFInfra.pvPanel(pb, x + 18, y - 39, 14, 5);
+  // equipo de aire y cableado
+  PFInfra.box3q(pb, x + 35, y - 8, 7, 7, 4, { ramp: PFInfra.STEEL });
+  for (let k = 0; k < 4; k++) PFK.put(pb, x + 36 + k, y - 13, U('#4f4d51'));
+  return b;
+}
+/** Patín de dosificación de coagulante: dos tanquecitos, bomba y rombo de seguridad */
+function dosingSkid(pb, x, y) {
+  PFInfra.box3q(pb, x - 4, y, 40, 4, 10, { ramp: PFTerrain.CONC });
+  PFInfra.cylV(pb, x + 4, y - 5, 5, 16, { ramp: ['#3a2a08', '#6a4e10', '#a8841e', '#d0ae3a', '#ecd068', '#fff0b0', '#ffffff', '#ffffff'], bands: [{ y: 4, h: 1 }], ell: 0.4 });
+  PFInfra.cylV(pb, x + 16, y - 5, 5, 14, { bands: [{ y: 4, h: 1 }], ell: 0.4 });
+  PFInfra.cylH(pb, x + 23, x + 32, y - 8, 2, {});
+  PFInfra.pipe(pb, [[x + 4, y - 22], [x + 4, y - 26], [x + 30, y - 26], [x + 30, y - 12]], 1, 'steel', { flange: 0 });
+  for (let yy = 0; yy < 7; yy++) for (let xx = 0; xx < 7; xx++) if (Math.abs(xx - 3) + Math.abs(yy - 3) <= 3) PFK.put(pb, x + 26 + xx, y - 22 + yy, U(Math.abs(xx - 3) + Math.abs(yy - 3) === 3 ? '#c02a2a' : '#ffffff'));
+}

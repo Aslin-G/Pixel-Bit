@@ -76,6 +76,8 @@ class World {
 
 /* ---------- Render del terreno a lienzo ---------- */
 function renderTerrain(world) {
+  // kit PF (opt-in): caras frontales en 3/4, acantilados columnares, muelle con corte submarino
+  if (world.def.pf && world.def.pf.terrain && typeof PFTerrain !== 'undefined') return PFTerrain.render(world);
   const def = world.def, wd = world.w, hd = world.h;
   const pb = new PixelBuffer(wd, hd);
   const segs = def.terrain || [{ x0: 0, x1: wd, mat: 'sand' }];
@@ -140,6 +142,7 @@ function renderTerrain(world) {
 
 /* ---------- Plataformas ---------- */
 function drawPlatform(g, p, ox, oy) {
+  if (p.baked && typeof PFTerrain !== 'undefined') return; // horneada en el lienzo del terreno
   const x = Math.round(p.x - ox), y = Math.round(p.y + (p.dy || 0) - oy), w = p.w;
   if (x > W || x + w < 0) return;
   switch (p.type) {
@@ -303,7 +306,7 @@ class Player extends Entity {
     const x = this.x - cam.ox, y = this.y - cam.oy;
     if (this.gliding) drawGlider(g, x, y - 70, this.facing);
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
-    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy); frect(g, x - 9, wy, 18, 1, '#c6fff2'); fdither(g, x - 8, wy + 1, 16, Math.max(0, Math.round(this.y - cam.oy) - wy), '#20d6c7', 0.5); }
+    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 9, wy, 18, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 8, wy + 1, 16, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 8, wy + 3, 16, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 9 + ((Game.frame >> 3) % 18), wy, '#ffffff'); }
   }
 }
 function drawGlider(g, x, y, f) {
