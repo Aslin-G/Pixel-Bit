@@ -53,21 +53,20 @@ LEVELS[5] = {
   /* ---------------- dinámico ---------------- */
   renderBack(g, sc, cam) {
     const S = sc.state, t = Game.time;
-    // abismos: pared de bruma y mar lejano al fondo
+    // abismos: bruma en bandas translúcidas (sin tramado) sobre el mar del panorama, rociones y espuma al fondo
+    const MIST = ['#f2f6fa', '#dce6ee', '#c4d4e2', '#a8c0d6', '#8cacca'];
     for (const [x0, x1] of [[420, 628], [1300, 1568]]) {
       const sx = x0 - cam.x, sw = x1 - x0;
       if (sx > W || sx + sw < 0) continue;
-      for (let y = 250; y < H; y += 2) { const k = (y - 250) / (H - 250); frect(g, sx, y - cam.y, sw, 2, rampDither(['#dce4ea', '#b8c6d0', '#94a6b4', '#56687a', '#2a64c4', '#1e4aa8'], k, x0, y)); }
-      for (let i = 0; i < 6; i++) fdither(g, sx + ((t * 10 + i * 40) % sw), 280 - cam.y + i * 6, 40, 3, '#ffffff', 0.25);
-      for (let x = 0; x < sw; x += 3) fpx(g, sx + x, H - 12 - cam.y + Math.round(Math.sin(x * 0.2 + t * 2)), '#a6dcf8');
+      for (let i = 0; i < 5; i++) { g.globalAlpha = 0.55 - i * 0.09; frect(g, sx, 250 + i * 14 - cam.y, sw, 14, MIST[i]); }
+      g.globalAlpha = 0.22; for (let i = 0; i < 6; i++) frect(g, sx + ((t * 10 + i * 40) % sw), 276 - cam.y + i * 6, 40, 3, '#ffffff');
+      g.globalAlpha = 1;
+      for (let x = 0; x < sw; x += 3) fpx(g, sx + x, H - 12 - cam.y + Math.round(Math.sin(x * 0.2 + t * 2)), '#e4f6fc');
     }
-    // cometas del Capitán Nimbo
-    for (let i = 0; i < 3; i++) {
-      const kx = 240 + i * 26 - cam.x + Math.sin(t * 0.8 + i) * 8, ky = 120 + i * 18 - cam.y + Math.sin(t * 1.3 + i * 2) * 6;
-      const col = ['#e34ad8', '#56e5ff', '#ffe14d'][i];
-      for (let k = 0; k < 5; k++) { frect(g, kx - k, ky + k, 1 + k * 2, 1, col); frect(g, kx - (4 - k), ky + 5 + k, 1 + (4 - k) * 2, 1, shade(col, -0.2)); }
-      fline(g, kx, ky + 10, 262 - cam.x, 210 - cam.y, '#fffaf0');
-    }
+    // cometas del Capitán Nimbo (sprites VISTA) atadas a la estación
+    const kites = [0, 1, 2].map(i => ({ x: 240 + i * 26, y: 120 + i * 18, col: ['#e34ad8', '#56e5ff', '#ffe14d'][i], sp: 0.8, ph: i, tail: 10 }));
+    for (let i = 0; i < 3; i++) { const K = kites[i]; fline(g, K.x - cam.x + Math.sin(t * 0.8 + i) * 10, K.y - cam.y + 5 + Math.sin(t * 1.1 + i * 2) * 5, 262 - cam.x, 210 - cam.y, '#fffaf0'); }
+    VISTA.drawKites(g, kites, -cam.x, -cam.y, t);
   },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, w = sc.world;

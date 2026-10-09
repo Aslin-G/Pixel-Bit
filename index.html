@@ -11604,6 +11604,175 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
   };
 })();
 
+/* ===== 17l_vista_cliffs.js ===== */
+/* =====================================================================
+   17l_vista_cliffs.js — Acantilados marinos y viento del panorama (VISTA):
+   paredes verticales con estratos y fisuras (cara iluminada / en sombra),
+   remate de pradera con labio que sobresale, derrubios y espuma al pie;
+   hierba peinada por el viento, matas floridas rosas, mástil
+   meteorológico; dinámicos: líneas de viento, rompientes con rocío,
+   mangas de viento. Sin tramado.
+   API:
+     VISTA.RAMPS.cliff / cliffWarm / meadow
+     VISTA.seaCliff(pb, {x0, x1, top(x), base, seed, k, ramp, strata, grass}) → {top: Int16Array}
+     VISTA.windGrass(pb, x0, x1, yFn, {k, seed, density, lean, h})
+     VISTA.flowerBush(pb, x, y, r, seed, {k, ramp})
+     VISTA.metMast(pb, x, y, h, {k}) → {cups:[[x,y]]}
+     VISTA.drawWind(g, n, t, seed, {y0, y1, speed, len, a})
+     VISTA.drawSurf(g, list, ox, oy, t)      list: [{x0, x1, y}] rompiente al pie del acantilado
+     VISTA.drawSocks(g, list, ox, oy, t, wind)  list: [{x, y}] manga de viento (mástil horneado)
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  const ramp = (r, k) => V.P32(V.hz(r, k || 0));
+  V.RAMPS.cliff = ['#2a2c44', '#3e4060', '#585a7a', '#767896', '#9496ae', '#b2b2c4', '#cccbd6', '#e4e2e8', '#f6f4f4'];
+  V.RAMPS.cliffWarm = ['#3a2430', '#5a3840', '#7e5048', '#a06c54', '#bc8a64', '#d4a87a', '#e6c498', '#f4dcb8', '#fcf0d8'];
+  V.RAMPS.meadow = ['#0e2a1a', '#164028', '#1e5a32', '#2e7a3a', '#4a9a40', '#6ab84a', '#94d05a', '#c4e47a'];
+  /** Pared de acantilado vista desde el mar: estratos, fisuras, caras de luz/sombra, pradera arriba */
+  V.seaCliff = function (pb, o) {
+    const k = o.k || 0, seed = o.seed || 1, R = ramp(o.ramp || V.RAMPS.cliff, k), n = R.length;
+    const W2 = o.warm ? ramp(V.RAMPS.cliffWarm, k) : null;
+    const G = ramp(o.grass || V.RAMPS.meadow, k), nG = G.length;
+    const top = new Int16Array(pb.w).fill(32767);
+    const base = o.base ?? pb.h - 1, sH = o.strata || 5;
+    for (let x = Math.max(0, o.x0 ?? 0); x < Math.min(pb.w, o.x1 ?? pb.w); x++) {
+      const ty = Math.round(o.top(x)); if (ty >= base) continue;
+      top[x] = ty;
+      // facetas verticales (prismas de roca): orientación por ruido en columnas de 3–9 px
+      const fx = vnoise(x * 0.11, 0.5, seed), fr = vnoise((x + 1) * 0.11, 0.5, seed), lit = fr < fx;
+      const crack = hash2(x, 0, seed + 3) < 0.07;
+      for (let y = ty; y <= base; y++) {
+        const d = y - ty, depth = (y - ty) / Math.max(1, base - ty);
+        const band = Math.floor((y + vnoise(x * 0.05, y * 0.02, seed + 5) * 6) / sH);
+        const warm = W2 && (band % 4 === 1);
+        const P = warm ? W2 : R;
+        let t = (lit ? 0.68 : 0.42) + (band % 3 === 0 ? 0.06 : band % 3 === 1 ? -0.04 : 0) - depth * 0.22;
+        if (d < 2) t += 0.2;
+        if (crack && d > 4) t -= 0.22;
+        if (((y + band) % sH) === 0) t -= 0.08; // junta de estrato
+        t += (hash2(x >> 1, y >> 1, seed + 7) - 0.5) * 0.08;
+        V.put(pb, x, y, P[V.band(clamp(t, 0, 0.999), n, x, y, 0.04, seed)]);
+      }
+      // pradera con labio que sobresale y matas
+      const gh = 2 + ((hash2(x >> 2, 1, seed) * 3) | 0);
+      for (let q = 0; q < gh; q++) V.put(pb, x, ty - q, G[clamp(q === gh - 1 ? nG - 1 : q === 0 ? 2 : nG - 3, 0, nG - 1)]);
+      if (hash2(x, 2, seed) < 0.3) V.put(pb, x, ty + 1, G[1]);
+      top[x] = ty - gh;
+    }
+    // luz de borde cálida en la arista superior
+    for (let x = 1; x < pb.w - 1; x++) { const y = top[x]; if (y < 0 || y >= pb.h || top[x] === 32767) continue; if (top[x - 1] > y || top[x + 1] >= y) V.put(pb, x, y, G[nG - 1]); }
+    // derrubios y espuma al pie
+    if (o.foot !== false) for (let x = 0; x < pb.w; x++) {
+      if (top[x] === 32767) continue;
+      if (hash2(x >> 1, 3, seed) < 0.5) { V.put(pb, x, base, R[2]); V.put(pb, x, base - 1, R[3 + (x & 1)]); }
+      V.put(pb, x, base + 1, U(hash2(x >> 2, 4, seed) < 0.6 ? '#ffffff' : '#d2ecee'));
+      if (hash2(x >> 1, 5, seed) < 0.5) V.put(pb, x, base + 2, U('#9ad6f2'));
+    }
+    return { top };
+  };
+  /**
+   * Cabos aislados sobre el mar: promontorios con remate redondeado, cara frontal con
+   * estratos de grosor variable (crema/ocre), extremo izquierdo iluminado y derecho en
+   * sombra, fisuras anchas, pradera arriba y espuma al pie. Devuelve los tramos y la cima.
+   * o: {seed, k, base, yTop:[a,b], w:[a,b], gap:[a,b], x0, x1, end}
+   */
+  V.headlands = function (pb, o) {
+    const r = RNG(o.seed || 7), k = o.k || 0, base = o.base ?? pb.h - 4, spans = [];
+    const R = ramp(o.ramp || V.RAMPS.cliff, k), RW = ramp(V.RAMPS.cliffWarm, k), n = R.length, G = ramp(o.grass || V.RAMPS.meadow, k), nG = G.length;
+    const top = new Int16Array(pb.w).fill(32767);
+    for (let x = (o.x0 ?? 0) + r.int(0, 40); x < (o.x1 ?? pb.w);) {
+      const w = r.int(o.w[0], o.w[1]), yT0 = r.int(o.yTop[0], o.yTop[1]), sl = r.range(-0.05, 0.05), e = Math.max(8, Math.round(w * (o.end ?? 0.22)));
+      spans.push([x, x + w, yT0]);
+      for (let xx = x; xx < x + w; xx++) {
+        if (xx < 0 || xx >= pb.w) continue;
+        const yT = Math.round(yT0 + (xx - x - w / 2) * sl), u = Math.min(xx - x, x + w - 1 - xx) / e, drop = u < 1 ? (1 - smooth(u)) * (base - yT) * 0.85 : 0;
+        const ty = Math.round(yT + drop + (fbm1(xx * 0.07, 2, o.seed || 7) - 0.5) * 4);
+        if (ty >= base - 1) continue;
+        top[xx] = ty;
+        const left = xx - x < e, right = x + w - 1 - xx < e;
+        const facet = vnoise(xx * 0.06, 0.3, (o.seed || 7) + 3), facetR = vnoise((xx + 2) * 0.06, 0.3, (o.seed || 7) + 3);
+        const lit = left ? 0.78 : right ? 0.3 : (facetR < facet ? 0.62 : 0.48);
+        for (let y = ty; y <= base; y++) {
+          const d = y - ty, depth = d / Math.max(1, base - ty);
+          const sv = (y - yT) + vnoise(xx * 0.03, y * 0.05, (o.seed || 7) + 9) * 5, layer = Math.floor(sv / (3 + (Math.floor(sv / 7) % 3) * 2));
+          const P = (layer % 5 === 1 || layer % 5 === 3) ? RW : R;
+          let t = lit + (layer % 2 ? 0.05 : -0.03) - depth * 0.24 + (d < 2 ? 0.18 : 0) + (hash2(xx >> 1, y >> 1, 5) - 0.5) * 0.07;
+          if (d > 3 && hash2(xx >> 2, 0, (o.seed || 7) + 11) < 0.06) t -= 0.2;
+          V.put(pb, xx, y, P[V.band(clamp(t, 0, 0.999), n, xx, y, 0.04, 13)]);
+        }
+        // remate de pradera visto desde arriba (cara superior en 3/4): banda iluminada de 4–7 px
+        const gh = 4 + ((hash2(xx >> 2, 1, 3) * 4) | 0);
+        for (let q = 0; q < gh; q++) V.put(pb, xx, ty - q, G[q === gh - 1 ? nG - 1 : q === 0 ? 1 : q === 1 ? 3 : (q > gh - 3 ? nG - 2 : nG - 3 - (hash2(xx >> 1, ty - q, 5) < 0.3 ? 1 : 0))]);
+        top[xx] = ty - gh;
+        if (hash2(xx >> 1, 3, 7) < 0.5) { V.put(pb, xx, base, R[2]); V.put(pb, xx, base - 1, R[3]); }
+        V.put(pb, xx, base + 1, U(hash2(xx >> 2, 4, 9) < 0.6 ? '#ffffff' : '#d2ecee'));
+      }
+      x += w + r.int(o.gap[0], o.gap[1]);
+    }
+    return { top, spans };
+  };
+  /** Hierba peinada por el viento: briznas inclinadas con punta clara (horneada) */
+  V.windGrass = function (pb, x0, x1, yFn, o = {}) {
+    const k = o.k || 0, G = ramp(o.ramp || V.RAMPS.meadow, k), nG = G.length, r = RNG(o.seed || 3), lean = o.lean ?? 1.2;
+    for (let x = x0; x < x1; x++) {
+      if (r() > (o.density ?? 0.5)) continue;
+      const y = Math.round(yFn(x)); if (y == null || isNaN(y)) continue;
+      const h = r.int(2, o.h || 5);
+      for (let q = 0; q < h; q++) V.put(pb, Math.round(x + q * lean * (q / h)), y - q, G[clamp(Math.round(2 + q / h * (nG - 3)), 0, nG - 1)]);
+    }
+  };
+  /** Mata florida rosa (buganvilla/brezo) con hojas */
+  V.flowerBush = function (pb, x, y, rr, seed, o = {}) {
+    V.shrub(pb, x, y, rr, seed, { k: o.k, ramp: V.RAMPS.vegHill });
+    const F = ramp(o.ramp || ['#7a1a5a', '#c02a8a', '#f060b8', '#ffa8d8'], o.k), r = RNG(seed);
+    for (let i = 0; i < rr * 5; i++) { const px = x + r.int(-rr, rr), py = y - r.int(0, Math.round(rr * 1.3)); V.put(pb, px, py, F[r.int(0, 3)]); }
+  };
+  /** Mástil meteorológico de celosía con anemómetros y veleta */
+  V.metMast = function (pb, x, y, h, o = {}) {
+    const k = o.k || 0, R = ramp(['#3a3a4a', '#6a6a80', '#a0a0b4', '#e0e0ea'], k), RD = U(V.hzc('#e83b41', k));
+    for (let q = 0; q < h; q++) { V.put(pb, x, y - q, R[3]); V.put(pb, x + 2, y - q, R[1]); if (q % 3 === 0) V.put(pb, x + 1, y - q, R[2]); if (((q / 12) | 0) % 2 === 0 && q > h - 12) { V.put(pb, x, y - q, RD); V.put(pb, x + 2, y - q, RD); } }
+    const cups = [];
+    for (const f of [0.55, 0.8, 1]) { const yy = y - Math.round(h * f); for (let q = -4; q <= 6; q++) V.put(pb, x + q, yy, R[2]); cups.push([x - 4, yy - 1], [x + 6, yy - 1]); }
+    return { cups };
+  };
+  /* ---------------- dinámicos ---------------- */
+  /** Líneas de viento: trazos claros que cruzan rápido (≤ n fillRect) */
+  V.drawWind = function (g, n, t, seed, o = {}) {
+    const y0 = o.y0 ?? 30, y1 = o.y1 ?? 220, sp = o.speed ?? 120, L = o.len ?? 26;
+    for (let i = 0; i < n; i++) {
+      const hy = hash1(i, seed), hx = hash1(i, seed + 1), per = (W + 200) / (sp * (0.7 + hash1(i, seed + 2) * 0.6));
+      const u = ((t / per + hx) % 1), x = u * (W + 200) - 100, y = Math.round(y0 + hy * (y1 - y0) + Math.sin(t * 2 + i) * 3);
+      const len = Math.round(L * (0.5 + hash1(i, seed + 4)));
+      g.globalAlpha = (o.a ?? 0.45) * Math.sin(u * Math.PI); g.fillStyle = '#ffffff';
+      g.fillRect(Math.round(x), y, len, 1);
+      if (i % 3 === 0) g.fillRect(Math.round(x + len - 4), y - 1, 4, 1); // remolino en la punta
+    }
+    g.globalAlpha = 1;
+  };
+  /** Rompiente al pie del acantilado: franja de espuma que sube y baja + rociones */
+  V.drawSurf = function (g, list, ox, oy, t) {
+    for (const S of list) {
+      const a = Math.max(S.x0 + ox, -4), b = Math.min(S.x1 + ox, W + 4); if (b <= a) continue;
+      const y = S.y + oy;
+      for (let x = Math.floor(a / 6) * 6; x < b; x += 6) {
+        const ph = Math.sin(t * 1.6 + x * 0.07 + S.x0 * 0.01), hgt = ph > 0.3 ? Math.round((ph - 0.3) * 6) : 0;
+        g.fillStyle = '#ffffff'; g.fillRect(x, y - hgt, 5, 1 + (hgt > 2 ? 1 : 0));
+        if (hgt > 3) { g.fillStyle = '#e4f6fc'; g.fillRect(x + 1, y - hgt - 3 - ((t * 8 + x) % 3 | 0), 2, 1); }
+        g.fillStyle = '#9ad6f2'; g.fillRect(x + ((t * 6 + x) % 6 | 0), y + 2, 3, 1);
+      }
+    }
+  };
+  let _sock = null;
+  /** Manga de viento naranja y blanca: se infla más con más viento (3 cuadros) */
+  V.drawSocks = function (g, list, ox, oy, t, wind = 1) {
+    if (!_sock) _sock = V.strip(3, 10, 6, (pb, f) => {
+      const O = U('#ff7a2a'), Wt = U('#ffffff'), D = U('#c04a10');
+      for (let x = 0; x < 9; x++) { const hw = Math.max(1, Math.round(2.4 - x * 0.18)), off = Math.round(Math.sin(x * 0.9 - f * 2) * (x / 9) * 1.2); for (let q = -hw; q <= hw; q++) V.put(pb, x, 3 + q + off, q === hw ? D : ((x >> 1) & 1 ? Wt : O)); }
+    });
+    for (const S of list) { const x = S.x + ox, y = S.y + oy; if (x < -12 || x > W + 12) continue; V.drawStrip(g, _sock, Math.floor(t * (6 + wind * 6) + S.x) % 3, x + 1, y - 3); }
+  };
+})();
+
 /* ===== 17z_vista_test.js ===== */
 /* =====================================================================
    17z_vista_test.js — Banco de pruebas del panorama (solo fondo).
@@ -14991,6 +15160,161 @@ BIOMES.pvdunes = function (L) {
 };
 
 BIOME_LABELS.pvdunes = BIOME_LABELS.pvdunes || [];
+
+/* ===== 1d_bio_windcliffs.js ===== */
+/* =====================================================================
+   1d_bio_windcliffs.js — BIOMA TORRES DE BRISA (Nivel 05) con el kit
+   VISTA: costa de acantilados ventosa en cian, blanco, azul y verde.
+   Planos: cielo+sol (0) · cirros/cúmulos rápidos (0,01–0,07) · mar con
+   parque eólico marino en filas que se alejan (0,08) · cabos lejanos con
+   faro y aerogeneradores (0,1) · acantilados medios con el parque eólico
+   del altiplano, mástil meteorológico y rompientes (0,18) · borde del
+   altiplano con matas floridas, mangas de viento y cometas (0,3) ·
+   pradera peinada por el viento (0,45). Líneas de viento y gaviotas.
+   Contrato: B.horizon, B.sun, B.seaY(cam), B.weather.wind (lo sube el
+   nivel con la velocidad del viento: nubes, rotores y mangas se aceleran).
+   ===================================================================== */
+var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+
+BIOMES.windcliffs = function (L) {
+  const V = VISTA;
+  const B = new Backdrop(L.width, L.height);
+  const HZ = 150;
+  const SUN = { x: 112, y: 40, r: 11, halo: 26 };
+  B.horizon = HZ; B.sun = SUN; B.seaY = () => HZ;
+  B.weather.wind = 0.9;
+  const T = () => Game.time;
+  const WND = () => 0.6 + (B.weather.wind || 0) * 0.6;
+  const P = (f, ys, h, draw, opts) => B.vplane(f, ys - Math.round(V.CAMY * f * 0.3), h, draw, opts);
+  const turbines = (list) => (g, cam, Ly) => {
+    const [ox, oy] = B.vofs(Ly, cam), t = T(), sp = WND();
+    for (const tb of list) { const x = tb.x + ox; if (x < -30 || x > W + 30) continue; if (!tb.rot) tb.rot = V.rotor(tb.R, { k: tb.k }); V.drawRotor(g, tb.rot, x, tb.y + oy, t * tb.sp * sp + tb.ph); }
+  };
+  const labels = [];
+  /* ---------------- cielo de brisa ---------------- */
+  B.sky = V.timed('sky', () => {
+    const pb = V.sky(W, H, {
+      horizonY: HZ, sun: SUN, curve: 1.2,
+      stops: ['#1048b8', '#1a58c8', '#2468d6', '#3478e2', '#4a8cec', '#62a0f2', '#80b6f4', '#a2caf4', '#c4daf2', '#dce6f2'],
+      haze: ['#d4e0f0', '#dce6f0', '#e4ecf0', '#eef2f2'],
+    });
+    V.rays(pb, SUN.x, SUN.y, { n: 6, len: 240, col: '#f4fbff', a: 0.07, spread: 1.6, ang: Math.PI / 2 - 0.35, w: 0.04, seed: 12, yMax: HZ });
+    return pb.toCanvas();
+  });
+  B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, 40, '#f0f8ff', 0.2, T()), { tag: 'bloom' });
+  B.cloudDeck({ kind: 'cirrus', n: 8, seed: 81, f: [0.01, 0.03], y: [6, 56], w: [90, 190], speed: [3, 5] });
+  B.cloudDeck({ n: 9, seed: 83, f: [0.03, 0.07], y: [-6, 58], w: [50, 130], bias: 0.6, speed: [5, 9], sunX: SUN.x });
+  B.vdyn(0.02, (g) => V.drawWind(g, 14, T(), 3, { y0: 20, y1: 140, speed: 150 * WND(), len: 30, a: 0.35 }), { tag: 'windHigh' });
+  /* ---------------- mar con parque eólico marino (0,08) ---------------- */
+  const seaT = [];
+  P(0.08, HZ, H - HZ + 10, (pb, w, h) => {
+    V.seaFar(pb, 0, h, { seed: 13, stops: ['#a9c8ea', '#5aaae6', '#2690de', '#0a7fd0', '#0679c6', '#0573b8', '#066aa8', '#06609a'] });
+    // filas de aerogeneradores marinos (más pequeños cuanto más lejos)
+    for (const [yy, th, R, gap, k] of [[4, 9, 4, 22, 0.5], [9, 14, 5, 30, 0.42], [17, 21, 7, 40, 0.32], [28, 30, 10, 54, 0.22]]) {
+      for (let x = 300 + (yy * 7) % 20; x < w - 20; x += gap) {
+        const y = yy + 1;
+        V.rect(pb, x - 1, y, 3, 1, U(V.hzc('#e8c040', k)));
+        const hub = V.turbineTower(pb, x, y, th, { k, w: th > 20 ? 2 : 1 });
+        seaT.push({ x: hub.hx, y: hub.hy, R, k, sp: 2.4 + (x % 7) * 0.15, ph: x * 0.3 });
+      }
+    }
+  }, {
+    tag: 'sea', dyn: (g, cam, Ly) => {
+      const [, oy] = B.vofs(Ly, cam);
+      V.drawSeaFx(g, 0, oy, W, 120, T(), { sunX: SUN.x, density: 1 });
+      turbines(seaT)(g, cam, Ly);
+    },
+  });
+  B.cloudDeck({ n: 4, seed: 85, f: [0.08, 0.1], y: [62, 100], w: [80, 130], speed: [4, 6], sunX: SUN.x, tall: true, haze: 0.05 });
+  /* ---------------- cabos lejanos con faro (0,1) ---------------- */
+  const capeT = [], capeFx = { beam: null };
+  P(0.1, 120, 56, (pb, w, h) => {
+    const k = 0.3, base = h - 4;
+    const C = V.headlands(pb, { seed: 87, k, base, yTop: [16, 30], w: [70, 170], gap: [30, 110], x0: 150, x1: w });
+    let n = 0;
+    for (const [a, b, yT] of C.spans) { const x = Math.round((a + b) / 2); if (n++ % 2 === 0) { const hub = V.turbineTower(pb, x, C.top[x] + 1, 16, { k: 0.38, w: 1 }); capeT.push({ x: hub.hx, y: hub.hy, R: 6, k: 0.38, sp: 2.2, ph: x }); } else if (x + 14 < b) for (let q = 0; q < 3; q++) V.house(pb, x + q * 7 - 7, C.top[x + q * 7 - 7] + 1, 5, 4, 8700 + x + q, { k }); }
+    const sp0 = C.spans[0]; if (sp0) { const lx = sp0[0] + 18; const lh = V.lighthouse(pb, lx, C.top[lx] + 1, 14, { k }); capeFx.beam = [lh.lx, lh.ly]; }
+  }, {
+    tag: 'capes', dyn: (g, cam, Ly) => {
+      turbines(capeT)(g, cam, Ly);
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      if (capeFx.beam && Math.floor(t * 1.2) % 3 === 0) V.drawGlow(g, capeFx.beam[0] + ox, capeFx.beam[1] + oy, 5, '#fff2a0', 0.8);
+    },
+  });
+  /* ---------------- cabos medios con el parque del altiplano (0,18) ---------------- */
+  const midT = [], midFx = { surf: [], fauna: [] };
+  P(0.18, 146, 86, (pb, w, h) => {
+    const k = 0.14, r = RNG(91), base = h - 6;
+    const C = V.headlands(pb, { seed: 93, k, base, yTop: [14, 30], w: [150, 290], gap: [70, 160], x0: 60, x1: w });
+    for (const [a, b] of C.spans) {
+      for (let x = a + 30; x < b - 24; x += r.int(34, 50)) {
+        const y = C.top[x]; if (y > base - 16) continue;
+        const th = r.int(36, 52), hub = V.turbineTower(pb, x, y + 1, th, { k: 0.2 });
+        midT.push({ x: hub.hx, y: hub.hy, R: Math.round(th * 0.36), k: 0.2, sp: 2 + (x % 5) * 0.2, ph: x * 0.2 });
+      }
+      const mx = Math.round(a + (b - a) * 0.7); if (C.top[mx] < base - 20) V.metMast(pb, mx, C.top[mx] + 1, 40, { k });
+      V.windGrass(pb, a, b, (x) => C.top[x] + 1, { k, seed: 95 + a, density: 0.5, h: 3 });
+      for (let x = a + 6; x < b - 6; x += r.int(16, 36)) V.flowerBush(pb, x, C.top[x] + 2, r.int(2, 3), 9500 + x, { k });
+      midFx.surf.push({ x0: a, x1: b, y: base + 1 });
+    }
+    midFx.fauna.push({ kind: 'gull', x: 200, y: 20, r: 300, sp: 9 }, { kind: 'gull', x: 220, y: 28, r: 280, sp: 8 }, { kind: 'gull', x: 900, y: 14, r: 320, sp: -10 }, { kind: 'eagle', x: 600, y: 4, r: 140 });
+  }, {
+    tag: 'mid', dyn: (g, cam, Ly) => {
+      turbines(midT)(g, cam, Ly);
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawSurf(g, midFx.surf, ox, oy, t);
+      V.drawFauna(g, midFx.fauna, ox, oy, t);
+    },
+  });
+  /* ---------------- borde del altiplano: matas, mangas, cometas (0,3) ---------------- */
+  const edgeT = [], edgeFx = { socks: [], kites: [] };
+  P(0.3, 196, 92, (pb, w, h) => {
+    const k = 0.06, r = RNG(101);
+    const topF = (x) => 24 + 9 * Math.sin(x * 0.005 + 2.2) + 7 * fbm1(x * 0.025, 3, 13);
+    const G = V.P32(V.hz(V.RAMPS.meadow, k)), RK = V.P32(V.hz(V.RAMPS.cliff, k)), tops = new Int16Array(w);
+    for (let x = 0; x < w; x++) {
+      const ty = Math.round(topF(x)); tops[x] = ty;
+      for (let y = ty; y < h; y++) { const d = y - ty; V.put(pb, x, y, G[clamp(d < 1 ? 7 : d < 3 ? 6 : 5 - ((hash2(x >> 1, y >> 1, 21) < 0.35) ? 1 : 0) - (d > 24 ? 1 : 0), 0, 7)]); }
+      // labio rocoso del borde del altiplano
+      if (hash2(x >> 3, 2, 5) < 0.3) { V.put(pb, x, ty + 1, RK[6]); V.put(pb, x, ty + 2, RK[4]); }
+    }
+    for (let x = 160; x < w; x += r.int(300, 460)) { const y = tops[x]; const th = r.int(66, 80), hub = V.turbineTower(pb, x, y + 1, th, { k: 0.08 }); edgeT.push({ x: hub.hx, y: hub.hy, R: Math.round(th * 0.38), k: 0.08, sp: 2.2, ph: x }); }
+    V.windGrass(pb, 0, w, (x) => tops[x] + 1, { k, seed: 105, density: 0.75, h: 5, lean: 1.6 });
+    for (let x = 10; x < w; x += r.int(14, 34)) V.flowerBush(pb, x, tops[x] + 3 + r.int(0, 8), r.int(3, 5), 10500 + x, { k });
+    for (let x = 60; x < w; x += r.int(160, 260)) { const y = tops[x] + 2; for (let q = 0; q < 14; q++) V.put(pb, x, y - q, U(q > 11 ? '#e83b41' : '#e8e4de')); edgeFx.socks.push({ x, y: y - 13 }); }
+    for (let x = 0; x < w; x++) if (hash2(x >> 4, 1, 7) < 0.35) { const y = tops[x] + 6; if ((x & 7) === 0) for (let q = 1; q < 6; q++) V.put(pb, x, y - q + 1, U('#8a5a34')); V.put(pb, x, y - 3, U('#b07a50')); }
+    const KC = ['#e34ad8', '#56e5ff', '#ffe14d', '#3fe0a0'];
+    for (let x = 200, i = 0; x < w; x += r.int(300, 460), i++) edgeFx.kites.push({ x, y: -70 - r.int(0, 40), col: KC[i % 4], sp: 1.2, ph: i * 1.7, tail: 12, line: [r.int(-20, 0), 46] });
+    labels.push({ x: 380, y: 160, f: 0.3, title: 'EÓLICA MARINA', sub: 'Parque en el mar', kind: 'water', ax: 360, ay: 176, camX: [0, 700] });
+  }, {
+    tag: 'edge', dyn: (g, cam, Ly) => {
+      turbines(edgeT)(g, cam, Ly);
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawSocks(g, edgeFx.socks, ox, oy, t, B.weather.wind || 1);
+      V.drawKites(g, edgeFx.kites, ox, oy, t);
+    },
+  });
+  /* ---------------- pradera peinada por el viento (0,45) ---------------- */
+  P(0.45, 232, 64, (pb, w, h) => {
+    const k = 0, r = RNG(111);
+    const topF = (x) => 16 + 8 * Math.sin(x * 0.004 + 0.4) + 7 * fbm1(x * 0.03, 3, 17);
+    const G = V.P32(V.RAMPS.meadow), RK = V.P32(V.RAMPS.cliff);
+    const tops = new Int16Array(w);
+    for (let x = 0; x < w; x++) {
+      const ty = Math.round(topF(x)); tops[x] = ty;
+      for (let y = ty; y < h; y++) { const d = y - ty; V.put(pb, x, y, G[clamp(d < 1 ? 7 : d < 3 ? 6 : 4 - ((hash2(x >> 1, y >> 1, 19) < 0.35) ? 1 : 0) - (d > 30 ? 1 : 0), 0, 7)]); }
+    }
+    for (let x = 10; x < w; x += r.int(30, 80)) { const y = tops[x] + r.int(6, 20); V.ellipse(pb, x, y, r.int(4, 8), r.int(2, 4), (nx, ny) => RK[clamp(Math.round(6 - nx * 2 - ny * 3), 0, 8)]); }
+    V.windGrass(pb, 0, w, (x) => tops[x], { k, seed: 113, density: 0.9, h: 7, lean: 2 });
+    for (let x = 6; x < w; x += r.int(10, 26)) V.flowerBush(pb, x, tops[x] + r.int(2, 10), r.int(2, 4), 11300 + x, { k });
+  }, { tag: 'meadow', dyn: (g) => { const t = T(); V.drawWind(g, 10, t, 7, { y0: 150, y1: 270, speed: 200 * WND(), len: 22, a: 0.4 }); V.drawMotes(g, 10, t, 23, { y0: 120, y1: 260, col: '#ffe0f4' }); } });
+  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc);
+  BIOME_LABELS.windcliffs = labels;
+  B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
+  return B;
+};
+
+BIOME_LABELS.windcliffs = BIOME_LABELS.windcliffs || [];
 
 /* ===== 20_models.js ===== */
 /* =====================================================================
@@ -22287,21 +22611,20 @@ LEVELS[5] = {
   /* ---------------- dinámico ---------------- */
   renderBack(g, sc, cam) {
     const S = sc.state, t = Game.time;
-    // abismos: pared de bruma y mar lejano al fondo
+    // abismos: bruma en bandas translúcidas (sin tramado) sobre el mar del panorama, rociones y espuma al fondo
+    const MIST = ['#f2f6fa', '#dce6ee', '#c4d4e2', '#a8c0d6', '#8cacca'];
     for (const [x0, x1] of [[420, 628], [1300, 1568]]) {
       const sx = x0 - cam.x, sw = x1 - x0;
       if (sx > W || sx + sw < 0) continue;
-      for (let y = 250; y < H; y += 2) { const k = (y - 250) / (H - 250); frect(g, sx, y - cam.y, sw, 2, rampDither(['#dce4ea', '#b8c6d0', '#94a6b4', '#56687a', '#2a64c4', '#1e4aa8'], k, x0, y)); }
-      for (let i = 0; i < 6; i++) fdither(g, sx + ((t * 10 + i * 40) % sw), 280 - cam.y + i * 6, 40, 3, '#ffffff', 0.25);
-      for (let x = 0; x < sw; x += 3) fpx(g, sx + x, H - 12 - cam.y + Math.round(Math.sin(x * 0.2 + t * 2)), '#a6dcf8');
+      for (let i = 0; i < 5; i++) { g.globalAlpha = 0.55 - i * 0.09; frect(g, sx, 250 + i * 14 - cam.y, sw, 14, MIST[i]); }
+      g.globalAlpha = 0.22; for (let i = 0; i < 6; i++) frect(g, sx + ((t * 10 + i * 40) % sw), 276 - cam.y + i * 6, 40, 3, '#ffffff');
+      g.globalAlpha = 1;
+      for (let x = 0; x < sw; x += 3) fpx(g, sx + x, H - 12 - cam.y + Math.round(Math.sin(x * 0.2 + t * 2)), '#e4f6fc');
     }
-    // cometas del Capitán Nimbo
-    for (let i = 0; i < 3; i++) {
-      const kx = 240 + i * 26 - cam.x + Math.sin(t * 0.8 + i) * 8, ky = 120 + i * 18 - cam.y + Math.sin(t * 1.3 + i * 2) * 6;
-      const col = ['#e34ad8', '#56e5ff', '#ffe14d'][i];
-      for (let k = 0; k < 5; k++) { frect(g, kx - k, ky + k, 1 + k * 2, 1, col); frect(g, kx - (4 - k), ky + 5 + k, 1 + (4 - k) * 2, 1, shade(col, -0.2)); }
-      fline(g, kx, ky + 10, 262 - cam.x, 210 - cam.y, '#fffaf0');
-    }
+    // cometas del Capitán Nimbo (sprites VISTA) atadas a la estación
+    const kites = [0, 1, 2].map(i => ({ x: 240 + i * 26, y: 120 + i * 18, col: ['#e34ad8', '#56e5ff', '#ffe14d'][i], sp: 0.8, ph: i, tail: 10 }));
+    for (let i = 0; i < 3; i++) { const K = kites[i]; fline(g, K.x - cam.x + Math.sin(t * 0.8 + i) * 10, K.y - cam.y + 5 + Math.sin(t * 1.1 + i * 2) * 5, 262 - cam.x, 210 - cam.y, '#fffaf0'); }
+    VISTA.drawKites(g, kites, -cam.x, -cam.y, t);
   },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, w = sc.world;
