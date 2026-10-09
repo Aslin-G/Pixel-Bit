@@ -6847,6 +6847,1405 @@ function smoothBand(ramp, t, x, y, jitter = 0.06) {
   return ramp[clamp(Math.round((t + j) * n), 0, n)];
 }
 
+/* ===== 17b_vista_core.js ===== */
+/* =====================================================================
+   17b_vista_core.js — Núcleo del kit de PANORAMA (VISTA).
+   Utilidades de píxel u32 rápidas, rampas cacheadas, bruma atmosférica
+   por plano, bandas sin tramado y ayudantes aditivos de Backdrop:
+     B.vplane(f, yScreen, h, draw, opts)  → capa prerenderizada colocada
+         en coordenadas de pantalla para la cámara de referencia (cam.y≈50)
+     B.vdyn(f, fn, opts)                  → capa solo dinámica intercalada
+   Todo el arte del panorama vive en VISTA.* (17b–17z) y lo componen los
+   biomas 1c_bio_*.js. Sin Bayer ni ajedrez (STYLE LOCK §1).
+   ===================================================================== */
+const VISTA = (() => {
+  /** cam.y de referencia para colocar planos (Nivel 1: el suelo queda a y≈216 de pantalla) */
+  const CAMY = 50;
+  /** Dirección de la luz clave (arriba-izquierda, ligeramente frontal) */
+  const LIGHT = (() => { const l = [-0.62, -0.42, 0.66]; const n = Math.hypot(...l); return l.map(v => v / n); })();
+  const _r32 = new Map();
+  /** Rampa hex → Uint32Array (cache por identidad) */
+  function P32(ramp) { let a = _r32.get(ramp); if (!a) { a = new Uint32Array(ramp.map(c => U(c))); _r32.set(ramp, a); } return a; }
+  function put(pb, x, y, u) { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) return; pb.data[y * pb.w + x] = u; }
+  function get(pb, x, y) { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) return 0; return pb.data[y * pb.w + x]; }
+  function pack(r, g, b, a = 255) { return ((a << 24) | ((b & 255) << 16) | ((g & 255) << 8) | (r & 255)) >>> 0; }
+  function mixU(a, b, t) {
+    const ar = a & 255, ag = (a >>> 8) & 255, ab = (a >>> 16) & 255, br = b & 255, bg = (b >>> 8) & 255, bb = (b >>> 16) & 255;
+    return pack(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t, 255);
+  }
+  /** Mezcla alfa horneada (si el destino está vacío deja el color con su alfa) */
+  function blend(pb, x, y, u, a) {
+    x |= 0; y |= 0; if (x < 0 || y < 0 || x >= pb.w || y >= pb.h || a <= 0) return;
+    const i = y * pb.w + x, d = pb.data[i];
+    if (!(d >>> 24)) { pb.data[i] = (((Math.round(Math.min(1, a) * 255)) << 24) | (u & 0xffffff)) >>> 0; return; }
+    pb.data[i] = a >= 1 ? ((u | 0xff000000) >>> 0) : mixU(d, u, a);
+  }
+  function rect(pb, x, y, w, h, u) {
+    const x0 = Math.max(0, x | 0), y0 = Math.max(0, y | 0), x1 = Math.min(pb.w, (x + w) | 0), y1 = Math.min(pb.h, (y + h) | 0);
+    for (let yy = y0; yy < y1; yy++) { const o = yy * pb.w; for (let xx = x0; xx < x1; xx++) pb.data[o + xx] = u; }
+  }
+  /** Cambia el tono de un u32 (amt −1..1) con desplazamiento de tono hacia hue (cache) */
+  const _sh = new Map();
+  function shU(u, amt, hue = null) {
+    const k = u + '|' + amt + '|' + hue; let v = _sh.get(k);
+    if (v === undefined) { v = U(shadeTo(u32ToHex(u), amt, hue, amt < 0 ? 0.04 : -0.02)); _sh.set(k, v); }
+    return v;
+  }
+  /** Rampa con bruma atmosférica (hazeColor de 17a), cacheada */
+  const _hz = new Map();
+  function hz(ramp, k, haze = PAL_REF.haze) {
+    if (k <= 0) return ramp;
+    const key = ramp.join() + '|' + k.toFixed(3) + '|' + haze; let v = _hz.get(key);
+    if (!v) { v = ramp.map(c => hazeColor(c, k, haze)); _hz.set(key, v); }
+    return v;
+  }
+  /** Color con bruma (hex) */
+  function hzc(hex, k, haze) { return k > 0 ? hazeColor(hex, k, haze) : hex; }
+  /** Expande una rampa a n tonos interpolados (para degradados de cielo/agua en bandas) */
+  function expand(stops, n) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1) * (stops.length - 1), a = Math.floor(t), b = Math.min(stops.length - 1, a + 1);
+      out.push(mixHex(stops[a], stops[b], t - a));
+    }
+    return out;
+  }
+  /** Índice de banda con borde desplazado por clusters 3×2 (sin tramado) */
+  function band(t, n, x, y, jit = 0.06, seed = 0) {
+    const j = (hash2((x / 3) | 0, (y / 2) | 0, seed) - 0.5) * jit * 2;
+    const i = Math.round((t + j) * (n - 1));
+    return i < 0 ? 0 : i >= n ? n - 1 : i;
+  }
+  /** Ruido de crestas (ridged fbm 0..1): crestas afiladas y barrancos */
+  function ridged(x, y, oct = 5, seed = 0, gain = 0.5, lac = 2.07) {
+    let amp = 0.5, f = 1, sum = 0, norm = 0, w = 1;
+    for (let i = 0; i < oct; i++) {
+      let n = 1 - Math.abs(vnoise(x * f, y * f, seed + i * 31) * 2 - 1);
+      n *= n; n *= (0.4 + 0.6 * w); w = n;
+      sum += n * amp; norm += amp; amp *= gain; f *= lac;
+    }
+    return sum / norm;
+  }
+  /** Polígono relleno con color u32 o función (x,y)→u32|0 */
+  function poly(pb, pts, fn) {
+    let minY = Infinity, maxY = -Infinity;
+    for (const p of pts) { if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; }
+    minY = Math.max(0, Math.floor(minY)); maxY = Math.min(pb.h - 1, Math.ceil(maxY));
+    const xs = [];
+    for (let y = minY; y <= maxY; y++) {
+      xs.length = 0; const sy = y + 0.5;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+        if ((yi > sy) !== (yj > sy)) xs.push(xi + (sy - yi) / (yj - yi) * (xj - xi));
+      }
+      xs.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        const xa = Math.max(0, Math.round(xs[k])), xb = Math.min(pb.w - 1, Math.round(xs[k + 1]) - 1);
+        for (let x = xa; x <= xb; x++) { const u = typeof fn === 'function' ? fn(x, y) : fn; if (u) pb.data[y * pb.w + x] = u; }
+      }
+    }
+  }
+  /** Elipse con función de color (nx, ny normalizados, d=nx²+ny²) */
+  function ellipse(pb, cx, cy, rx, ry, fn) {
+    const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx), y0 = Math.floor(cy - ry), y1 = Math.ceil(cy + ry);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const nx = (x + 0.5 - cx) / (rx + 0.01), ny = (y + 0.5 - cy) / (ry + 0.01), d = nx * nx + ny * ny;
+      if (d > 1) continue;
+      const u = typeof fn === 'function' ? fn(nx, ny, d, x, y) : fn; if (u) put(pb, x, y, u);
+    }
+  }
+  /** Línea con función de color por paso t */
+  function line(pb, x0, y0, x1, y1, fn) {
+    const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = Math.round(lerp(x0, x1, t)), y = Math.round(lerp(y0, y1, t));
+      const u = typeof fn === 'function' ? fn(t, x, y) : fn; if (u) put(pb, x, y, u);
+    }
+  }
+  /** Copia src (PixelBuffer) sobre dst respetando alfa */
+  function blit(dst, src, dx, dy, flip = false) {
+    dx |= 0; dy |= 0;
+    for (let y = 0; y < src.h; y++) {
+      const ty = dy + y; if (ty < 0 || ty >= dst.h) continue;
+      for (let x = 0; x < src.w; x++) {
+        const tx = dx + x; if (tx < 0 || tx >= dst.w) continue;
+        const c = src.data[y * src.w + (flip ? src.w - 1 - x : x)], a = c >>> 24; if (!a) continue;
+        if (a === 255) dst.data[ty * dst.w + tx] = c; else blend(dst, tx, ty, c, a / 255);
+      }
+    }
+  }
+  /** Luz de borde cálida 1 px en los píxeles opacos con vacío hacia (dx,dy) */
+  function rim(pb, u, k = 0.55, dx = -1, dy = -1, x0 = 0, y0 = 0, x1 = pb.w, y1 = pb.h) {
+    const w = pb.w, d = pb.data, list = [];
+    for (let y = Math.max(0, y0); y < Math.min(pb.h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) {
+      const i = y * w + x; if ((d[i] >>> 24) !== 255) continue;
+      const ex = x + dx, ey = y + dy;
+      const e1 = dy && (ey < 0 || ey >= pb.h || !(d[ey * w + x] >>> 24));
+      const e2 = dx && (ex < 0 || ex >= w || !(d[y * w + ex] >>> 24));
+      if (e1 || e2) list.push(i);
+    }
+    for (const i of list) d[i] = mixU(d[i], u, k);
+  }
+  /** Tira de animación de n cuadros (w×h) → {c, n, w, h} */
+  function strip(n, w, h, fn) {
+    const pb = new PixelBuffer(w * n, h);
+    for (let i = 0; i < n; i++) { const f = new PixelBuffer(w, h); fn(f, i); blit(pb, f, i * w, 0); }
+    return { c: pb.toCanvas(), n, w, h };
+  }
+  function drawStrip(g, s, i, x, y, flip = false) {
+    i = ((i % s.n) + s.n) % s.n;
+    if (!flip) { g.drawImage(s.c, i * s.w, 0, s.w, s.h, Math.round(x), Math.round(y), s.w, s.h); return; }
+    g.save(); g.translate(Math.round(x) + s.w, Math.round(y)); g.scale(-1, 1); g.drawImage(s.c, i * s.w, 0, s.w, s.h, 0, 0, s.w, s.h); g.restore();
+  }
+  /** Texto rasterizado a PixelBuffer (usa PFK.text si existe; FONTS.tiny/main) */
+  function text(pb, str, x, y, col, opts = {}) {
+    if (typeof PFK !== 'undefined') return PFK.text(pb, str, x, y, typeof col === 'string' ? U(col) : col, opts);
+    return 0;
+  }
+  function measure(str, opts = {}) { return typeof PFK !== 'undefined' ? PFK.measure(str, opts) : str.length * 4; }
+  /** Halo en anillos (sin tramado), cacheado; se dibuja con 'lighter' */
+  const _gl = new Map();
+  function glow(r, col, rings = 3, a0 = 0.55) {
+    const k = r + '|' + col + '|' + rings + '|' + a0; let c = _gl.get(k); if (c) return c;
+    const s = r * 2 + 1, pb = new PixelBuffer(s, s), u = U(col) & 0xffffff;
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const d = Math.hypot(x - r, y - r) / (r + 0.5); if (d > 1) continue;
+      const a = a0 * (1 - Math.floor(d * rings) / rings);
+      pb.data[y * s + x] = ((Math.round(a * 255) << 24) | u) >>> 0;
+    }
+    c = pb.toCanvas(); _gl.set(k, c); return c;
+  }
+  function drawGlow(g, x, y, r, col, alpha = 1) {
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = alpha;
+    g.drawImage(glow(r, col), Math.round(x - r), Math.round(y - r));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  /** Copia oscurecida de una región (sombra de nube que recorre filas FV): {c, x, y, w, h} */
+  function shadowCopy(pb, x, y, w, h, amt = -0.32, hue = 235) {
+    const out = new PixelBuffer(w, h);
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+      const c = get(pb, x + xx, y + yy); if (c >>> 24) out.data[yy * w + xx] = shU(c, amt, hue);
+    }
+    return { c: out.toCanvas(), x, y, w, h };
+  }
+  /** Contador de tiempo de prerender por bioma (depuración / informe) */
+  const stats = { ms: {}, last: 0 };
+  function timed(name, fn) { const t0 = nowMs(); const r = fn(); stats.ms[name] = Math.round(nowMs() - t0); return r; }
+  return { CAMY, LIGHT, P32, put, get, pack, mixU, blend, rect, shU, hz, hzc, expand, band, ridged, poly, ellipse, line, blit, rim, strip, drawStrip, text, measure, glow, drawGlow, shadowCopy, stats, timed };
+})();
+
+/* ---------- rampas del panorama por plano (medidas en la referencia a 640×360) ---------- */
+VISTA.RAMPS = {
+  far: ['#5f5a82', '#6f6a94', '#7d7aa6', '#8c88b4', '#9d92b9', '#b0a0be', '#c4aec2', '#d6bcc4'],
+  mid: ['#4a4a78', '#5a5888', '#6e6896', '#87739e', '#a07c98', '#b98a98', '#cf9c9a', '#e2b2a2', '#efc8b2', '#f6dcc8'],
+  hill: ['#3e3448', '#58405a', '#695266', '#87545a', '#9f6358', '#b46e5c', '#c07b5f', '#d08c68', '#de9c76', '#e9b48e', '#f2cfae'],
+  low: ['#4a2a28', '#64352e', '#805142', '#9a5c3c', '#bd764a', '#d4884e', '#e19d61', '#eeb26c', '#f6c17c', '#fbd992'],
+  vegMid: ['#4d5a52', '#5d6e56', '#74845e', '#8e9a6a', '#a8b07a'],
+  vegHill: ['#2c3a2c', '#3f5434', '#5a6e3c', '#7a8e44', '#9cad54', '#bfc76a'],
+  vegLow: ['#1c3534', '#2e4a2c', '#4d6e4a', '#6a8a3e', '#99b874', '#bfcf6a', '#dfd88c'],
+};
+
+/* ---------- ayudantes aditivos de Backdrop (solo panorama) ---------- */
+/** Capa prerenderizada situada en coordenadas de PANTALLA para cam.y = VISTA.CAMY. */
+Backdrop.prototype.vplane = function (f, yScreen, h, draw, opts = {}) {
+  const fy = opts.fy ?? f * 0.3;
+  const y = Math.round(yScreen + VISTA.CAMY * fy);
+  const L = this.layer(f, h, y, (pb, w, hh) => VISTA.timed('plane' + this.layers.length, () => draw(pb, w, hh)), Object.assign({}, opts, { fy }));
+  L.ys = yScreen; L.tag = opts.tag || '';
+  return L;
+};
+/** Capa solo dinámica (nubes, rotores…) intercalada en el orden de planos */
+Backdrop.prototype.vdyn = function (f, fn, opts = {}) { const L = this.dynLayer(f, fn, opts); L.tag = opts.tag || ''; return L; };
+/** Desplazamiento de pantalla de un plano: [sx0, sy0] para dibujar en su espacio */
+Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), L.y - Math.round(cam.y * L.fy)]; };
+
+/* ===== 17c_vista_sky.js ===== */
+/* =====================================================================
+   17c_vista_sky.js — Cielo, sol, cúmulos volumétricos, cirros y mares
+   lejanos del panorama (VISTA). Sin tramado: bandas con borde de ruido.
+   API:
+     VISTA.sky(w, h, {stops, horizonY, haze, sun:{x,y,r,halo}, curve})  → PixelBuffer
+     VISTA.sun(pb, cx, cy, r, haloR)
+     VISTA.cumulus(w, h, seed, {pal, sun:-1..1, tower, flat, warm})      → PixelBuffer
+     VISTA.cirrus(w, h, seed, {pal})                                      → PixelBuffer
+     B.cloudDeck({n, seed, f:[a,b], y:[a,b], w:[a,b], kind, speed:[a,b], sunX, pal, haze, tall}) → deck
+     VISTA.seaFar(pb, y0, y1, {ramp, caps, seed, shoreTint})              (estático, con filas de borreguitos)
+     VISTA.drawSeaFx(g, x0, y0, w, h, t, {sunX, density})                (destellos y reflejo del sol)
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  /* ---------------- cielo ---------------- */
+  V.sky = function (w, h, o = {}) {
+    const pb = new PixelBuffer(w, h);
+    const hy = o.horizonY ?? 140;
+    const stops = o.stops || ['#1270e2', '#1a7ce8', '#2488ee', '#3493f4', '#3e9df8', '#52aaf8', '#73b9f4', '#97c6f2', '#b3cdef', '#c4cdea'];
+    const haze = o.haze || ['#c8c8e4', '#cdbfd4', '#d2c2cc', '#d8c8cc'];
+    const nb = o.bands || 22;
+    const R = V.P32(V.expand(stops, nb)), HZ = V.P32(V.expand(haze, 6));
+    const sun = o.sun, curve = o.curve ?? 1.25;
+    for (let y = 0; y < h; y++) {
+      const ty = Math.pow(clamp(y / hy, 0, 1), curve);
+      for (let x = 0; x < w; x++) {
+        let t = ty;
+        if (sun) {
+          const d = Math.hypot((x - sun.x) * 0.8, y - sun.y);
+          const b = Math.max(0, 1 - d / (sun.halo * 4.2));
+          t += b * b * 0.34;
+          // lado del sol algo más claro
+          t += (1 - Math.min(1, Math.abs(x - sun.x) / (w * 0.9))) * 0.04;
+        }
+        let u = R[V.band(clamp(t, 0, 1), nb, x, y, 0.045, 3)];
+        // bruma de horizonte lavanda (12 px sobre el horizonte y todo lo de debajo)
+        const dh = y - (hy - 14);
+        if (dh > 0) {
+          const k = clamp(dh / 18, 0, 1);
+          u = V.mixU(u, HZ[V.band(k, 6, x, y, 0.08, 5)], 0.25 + 0.6 * k);
+        }
+        pb.data[y * w + x] = u;
+      }
+    }
+    if (sun) V.sun(pb, sun.x, sun.y, sun.r, sun.halo);
+    return pb;
+  };
+  /** Sol focal: disco crema con anillos suaves cálido → lavanda (sin halo tramado) */
+  V.sun = function (pb, cx, cy, r = 11, haloR = 24) {
+    const ring = [
+      [r + 1.6, U('#f6dca2'), 0.95], [r + 3.2, U('#ecc7a6'), 0.62], [r + 5.6, U('#d6b5ae'), 0.44],
+      [r + 8.6, U('#bcaabd'), 0.32], [r + 11.8, U('#a3a0cc'), 0.22], [haloR, U('#8a9edc'), 0.14],
+    ];
+    const x0 = Math.floor(cx - haloR - 2), x1 = Math.ceil(cx + haloR + 2), y0 = Math.floor(cy - haloR - 2), y1 = Math.ceil(cy + haloR + 2);
+    const DISC = U('#fdfacd'), CORE = U('#fffde8'), EDGE = U('#f8eab6');
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) continue;
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      const i = y * pb.w + x;
+      if (d <= r) {
+        const k = Math.hypot(x + 0.5 - (cx - r * 0.3), y + 0.5 - (cy - r * 0.3)) / r;
+        pb.data[i] = d > r - 1 ? EDGE : k < 0.55 ? CORE : DISC;
+        continue;
+      }
+      // borde de anillo desplazado por clusters → contorno orgánico, sin ajedrez
+      const j = (hash2((x / 2) | 0, (y / 2) | 0, 77) - 0.5) * 1.6;
+      for (const [rr, u, a] of ring) if (d + j <= rr) { pb.data[i] = V.mixU(pb.data[i], u, a); break; }
+    }
+  };
+  /* ---------------- cúmulos ---------------- */
+  /**
+   * Cúmulo volumétrico: unión de esferas con normales, 7 tonos (cloudR), base plana
+   * con vientre pervinca, crestas festoneadas, borde cálido del lado del sol.
+   * o.sun: −1 (sol a la izquierda) .. 1 (a la derecha); o.tower: 0..1 (desarrollo vertical)
+   */
+  V.cumulus = function (w, h, seed, o = {}) {
+    const r = RNG(seed * 7919 + 13);
+    const pb = new PixelBuffer(w, h);
+    const pal = V.P32(o.pal || ['#7d93cf', '#9db2ea', '#b6c4f0', '#cbd3f0', '#dfe5f7', '#f2f2f6', '#ffffff', '#fdf3cf']);
+    const n = pal.length;
+    const base = h - 2;
+    const puffs = [];
+    const tower = o.tower ?? r.range(0.3, 0.9);
+    // fila de base
+    const nb = Math.max(3, Math.round(w / r.range(13, 18)));
+    for (let i = 0; i < nb; i++) {
+      const t = i / (nb - 1);
+      const rr = h * r.range(0.16, 0.26) * (1 - Math.abs(t - 0.5) * 0.6);
+      puffs.push([lerp(w * 0.1, w * 0.9, t) + r.range(-3, 3), base - rr * r.range(0.45, 0.8), rr]);
+    }
+    // cuerpo y torre
+    const px = w * r.range(0.36, 0.62);
+    const nm = Math.round(w / 9) + 3;
+    for (let i = 0; i < nm; i++) {
+      const dx = (r() + r() - 1) * w * 0.42;
+      const k = 1 - Math.min(1, Math.abs(dx) / (w * 0.5));
+      const rr = h * (0.12 + 0.24 * k * r.range(0.7, 1.15));
+      const top = base - rr - (h - rr * 2 - 3) * Math.pow(k, 1.3) * tower * r.range(0.65, 1);
+      puffs.push([px + dx, Math.min(base - rr * 0.7, top + rr), rr]);
+    }
+    // festón: bultos pequeños en el perfil superior
+    const ext = new Float32Array(w).fill(h);
+    for (const [cx, cy, rr] of puffs) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) if (x >= 0 && x < w) { const yy = cy - Math.sqrt(Math.max(0, rr * rr - (x - cx) * (x - cx))); if (yy < ext[x]) ext[x] = yy; }
+    for (let x = 3; x < w - 3; x += r.int(4, 7)) if (ext[x] < base - 4) puffs.push([x + r.range(-1, 1), ext[x] + r.range(1.5, 3), r.range(2.2, 4.2)]);
+    // raster
+    const L = [(o.sun ?? 0.35) * 0.55, -0.78, 0.42]; const ln = Math.hypot(...L); L[0] /= ln; L[1] /= ln; L[2] /= ln;
+    const Z = new Float32Array(w * h), ID = new Int16Array(w * h).fill(-1), T = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let best = -1, bz = 0;
+      for (let p = 0; p < puffs.length; p++) {
+        const [cx, cy, rr] = puffs[p], dx = x + 0.5 - cx, dy = y + 0.5 - cy, q = rr * rr - dx * dx - dy * dy;
+        if (q > 0) { const z = Math.sqrt(q) + rr * 0.15 * (cy < base - h * 0.3 ? 1 : 0); if (z > bz) { bz = z; best = p; } }
+      }
+      if (best < 0 || y > base) continue;
+      const [cx, cy, rr] = puffs[best];
+      const nx = (x + 0.5 - cx) / rr, ny = (y + 0.5 - cy) / rr, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+      const I = nx * L[0] + ny * L[1] + nz * L[2];
+      const hf = clamp((base - y) / (h * 0.9), 0, 1);
+      let t = 0.02 + 0.6 * (I * 0.5 + 0.5) + 0.44 * Math.pow(hf, 0.75);
+      if (base - y < 5) t -= (5 - (base - y)) * 0.06; // vientre
+      const i = y * w + x; Z[i] = bz; ID[i] = best; T[i] = t;
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x; if (ID[i] < 0) continue;
+      let t = T[i];
+      // pliegue: un lóbulo delante de otro → línea interior 1 px más oscura (festoneado interno)
+      const ir = x < w - 1 ? i + 1 : -1, iu = y > 0 ? i - w : -1, il = x > 0 ? i - 1 : -1;
+      for (const j of [ir, iu, il]) if (j >= 0 && ID[j] >= 0 && ID[j] !== ID[i] && Z[j] > Z[i] + 1.6 && T[j] > t - 0.05) { t -= 0.13; break; }
+      let k = V.band(clamp(t, 0, 0.999), n - 1, x, y, 0.035, seed);
+      // borde contra el cielo: lado de sombra un paso abajo, lado del sol borde cálido
+      const edgeL = x === 0 || ID[i - 1] < 0, edgeR = x === w - 1 || ID[i + 1] < 0, edgeU = y === 0 || ID[i - w] < 0;
+      const sunSide = (o.sun ?? 0.35) >= 0 ? edgeR : edgeL;
+      if ((edgeU || sunSide) && k >= n - 3 && (o.warm ?? true)) k = n - 1;
+      else if ((edgeL || edgeR) && !sunSide) k = Math.max(0, k - 1);
+      pb.data[i] = pal[k];
+    }
+    return pb;
+  };
+  /** Cirros: trazos horizontales finos con extremos afilados y ganchos */
+  V.cirrus = function (w, h, seed, o = {}) {
+    const r = RNG(seed * 31 + 7), pb = new PixelBuffer(w, h);
+    const pal = V.P32(o.pal || ['#a9bcef', '#c6d5f4', '#e4ebf8', '#f6f8fc']);
+    const nS = r.int(4, 8);
+    for (let s = 0; s < nS; s++) {
+      const len = r.range(w * 0.25, w * 0.85), x0 = r.range(0, w - len), y0 = r.range(2, h - 3), slope = r.range(-0.08, 0.02);
+      const th = r.chance(0.4) ? 2 : 1;
+      for (let x = 0; x < len; x++) {
+        const t = x / len, taper = Math.sin(t * Math.PI);
+        if (taper < 0.12) continue;
+        const yy = Math.round(y0 + x * slope + Math.sin(x * 0.11 + s) * 0.8);
+        const k = clamp(Math.round(taper * 3 - (hash2(x >> 2, s, seed) < 0.25 ? 1 : 0)), 0, 3);
+        V.blend(pb, x0 + x, yy, pal[k], 0.55 + taper * 0.4);
+        if (th > 1 && taper > 0.4) V.blend(pb, x0 + x, yy + 1, pal[Math.max(0, k - 1)], 0.4 + taper * 0.3);
+      }
+      // gancho al final
+      if (r.chance(0.5)) for (let k = 0; k < 4; k++) V.blend(pb, Math.round(x0 + len * 0.86 + k), Math.round(y0 + len * 0.86 * slope - k * 0.7 - 1), pal[2], 0.6);
+    }
+    return pb;
+  };
+  /**
+   * Cubierta de nubes que deriva, intercalada como capa dinámica (algunas quedan
+   * detrás de las montañas si la cubierta se crea antes que ellas).
+   */
+  Backdrop.prototype.cloudDeck = function (o = {}) {
+    const r = RNG(o.seed || 1);
+    const deck = { clouds: [], B: this };
+    const n = o.n || 6, F = o.f || [0.04, 0.08], Y = o.y || [10, 80], Wd = o.w || [50, 120], S = o.speed || [2, 4];
+    for (let i = 0; i < n; i++) {
+      const f = lerp(F[0], F[1], r()), w = Math.round(lerp(Wd[0], Wd[1], Math.pow(r(), o.bias ?? 1)));
+      const span = W + (this.levelW - W) * f + w + 160;
+      const x = ((i + r.range(0.1, 0.9)) / n) * span;
+      const y = Math.round(lerp(Y[0], Y[1], r()));
+      let pb;
+      if (o.kind === 'cirrus') pb = V.cirrus(w, Math.round(w * r.range(0.1, 0.18)) + 4, (o.seed || 1) * 100 + i, o);
+      else {
+        const sunSide = clamp(((o.sunX ?? 410) - (x - w / 2)) / 260, -1, 1);
+        const h = Math.round(w * r.range(o.tall ? 0.5 : 0.36, o.tall ? 0.72 : 0.52));
+        pb = V.cumulus(w, h, (o.seed || 1) * 100 + i, { sun: sunSide, tower: o.tall ? r.range(0.6, 1) : r.range(0.15, 0.7), pal: o.pal });
+      }
+      if (o.haze) for (let k = 0; k < pb.data.length; k++) { const c = pb.data[k]; if (c >>> 24) pb.data[k] = (V.mixU(c, U(o.hazeCol || '#c9c4e2'), o.haze) & 0xffffff | (c & 0xff000000)) >>> 0; }
+      deck.clouds.push({ c: pb.toCanvas(), x, y, f, w: pb.w, h: pb.h, span, speed: lerp(S[0], S[1], r()) });
+    }
+    deck.clouds.sort((a, b) => a.f - b.f);
+    const self = this;
+    deck.L = this.vdyn(F[0], (g, cam) => {
+      const wind = 0.6 + (self.weather.wind || 0) * 0.8;
+      for (const c of deck.clouds) {
+        c.x += c.speed * Game.dt * wind;
+        if (c.x > c.span) c.x -= c.span + c.w;
+        const sx = Math.round(c.x - cam.x * c.f - c.w), sy = Math.round(c.y - (cam.y - V.CAMY) * c.f * 0.3);
+        if (sx > W || sx + c.w < 0) continue;
+        g.drawImage(c.c, sx, sy);
+      }
+    }, { tag: 'clouds' });
+    return deck;
+  };
+  /* ---------------- mar lejano ---------------- */
+  /** Mar lejano estático: degradado en bandas + filas de borreguitos que se alargan hacia el espectador */
+  V.seaFar = function (pb, y0, y1, o = {}) {
+    const stops = o.stops || ['#a9c8ea', '#5aaae6', '#2690de', '#0a7fd0', '#0679c6', '#0583c9', '#0890cf', '#0b9cd2'];
+    const nb = 16, R = V.P32(V.expand(stops, nb));
+    const CAP = V.P32(['#4fb3ea', '#9ad6f2', '#d8f1fb', '#ffffff']);
+    const r = RNG(o.seed || 5);
+    for (let y = y0; y < y1; y++) {
+      const t = Math.pow((y - y0) / Math.max(1, y1 - y0), 0.55);
+      for (let x = 0; x < pb.w; x++) {
+        let u = R[V.band(t, nb, x, y, 0.04, 9)];
+        // rizos horizontales finos (ondulación) sin tramado: segmentos 1 px algo más claros/oscuros
+        const wv = vnoise(x * 0.09, y * 0.9, 21);
+        if (y > y0 + 1 && wv > 0.74) u = V.shU(u, 0.08);
+        else if (y > y0 + 1 && wv < 0.2) u = V.shU(u, -0.06, 220);
+        pb.data[y * pb.w + x] = u;
+      }
+    }
+    // línea de horizonte nítida
+    for (let x = 0; x < pb.w; x++) pb.data[y0 * pb.w + x] = U(o.horizonCol || '#c6d4ee');
+    // borreguitos (filas): más densos y largos cuanto más cerca
+    if (o.caps !== false) {
+      const n = Math.round(pb.w * (y1 - y0) / 140);
+      for (let i = 0; i < n; i++) {
+        const t = Math.pow(r(), 0.7), y = Math.round(y0 + 3 + t * (y1 - y0 - 4));
+        const len = Math.max(1, Math.round(1 + t * 5 + r() * 2));
+        const x = r.int(0, pb.w - len);
+        for (let k = 0; k < len; k++) V.put(pb, x + k, y, CAP[k === 0 || k === len - 1 ? 1 : (t > 0.5 ? 3 : 2)]);
+        if (t > 0.45) for (let k = 1; k < len - 1; k++) V.put(pb, x + k, y + 1, CAP[0]);
+      }
+    }
+  };
+  /** Destellos animados del mar + columna de reflejo del sol (≤ ~60 fillRect) */
+  V.drawSeaFx = function (g, x0, y0, w, h, t, o = {}) {
+    const n = Math.round(w * h / 1100 * (o.density ?? 1));
+    for (let i = 0; i < n; i++) {
+      const hx = hash1(i, 3), hy = hash1(i, 7), ph = hash1(i, 11) * TAU;
+      const life = (Math.sin(t * (1.2 + hash1(i, 13) * 1.6) + ph) + 1) / 2;
+      if (life < 0.62) continue;
+      const yy = Math.round(y0 + 2 + Math.pow(hy, 0.8) * (h - 2));
+      const len = Math.max(1, Math.round((1 + (yy - y0) / h * 4) * (life - 0.55) * 2.4));
+      const xx = Math.round(x0 + ((hx * w + t * 3 * (0.3 + hy)) % w));
+      g.fillStyle = life > 0.9 ? '#ffffff' : '#bfe8fa';
+      g.fillRect(xx, yy, len, 1);
+    }
+    if (o.sunX != null) {
+      for (let y = y0 + 1; y < y0 + h; y += 2) {
+        const k = (y - y0) / h, spread = 3 + k * 26;
+        const v = Math.sin(t * 2.2 + y * 1.37);
+        if (v < 0.1) continue;
+        const xx = Math.round(o.sunX + Math.sin(y * 2.9 + t * 0.7) * spread);
+        g.fillStyle = v > 0.75 ? '#fffbe6' : '#f6e7b8';
+        g.fillRect(xx, y, Math.round(1 + v * (2 + k * 4)), 1);
+      }
+    }
+  };
+})();
+
+/* ===== 17d_vista_relief.js ===== */
+/* =====================================================================
+   17d_vista_relief.js — Relieve del panorama (VISTA): cordilleras y
+   colinas esculpidas con un trazador de alturas en columnas (voxel-space
+   oblicuo, de delante hacia atrás). Normales → luz arriba-izquierda,
+   cavidades oscuras, crestas claras, borde cálido en la silueta, bruma
+   por profundidad y niebla en la base. Vegetación en clusters.
+   API:
+     VISTA.massif(peaks[{x,v,h,w,d,k}], {seed, rough, scale, base, sharp}) → H(u,v)
+     VISTA.relief(pb, {yBase, nv, dvy, H, ramp, x0, x1, seed, kv, haze:{col,k},
+                       mist:{col,h,k}, veg:{ramp,density,maxSlope,minY}, rim, tex}) → info
+       info = { top: Int16Array (silueta por columna), surf(x) → y de la superficie cercana,
+                hAt(x,v), yAt(x,v) }
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  /** Campo de alturas: conos (máximo) erosionados con ruido de crestas alargado en profundidad */
+  V.massif = function (peaks, o = {}) {
+    const seed = o.seed || 1, rough = o.rough ?? 0.55, sc = o.scale ?? 0.035, base = o.base || 0, sharp = o.sharp ?? 1.25;
+    const spurs = o.spurs ?? 9, fineK = o.fine ?? 1;
+    return (u, v) => {
+      let hm = base, bp = null, bq = 0;
+      for (let i = 0; i < peaks.length; i++) {
+        const p = peaks[i], a = (u - p.x) / p.w, b = (v - p.v) / p.d;
+        const q = 1 - Math.sqrt(a * a + b * b);
+        if (q > 0) { const hh = p.h * Math.pow(q, p.k || sharp); if (hh > hm) { hm = hh; bp = p; bq = q; } }
+      }
+      if (hm <= 0) return 0;
+      // espolones radiales desde la cima del pico dominante (crestas que bajan por la ladera)
+      let rn;
+      const iso = V.ridged(u * sc + 11.3, v * sc * 0.8 + 3.1, 4, seed + 4);
+      if (bp) {
+        const warp = (fbm(u * 0.021, v * 0.04, 2, seed + 2) - 0.5) * 2.6;
+        const ang = Math.atan2((v - bp.v) * (bp.w / bp.d), u - bp.x);
+        const rad = 1 - bq;
+        const sp = V.ridged(ang * spurs / TAU * 4 + warp + (bp.x * 0.013), rad * 2.4 + warp * 0.3, 4, seed);
+        rn = sp * 0.6 + iso * 0.4;
+      } else rn = iso;
+      const fine = vnoise(u * sc * 3, v * sc * 2.4 + 7.7, seed + 9);
+      const front = o.apron ? smooth(clamp(v / o.apron, 0, 1)) : 1;
+      let hh = Math.max(0, front * (hm * (1 - rough * 0.42 + rough * 0.5 * rn) + (fine - 0.5) * fineK * rough * Math.min(8, hm * 0.1)));
+      // mesetas (para asentar ciudades): techo de altura con borde suave
+      if (o.plateaus) for (const p of o.plateaus) { const a = Math.abs(u - p.x) / p.w; if (a < 1 && hh > p.h) { const e = smooth(clamp((1 - a) * 3, 0, 1)); hh = lerp(hh, p.h + (fine - 0.5) * 1.5, e); } }
+      return hh;
+    };
+  };
+  /** Trazador de relieve en columnas */
+  V.relief = function (pb, o) {
+    const w = pb.w, x0 = Math.max(0, o.x0 ?? 0), x1 = Math.min(w, o.x1 ?? w);
+    const nv = o.nv || 40, dvy = o.dvy ?? 0.45, yBase = o.yBase ?? pb.h - 1, H = o.H, kv = o.kv ?? 0.9;
+    const seed = o.seed || 1, tex = o.tex ?? 0.05;
+    const gw = x1 - x0 + 2;
+    const G = new Float32Array(gw * (nv + 2));
+    for (let v = -1; v <= nv; v++) for (let x = x0 - 1; x <= x1; x++) G[(v + 1) * gw + (x - x0 + 1)] = H(x, v);
+    const hAt = (x, v) => G[(clamp(v, -1, nv) + 1) * gw + (clamp(x, x0 - 1, x1) - x0 + 1)];
+    // rampas por profundidad (bruma) — 4 cubos
+    const nB = 4, ramps = [];
+    for (let b = 0; b < nB; b++) ramps.push(V.P32(o.haze ? V.hz(o.ramp, (o.haze.k0 || 0) + (o.haze.k || 0) * b / (nB - 1), o.haze.col) : o.ramp));
+    const n = o.ramp.length;
+    const L = o.light || V.LIGHT;
+    const top = new Int16Array(w).fill(32767), surf = new Int16Array(w).fill(32767);
+    const veg = [];
+    const tAt = (x, v) => {
+      const h = hAt(x, v);
+      const dx = (hAt(x + 1, v) - hAt(x - 1, v)) * 0.5, dv = (hAt(x, v + 1) - hAt(x, v - 1)) * 0.5 * kv;
+      const inv = 1 / Math.hypot(dx, dv, 1);
+      const I = (dx * -L[0] + dv * -L[1] * 0.9 + L[2]) * inv;
+      // cavidad: comparación con la media local
+      const avg = (hAt(x - 3, v) + hAt(x + 3, v) + hAt(x, v - 2) + hAt(x, v + 2)) * 0.25;
+      const cav = clamp((h - avg) * 0.06, -0.25, 0.25);
+      const hgt = o.hMax ? clamp(h / o.hMax, 0, 1) * (o.hgtK ?? 0.12) : 0;
+      return [clamp((o.t0 ?? 0.5) + (I - 0.62) * (o.contrast ?? 1.55) + cav + hgt, 0, 0.999), dx, dv];
+    };
+    for (let x = x0; x < x1; x++) {
+      let yt = Math.min(pb.h, Math.round(yBase) + 1);
+      for (let v = 0; v < nv; v++) {
+        const h = hAt(x, v);
+        if (h <= 0 && v > 0) continue;
+        const sy = Math.round(yBase - v * dvy - h);
+        if (sy >= yt) continue;
+        const [t, dx, dv] = tAt(x, v);
+        const R = ramps[Math.min(nB - 1, Math.floor(v / nv * nB))];
+        const y0 = Math.max(0, sy);
+        for (let y = y0; y < yt; y++) {
+          // textura en clusters ±1 paso (sin tramado)
+          const j = (hash2((x / 2) | 0, (y / 2) | 0, seed + 3) - 0.5) * tex * 2;
+          const k = V.band(clamp(t + j - (y - sy) * 0.012, 0, 0.999), n, x, y, 0.05, seed);
+          if (y < pb.h) pb.data[y * w + x] = R[k];
+        }
+        if (v === 0 || surf[x] === 32767) surf[x] = sy;
+        // candidatos de vegetación: pendiente suave y de cara al espectador
+        if (o.veg && Math.abs(dx) < (o.veg.maxSlope ?? 0.9) && dv > -0.2 && sy > (o.veg.minY ?? 0) && hash2(x, v, seed + 11) < (o.veg.density ?? 0.05)) veg.push([x, sy, t, v]);
+        yt = y0;
+      }
+      top[x] = yt;
+    }
+    // borde cálido del lado del sol en la silueta y en crestas iluminadas
+    if (o.rim) {
+      const RU = U(o.rim);
+      for (let x = x0 + 1; x < x1 - 1; x++) {
+        const y = top[x]; if (y >= pb.h || y < 0) continue;
+        // de cara a la izquierda (la silueta sube hacia la derecha) o cima plana
+        if (top[x + 1] <= y || top[x - 1] > y) { const i = y * w + x; pb.data[i] = V.mixU(pb.data[i], RU, o.rimK ?? 0.6); }
+      }
+    }
+    // niebla de base
+    if (o.mist) {
+      const MU = U(o.mist.col), mh = o.mist.h || 12, mk = o.mist.k ?? 0.5;
+      for (let y = Math.max(0, Math.round(yBase - mh)); y <= Math.min(pb.h - 1, yBase); y++) {
+        const k = mk * Math.pow(1 - (yBase - y) / mh, 1.4);
+        for (let x = x0; x < x1; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], MU, k); }
+      }
+    }
+    // vegetación en clusters (2–5 px) con punto de luz arriba-izquierda
+    if (o.veg && veg.length) {
+      const VR = V.P32(o.veg.ramp || V.hz(RAMP.foliageR, 0.3));
+      for (const [x, y, t] of veg) {
+        const s = 1 + (hash2(x, y, 5) * 2.2 | 0);
+        for (let yy = 0; yy <= s; yy++) for (let xx = -s; xx <= s; xx++) {
+          if (xx * xx + yy * yy * 2.2 > s * s + 1) continue;
+          const lit = xx < 0 && yy === 0 ? 3 : yy === 0 ? 2 : yy === s ? 0 : 1;
+          const px = x + xx, py = y + yy + 1;
+          if (px < 0 || px >= w || py < 0 || py >= pb.h || !(pb.data[py * w + px] >>> 24)) continue;
+          pb.data[py * w + px] = VR[clamp(lit + (t > 0.6 ? 1 : 0), 0, VR.length - 1)];
+        }
+      }
+    }
+    const yAt = (x, v) => Math.round(yBase - v * dvy - hAt(x, v));
+    /** y visible de la superficie a profundidad v (null si la tapa algo más cercano) */
+    const visY = (x, v) => { const y = yAt(x, v); for (let q = 0; q < v; q++) if (yAt(x, q) <= y + 1) return null; return y; };
+    /** primer punto visible buscando desde la profundidad v hacia el espectador */
+    const onSurf = (x, v) => { for (let q = v; q >= 0; q--) { const y = visY(x, q); if (y != null && hAt(x, q) > 0.5) return y; } return null; };
+    return { top, surf, hAt, yAt, visY, onSurf };
+  };
+  /** Silueta de cresta 1-D suave (para colinas cercanas simples): y(x) */
+  V.ridgeLine = function (x, base, amp, sc, seed) { return base - amp * fbm1(x * sc, 4, seed); };
+})();
+
+/* ===== 17e_vista_arch.js ===== */
+/* =====================================================================
+   17e_vista_arch.js — Arquitectura del panorama (VISTA), en 3/4 elevado.
+   API (todas pintan en un PixelBuffer; k = bruma 0..1 del plano):
+     VISTA.box3q(pb, x, y, w, h, d, {front, side, top, k, sideK})   caja con cara frontal,
+         lateral derecha (sombra) y techo; y = base frontal; d = fondo (px de pantalla)
+     VISTA.house(pb, x, y, w, h, seed, {k, roof:'flat'|'dome'|'terrace'|'solar', d, tint})
+     VISTA.tower(pb, x, y, w, h, seed, {k, glass, cap})              torre esbelta
+     VISTA.domeCity(pb, cx, y, {k, s, label})  → {top, left, right, base, falls:[x...]}
+     VISTA.greenhouse(pb, x, y, w, h, {k})
+     VISTA.lighthouse(pb, x, y, h, {k})
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  const STONE = ['#4c3b2c', '#6d5c51', '#8a6a50', '#a6806a', '#bd8f70', '#d2a684', '#e8bf98', '#f2d5bb', '#fbe6c8'];
+  const WHITE = ['#5a5466', '#7e7686', '#a39aa4', '#c4bcc0', '#ddd6d4', '#efe9e2', '#faf6ee', '#ffffff'];
+  const GLASS = ['#1d3a52', '#2c5670', '#3e6a80', '#4f8a9c', '#5aa0b0', '#6fc8cc', '#85cdd4', '#9be4e6', '#cedee7', '#ffffff'];
+  const BLUEW = ['#0e1f3a', '#15305a', '#1e4a7c', '#2e6aa0', '#4a8cc0', '#7ab4e0', '#b4daf4'];
+  V.ARCH = { STONE, WHITE, GLASS, BLUEW };
+  const ramp = (r, k) => V.P32(V.hz(r, k || 0));
+  /** Caja en 3/4: frente (luz), lateral derecho (sombra) y techo (más claro) */
+  V.box3q = function (pb, x, y, w, h, d, o = {}) {
+    const R = ramp(o.ramp || WHITE, o.k), n = R.length;
+    const dx = Math.round(d * 0.55), dy = Math.round(d * 0.5);
+    const fi = o.front ?? n - 3, si = o.side ?? Math.max(0, n - 6), ti = o.top ?? n - 1;
+    // techo
+    V.poly(pb, [[x, y - h], [x + w, y - h], [x + w + dx, y - h - dy], [x + dx, y - h - dy]], (px, py) => R[(py === y - h - dy) ? Math.max(0, ti - 1) : ti - (hash2(px >> 1, py, 7) < 0.12 ? 1 : 0)]);
+    // lateral
+    V.poly(pb, [[x + w, y], [x + w, y - h], [x + w + dx, y - h - dy], [x + w + dx, y - dy]], (px, py) => R[si - ((py - (y - h)) > h * 0.7 ? 1 : 0)]);
+    // frente
+    for (let yy = y - h; yy < y; yy++) for (let xx = x; xx < x + w; xx++) {
+      let k = fi - (yy > y - 3 ? 1 : 0) - (xx > x + w - 2 ? 1 : 0);
+      if (hash2(xx >> 1, yy >> 1, 3) < 0.08) k -= 1;
+      V.put(pb, xx, yy, R[clamp(k, 0, n - 1)]);
+    }
+    // aristas: borde iluminado arriba, sombra de contacto abajo
+    for (let xx = x; xx < x + w; xx++) V.put(pb, xx, y - h, R[n - 1]);
+    for (let xx = x; xx < x + w + dx; xx++) { const c = V.get(pb, xx, y); if (c >>> 24) V.put(pb, xx, y, V.shU(c, -0.25, 260)); }
+    return { dx, dy };
+  };
+  /** Casa blanca pequeña en 3/4 con ventanas, puerta y techo (cúpula, terraza o FV) */
+  V.house = function (pb, x, y, w, h, seed, o = {}) {
+    const r = RNG(seed), k = o.k || 0;
+    const d = o.d ?? Math.max(3, Math.round(w * 0.45));
+    const pal = o.tint ? V.hz(WHITE.map(c => mixHex(c, o.tint, 0.18)), k) : V.hz(WHITE, k);
+    const { dx, dy } = V.box3q(pb, x, y, w, h, d, { ramp: pal });
+    const WIN = ramp(BLUEW, k);
+    // ventanas
+    const nw = Math.max(1, Math.floor((w - 2) / 4));
+    for (let i = 0; i < nw; i++) {
+      const wx = x + 2 + i * 4; if (wx + 2 > x + w - 1) break;
+      const wy = y - h + 2;
+      if (h >= 6) { V.put(pb, wx, wy, WIN[2]); V.put(pb, wx + 1, wy, WIN[3]); V.put(pb, wx, wy + 1, WIN[1]); V.put(pb, wx + 1, wy + 1, WIN[2]); }
+    }
+    if (h >= 7 && w >= 6) { const px = x + Math.floor(w / 2) - 1 + (r.chance(0.5) ? 1 : -1); for (let yy = y - 4; yy < y; yy++) { V.put(pb, px, yy, WIN[0]); V.put(pb, px + 1, yy, WIN[1]); } }
+    // ventana lateral
+    if (dx >= 2 && h >= 5) V.put(pb, x + w + 1, y - h + 2, WIN[1]);
+    const roof = o.roof || r.pick(['flat', 'dome', 'terrace', 'solar', 'flat']);
+    const ry = y - h - Math.round(dy / 2), rx = x + Math.round(dx / 2);
+    if (roof === 'dome') {
+      const rr = Math.max(2, Math.round(w * 0.28)), cx = rx + Math.round(w / 2);
+      const D = ramp(r.chance(0.5) ? ['#1e4a7c', '#2e6aa0', '#4a8cc0', '#7ab4e0', '#b4daf4', '#e6f4fc'] : WHITE.slice(2), k);
+      V.ellipse(pb, cx, ry, rr, rr, (nx, ny) => ny > 0.15 ? 0 : D[clamp(nx < -0.2 ? D.length - 1 : nx < 0.3 ? D.length - 2 : D.length - 4, 0, D.length - 1)]);
+    } else if (roof === 'solar') {
+      const S = ramp(['#1e2a55', '#344675', '#4f6391', '#8b9cc2', '#d1d6e7'], k);
+      V.poly(pb, [[x + 1, y - h - 1], [x + w - 1, y - h - 1], [x + w - 1 + dx - 1, y - h - dy], [x + dx, y - h - dy]], (px, py) => (px - x) % 3 === 0 ? S[3] : S[1 + ((px + py) & 1 ? 0 : 1)]);
+    } else if (roof === 'terrace') {
+      const G = ramp(RAMP.foliageR.slice(2, 7), k);
+      for (let i = 0; i < 3; i++) { const px = x + 1 + r.int(0, Math.max(0, w - 3)) + Math.round(dx * 0.5), py = y - h - 1 - r.int(0, Math.max(0, dy - 1)); V.put(pb, px, py, G[3]); V.put(pb, px + 1, py, G[2]); V.put(pb, px, py - 1, G[4]); }
+      // pérgola / toldo
+      const A = ramp(r.pick([['#8a2a1a', '#c0482a', '#e8784a'], ['#1a5a6a', '#2a8a9a', '#5ac0c8'], ['#8a6a1a', '#c09a2a', '#e8c84a']]), k);
+      for (let xx = x; xx < x + Math.min(w, 5); xx++) V.put(pb, xx, y - h - 1, A[1 + (xx & 1)]);
+    } else {
+      // parapeto y depósito de agua
+      if (r.chance(0.5) && w > 5) { const tx = rx + w - 3; V.put(pb, tx, ry - 1, U(V.hzc('#a39aa4', k))); V.put(pb, tx + 1, ry - 1, U(V.hzc('#ddd6d4', k))); V.put(pb, tx, ry - 2, U(V.hzc('#efe9e2', k))); V.put(pb, tx + 1, ry - 2, U(V.hzc('#ffffff', k))); }
+    }
+    return { x, y, w, h, top: y - h - dy };
+  };
+  /** Torre esbelta de cristal con capitel (ciudad de Aridia) */
+  V.tower = function (pb, x, y, w, h, seed, o = {}) {
+    const k = o.k || 0, r = RNG(seed);
+    const G = ramp(o.glass || BLUEW, k), S = ramp(STONE, k);
+    const n = G.length;
+    for (let yy = y - h; yy < y; yy++) for (let xx = 0; xx < w; xx++) {
+      const t = xx / Math.max(1, w - 1);
+      let i = t < 0.25 ? n - 2 : t < 0.55 ? n - 3 : t < 0.85 ? n - 5 : n - 6;
+      // forjados cada 4 px y montantes
+      if ((yy - (y - h)) % 4 === 0) i = Math.max(0, i - 2);
+      else if (xx === Math.floor(w / 2) && w > 4) i = Math.max(0, i - 1);
+      // reflejo de cielo arriba
+      if (yy < y - h + h * 0.3 && xx < w * 0.4) i = Math.min(n - 1, i + 1);
+      V.put(pb, x + xx, yy, G[clamp(i, 0, n - 1)]);
+    }
+    // borde iluminado izquierdo
+    for (let yy = y - h; yy < y; yy++) V.put(pb, x, yy, G[n - 1]);
+    // capitel de piedra y aguja
+    for (let xx = -1; xx <= w; xx++) { V.put(pb, x + xx, y - h - 1, S[xx < w / 2 ? 7 : 5]); V.put(pb, x + xx, y - h, S[xx < w / 2 ? 6 : 4]); }
+    const sp = o.cap === 'flat' ? 0 : Math.max(3, Math.round(w * 1.1));
+    for (let i = 0; i < sp; i++) {
+      const half = Math.max(0, Math.round((w / 2) * (1 - i / sp)) - 1);
+      for (let xx = -half; xx <= half; xx++) V.put(pb, x + Math.floor(w / 2) + xx, y - h - 2 - i, S[xx <= 0 ? 7 : 4]);
+    }
+    if (sp) { V.put(pb, x + Math.floor(w / 2), y - h - 2 - sp, S[8]); V.put(pb, x + Math.floor(w / 2), y - h - 3 - sp, S[8]); }
+    // base de piedra
+    for (let yy = y - 3; yy < y; yy++) for (let xx = 0; xx < w; xx++) V.put(pb, x + xx, yy, S[xx < w * 0.4 ? 6 : 4]);
+    return { x, y, w, h, top: y - h - 3 - sp };
+  };
+  /** Cilindro vertical de piedra (anillo) con luz arriba-izquierda: fn(nx 0..1) → índice */
+  function drum(pb, cx, y, rx, h, R, opts = {}) {
+    const n = R.length;
+    for (let xx = -rx; xx <= rx; xx++) {
+      const nx = xx / (rx + 0.5), c = Math.sqrt(Math.max(0, 1 - nx * nx));
+      const lit = clamp(0.62 - nx * 0.45 + c * 0.25, 0, 1);
+      const capOff = Math.round(c * (opts.ell ?? rx * 0.18));
+      for (let yy = 0; yy < h; yy++) {
+        let i = Math.round(lit * (n - 2));
+        if (opts.band && opts.band(yy, nx)) i = opts.band(yy, nx);
+        V.put(pb, cx + xx, y - yy + capOff, R[clamp(i, 0, n - 1)]);
+      }
+      // borde superior elíptico iluminado (tapa)
+      V.put(pb, cx + xx, y - h + capOff, R[n - 1]);
+    }
+  }
+  /**
+   * Ciudad de ARIDIA: anillo de piedra con arcada y ventanas, banda con el nombre,
+   * cúpula de cristal con meridianos, armadura exterior, aguja y torres esbeltas.
+   * (cx, y) = centro de la base del anillo. s = escala (1 → cúpula ≈ 56 px).
+   */
+  V.domeCity = function (pb, cx, y, o = {}) {
+    const k = o.k || 0, s = o.s || 1, r = RNG(o.seed || 5);
+    const S = ramp(STONE, k), G = ramp(GLASS, k), WN = ramp(BLUEW, k);
+    const nS = S.length;
+    const R1 = Math.round(46 * s), H1 = Math.round(20 * s); // anillo inferior (arcada)
+    const R2 = Math.round(38 * s), H2 = Math.round(12 * s); // anillo superior (nombre)
+    const RD = Math.round(30 * s), HD = Math.round(27 * s); // cúpula
+    const towers = [];
+    // torres traseras (detrás del anillo)
+    for (const [ox, hh, ww] of [[-58, 64, 7], [-44, 50, 6], [-70, 40, 5], [52, 70, 7], [64, 46, 6], [40, 56, 5], [76, 34, 5]]) {
+      const tx = Math.round(cx + ox * s - ww / 2), th = Math.round(hh * s);
+      towers.push(V.tower(pb, tx, y - Math.round(10 * s), Math.max(3, Math.round(ww * s)), th, tx, { k: k + 0.05 }));
+    }
+    // armadura exterior (media corona translúcida detrás de la cúpula)
+    const yD = y - H1 - H2 - Math.round(2 * s);
+    const AR = Math.round(RD * 1.32), arm = U(V.hzc('#c9a77e', k)), armD = U(V.hzc('#8a6a50', k));
+    for (let a = 0; a <= 180; a += 0.6) {
+      const t = a * Math.PI / 180, px = Math.round(cx - Math.cos(t) * AR), py = Math.round(yD - Math.sin(t) * AR * 0.92);
+      V.put(pb, px, py, a < 100 ? arm : armD); V.put(pb, px, py + 1, armD);
+    }
+    for (let i = 1; i < 6; i++) { const t = i / 6 * Math.PI; V.line(pb, cx - Math.cos(t) * AR, yD - Math.sin(t) * AR * 0.92, cx - Math.cos(t) * RD * 0.9, yD - Math.sin(t) * HD * 0.9, (tt) => tt > 0.15 ? 0 : armD); }
+    // cúpula de cristal: hemisferio con meridianos/paralelos y reflejo
+    const nG = G.length;
+    for (let yy = -HD; yy <= 0; yy++) for (let xx = -RD; xx <= RD; xx++) {
+      const nx = xx / (RD + 0.5), ny = yy / (HD + 0.5), d = nx * nx + ny * ny;
+      if (d > 1) continue;
+      const nz = Math.sqrt(1 - d);
+      const I = clamp(-nx * 0.5 - ny * 0.45 + nz * 0.55, 0, 1);
+      let i = Math.round(1 + I * (nG - 4));
+      // meridianos y paralelos (estructura)
+      const lon = Math.asin(clamp(nx / Math.max(0.01, Math.sqrt(1 - ny * ny)), -1, 1));
+      const merid = Math.abs(((lon / Math.PI * 8) % 1 + 1) % 1 - 0.5) < 0.09;
+      const par = Math.abs(((Math.asin(-ny) / Math.PI * 7) % 1 + 1) % 1 - 0.5) < 0.07;
+      if (merid || par) i = Math.min(nG - 2, i + 2);
+      if (nx < -0.25 && nx > -0.55 && ny < -0.35 && ny > -0.7) i = nG - 1; // reflejo
+      if (d > 0.9) i = Math.max(0, i - 2);
+      V.put(pb, cx + xx, yD + yy, G[clamp(i, 0, nG - 1)]);
+    }
+    // aguja
+    for (let i = 0; i < Math.round(16 * s); i++) { V.put(pb, cx, yD - HD - i, S[i < 4 ? 5 : 7]); if (i < 5) V.put(pb, cx + 1, yD - HD - i, S[4]); }
+    V.ellipse(pb, cx + 0.5, yD - HD - Math.round(9 * s), 2, 2, (nx, ny) => S[nx + ny < 0 ? 8 : 5]);
+    // anillo superior con el nombre
+    drum(pb, cx, y - H1, R2, H2, S, {
+      ell: 3 * s, band: (yy, nx) => (yy === 0 ? 2 : yy === H2 - 1 ? nS - 1 : null),
+    });
+    // ventanas redondas del anillo superior
+    for (let a = -0.85; a <= 0.85; a += 0.24) {
+      const px = Math.round(cx + Math.sin(a) * R2 * 0.95); const py = y - H1 - Math.round(H2 * 0.45) + Math.round(Math.cos(a) * 3 * s);
+      if (Math.abs(a) < 0.3) continue; // hueco para el nombre
+      V.put(pb, px, py, WN[3]); V.put(pb, px, py - 1, WN[5]); V.put(pb, px + 1, py, WN[2]);
+    }
+    if (o.label !== false && typeof PFK !== 'undefined') {
+      const tw = V.measure('ARIDIA', { font: 'tiny', bold: true });
+      V.text(pb, 'ARIDIA', cx - Math.round(tw / 2), y - H1 - Math.round(H2 * 0.5) - 2 + Math.round(3 * s), U(V.hzc('#2a1a10', k * 0.5)), { font: 'tiny', bold: true });
+    }
+    // anillo inferior: arcada con columnas y ventanales azules
+    drum(pb, cx, y, R1, H1, S, { ell: 4 * s, band: (yy) => (yy === H1 - 1 ? nS - 1 : yy === H1 - 2 ? nS - 3 : yy < 2 ? 2 : null) });
+    const nA = 11;
+    for (let i = 0; i < nA; i++) {
+      const a = -1.25 + i * 2.5 / (nA - 1), sx = Math.sin(a), cw = Math.cos(a);
+      const px = Math.round(cx + sx * R1 * 0.93), aw = Math.max(1, Math.round(4 * s * cw)), py = y + Math.round(cw * 4 * s);
+      for (let yy = py - Math.round(H1 * 0.78); yy < py - 3; yy++) for (let xx = 0; xx < aw; xx++) {
+        const top = yy < py - Math.round(H1 * 0.78) + 2;
+        V.put(pb, px + xx - (aw >> 1), yy, WN[top ? 4 : xx === 0 ? 3 : 1 + ((yy >> 1) & 1)]);
+      }
+    }
+    // cornisa y basamento
+    for (let xx = -R1 - 2; xx <= R1 + 2; xx++) { const c = Math.sqrt(Math.max(0, 1 - (xx / (R1 + 2)) ** 2)); const py = y + Math.round(c * 4 * s) + 1; V.put(pb, cx + xx, py, S[2]); V.put(pb, cx + xx, py + 1, S[1]); }
+    // vegetación en hombros
+    const F = ramp(RAMP.foliageR, k + 0.05);
+    for (let i = 0; i < 14; i++) {
+      const side = i % 2 ? 1 : -1, px = cx + side * (R1 - 4 + r.int(0, 18)) , py = y + r.int(-2, 6);
+      for (let q = 0; q < 6; q++) V.put(pb, px + r.int(-2, 2), py + r.int(-1, 1), F[r.int(2, 6)]);
+    }
+    const falls = [cx - Math.round(18 * s), cx - Math.round(2 * s), cx + Math.round(14 * s)];
+    return { top: yD - HD - Math.round(16 * s), left: cx - R1, right: cx + R1, base: y + Math.round(5 * s), falls, towers };
+  };
+  /** Invernadero en 3/4 (bóveda de cristal con nervios) */
+  V.greenhouse = function (pb, x, y, w, h, o = {}) {
+    const k = o.k || 0, G = ramp(['#3a6a70', '#5a9aa0', '#8ccad0', '#bfe8ec', '#eefcff'], k), F = ramp(RAMP.foliageR, k);
+    const d = Math.round(w * 0.3), dx = Math.round(d * 0.55), dy = Math.round(d * 0.5);
+    for (let xx = 0; xx < w + dx; xx++) {
+      const t = (xx - dx * 0.5) / w;
+      const arc = Math.round(Math.sin(clamp(t, 0, 1) * Math.PI) * h * 0.35);
+      for (let yy = y - h - arc + (xx > w ? Math.round((xx - w) * dy / Math.max(1, dx)) : 0); yy < y; yy++) {
+        const inside = yy > y - h + 2;
+        let i = xx % 5 === 0 ? 4 : inside ? (hash2(xx, yy, 3) < 0.3 ? 1 : 2) : 3;
+        if (xx >= w) i = Math.max(0, i - 1);
+        V.put(pb, x + xx, yy, G[i]);
+        if (inside && yy > y - 4 && hash2(xx, yy, 9) < 0.5) V.put(pb, x + xx, yy, F[3 + (xx & 1)]);
+      }
+    }
+  };
+  /** Faro blanco con franja roja sobre promontorio */
+  V.lighthouse = function (pb, x, y, h, o = {}) {
+    const k = o.k || 0, Wt = ramp(WHITE, k), Rd = ramp(['#6a1018', '#a8202a', '#e0483a', '#ff8a6a'], k);
+    for (let yy = 0; yy < h; yy++) {
+      const ww = Math.round(lerp(5, 3, yy / h));
+      for (let xx = 0; xx < ww; xx++) {
+        const band = ((yy / 4) | 0) % 3 === 1;
+        const P = band ? Rd : Wt; const i = xx === 0 ? P.length - 1 : xx === ww - 1 ? 1 : P.length - 2;
+        V.put(pb, x - (ww >> 1) + xx, y - yy, P[i]);
+      }
+    }
+    V.rect(pb, x - 2, y - h - 3, 5, 3, U(V.hzc('#ffe9a0', k))); V.put(pb, x, y - h - 4, U(V.hzc('#3a3a4a', k)));
+    return { lx: x, ly: y - h - 2 };
+  };
+})();
+
+/* ===== 17f_vista_tech.js ===== */
+/* =====================================================================
+   17f_vista_tech.js — Tecnología del panorama (VISTA) en 3/4 elevado:
+   aerogeneradores (torre estática + rotor en tira de 12 cuadros), filas
+   FV inclinadas al sol con rejilla y reflejo de cielo, planta de H₂
+   (torre blanca + tanques esmeralda), cadena desaladora SYNARA en su
+   plataforma (CAPTACIÓN → PRETRATAMIENTO → MEMBRANAS → AGUA POTABLE,
+   SALMUERA), tuberías y tubería de permeado luminosa.
+   API:
+     VISTA.cylV(pb, cx, y, rx, h, ramp, {k, dome, bands:[[y,h,ramp?]], ell})
+     VISTA.cylH(pb, x, cy, len, r, ramp, {k, caps})
+     VISTA.pipe(pb, pts, r, ramp, {k})                      polilínea ortogonal
+     VISTA.turbineTower(pb, x, y, h, {k, w}) → {hx, hy}
+     VISTA.rotor(R, {k}) → tira 12 cuadros;  VISTA.drawRotor(g, rot, x, y, ang)
+     VISTA.pvArray(pb, x, y, {tables, cols, rows, cw, ch, gap, skew, k, step}) → {x0,y0,x1,y1}
+     VISTA.h2Plant(pb, x, y, {k, s}) → {label:{x,y}, glows:[[x,y,r]]}
+     VISTA.desalChain(pb, x, y, {k, s}) → {anchors{captacion,pretrat,membranas,potable,salmuera}, perm:[pts], outfall:{x,y}}
+     VISTA.drawFlow(g, pts, ox, oy, t, {col, speed, gap})   chevrones que avanzan por la tubería
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  const ramp = (r, k) => V.P32(V.hz(r, k || 0));
+  const STEEL = ['#3a3d48', '#5a5961', '#716f76', '#948e91', '#b5aba8', '#d3ccc5', '#e8e4de', '#f6f4f0'];
+  const CONC = ['#2a3444', '#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#e2d2c0', '#f5e5c3'];
+  V.TECH = { STEEL, CONC };
+  /** Cilindro vertical: especular al 25–35 %, sombra de núcleo al 80–90 %, luz reflejada */
+  V.cylV = function (pb, cx, y, rx, h, rp, o = {}) {
+    const R = ramp(rp, o.k), n = R.length, ell = o.ell ?? Math.max(1, Math.round(rx * 0.4));
+    const shadeAt = (t) => t < 0.08 ? n - 3 : t < 0.22 ? n - 2 : t < 0.36 ? n - 1 : t < 0.55 ? n - 3 : t < 0.72 ? n - 4 : t < 0.9 ? Math.max(0, n - 6) : Math.max(0, n - 5);
+    for (let xx = -rx; xx <= rx; xx++) {
+      const t = (xx + rx) / (2 * rx + 0.001), c = Math.sqrt(Math.max(0, 1 - (xx / (rx + 0.5)) ** 2));
+      const off = Math.round(c * ell);
+      for (let yy = 0; yy < h; yy++) {
+        let i = shadeAt(t);
+        if (o.bands) for (const b of o.bands) if (yy >= b[0] && yy < b[0] + b[1]) { const BR = b[2] ? ramp(b[2], o.k) : null; i = BR ? -1 : Math.max(0, i - 2); if (BR) V.put(pb, cx + xx, y - yy + off, BR[clamp(Math.round((1 - t) * (BR.length - 1)), 0, BR.length - 1)]); }
+        if (i >= 0) V.put(pb, cx + xx, y - yy + off, R[i]);
+      }
+      // sombra de contacto
+      V.put(pb, cx + xx, y + off + 1, R[0]);
+    }
+    // tapa: elipse clara o cúpula
+    const top = y - h;
+    if (o.dome) {
+      const dh = Math.round(rx * (o.dome === true ? 0.8 : o.dome));
+      V.ellipse(pb, cx + 0.5, top + 0.5, rx + 0.5, dh + 0.5, (nx, ny) => ny > 0 ? 0 : R[clamp(Math.round((0.75 - nx * 0.5 - ny * 0.2) * (n - 1)), 1, n - 1)]);
+    } else V.ellipse(pb, cx + 0.5, top + 0.5, rx + 0.5, ell + 0.5, (nx, ny) => R[ny < -0.2 ? n - 1 : n - 2]);
+    return { top: top - (o.dome ? Math.round(rx * 0.8) : ell) };
+  };
+  /** Cilindro horizontal (recipiente a presión): línea casi blanca al 25–35 % desde arriba */
+  V.cylH = function (pb, x, cy, len, r, rp, o = {}) {
+    const R = ramp(rp, o.k), n = R.length, CAP = o.caps ? ramp(o.caps, o.k) : null;
+    for (let yy = -r; yy <= r; yy++) {
+      const t = (yy + r) / (2 * r + 0.001);
+      const i = t < 0.12 ? 1 : t < 0.3 ? n - 1 : t < 0.5 ? n - 2 : t < 0.75 ? n - 4 : t < 0.9 ? 2 : 0;
+      for (let xx = 0; xx < len; xx++) V.put(pb, x + xx, cy + yy, R[clamp(i - (xx === len - 1 ? 1 : 0), 0, n - 1)]);
+      if (CAP) { const ci = clamp(CAP.length - 1 - Math.round(t * (CAP.length - 1)), 0, CAP.length - 1); V.put(pb, x - 1, cy + yy, CAP[ci]); V.put(pb, x + len, cy + yy, CAP[Math.max(0, ci - 1)]); if (len > 6) V.put(pb, x, cy + yy, CAP[ci]); }
+    }
+  };
+  /** Tubería por puntos (segmentos horizontales/verticales), sombreado por orientación */
+  V.pipe = function (pb, pts, r, rp, o = {}) {
+    const R = ramp(rp, o.k), n = R.length;
+    for (let s = 0; s + 1 < pts.length; s++) {
+      const [x0, y0] = pts[s], [x1, y1] = pts[s + 1];
+      const horiz = Math.abs(y1 - y0) < Math.abs(x1 - x0);
+      const len = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+      for (let i = 0; i <= len; i++) {
+        const t = i / Math.max(1, len), px = Math.round(lerp(x0, x1, t)), py = Math.round(lerp(y0, y1, t));
+        for (let q = -r; q <= r; q++) {
+          const u = (q + r) / (2 * r + 0.001);
+          const idx = u < 0.2 ? (horiz ? n - 1 : n - 1) : u < 0.5 ? n - 2 : u < 0.8 ? Math.max(1, n - 4) : 0;
+          if (horiz) V.put(pb, px, py + q, R[idx]); else V.put(pb, px + q, py, R[idx]);
+        }
+        if (o.flange && i % o.flange === 0 && i > 0 && i < len) for (let q = -r - 1; q <= r + 1; q++) { if (horiz) V.put(pb, px, py + q, R[n - 2]); else V.put(pb, px + q, py, R[n - 2]); }
+      }
+    }
+  };
+  /* ---------------- aerogeneradores ---------------- */
+  const TURB = ['#68708c', '#8890aa', '#a8b0c6', '#cdd3e2', '#eef1f8', '#ffffff'];
+  V.turbineTower = function (pb, x, y, h, o = {}) {
+    const R = ramp(TURB, o.k), n = R.length, w0 = o.w || (h > 40 ? 3 : 2);
+    for (let yy = 0; yy < h; yy++) {
+      const w = yy > h * 0.55 ? Math.max(1, w0 - 1) : w0;
+      for (let xx = 0; xx < w; xx++) V.put(pb, x - (w >> 1) + xx, y - yy, R[w === 1 ? n - 2 : xx === 0 ? n - 1 : xx === w - 1 ? 1 : n - 3]);
+    }
+    // góndola
+    const ty = y - h;
+    for (let xx = -1; xx <= 3; xx++) { V.put(pb, x + xx, ty - 1, R[xx < 1 ? n - 1 : n - 2]); V.put(pb, x + xx, ty, R[xx < 1 ? n - 3 : 2]); }
+    V.put(pb, x - 2, ty - 1, R[n - 2]); V.put(pb, x - 2, ty, R[2]);
+    return { hx: x - 2, hy: ty };
+  };
+  const _rot = new Map();
+  /** Rotor de 3 palas en tira de 12 cuadros (120°/12) */
+  V.rotor = function (Rl, o = {}) {
+    const key = Rl + '|' + (o.k || 0); let s = _rot.get(key); if (s) return s;
+    const R = ramp(TURB, o.k), n = R.length, S = Rl * 2 + 5, c = Rl + 2;
+    s = V.strip(12, S, S, (pb, f) => {
+      for (let b = 0; b < 3; b++) {
+        const a = (f / 12) * (TAU / 3) + b * TAU / 3 - Math.PI / 2;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        for (let i = 1; i <= Rl; i += 0.5) {
+          const px = Math.round(c + ca * i), py = Math.round(c + sa * i);
+          V.put(pb, px, py, R[i < Rl * 0.3 ? n - 2 : n - 1]);
+          // borde de sombra (lado de salida) en la raíz de la pala
+          if (i < Rl * 0.55) V.put(pb, Math.round(c + ca * i - sa), Math.round(c + sa * i + ca), R[2]);
+        }
+      }
+      V.rect(pb, c - 1, c - 1, 2, 2, R[n - 3]); V.put(pb, c - 1, c - 1, R[n - 1]);
+    });
+    s.c0 = c; _rot.set(key, s); return s;
+  };
+  V.drawRotor = function (g, rot, x, y, ang) {
+    const k = ((ang % (TAU / 3)) + TAU / 3) % (TAU / 3);
+    V.drawStrip(g, rot, Math.floor(k / (TAU / 3) * 12), x - rot.c0, y - rot.c0);
+  };
+  /* ---------------- fotovoltaica ---------------- */
+  const PV = ['#16214a', '#1e2a55', '#2a3a6c', '#344675', '#3f5590', '#4f6391', '#6a7aa4', '#8b9cc2', '#b7c7e7'];
+  V.pvArray = function (pb, x, y, o = {}) {
+    const k = o.k || 0, P = ramp(PV, k), n = P.length;
+    const FR = U(V.hzc(o.frame || '#d7dbe8', k)), GR = U(V.hzc('#9fb0d6', k)), LEG = U(V.hzc('#2a2c3c', k)), SH = U(V.hzc('#3a2a2a', k));
+    const tables = o.tables || 3, cols = o.cols || 8, rows = o.rows || 2, cw = o.cw || 5, ch = o.ch || 3, gap = o.gap ?? 4, skew = o.skew ?? 3;
+    const tw = cols * (cw + 1) + 1, th = rows * (ch + 1) + 1;
+    const step = o.step ?? (th + gap);
+    let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+    for (let ti = tables - 1; ti >= 0; ti--) {
+      const yb = y - ti * step, xo = x + ti * (o.shift ?? 2);
+      // sombra arrojada sobre el suelo y patas
+      for (let xx = 0; xx < tw; xx++) { const c = V.get(pb, xo + xx + 2, yb + 2); if (c >>> 24) V.put(pb, xo + xx + 2, yb + 2, V.shU(c, -0.3, 260)); }
+      for (let xx = 2; xx < tw; xx += Math.max(6, (cw + 1) * 2)) { V.put(pb, xo + xx, yb + 1, LEG); V.put(pb, xo + xx, yb + 2, LEG); }
+      for (let yy = 0; yy < th; yy++) {
+        const sk = Math.round(skew * yy / th);
+        for (let xx = 0; xx < tw; xx++) {
+          const px = xo + xx + sk, py = yb - yy;
+          const gx = xx % (cw + 1) === 0, gy = yy % (ch + 1) === 0;
+          let u;
+          if (yy === th - 1) u = FR; else if (yy === 0) u = P[0];
+          else if (gx || gy) u = GR;
+          else {
+            // reflejo de cielo: abajo-izquierda oscuro → arriba-derecha claro, con brillo diagonal
+            const t = clamp(0.15 + (xx / tw) * 0.45 + (yy / th) * 0.35 + (((xx + yy * 2 + ti * 5) % 23) < 3 ? 0.25 : 0), 0, 0.999);
+            u = P[V.band(t, n - 1, px, py, 0.04, 31)];
+          }
+          V.put(pb, px, py, u);
+        }
+      }
+      bx0 = Math.min(bx0, xo); bx1 = Math.max(bx1, xo + tw + skew); by0 = Math.min(by0, yb - th); by1 = Math.max(by1, yb + 2);
+    }
+    return { x0: bx0, y0: by0, x1: bx1, y1: by1 };
+  };
+  /* ---------------- hidrógeno verde ---------------- */
+  const H2G = ['#0a3a24', '#125c38', '#1f7a4c', '#2f9e62', '#3fbf7a', '#4cd48e', '#80ecc2', '#c7ecd1'];
+  const H2W = ['#4b5b4a', '#727c63', '#8b878b', '#a8a8a0', '#c0bfb1', '#d8dad0', '#ebeee4', '#ffffff'];
+  V.h2Plant = function (pb, x, y, o = {}) {
+    const k = o.k || 0, s = o.s || 1, G = ramp(H2G, k), Wt = H2W;
+    const glows = [];
+    // losa
+    V.box3q(pb, x - 4, y + 2, Math.round(96 * s), 3, 6, { ramp: CONC, k });
+    // nave de electrolizadores
+    V.box3q(pb, x, y, Math.round(22 * s), Math.round(12 * s), 8, { ramp: Wt, k });
+    for (let i = 0; i < 4; i++) { const px = x + 2 + i * 5; for (let yy = y - Math.round(9 * s); yy < y - 3; yy++) V.put(pb, px, yy, G[(yy & 1) ? 4 : 5]); glows.push([px, y - 6, 3]); }
+    // torre blanca alta con tuberías esmeralda en arco
+    const tx = x + Math.round(32 * s), th = Math.round(46 * s), trx = Math.round(6 * s);
+    V.cylV(pb, tx, y, trx, th, Wt, { k, dome: 0.6, bands: [[Math.round(th * 0.2), 2], [Math.round(th * 0.62), 2], [Math.round(th * 0.86), 2]] });
+    V.pipe(pb, [[tx - trx - 3, y], [tx - trx - 3, y - th + 2], [tx - 2, y - th - 4]], 1, H2G, { k });
+    V.pipe(pb, [[tx + trx + 3, y], [tx + trx + 3, y - th + 2], [tx + 2, y - th - 4]], 1, H2G, { k });
+    for (const yy of [y - Math.round(th * 0.35), y - Math.round(th * 0.7)]) glows.push([tx - trx - 3, yy, 3], [tx + trx + 3, yy, 3]);
+    // tanques esmeralda con cúpula blanca
+    for (let i = 0; i < 4; i++) {
+      const cx = x + Math.round((48 + i * 12) * s), rx = Math.round(4.5 * s), hh = Math.round((15 + (i % 2) * 2) * s);
+      V.cylV(pb, cx, y, rx, hh, H2G, { k, dome: 0.85, bands: [[hh - 3, 3, Wt]] });
+      for (let yy = y - hh + 5; yy < y - 2; yy += 3) { V.put(pb, cx - 1, yy, G[7]); V.put(pb, cx, yy, G[6]); }
+      glows.push([cx, y - Math.round(hh * 0.5), 5]);
+    }
+    // colector bajo
+    V.pipe(pb, [[x + Math.round(22 * s), y - 3], [x + Math.round(92 * s), y - 3]], 1, H2G, { k });
+    return { label: { x: tx + 2, y: y - th - 10 }, glows, x0: x - 4, x1: x + Math.round(96 * s) };
+  };
+  /* ---------------- desaladora SYNARA (vista lejana) ---------------- */
+  const PERM = ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd'];
+  const BRP = ['#080e26', '#12162f', '#2a2c44', '#3a405d', '#584f56', '#787a9b'];
+  const MEMB = ['#092647', '#31506f', '#427ca5', '#7aa6c4', '#b6d4e4', '#e8f2f6'];
+  V.desalChain = function (pb, x, y, o = {}) {
+    const k = o.k || 0, s = o.s || 1;
+    const S = (v) => Math.round(v * s);
+    const BL = ramp(V.ARCH.BLUEW, k);
+    const A = {};
+    // plataforma de hormigón sobre el mar
+    const PW = S(230), PH = S(8);
+    V.box3q(pb, x, y, PW, PH, S(14), { ramp: CONC, k, front: 5, side: 2, top: 6 });
+    const C = ramp(CONC, k), stain = U(V.hzc('#4b586e', k));
+    for (let xx = 0; xx < PW; xx++) { if (xx % S(16) === 0) for (let yy = y - PH + 1; yy < y; yy++) V.put(pb, x + xx, yy, C[2]); for (let yy = y - 2; yy < y; yy++) V.put(pb, x + xx, yy, stain); }
+    const top = y - PH - S(2); // apoyo de los equipos sobre el techo de la plataforma
+    // 1. CAPTACIÓN: nave con cubierta de cristal azul abovedada
+    const cx0 = x + S(8), cw = S(38), chh = S(12);
+    V.box3q(pb, cx0, top, cw, chh, S(8), { ramp: STEEL, k });
+    for (let xx = 0; xx < cw + S(4); xx++) {
+      const t = xx / (cw + S(4)), vh = Math.round(Math.sin(t * Math.PI) * S(5));
+      for (let yy = 0; yy <= vh + 2; yy++) V.put(pb, cx0 + xx, top - chh - yy, BL[clamp(2 + Math.round((yy / (vh + 2)) * 4) - (xx % 6 === 0 ? 1 : 0), 0, BL.length - 1)]);
+    }
+    for (let i = 0; i < 5; i++) for (let yy = top - chh + 3; yy < top - 3; yy++) V.put(pb, cx0 + 4 + i * S(7), yy, BL[1 + (yy & 1)]);
+    A.captacion = { x: cx0 + cw / 2, y: top - chh - S(7) };
+    // tubería de agua de mar a pretratamiento
+    V.pipe(pb, [[cx0 + cw, top - 4], [cx0 + cw + S(14), top - 4]], 1, STEEL, { k });
+    // 2. PRETRATAMIENTO: tambor horizontal + 3 tanques blancos
+    const px0 = cx0 + cw + S(10);
+    V.cylH(pb, px0, top - S(5), S(16), S(4), STEEL, { k, caps: ['#163e66', '#245f90', '#31b4e2'] });
+    for (let i = 0; i < 3; i++) V.cylV(pb, px0 + S(24) + i * S(10), top, S(4), S(18), STEEL, { k, dome: 0.7, bands: [[S(12), 2, ['#163e66', '#245f90', '#31b4e2']]] });
+    A.pretrat = { x: px0 + S(26), y: top - S(26) };
+    // bombeo de alta presión (pequeño) y 3. MEMBRANAS: bastidor con 3 tubos de presión
+    const mx0 = px0 + S(58);
+    V.box3q(pb, mx0 - S(8), top, S(7), S(6), S(4), { ramp: ['#3a1a10', '#6a2a1a', '#a8402a', '#d8603a', '#f0905a'], k });
+    const FR = U(V.hzc('#4f4d51', k));
+    for (let yy = top - S(17); yy < top; yy++) { V.put(pb, mx0, yy, FR); V.put(pb, mx0 + S(40), yy, FR); }
+    for (let i = 0; i < 3; i++) V.cylH(pb, mx0 + 2, top - S(4) - i * S(5), S(36), S(2), MEMB, { k, caps: ['#163e66', '#245f90', '#31b4e2'] });
+    for (let xx = mx0; xx <= mx0 + S(40); xx++) V.put(pb, xx, top - S(17), FR);
+    A.membranas = { x: mx0 + S(20), y: top - S(20) };
+    // 4. AGUA POTABLE: bloque de postratamiento + depósito con banda cian
+    const ax0 = mx0 + S(50);
+    V.box3q(pb, ax0, top, S(16), S(10), S(7), { ramp: V.ARCH.WHITE, k });
+    for (let i = 0; i < 3; i++) V.put(pb, ax0 + 3 + i * 4, top - S(6), BL[3]);
+    V.cylV(pb, ax0 + S(26), top, S(6), S(14), V.ARCH.WHITE, { k, dome: 0.5, bands: [[S(5), 3, PERM]] });
+    A.potable = { x: ax0 + S(14), y: top - S(22) };
+    // tubería de permeado luminosa (sale del depósito y sube por la ladera)
+    const perm = [[ax0 + S(33), top - S(6)], [ax0 + S(46), top - S(6)], [ax0 + S(46), top - S(20) - (o.climb || 0)]];
+    if (o.permTo) perm.push(...o.permTo);
+    V.pipe(pb, perm, 1, PERM, { k: k * 0.5 });
+    // 5. SALMUERA: tubería grafito que baja al mar (emisario)
+    const sx0 = mx0 + S(42);
+    V.pipe(pb, [[sx0, top - S(3)], [sx0 + S(4), top - S(3)], [sx0 + S(4), y + S(6)]], 1, BRP, { k: k * 0.5 });
+    A.salmuera = { x: sx0 + S(4), y: y + S(6) };
+    // barandilla amarilla y farolas
+    const YL = U(V.hzc('#f0c040', k));
+    for (let xx = x + 2; xx < x + PW - 2; xx++) if (xx % 4 === 0) V.put(pb, xx, y - PH - 1, YL);
+    return { anchors: A, perm, outfall: A.salmuera, x0: x, x1: x + PW, top };
+  };
+  /** Chevrones que avanzan por una polilínea (≤ ~2 fillRect por segmento visible) */
+  V.drawFlow = function (g, pts, ox, oy, t, o = {}) {
+    const sp = o.speed ?? 14, gap = o.gap ?? 7;
+    g.fillStyle = o.col || '#e8feff';
+    let acc = 0;
+    for (let s = 0; s + 1 < pts.length; s++) {
+      const [x0, y0] = pts[s], [x1, y1] = pts[s + 1];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      let d = (gap - ((t * sp - acc) % gap + gap) % gap);
+      for (; d < len; d += gap) { const u = d / len; g.fillRect(Math.round(lerp(x0, x1, u) + ox), Math.round(lerp(y0, y1, u) + oy), 1, 1); }
+      acc += len;
+    }
+  };
+})();
+
+/* ===== 17g_vista_life.js ===== */
+/* =====================================================================
+   17g_vista_life.js — Naturaleza y vida del panorama (VISTA):
+   árboles de copa redonda, palmeras, matorrales, huertos, terrazas
+   agrícolas en 3/4 (muro de roca + cara superior con hileras de cultivo
+   y canal turquesa), cascadas (base estática + tira de agua que corre),
+   fauna lejana (gaviotas, drones, águila) y motas de polen/sal.
+   API:
+     VISTA.tree(pb, x, y, r, seed, {k, ramp, trunk})
+     VISTA.palm(pb, x, y, h, lean, seed, {k})
+     VISTA.shrub(pb, x, y, r, seed, {k, ramp})
+     VISTA.scatterVeg(pb, surfFn, x0, x1, seed, {k, gap, mix})
+     VISTA.terraces(pb, {x0, x1, yBase, steps, wallH, topD, shrink, k, seed, kinds, channel, falls}) → {steps, falls}
+     VISTA.fall(pb, x, y0, y1, w, {k})                      cascada estática
+     VISTA.fallTex(w, h) → lienzo de vetas;  VISTA.drawFalls(g, falls, ox, oy, t)
+     VISTA.drawFauna(g, list, ox, oy, t)   list: [{kind:'gull'|'drone'|'eagle', x, y, r, sp}]
+     VISTA.drawMotes(g, n, t, seed, {y0, y1, col})
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  const ramp = (r, k) => V.P32(V.hz(r, k || 0));
+  const FOL = ['#111908', '#1f2e10', '#2f4418', '#46601c', '#617517', '#7f9222', '#9caf2e', '#c1cd3d', '#e0dc5a'];
+  const PALM = ['#1c2006', '#34380c', '#4f5214', '#6d7020', '#8c8a30', '#a9a23e', '#ccc94a', '#eddc8a'];
+  const TRUNK = ['#2a1a0a', '#4a3018', '#6b5020', '#8a6a34', '#a8844a'];
+  V.LIFE = { FOL, PALM, TRUNK };
+  /** Copa redonda de 3–5 lóbulos con hojas en clusters, luz arriba-izquierda */
+  V.tree = function (pb, x, y, r, seed, o = {}) {
+    const R = ramp(o.ramp || FOL, o.k), n = R.length, rr = RNG(seed);
+    const T = ramp(TRUNK, o.k);
+    const th = Math.max(1, Math.round(r * 0.7));
+    for (let yy = 0; yy < th; yy++) { V.put(pb, x, y - yy, T[2]); if (r > 4) V.put(pb, x + 1, y - yy, T[1]); }
+    const cy = y - th - r * 0.7;
+    const lobes = [[0, 0, r]];
+    const nl = 2 + rr.int(1, 3);
+    for (let i = 0; i < nl; i++) { const a = rr.range(-Math.PI, 0), d = r * rr.range(0.35, 0.6); lobes.push([Math.cos(a) * d, Math.sin(a) * d * 0.7 + r * 0.15, r * rr.range(0.5, 0.75)]); }
+    const x0 = Math.floor(x - r * 1.6), x1 = Math.ceil(x + r * 1.6), y0 = Math.floor(cy - r * 1.6), y1 = Math.ceil(cy + r * 1.2);
+    for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+      let best = -1, bz = 0, bn = null;
+      for (const [lx, ly, lr] of lobes) {
+        const dx = px + 0.5 - (x + lx), dy = py + 0.5 - (cy + ly), q = lr * lr - dx * dx - dy * dy;
+        if (q > 0) { const z = Math.sqrt(q); if (z > bz) { bz = z; best = 1; bn = [dx / lr, dy / lr, z / lr]; } }
+      }
+      if (best < 0) continue;
+      // contorno con mordiscos de hoja
+      if (bn[2] < 0.35 && hash2(px, py, seed) < 0.35) continue;
+      const I = -bn[0] * 0.55 - bn[1] * 0.6 + bn[2] * 0.5;
+      const chip = (hash2(px >> 1, py >> 1, seed + 1) - 0.5) * 0.35;
+      const t = clamp(0.45 + I * 0.6 + chip, 0, 0.999);
+      V.put(pb, px, py, R[Math.min(n - 1, Math.floor(t * (n - 1)) + 0)]);
+    }
+  };
+  /** Palmera: tronco curvo anillado + 8–10 frondas que cuelgan con foliolos */
+  V.palm = function (pb, x, y, h, lean, seed, o = {}) {
+    const R = ramp(PALM, o.k), T = ramp(TRUNK, o.k), rr = RNG(seed), n = R.length;
+    let tx = x, ty = y;
+    for (let i = 0; i < h; i++) {
+      const t = i / h; tx = x + lean * t * t; ty = y - i;
+      V.put(pb, Math.round(tx), ty, T[(i % 3 === 0) ? 1 : 3]);
+      if (h > 26) V.put(pb, Math.round(tx) + 1, ty, T[(i % 3 === 0) ? 0 : 2]);
+    }
+    const cx = Math.round(tx), cy = ty;
+    const nf = o.fronds || (h > 26 ? 10 : 8), L0 = Math.max(5, h * 0.42);
+    for (let f = 0; f < nf; f++) {
+      const a = (f / nf) * Math.PI * 1.15 - Math.PI * 0.075 + rr.range(-0.12, 0.12); // 0..π (izq→der por arriba)
+      const L = L0 * rr.range(0.8, 1.15), droop = rr.range(0.55, 0.95);
+      const dx = -Math.cos(a), dy = -Math.sin(a);
+      for (let i = 1; i <= L; i++) {
+        const u = i / L;
+        const px = Math.round(cx + dx * i), py = Math.round(cy + dy * i * (1 - u * 0.5) + droop * u * u * L * 0.9);
+        const lit = dx < 0.2 && dy < -0.2 ? 2 : 0;
+        V.put(pb, px, py, R[clamp(4 + lit - (u > 0.8 ? 1 : 0), 0, n - 1)]);
+        if (i > 2 && i % 2 === 0) { V.put(pb, px, py + 1, R[clamp(2 + (lit >> 1), 0, n - 1)]); if (u < 0.85) V.put(pb, px + (dx > 0 ? 1 : -1), py + 2, R[1]); }
+      }
+    }
+    V.put(pb, cx, cy, R[6]); V.put(pb, cx - 1, cy, R[5]); V.put(pb, cx, cy + 1, T[0]);
+    if (rr.chance(0.6)) { V.put(pb, cx + 1, cy + 1, U(V.hzc('#e8a030', o.k || 0))); V.put(pb, cx - 1, cy + 1, U(V.hzc('#c07020', o.k || 0))); }
+  };
+  /** Matorral de 2–3 lóbulos (borde mordido) */
+  V.shrub = function (pb, x, y, r, seed, o = {}) {
+    const R = ramp(o.ramp || FOL, o.k), n = R.length;
+    V.ellipse(pb, x + 0.5, y - r * 0.6, r + 0.5, r * 0.75 + 0.5, (nx, ny, d, px, py) => {
+      if (d > 0.7 && hash2(px, py, seed) < 0.4) return 0;
+      const t = clamp(0.5 - nx * 0.3 - ny * 0.45 + (hash2(px >> 1, py, seed) - 0.5) * 0.3, 0, 0.999);
+      return R[Math.floor(t * (n - 1))];
+    });
+  };
+  /** Esparce vegetación sobre una superficie surf(x) → y */
+  V.scatterVeg = function (pb, surf, x0, x1, seed, o = {}) {
+    const r = RNG(seed), k = o.k || 0, gap = o.gap || 9;
+    const mix = o.mix || { tree: 2, shrub: 4, palm: 1 };
+    const keys = Object.keys(mix), tot = keys.reduce((a, b) => a + mix[b], 0);
+    for (let x = x0 + r.int(0, gap); x < x1; x += Math.max(3, Math.round(gap * r.range(0.5, 1.5)))) {
+      const y = surf(x); if (y == null || y >= pb.h || y < 0) continue;
+      let q = r() * tot, kind = keys[0];
+      for (const kk of keys) { q -= mix[kk]; if (q <= 0) { kind = kk; break; } }
+      const s = o.scale || 1;
+      if (kind === 'tree') V.tree(pb, x, y + 1, Math.round(r.range(3, 6) * s), seed + x, { k, ramp: o.ramp });
+      else if (kind === 'palm') V.palm(pb, x, y + 1, Math.round(r.range(14, 24) * s), r.range(-4, 4), seed + x, { k });
+      else if (kind === 'shrub') V.shrub(pb, x, y + 1, Math.round(r.range(2, 4) * s), seed + x, { k, ramp: o.ramp });
+      else if (kind === 'flower') { const F = ramp(r.chance(0.5) ? RAMP.bougainR : RAMP.flowerR, k); for (let i = 0; i < 5; i++) V.put(pb, x + r.int(-2, 2), y - r.int(0, 2), F[r.int(1, F.length - 1)]); }
+    }
+  };
+  /* ---------------- terrazas agrícolas en 3/4 ---------------- */
+  const WALL = ['#3e1a14', '#5e2a1e', '#82494a', '#a0583a', '#c0703e', '#e1956c', '#f0b07a', '#f8c888'];
+  const SOIL = ['#4a3418', '#5a431c', '#7a5a2a', '#86502d', '#a8683a', '#cb824a'];
+  const CROP = ['#1c3a1c', '#2e5426', '#3f6e2e', '#5a8a34', '#7aa83c', '#99c04a', '#bfd85a', '#e0e87a'];
+  const CHAN = ['#065481', '#0a8ab0', '#11bedd', '#3adcf1', '#bde9f2'];
+  V.terraces = function (pb, o) {
+    const r = RNG(o.seed || 1), k = o.k || 0;
+    const Wl = ramp(o.wall || WALL, k), So = ramp(SOIL, k), Cr = ramp(CROP, k), Ch = ramp(CHAN, k);
+    const nW = Wl.length;
+    const steps = [];
+    let foot = o.yBase, L = o.x0, Rr = o.x1;
+    for (let i = 0; i < (o.steps || 4); i++) {
+      const wh = r.int(o.wallH?.[0] ?? 6, o.wallH?.[1] ?? 10), td = r.int(o.topD?.[0] ?? 4, o.topD?.[1] ?? 6);
+      const wallTop = foot - wh;
+      steps.push({ i, x0: Math.round(L), x1: Math.round(Rr), foot, wallTop, topY: wallTop - td, td, kind: (o.kinds && o.kinds[i]) || r.pick(['rows', 'rows', 'orchard', 'vine']) });
+      foot = wallTop - td;
+      const sh = o.shrink || [8, 14];
+      L += r.int(sh[0], sh[1]) * (o.leftK ?? 1); Rr -= r.int(sh[0], sh[1]) * (o.rightK ?? 1);
+      if (Rr - L < 16) break;
+    }
+    // de arriba abajo: los escalones bajos (más cercanos) tapan a los de atrás
+    for (let si = steps.length - 1; si >= 0; si--) {
+      const s = steps[si];
+      const jag = (x) => Math.round((vnoise(x * 0.3, si, 5) - 0.5) * 2);
+      // cara superior (cultivo)
+      for (let y = s.topY; y < s.wallTop; y++) for (let x = s.x0 + 1; x < s.x1 - 1; x++) {
+        const v = (y - s.topY) / s.td;
+        let u;
+        if (s.kind === 'rows') {
+          const row = (y - s.topY) % 2;
+          u = row ? So[2 + (hash2(x, y, 3) < 0.3 ? 1 : 0)] : Cr[clamp(3 + Math.round((1 - v) * 3) + (hash2(x >> 1, y, 9) < 0.25 ? -1 : 0) + ((x >> 3) % 2), 0, 7)];
+        } else if (s.kind === 'vine') u = (x % 3 === 0) ? So[3] : Cr[clamp(2 + Math.round((1 - v) * 3) + (hash2(x, y, 4) < 0.3 ? 1 : 0), 0, 7)];
+        else u = So[1 + (hash2(x, y, 5) < 0.4 ? 1 : 0)];
+        V.put(pb, x, y, u);
+      }
+      if (s.kind === 'orchard') for (let x = s.x0 + 3; x < s.x1 - 3; x += r.int(5, 7)) V.tree(pb, x, s.wallTop - 1 - r.int(0, Math.max(0, s.td - 3)), r.int(2, 3), x * 7 + si, { k, ramp: CROP });
+      // muro de roca: bloques con grietas, borde superior claro, AO al pie
+      const bw = r.int(5, 8);
+      for (let y = s.wallTop; y < s.foot; y++) for (let x = s.x0; x < s.x1; x++) {
+        const v = (y - s.wallTop) / Math.max(1, s.foot - s.wallTop);
+        const bx = Math.floor((x + (Math.floor((y - s.wallTop) / 4) % 2) * 3) / bw), by = Math.floor((y - s.wallTop) / 4);
+        const crackV = (x + (by % 2) * 3) % bw === 0, crackH = (y - s.wallTop) % 4 === 3;
+        const blk = hash2(bx, by + si * 17, 11);
+        let i = Math.round(5 - v * 2.2 + (blk - 0.5) * 2);
+        if (crackV || crackH) i = 1 + (blk < 0.5 ? 0 : 1);
+        if (x === s.x0) i = Math.min(i, 3);
+        if (x >= s.x1 - 2) i = Math.max(0, i - 2);
+        if (y === s.wallTop) i = nW - 1;
+        if (y >= s.foot - 1) i = 0;
+        V.put(pb, x, y, Wl[clamp(i, 0, nW - 1)]);
+      }
+      // canal turquesa en el borde frontal de la cara superior
+      if (o.channel !== false && si > 0 && r.chance(0.7)) for (let x = s.x0 + 2; x < s.x1 - 2; x++) { V.put(pb, x, s.wallTop - 1, Ch[(x + si) % 7 === 0 ? 4 : 2]); V.put(pb, x, s.wallTop - 2, Ch[3]); }
+      // plantas colgando del borde y matas en el pie
+      for (let x = s.x0 + 1; x < s.x1 - 1; x++) if (hash2(x, si, 21) < 0.12) { const len = 1 + (hash2(x, si, 22) * 3 | 0); for (let q = 0; q < len; q++) V.put(pb, x, s.wallTop + 1 + q, Cr[3 - Math.min(2, q)]); }
+    }
+    // cascadas que bajan por los muros desde los canales
+    const falls = [];
+    for (const f of (o.falls || [])) {
+      const s0 = steps[Math.min(steps.length - 1, f.from)]; if (!s0) continue;
+      const fx = Math.round(f.x), w = f.w || 4;
+      for (let si = Math.min(steps.length - 1, f.from); si >= 0; si--) {
+        const s = steps[si]; if (fx < s.x0 || fx + w > s.x1) continue;
+        const y0 = s.wallTop - 1, y1 = s.foot + (si > 0 ? 0 : (f.extra || 0));
+        V.fall(pb, fx, y0, y1, w, { k });
+        falls.push({ x: fx, y0, y1, w });
+        // charca/espuma en la cara inferior
+        if (si > 0) { const sb = steps[si - 1]; for (let x = fx - 2; x < fx + w + 2; x++) { V.put(pb, x, sb.wallTop - 2, Ch[4]); V.put(pb, x, sb.wallTop - 1, Ch[3]); } }
+      }
+    }
+    return { steps, falls };
+  };
+  const FALL = ['#4a7a94', '#73a8c4', '#9cc9df', '#bedfed', '#e5f2f3', '#ffffff'];
+  /** Cascada estática: vetas verticales, borde de luz, espuma y niebla en la base */
+  V.fall = function (pb, x, y0, y1, w, o = {}) {
+    const R = ramp(FALL, o.k), n = R.length;
+    for (let y = y0; y < y1; y++) for (let xx = 0; xx < w; xx++) {
+      const streak = hash2(x + xx, (y + (x + xx) * 7) >> 2, 3);
+      let i = xx === 0 ? n - 2 : xx === w - 1 ? 1 : streak < 0.35 ? 2 : streak < 0.75 ? 3 : 4;
+      if (y < y0 + 2) i = n - 1;
+      V.put(pb, x + xx, y, R[i]);
+    }
+    // espuma y niebla
+    for (let xx = -2; xx < w + 2; xx++) for (let q = 0; q < 3; q++) if (hash2(x + xx, q, 9) < 0.75 - q * 0.2) V.blend(pb, x + xx, y1 - 1 - q + (q === 0 ? 0 : 0), R[n - 1 - (q > 1 ? 1 : 0)], 0.9 - q * 0.25);
+    for (let xx = -3; xx < w + 3; xx++) V.blend(pb, x + xx, y1 - 4, R[n - 2], 0.25);
+  };
+  let _fallTex = null;
+  /** Lienzo de vetas que caen (se recorre con desplazamiento: 1 drawImage por tramo) */
+  V.fallTex = function () {
+    if (_fallTex) return _fallTex;
+    const w = 8, h = 64, pb = new PixelBuffer(w, h * 2);
+    for (let x = 0; x < w; x++) {
+      let y = Math.floor(hash1(x, 4) * h);
+      while (y < h * 2 + 20) {
+        const len = 3 + Math.floor(hash2(x, y, 5) * 7), a = 0.45 + hash2(x, y, 6) * 0.5;
+        for (let q = 0; q < len; q++) { const yy = (y + q) % (h * 2); V.blend(pb, x, yy, U(q < 2 ? '#ffffff' : '#d8eef6'), a); }
+        y += len + 2 + Math.floor(hash2(x, y, 7) * 8);
+      }
+    }
+    _fallTex = { c: pb.toCanvas(), w, h };
+    return _fallTex;
+  };
+  /** Agua que corre en las cascadas (y espuma que bulle en la base) */
+  V.drawFalls = function (g, falls, ox, oy, t, o = {}) {
+    const T = V.fallTex(), sp = o.speed ?? 42;
+    const off = Math.floor((t * sp) % T.h);
+    for (const f of falls) {
+      const sx = f.x + ox, sy = f.y0 + oy, hh = f.y1 - f.y0;
+      if (sx > W || sx + f.w < 0 || sy > H || sy + hh < 0) continue;
+      g.globalAlpha = o.alpha ?? 0.85;
+      for (let y = 0; y < hh; y += T.h) {
+        const seg = Math.min(T.h, hh - y);
+        g.drawImage(T.c, (f.x & 3), T.h - off, Math.min(f.w, T.w - (f.x & 3)), seg, sx, sy + y, Math.min(f.w, T.w - (f.x & 3)), seg);
+      }
+      g.globalAlpha = 1;
+      // espuma de base (2 fillRect)
+      const b = Math.floor(t * 6 + f.x) % 3;
+      g.fillStyle = '#ffffff'; g.fillRect(sx - 1 + b, sy + hh - 2, Math.max(1, f.w - 1), 1);
+      g.fillStyle = 'rgba(230,246,250,0.55)'; g.fillRect(sx - 2, sy + hh - 4 - b, f.w + 4, 1);
+    }
+  };
+  /* ---------------- fauna lejana ---------------- */
+  let FA = null;
+  function faunaStrips() {
+    if (FA) return FA;
+    const gull = V.strip(2, 7, 4, (pb, i) => {
+      const Wt = U('#f4f6fb'), G = U('#8a96b0');
+      if (i === 0) { V.put(pb, 1, 1, G); V.put(pb, 2, 2, Wt); V.put(pb, 3, 2, Wt); V.put(pb, 4, 2, Wt); V.put(pb, 5, 1, G); V.put(pb, 0, 0, G); V.put(pb, 6, 0, G); }
+      else { V.put(pb, 0, 3, G); V.put(pb, 1, 2, Wt); V.put(pb, 2, 2, Wt); V.put(pb, 3, 2, Wt); V.put(pb, 4, 2, Wt); V.put(pb, 5, 2, Wt); V.put(pb, 6, 3, G); }
+    });
+    const drone = V.strip(2, 13, 7, (pb, i) => {
+      const S = V.P32(['#141820', '#3a4050', '#8f8f95', '#d3ccc5', '#f2efea']);
+      for (const sd of [-1, 1]) { for (let q = 1; q <= 4; q++) V.put(pb, 6 + sd * q, 3, S[1]); const L = i ? 2 : 1; for (let q = -L; q <= L; q++) V.put(pb, 6 + sd * 5 + q, 2, U(Math.abs(q) === L ? '#9ab0c4' : '#e8f0f8')); }
+      for (let x = 4; x <= 8; x++) { V.put(pb, x, 3, S[4]); V.put(pb, x, 4, x < 6 ? U('#ff9f43') : S[3]); }
+      V.put(pb, 6, 5, S[0]); V.put(pb, 6, 6, U('#17f3f7'));
+    });
+    const eagle = V.strip(4, 17, 9, (pb, i) => {
+      const B = V.P32(['#2a1a10', '#4a3018', '#6a4a26', '#8c6a3c', '#b08a50']);
+      const lift = [-3, -1, 2, -1][i];
+      for (const sd of [-1, 1]) for (let q = 1; q <= 8; q++) { const y = 4 + Math.round(lift * q / 8) + (q > 6 ? 1 : 0); V.put(pb, 8 + sd * q, y, B[q > 6 ? 0 : q > 3 ? 2 : 3]); if (q < 6) V.put(pb, 8 + sd * q, y + 1, B[1]); }
+      V.put(pb, 8, 4, B[3]); V.put(pb, 8, 5, B[2]); V.put(pb, 8, 6, B[1]); V.put(pb, 8, 3, U('#f4f0e6')); V.put(pb, 9, 3, U('#f0b030'));
+    });
+    FA = { gull, drone, eagle }; return FA;
+  }
+  V.drawFauna = function (g, list, ox, oy, t) {
+    const F = faunaStrips();
+    for (const a of list) {
+      if (a.kind === 'gull') {
+        const x = a.x + ((t * (a.sp || 6) + a.x * 3) % (a.r || 200)) - (a.r || 200) / 2, y = a.y + Math.sin(t * 0.8 + a.x) * 3;
+        V.drawStrip(g, F.gull, Math.floor(t * 5 + a.x) % 2, x + ox, y + oy, (a.sp || 6) < 0);
+      } else if (a.kind === 'drone') {
+        const x = a.x + Math.sin(t * 0.25 + a.x * 0.1) * (a.r || 16), y = a.y + Math.sin(t * 1.1 + a.x) * 1.5;
+        V.drawStrip(g, F.drone, Math.floor(t * 24) % 2, x + ox - 6, y + oy - 3);
+        if (Math.floor(t * 2 + a.x) % 2) { g.fillStyle = '#3fe0a0'; g.fillRect(Math.round(x + ox + 2), Math.round(y + oy), 1, 1); }
+      } else if (a.kind === 'eagle') {
+        const u = (t * 0.03 + a.x * 0.001) % 1, x = a.x + Math.sin(u * TAU) * (a.r || 80), y = a.y + Math.sin(u * TAU * 2) * 8;
+        const flap = (t % 5) < 1 ? Math.floor(t * 6) % 4 : 1;
+        V.drawStrip(g, F.eagle, flap, x + ox - 8, y + oy - 4, Math.cos(u * TAU) < 0);
+      }
+    }
+  };
+  /** Motas de polen/sal que derivan (≤ n fillRect) */
+  V.drawMotes = function (g, n, t, seed, o = {}) {
+    const y0 = o.y0 ?? 20, y1 = o.y1 ?? 200;
+    for (let i = 0; i < n; i++) {
+      const hx = hash1(i, seed), hy = hash1(i, seed + 1), ph = hash1(i, seed + 2) * TAU;
+      const x = ((hx * (W + 40) + t * (5 + hy * 6)) % (W + 40)) - 20, y = y0 + hy * (y1 - y0) + Math.sin(t * 0.7 + ph) * 6;
+      const a = (Math.sin(t * 1.3 + ph) + 1) * 0.5;
+      if (a < 0.3) continue;
+      g.fillStyle = i % 3 ? (o.col || '#fff6d0') : '#ffffff';
+      g.globalAlpha = 0.35 + a * 0.5; g.fillRect(Math.round(x), Math.round(y), 1, 1);
+    }
+    g.globalAlpha = 1;
+  };
+})();
+
+/* ===== 17z_vista_test.js ===== */
+/* =====================================================================
+   17z_vista_test.js — Banco de pruebas del panorama (solo fondo).
+   Uso: ?test=scene&s=VISTA_TEST&p={"lv":1,"cx":0,"cy":50,"guide":1}
+     cx, cy: cámara del plano jugable; guide: línea del suelo jugable (y 216)
+   ===================================================================== */
+const VISTA_TEST = {
+  enter(p) {
+    p = p || {};
+    this.p = p;
+    const def = LEVELS[p.lv || 1];
+    const t0 = nowMs();
+    this.B = (BIOMES[p.biome || def.biome] || BIOMES.coast)(def);
+    this.ms = Math.round(nowMs() - t0);
+    this.cam = { x: p.cx || 0, y: p.cy ?? VISTA.CAMY };
+    this.t = 0;
+    window.__vistaMs = this.ms; window.__vistaStats = VISTA.stats.ms;
+  },
+  update(dt) { this.t += dt; if (this.p.pan) this.cam.x = (this.p.cx || 0) + this.t * this.p.pan; },
+  render(g) {
+    const B = this.B, cam = this.cam;
+    if (B.sky) g.drawImage(B.sky, 0, Math.round(-cam.y * 0.05));
+    B.drawClouds(g, cam, 1);
+    B.render(g, cam, 'back');
+    if (typeof WorldLabels !== 'undefined' && this.p.labels) WorldLabels.draw(g, { def: { biome: this.p.biome || LEVELS[this.p.lv || 1].biome, labels: [] }, cam: { ox: cam.x, oy: cam.y }, state: {} });
+    if (this.p.guide) { g.fillStyle = 'rgba(255,0,255,0.6)'; g.fillRect(0, 216, W, 1); g.fillRect(0, 198, W, 1); }
+    if (this.p.info) drawText(g, 'prerender ' + this.ms + ' ms  cam ' + Math.round(cam.x), 6, 4, { color: '#ffffff', shadow: '#000000' });
+  },
+};
+
 /* ===== 18a_pf_core.js ===== */
 /* =====================================================================
    18a_pf_core.js — Núcleo del kit del PLANO JUGABLE (PF).
@@ -9031,6 +10430,291 @@ const PF_KIT_TEST = {
     if (this.page === 'stations') ['terminal', 'sensor', 'sim', 'solo', 'valve', 'book', 'clue'].forEach((k, i) => { drawStationSprite(g, k, 40 + i * 60, 250, { glow: '#56e5ff', progress: 2 }); if (i === 6) PFStations.drawEcho(g, 40 + 7 * 60, 230, this.t); });
   },
 };
+
+/* ===== 1c_bio_coast.js ===== */
+/* =====================================================================
+   1c_bio_coast.js — BIOMA COSTA (Nivel 01) con el kit de panorama VISTA.
+   Sustituye a BIOMES.coast de 13_bg.js. Planos (atrás → delante):
+     cielo+sol (0) · cirros (0,01–0,03) · cúmulos altos (0,03–0,07) ·
+     mar lejano (0,1) · cordillera lila (0,1) · cúmulos bajos (0,09–0,12) ·
+     montañas medias esculpidas con aerogeneradores (0,18) · colina de la
+     ciudad ARIDIA con cúpula, torres y cascadas (0,26) · terrazas
+     agrícolas con canales y cascadas (0,36) · costa con FV, H₂ y la
+     planta SYNARA en su plataforma (0,5)
+   Publica BIOME_LABELS.coast (etiquetas de los planos lejanos) y B.seaY(cam).
+   ===================================================================== */
+var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+
+BIOMES.coast = function (L) {
+  const V = VISTA;
+  const B = new Backdrop(L.width, L.height);
+  const HZ = 140;
+  const SUN = { x: 408, y: 24, r: 11, halo: 24 };
+  const planeY = (f, ys) => Math.round(ys + V.CAMY * f * 0.3);
+  const labels = [];
+  B.horizon = HZ;
+  B.sun = SUN;
+  B.sky = V.timed('sky', () => V.sky(W, H, { horizonY: HZ, sun: SUN }).toCanvas());
+  /** y de pantalla del horizonte marino para la cámara dada */
+  B.seaY = (cam) => Math.round(HZ - (((cam && cam.y) || 0) - V.CAMY) * 0.03);
+  const T = () => Game.time;
+  /* ---------------- nubes altas ---------------- */
+  B.cloudDeck({ kind: 'cirrus', n: 6, seed: 3, f: [0.01, 0.03], y: [6, 50], w: [70, 160], speed: [1, 2] });
+  B.cloudDeck({ n: 8, seed: 11, f: [0.03, 0.07], y: [-4, 54], w: [50, 128], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
+  /* ---------------- mar lejano (0,1) ---------------- */
+  B.vplane(0.1, HZ, H - HZ + 12, (pb) => V.seaFar(pb, 0, pb.h, { seed: 5 }), {
+    tag: 'sea', dyn: (g, cam, Ly) => {
+      const [, oy] = B.vofs(Ly, cam);
+      V.drawSeaFx(g, 0, oy, W, 64, T(), { sunX: SUN.x, density: 0.9 });
+    },
+  });
+  /* ---------------- cordillera lejana lila (0,1) ---------------- */
+  B.vplane(0.1, HZ - 64, 65, (pb, w, h) => {
+    const r = RNG(77), peaks = [];
+    for (let x = -40; x < w + 60;) {
+      if (r.chance(0.3)) { x += r.int(60, 140); continue; }
+      const ww = r.int(40, 110);
+      peaks.push({ x: x + ww * 0.5, v: r.int(14, 34), h: r.int(18, 52), w: ww, d: r.int(16, 30) });
+      x += r.int(28, 80);
+    }
+    V.relief(pb, {
+      yBase: h - 1, nv: 44, dvy: 0.32, seed: 7, hMax: 52,
+      H: V.massif(peaks, { seed: 7, rough: 0.5, scale: 0.05, apron: 5 }),
+      ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55,
+      haze: { col: '#b9bde0', k0: 0.0, k: 0.22 }, mist: { col: '#c3c7e6', h: 12, k: 0.5 }, rim: '#e8c2b4', tex: 0.04,
+    });
+  }, { tag: 'far' });
+  /* ---------------- cúmulos bajos (algunos tras las montañas) ---------------- */
+  B.cloudDeck({ n: 6, seed: 23, f: [0.09, 0.12], y: [40, 92], w: [90, 136], speed: [1.5, 2.5], sunX: SUN.x, tall: true, haze: 0.06 });
+  /* ---------------- montañas medias (0,18) ---------------- */
+  const midT = [];
+  B.vplane(0.18, 16, 140, (pb, w, h) => {
+    const r = RNG(91), peaks = [];
+    for (let x = -30; x < w + 60;) {
+      if (r.chance(0.2)) { x += r.int(50, 110); continue; }
+      const ww = r.int(70, 150), hh = r.int(46, 112);
+      peaks.push({ x: x + ww * 0.5, v: r.int(18, 40), h: hh, w: ww, d: r.int(24, 40) });
+      if (r.chance(0.6)) peaks.push({ x: x + ww * r.range(0.15, 0.85), v: r.int(4, 14), h: hh * r.range(0.35, 0.6), w: ww * 0.55, d: 18 });
+      x += r.int(70, 150);
+    }
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 56, dvy: 0.4, seed: 19, hMax: 112,
+      H: V.massif(peaks, { seed: 19, rough: 0.6, scale: 0.04, apron: 7 }),
+      ramp: V.RAMPS.mid, contrast: 2.1,
+      haze: { col: '#a9a6cc', k0: 0.0, k: 0.14 }, mist: { col: '#b4b4d8', h: 30, k: 0.55 }, rim: '#f6dcc8', tex: 0.05,
+      veg: { ramp: V.RAMPS.vegMid, density: 0.025, maxSlope: 0.6, minY: 72 },
+    });
+    // aerogeneradores pequeños en crestas (los más lejanos)
+    for (const x of [150, 470, 690, 980]) {
+      if (x >= w) continue;
+      let bx = x; for (let q = -20; q <= 20; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
+      const y = info.top[bx] + 1; if (y > h - 30) continue;
+      const hub = V.turbineTower(pb, bx, y, 22, { k: 0.3, w: 2 });
+      midT.push({ x: hub.hx, y: hub.hy, R: 9, k: 0.3, sp: 1.9 + (x % 7) * 0.2, ph: x });
+    }
+  }, { tag: 'mid', dyn: (g, cam, Ly) => drawTurbines(g, cam, Ly, midT) });
+  /* ---------------- colina de la ciudad ARIDIA (0,26) ---------------- */
+  const cityT = [], cityFalls = [], cityGlints = [];
+  const CITY_X = 520;
+  B.vplane(0.26, 0, 194, (pb, w, h) => {
+    const k = 0.1, r = RNG(41);
+    const peaks = [
+      { x: CITY_X, v: 22, h: 100, w: 170, d: 30 }, { x: 420, v: 16, h: 64, w: 92, d: 22 }, { x: 318, v: 12, h: 44, w: 74, d: 18 },
+      { x: 650, v: 14, h: 64, w: 96, d: 22 }, { x: 770, v: 10, h: 40, w: 82, d: 18 }, { x: 880, v: 10, h: 34, w: 70, d: 16 },
+      { x: 1010, v: 20, h: 82, w: 124, d: 26 }, { x: 1115, v: 14, h: 54, w: 90, d: 20 },
+    ];
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 46, dvy: 0.3, seed: 41, hMax: 100,
+      H: V.massif(peaks, { seed: 41, rough: 0.55, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 64, h: 92 }, { x: 1010, w: 40, h: 74 }] }),
+      ramp: V.RAMPS.hill, contrast: 1.95,
+      haze: { col: '#b0a8d0', k0: 0.02, k: 0.12 }, mist: { col: '#c6bcd8', h: 16, k: 0.35 }, rim: '#fcd8ae', tex: 0.06,
+      veg: { ramp: V.RAMPS.vegHill, density: 0.06, maxSlope: 0.9, minY: 96 },
+    });
+    // vegetación en las crestas
+    V.scatterVeg(pb, (x) => (x > CITY_X - 60 && x < CITY_X + 60) ? null : info.top[x] + 1, 260, w, 4101, { k: k + 0.04, gap: 8, mix: { tree: 3, shrub: 4, palm: 1 } });
+    // casas blancas en las laderas
+    for (let i = 0; i < 26; i++) {
+      const x = r.pick([r.int(360, 470), r.int(575, 720), r.int(940, 1100), r.int(800, 900)]);
+      const y = info.onSurf(x, r.int(3, 16)); if (y == null || y < 70 || y > h - 8) continue;
+      V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 4200 + i, { k: k + 0.02 });
+    }
+    // aerogeneradores en la cresta izquierda y en la segunda colina
+    for (const [x, th, R] of [[300, 40, 15], [348, 46, 16], [398, 38, 14], [446, 44, 16], [905, 36, 14], [1080, 42, 15]]) {
+      let bx = x; for (let q = -8; q <= 8; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
+      const y = info.top[bx] + 2; const hub = V.turbineTower(pb, bx, y, th, { k: 0.12 });
+      cityT.push({ x: hub.hx, y: hub.hy, R, k: 0.12, sp: 2.2 + (x % 5) * 0.35, ph: x * 0.37 });
+    }
+    // ciudad de ARIDIA sobre la meseta y torres del segundo distrito
+    const py = info.top[CITY_X];
+    const dc = V.domeCity(pb, CITY_X, py + 6, { k: 0.06, s: 1 });
+    for (const [x, hh, ww] of [[985, 30, 5], [996, 44, 6], [1010, 36, 5], [1024, 50, 6], [1038, 28, 5]]) V.tower(pb, x, info.top[x] + 3, ww, hh, x, { k: 0.12 });
+    cityGlints.push([CITY_X - 12, dc.top + 24], [CITY_X + 8, dc.top + 30]);
+    // cascadas desde la base de la ciudad, en 3 escalones con espuma
+    for (const fx of dc.falls) {
+      let y0 = dc.base, x0 = fx;
+      const tiers = [0.38, 0.36, 0.26], total = h - 6 - y0;
+      for (let ti = 0; ti < tiers.length; ti++) {
+        const y1 = Math.round(y0 + total * tiers[ti]); const wf = ti === 0 ? 5 : 4;
+        V.fall(pb, x0, y0, y1, wf, { k: 0.04 });
+        cityFalls.push({ x: x0, y0, y1, w: wf });
+        // repisa de roca bajo la espuma
+        for (let xx = x0 - 3; xx < x0 + wf + 3; xx++) { V.put(pb, xx, y1 + 1, U(V.hzc('#8a5a48', k))); V.put(pb, xx, y1, U(V.hzc('#e0a070', k))); }
+        y0 = y1 + 2; x0 += (ti % 2 ? -1 : 1);
+      }
+    }
+    // árboles en los hombros de la meseta
+    for (let i = 0; i < 18; i++) { const x = CITY_X + r.pick([-1, 1]) * r.int(48, 80); const y = info.onSurf(x, r.int(4, 18)); if (y != null) V.tree(pb, x, y + 1, r.int(3, 5), 4300 + i, { k }); }
+  }, {
+    tag: 'city', dyn: (g, cam, Ly) => {
+      drawTurbines(g, cam, Ly, cityT);
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawFalls(g, cityFalls, ox, oy, t, { speed: 40, alpha: 0.8 });
+      // destellos del cristal de la cúpula
+      for (const [x, y] of cityGlints) { const a = 0.35 + 0.35 * Math.sin(t * 1.3 + x); V.drawGlow(g, x + ox, y + oy, 3, '#bff8ff', a); }
+    },
+  });
+  /* ---------------- terrazas agrícolas (0,36) ---------------- */
+  const terrFalls = [], terrFauna = [];
+  const TERR_YS = 64, TERR_LY = planeY(0.36, TERR_YS);
+  B.vplane(0.36, TERR_YS, 134, (pb, w, h) => {
+    const k = 0.05, r = RNG(61);
+    // lomas bajas cálidas sobre las que se asientan las terrazas
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 30, dvy: 0.3, seed: 63, hMax: 50,
+      H: V.massif([{ x: 560, v: 10, h: 30, w: 90, d: 16 }, { x: 930, v: 12, h: 34, w: 100, d: 18 }, { x: 1180, v: 10, h: 28, w: 90, d: 16 }, { x: 1330, v: 12, h: 36, w: 80, d: 16 }], { seed: 63, rough: 0.45, scale: 0.05, apron: 4 }),
+      ramp: V.RAMPS.low, contrast: 1.8, haze: { col: '#c0a8c0', k0: 0.06, k: 0.08 }, rim: '#fde0a8', tex: 0.06,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.08, maxSlope: 1, minY: 60 },
+    });
+    const TA = V.terraces(pb, {
+      x0: 600, x1: 900, yBase: h - 3, steps: 7, wallH: [6, 9], topD: [4, 6], shrink: [8, 16], k, seed: 61,
+      kinds: ['rows', 'vine', 'rows', 'orchard', 'rows', 'vine', 'rows'],
+      falls: [{ x: 708, from: 6, w: 4 }, { x: 792, from: 4, w: 3 }],
+    });
+    const TB = V.terraces(pb, {
+      x0: 1060, x1: 1300, yBase: h - 3, steps: 5, wallH: [6, 9], topD: [4, 6], shrink: [10, 16], k, seed: 67, leftK: 0.6,
+      kinds: ['rows', 'orchard', 'rows', 'vine', 'rows'], falls: [{ x: 1150, from: 4, w: 3 }],
+    });
+    terrFalls.push(...TA.falls, ...TB.falls);
+    // invernadero, casas de labor, palmeras y huertos
+    const topA = TA.steps[TA.steps.length - 1];
+    V.greenhouse(pb, 930, h - 18, 30, 12, { k });
+    V.greenhouse(pb, 1320, h - 14, 24, 10, { k });
+    for (const [x, y, ww, hh, s] of [[968, h - 10, 9, 6, 1], [520, h - 12, 8, 5, 2], [1000, h - 16, 7, 5, 3], [1240, TB.steps[TB.steps.length - 1].topY - 1, 8, 5, 4]]) V.house(pb, x, y, ww, hh, 6100 + s, { k });
+    V.scatterVeg(pb, (x) => info.top[x] < h - 1 ? info.top[x] + 1 : null, 380, w, 6200, { k, gap: 7, mix: { tree: 4, shrub: 3, palm: 2, flower: 1 } });
+    for (let x = 610; x < 900; x += r.int(10, 18)) V.palm(pb, x, h - 2, r.int(16, 24), r.range(-4, 4), 6300 + x, { k });
+    // dron agrícola y etiqueta
+    terrFauna.push({ kind: 'drone', x: 760, y: topA.topY - 22, r: 30 }, { kind: 'drone', x: 1180, y: TB.steps[TB.steps.length - 1].topY - 18, r: 24 });
+    labels.push({ x: (topA.x0 + topA.x1) / 2 + 30, y: TERR_LY + topA.topY - 14, f: 0.36, title: 'AGRICULTURA', sub: 'Sostenible', kind: 'green', ax: (topA.x0 + topA.x1) / 2 + 30, ay: TERR_LY + topA.topY - 2 });
+  }, {
+    tag: 'terr', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawFalls(g, terrFalls, ox, oy, t, { speed: 46, alpha: 0.85 });
+      V.drawFauna(g, terrFauna, ox, oy, t);
+    },
+  });
+  /* ---------------- costa: FV, H₂, planta SYNARA (0,5) ---------------- */
+  const COAST_YS = 102, COAST_LY = planeY(0.5, COAST_YS);
+  const coastFx = { pv: [], glows: [], perm: null, outfall: null, fauna: [] };
+  B.vplane(0.5, COAST_YS, 106, (pb, w, h) => {
+    const k = 0.03, r = RNG(81);
+    const yB = h - 16; // línea de costa (pantalla ≈ 192)
+    const peaks = [
+      { x: 360, v: 14, h: 34, w: 70, d: 18 }, { x: 452, v: 12, h: 26, w: 60, d: 16 }, { x: 860, v: 14, h: 30, w: 70, d: 18 },
+      { x: 950, v: 16, h: 44, w: 90, d: 20 }, { x: 1060, v: 12, h: 34, w: 80, d: 18 }, { x: 1180, v: 10, h: 22, w: 70, d: 16 },
+      { x: 1330, v: 14, h: 30, w: 90, d: 18 }, { x: 1480, v: 16, h: 46, w: 100, d: 20 }, { x: 1600, v: 12, h: 30, w: 70, d: 16 },
+    ];
+    const info = V.relief(pb, {
+      yBase: yB, nv: 30, dvy: 0.32, seed: 83, hMax: 46,
+      H: V.massif(peaks, { seed: 83, rough: 0.45, scale: 0.055, apron: 3, plateaus: [{ x: 420, w: 50, h: 14 }, { x: 940, w: 46, h: 22 }, { x: 1300, w: 60, h: 14 }] }),
+      ramp: V.RAMPS.low, contrast: 1.7, haze: { col: '#c8b0c0', k0: 0.0, k: 0.06 }, rim: '#fde6b0', tex: 0.07,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.07, maxSlope: 1, minY: 30 },
+    });
+    // playa y espuma donde la tierra toca el mar
+    const SAND = V.P32(['#c58440', '#edaf5f', '#fccf85']), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
+    for (let x = 0; x < w; x++) {
+      if (info.top[x] > yB) continue;
+      V.put(pb, x, yB - 1, SAND[1 + (hash2(x, 1, 3) < 0.5 ? 1 : 0)]); V.put(pb, x, yB, SAND[0]);
+      V.put(pb, x, yB + 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); if (hash2(x >> 1, 2, 5) < 0.6) V.put(pb, x, yB + 2, FOAM[0]);
+    }
+    // FV en la meseta izquierda (3 mesas) y campo FV a la derecha
+    const pvA = V.pvArray(pb, 380, info.yAt(420, 6) - 1, { tables: 3, cols: 11, rows: 2, cw: 5, ch: 3, gap: 3, skew: 3, k, shift: 2 });
+    const pvB = V.pvArray(pb, 1256, info.yAt(1300, 6) - 1, { tables: 3, cols: 14, rows: 2, cw: 5, ch: 3, gap: 3, skew: 3, k, shift: 2 });
+    for (const P of [pvA, pvB]) coastFx.pv.push(V.shadowCopy(pb, P.x0 - 2, P.y0 - 1, P.x1 - P.x0 + 6, P.y1 - P.y0 + 4));
+    // casas, palmeras y vegetación
+    for (const [x, ww, hh, s] of [[332, 8, 5, 1], [486, 9, 6, 2], [512, 7, 5, 3], [1090, 9, 6, 4], [1124, 7, 5, 5], [1380, 8, 6, 6], [1540, 9, 6, 7], [1572, 7, 5, 8]]) {
+      const y = info.onSurf(x, 8); if (y != null) V.house(pb, x, y + 1, ww, hh, 8100 + s, { k, roof: s % 3 === 0 ? 'solar' : null });
+    }
+    V.scatterVeg(pb, (x) => info.top[x] < yB - 1 ? info.top[x] + 1 : null, 300, w, 8200, { k, gap: 8, mix: { tree: 3, shrub: 4, palm: 2, flower: 1 } });
+    for (let x = 300; x < w; x += r.int(26, 60)) if (info.top[x] < yB - 2) V.palm(pb, x, yB - 1, r.int(18, 28), r.range(-5, 5), 8300 + x, { k });
+    // planta de hidrógeno verde en la meseta central
+    const h2 = V.h2Plant(pb, 896, info.yAt(940, 8) - 1, { k, s: 1 });
+    coastFx.glows.push(...h2.glows);
+    labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Electrólisis', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
+    // cadena desaladora SYNARA en su plataforma sobre la orilla
+    const dc = V.desalChain(pb, 560, yB + 4, { k, s: 1, climb: 0, permTo: [[862, 74], [880, 74], [880, 60]] });
+    // depósito de agua potable en la ladera (fin de la tubería de permeado)
+    V.cylV(pb, 880, 60, 6, 10, V.ARCH.WHITE, { k, dome: 0.5, bands: [[3, 2, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
+    coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
+    const A = dc.anchors;
+    labels.push(
+      { x: A.membranas.x, y: COAST_LY + A.membranas.y - 4, f: 0.5, title: 'MEMBRANAS', kind: 'water', ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 6 },
+      { x: A.potable.x + 6, y: COAST_LY + A.potable.y - 8, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: A.potable.x + 4, ay: COAST_LY + A.potable.y + 6 },
+      { x: A.salmuera.x + 30, y: COAST_LY + A.salmuera.y + 2, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: A.salmuera.x + 2, ay: COAST_LY + A.salmuera.y + 2 },
+    );
+    // rocas en la orilla con espuma
+    for (let x = 300; x < w; x += r.int(30, 90)) {
+      if (x > 556 && x < 800) continue;
+      const rw = r.int(4, 9);
+      V.ellipse(pb, x, yB + 1, rw, 3, (nx, ny) => V.P32(V.RAMPS.low)[clamp(Math.round(5 - nx * 2 - ny * 3), 0, 9)]);
+      for (let q = -rw - 1; q <= rw + 1; q++) V.put(pb, x + q, yB + 3, FOAM[2]);
+    }
+    coastFx.fauna.push({ kind: 'drone', x: 940, y: 30, r: 40 }, { kind: 'gull', x: 420, y: 36, r: 260, sp: 7 }, { kind: 'gull', x: 1200, y: 26, r: 300, sp: -6 }, { kind: 'gull', x: 1210, y: 32, r: 300, sp: -5 });
+  }, {
+    tag: 'coast', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      // sombras de nube que recorren las filas FV (bajan la generación visiblemente)
+      for (const S of coastFx.pv) {
+        const span = S.w + 80, cx = ((t * 4.5 + S.x * 0.7) % span) - 40, cw = 26;
+        const a0 = Math.max(0, Math.round(cx - cw / 2)), a1 = Math.min(S.w, Math.round(cx + cw / 2));
+        if (a1 > a0) g.drawImage(S.c, a0, 0, a1 - a0, S.h, S.x + ox + a0, S.y + oy, a1 - a0, S.h);
+        g.globalAlpha = 0.5;
+        const b0 = Math.max(0, a0 - 8), b1 = Math.min(S.w, a1 + 8);
+        if (a0 > b0) g.drawImage(S.c, b0, 0, a0 - b0, S.h, S.x + ox + b0, S.y + oy, a0 - b0, S.h);
+        if (b1 > a1) g.drawImage(S.c, a1, 0, b1 - a1, S.h, S.x + ox + a1, S.y + oy, b1 - a1, S.h);
+        g.globalAlpha = 1;
+      }
+      // halos esmeralda del H₂ (pulso suave)
+      for (const [x, y, r] of coastFx.glows) V.drawGlow(g, x + ox, y + oy, r, '#4cd48e', 0.45 + 0.25 * Math.sin(t * 2 + x));
+      // chevrones del permeado
+      if (coastFx.perm) V.drawFlow(g, coastFx.perm, ox, oy, t, { col: '#f4ffff', speed: 12, gap: 6 });
+      // pluma de salmuera controlada (magenta, se hunde y diluye junto al emisario)
+      if (coastFx.outfall) {
+        const { x, y } = coastFx.outfall;
+        for (let i = 0; i < 12; i++) {
+          const u = ((t * 0.25 + i / 12) % 1), px = x + ox + 1 + u * 16 + Math.sin(i * 2.1 + t) * 1.5, py = y + oy + 1 + u * 3;
+          g.globalAlpha = 0.75 * (1 - u); g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2'; g.fillRect(Math.round(px), Math.round(py), 1 + (u < 0.4 ? 1 : 0), 1);
+        }
+        g.globalAlpha = 1;
+      }
+      V.drawFauna(g, coastFx.fauna, ox, oy, t);
+      V.drawMotes(g, 16, t, 7, { y0: 60, y1: 200 });
+    },
+  });
+  function drawTurbines(g, cam, Ly, list) {
+    const [ox, oy] = B.vofs(Ly, cam), t = T();
+    for (const tb of list) {
+      const x = tb.x + ox, y = tb.y + oy;
+      if (x < -30 || x > W + 30) continue;
+      if (!tb.rot) tb.rot = V.rotor(tb.R, { k: tb.k });
+      V.drawRotor(g, tb.rot, x, y, t * tb.sp + tb.ph);
+    }
+  }
+  BIOME_LABELS.coast = labels;
+  B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
+  return B;
+};
+
+BIOME_LABELS.coast = BIOME_LABELS.coast || [];
 
 /* ===== 20_models.js ===== */
 /* =====================================================================
