@@ -95,7 +95,7 @@ LEVELS[3] = {
     // cristales de LIMEN creciendo en el cruce
     if (S.crystals > 0) for (let i = 0; i < 10 * S.crystals; i++) { const cx = jx + 4 + (i * 13) % 60, cy = jy - 2 - ((i * 7) % 12); frect(g, cx, cy - 4, 2, 5, i % 2 ? '#c4fbff' : '#7ee8f0'); fpx(g, cx, cy - 5, '#ffffff'); }
     // nivel de la laguna de contingencia
-    if (S.diverted) { const lv = clamp(S.pond || 0.3, 0, 1); frect(g, 1324 - ox, gy(1324) - 8, 170, 2, '#e0dafc'); fdither(g, 1324 - ox, gy(1324) - 8, Math.round(170 * lv), 6, '#c86aa8', 0.35); }
+    if (S.diverted) { const lv = clamp(S.pond || 0.3, 0, 1); frect(g, 1324 - ox, gy(1324) - 8, 170, 2, '#e0dafc'); g.globalAlpha = 0.45; frect(g, 1324 - ox, gy(1324) - 8, Math.round(170 * lv), 6, '#c86aa8'); g.globalAlpha = 1; }
     // flamencos en el humedal
     for (let i = 0; i < 4; i++) { const fx = 1590 + i * 52 + Math.sin(t * 0.3 + i) * 6; ART.flamingo(g, fx - ox, 300 - oy, t + i * 1.3, i % 2 ? 1 : -1); }
     // radar de la estación
