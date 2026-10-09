@@ -6,7 +6,7 @@
 const path = require('path');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
-const FILE = 'file://' + path.join(__dirname, '..', 'aridia_nexus.html');
+const FILE = 'file://' + path.join(__dirname, '..', 'index.html');
 const LEVEL_W = { 0: 2600, 1: 2600, 2: 2600, 3: 2600, 4: 2800, 5: 3000, 6: 2600, 7: 2700, 8: 2800, 9: 2400, 10: 3400, 11: 1500 };
 const SIMS = { 0: 'NexusSim', 1: 'Sim01', 2: 'Sim02', 3: 'Sim03', 4: 'Sim04', 5: 'Sim05', 6: 'Sim06', 7: 'Sim07', 8: 'Sim08', 9: 'Sim09', 10: 'Sim10' };
 const PHASES = ['demo', 'guided', 'auto', 'transfer', 'free'];

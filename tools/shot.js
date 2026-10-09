@@ -13,7 +13,7 @@ const path = require('path');
   const errors = [];
   page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  const file = 'file://' + path.join(__dirname, '..', 'aridia_nexus.html') + (query ? '?' + query : '');
+  const file = 'file://' + path.join(__dirname, '..', 'index.html') + (query ? '?' + query : '');
   await page.goto(file);
   await page.waitForTimeout(wait);
   for (const k of keys) {

@@ -1,6 +1,6 @@
 # ARIDIA NEXUS — Plan de desarrollo (documento vivo)
 
-Entregable: `aridia_nexus.html` (autocontenido, sin dependencias, offline).
+Entregable: `index.html` (autocontenido, sin dependencias, offline).
 Fuentes: `src/*.js` concatenados en orden alfabético por `tools/build.js` dentro de `src/template.html`.
 
 ## Arquitectura (src/)

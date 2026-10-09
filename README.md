@@ -1,12 +1,12 @@
 # ARIDIA NEXUS — La ciudad que bebía el mar
 
-Videojuego educativo STEAM en **pixel art cinematográfico** sobre el nexo **agua – energía – hidrógeno – agroecología** en una costa árida. Todo el juego es un único archivo autocontenido: **`aridia_nexus.html`**. Funciona sin conexión, sin librerías, sin recursos externos y sin enviar datos a ningún servidor.
+Videojuego educativo STEAM en **pixel art cinematográfico** sobre el nexo **agua – energía – hidrógeno – agroecología** en una costa árida. Todo el juego es un único archivo autocontenido: **`index.html`**. Funciona sin conexión, sin librerías, sin recursos externos y sin enviar datos a ningún servidor.
 
 ![Pantalla de título](docs/img/titulo.png)
 
 ## Cómo jugar
 
-1. Abre `aridia_nexus.html` en un navegador moderno (Chrome, Edge, Firefox o Safari). No necesita servidor ni instalación.
+1. Abre `index.html` en un navegador moderno (Chrome, Edge, Firefox o Safari). No necesita servidor ni instalación.
 2. Elige **Nueva partida**. El audio se activa con la primera interacción.
 3. El progreso se guarda en el navegador (`localStorage`, clave `aridiaNexusSave`).
 
@@ -70,7 +70,7 @@ Desde el título: **Modo docente**. Permite saltar a cualquier capítulo, ver la
 El código fuente está en `src/` (JavaScript sin dependencias, Canvas 2D y Web Audio). Los módulos se concatenan en orden alfabético dentro de `src/template.html`:
 
 ```bash
-node tools/build.js                  # genera aridia_nexus.html
+node tools/build.js                  # genera index.html
 node tests/models.test.js            # 77 pruebas de los modelos científicos
 node tests/bank.test.js              # validación del banco de 135 ítems
 node tests/calima.test.js            # diseño del modelo integrado de la Gran Calima
