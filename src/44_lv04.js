@@ -76,7 +76,8 @@ LEVELS[4] = {
     for (const s of PV_STRINGS) {
       const sh = sc.backdrop.cloudShadowAt(s.x);
       s.cloud = sh;
-      if (sh > 0.05) fdither(g, s.x - 62 - ox, gy(s.x) - 20, 128, 16, '#3a2a5a', sh * 0.45);
+      // sombra sin tramado: núcleo y bordes suaves en dos niveles de alfa (STYLE LOCK §1)
+      if (sh > 0.05) { g.globalAlpha = sh * 0.32; frect(g, s.x - 62 - ox, gy(s.x) - 20, 128, 16, '#3a2a5a'); g.globalAlpha = sh * 0.16; frect(g, s.x - 66 - ox, gy(s.x) - 21, 136, 18, '#3a2a5a'); g.globalAlpha = 1; }
       // destellos del sol en módulos limpios
       if (sh < 0.2 && !S.dirty?.[s.id] && ((Math.floor(t * 2) + s.x) % 7) === 0) fpx(g, s.x - 40 + ((t * 40) % 100) - ox, gy(s.x) - 15, '#ffffff');
       // indicador de corriente en la caja
