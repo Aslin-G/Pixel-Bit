@@ -161,6 +161,7 @@ const Gui = {
   _reg(id, x, y, w, h, kind) {
     const it = { id, x, y, w, h, kind };
     this.items.push(it);
+    if (this.curIds) this.curIds.add(id);
     const p = Input.pointer;
     const over = p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
     if (over) { this.hot = id; if (p.moved && !this.keyNav) this.focus = id; if (p.moved) this.keyNav = false; }
@@ -193,6 +194,10 @@ const Gui = {
       if (best) { this.focus = best.id; this.keyNav = true; Audio2.sfx('uiMove'); }
     } else if (dir && !cur) { this.focus = list[0].id; this.keyNav = true; }
   },
+  /** Un control recién aparecido no acepta ENTER en su primer cuadro (evita que la misma pulsación que lo mostró lo active) */
+  wasShown(id) { return !!(this.prevIds && this.prevIds.has(id)); },
+  /** Llamado una vez por cuadro antes de dibujar todas las escenas */
+  newFrame() { this.prevIds = this.curIds || new Set(); this.curIds = new Set(); },
   isFocused(id) { return this.focus === id && (this.keyNav || Input.lastDevice !== 'mouse'); },
   /** Botón. opts: icon, style('primary'|'ghost'|'danger'|'choice'|'tab'), disabled, selected, tip, key */
   button(g, id, x, y, w, h, label, opts = {}) {
@@ -202,7 +207,7 @@ const Gui = {
     if (!opts.disabled) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
-      if (this.focus === id && (Input.pressed('confirm')) && !opts.noKey) clicked = true;
+      if (this.focus === id && (Input.pressed('confirm')) && !opts.noKey && this.wasShown(id)) clicked = true;
     }
     if (over && opts.tip) this.tooltip = opts.tip;
     const focused = this.isFocused(id) || (over && !this.keyNav);
@@ -264,7 +269,7 @@ const Gui = {
     if (!opts.disabled) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
-      if (this.focus === id && Input.pressed('confirm')) clicked = true;
+      if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) clicked = true;
     }
     const focused = this.isFocused(id) || (over && !this.keyNav);
     const st = opts.state; // 'correct' | 'wrong' | 'selected' | 'dim'
@@ -337,7 +342,7 @@ const Gui = {
     let changed = false;
     if (over && p.pressed) this.active = id;
     if (this.active === id && p.released) { if (over) changed = true; this.active = null; }
-    if (this.focus === id && Input.pressed('confirm')) changed = true;
+    if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) changed = true;
     const focused = this.isFocused(id) || (over && !this.keyNav);
     frect(g, x, y + 2, 20, 10, '#05030f');
     frect(g, x + 1, y + 3, 18, 8, on ? '#1f854c' : '#3a1020');

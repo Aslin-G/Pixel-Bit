@@ -101,6 +101,10 @@ const Game = {
     Input.endStep();
   },
   render() {
+    Input.beginRender(); Gui.newFrame();
+    try { this.renderAll(); } finally { Input.endRender(); }
+  },
+  renderAll() {
     const g = this.g;
     g.imageSmoothingEnabled = false;
     g.setTransform(1, 0, 0, 1, 0, 0);

@@ -26,17 +26,22 @@ const Input = {
   pointer: { x: -100, y: -100, down: false, pressed: false, released: false, moved: false, wheel: 0, id: null, startX: 0, startY: 0, dragging: false },
   touches: new Map(), touchMode: false,
   listeners: [],
+  // La interfaz inmediata (Gui) se procesa en render(); update() borra los eventos al
+  // final de cada paso. Por eso cada evento se copia también a este búfer, que solo
+  // ve el siguiente render (una vez) y que se vacía al terminar de dibujar.
+  gui: { pressed: false, released: false, moved: false, wheel: 0, keys: new Set(), up: new Set(), actions: new Set(), anyKey: false },
+  inRender: false,
   init(canvas) {
     this.canvas = canvas;
     window.addEventListener('keydown', (e) => {
       if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace', 'F9'].includes(e.code)) e.preventDefault();
-      if (!this.keys.has(e.code)) this.justDown.add(e.code);
-      this.keys.add(e.code); this.anyKeyPressed = true; this.lastDevice = 'keyboard';
+      if (!this.keys.has(e.code)) { this.justDown.add(e.code); this.gui.keys.add(e.code); }
+      this.keys.add(e.code); this.anyKeyPressed = true; this.gui.anyKey = true; this.lastDevice = 'keyboard';
       this.typedKeys.push(e.code);
       if (this.touchMode && !e.repeat) this.touchMode = Game.settings.touch === 'on';
       Audio2.unlock();
     });
-    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); this.justUp.add(e.code); });
+    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); this.justUp.add(e.code); this.gui.up.add(e.code); });
     window.addEventListener('blur', () => { this.keys.clear(); this.virt.clear(); });
     const toLogical = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -53,6 +58,7 @@ const Input = {
       if (this.touchMode && Touch.hit(x, y, e.pointerId)) return; // consumido por control virtual
       const p = this.pointer;
       p.x = x; p.y = y; p.down = true; p.pressed = true; p.id = e.pointerId; p.startX = x; p.startY = y; p.dragging = false;
+      this.gui.pressed = true;
       try { canvas.setPointerCapture(e.pointerId); } catch (_) { }
     });
     canvas.addEventListener('pointermove', (e) => {
@@ -61,7 +67,7 @@ const Input = {
       if (t) { t.x = x; t.y = y; if (this.touchMode) Touch.move(x, y, e.pointerId); }
       const p = this.pointer;
       if (p.id === null || p.id === e.pointerId) {
-        p.x = x; p.y = y; p.moved = true;
+        p.x = x; p.y = y; p.moved = true; this.gui.moved = true;
         if (p.down && dist(p.startX, p.startY, x, y) > 3) p.dragging = true;
       }
     });
@@ -69,11 +75,11 @@ const Input = {
       this.touches.delete(e.pointerId);
       Touch.release(e.pointerId);
       const p = this.pointer;
-      if (p.id === e.pointerId) { p.down = false; p.released = true; p.id = null; }
+      if (p.id === e.pointerId) { p.down = false; p.released = true; p.id = null; this.gui.released = true; }
     };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
-    canvas.addEventListener('wheel', (e) => { this.pointer.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
+    canvas.addEventListener('wheel', (e) => { this.pointer.wheel += Math.sign(e.deltaY); this.gui.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   },
   loadBindings(b) { if (b) for (const k in DEFAULT_BINDINGS) if (Array.isArray(b[k])) this.bindings[k] = b[k].slice(); },
@@ -84,6 +90,7 @@ const Input = {
   },
   pressed(action) {
     for (const c of this.codesFor(action)) if (this.justDown.has(c)) return true;
+    if (this.inRender) return this.gui.actions.has(action);
     return (this.virt.has(action) && !this.virtPrev.has(action)) || (this.pad.has(action) && !this.padPrev.has(action));
   },
   released(action) {
@@ -112,13 +119,30 @@ const Input = {
       if (b(5)) this.pad.add('next');
       if (this.pad.size) this.lastDevice = 'gamepad';
     }
+    for (const a of this.pad) if (!this.padPrev.has(a)) this.gui.actions.add(a);
   },
   /** Llamar al final de cada paso de actualización */
   endStep() {
+    for (const a of this.virt) if (!this.virtPrev.has(a)) this.gui.actions.add(a);
     this.justDown.clear(); this.justUp.clear(); this.typedKeys.length = 0;
     this.virtPrev = new Set(this.virt);
     const p = this.pointer; p.pressed = false; p.released = false; p.moved = false; p.wheel = 0;
     this.anyKeyPressed = false;
+  },
+  /** Antes de dibujar: la interfaz ve los eventos llegados desde el último render */
+  beginRender() {
+    const p = this.pointer, G = this.gui;
+    this._live = { pressed: p.pressed, released: p.released, moved: p.moved, wheel: p.wheel, justDown: this.justDown, justUp: this.justUp, anyKey: this.anyKeyPressed };
+    p.pressed = G.pressed; p.released = G.released; p.moved = G.moved; p.wheel = G.wheel;
+    this.justDown = G.keys; this.justUp = G.up; this.anyKeyPressed = G.anyKey; this.inRender = true;
+  },
+  /** Después de dibujar: restaura el estado de update y vacía el búfer de la interfaz */
+  endRender() {
+    const p = this.pointer, L = this._live;
+    if (!L) return;
+    p.pressed = L.pressed; p.released = L.released; p.moved = L.moved; p.wheel = L.wheel;
+    this.justDown = L.justDown; this.justUp = L.justUp; this.anyKeyPressed = L.anyKey; this.inRender = false;
+    this.gui = { pressed: false, released: false, moved: false, wheel: 0, keys: new Set(), up: new Set(), actions: new Set(), anyKey: false };
   },
   anyConfirm() { return this.pressed('confirm') || this.pointer.pressed; },
   consumePointer() { this.pointer.pressed = false; this.pointer.released = false; },
