@@ -152,7 +152,7 @@ const PFWater = (() => {
       fish.push({ x: xx, y: wy + 16 + r() * (Math.max(30, bedAt(Math.round(xx)) - wy - 40)), vx: (r() < 0.5 ? -1 : 1) * (5 + r() * 6), kind, ph: r() * 10, home: xx, range: 60 + r() * 120 });
     }
     const contacts = [x0 + 4];
-    for (const [a, b] of holes) for (let px = a + 18; px < b - 6; px += 46) contacts.push(px);
+    for (const [a, b] of holes) for (let px = a + 18, idx = 0; px < b - 6; px += 46, idx++) contacts.push(px + Math.round((hash1(idx, 31) - 0.5) * 8));
     for (const cx of (W_.contacts || [])) contacts.push(cx);
     return { w, x0, x1, y0, wy, c: pb.toCanvas(), crest, shaft, fishS, fishB, fishO, fish, bedAt, holes, maxD, contacts };
   }

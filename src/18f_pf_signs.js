@@ -53,9 +53,10 @@ const PFSigns = (() => {
     const tx = dir > 0 ? x + 7 : x + tip + 6, ty = y + Math.round((h - 7) / 2) + 1;
     PFK.text(pb, text, tx, ty, U(TXT), { font: 'main', shadow: U('#1a0500') });
     const ax = dir > 0 ? x + w - tip - 4 : x + tip - 4, ay = y + Math.round(h / 2);
-    const arrowX = dir > 0 ? Math.max(tx + tw + 4, ax - 6) : x + 6;
+    const arrowX = dir > 0 ? Math.max(tx + tw + 4, ax - 6) : tx + tw + 5;
+    const tipX = dir > 0 ? arrowX + 6 : arrowX;
     for (let k = 0; k < 7; k++) { PFK.put(pb, arrowX + k, ay, U(TXT)); PFK.put(pb, arrowX + k + 1, ay + 1, U('#1a0500')); }
-    for (let k = 1; k <= 3; k++) { PFK.put(pb, arrowX + 6 - k, ay - k, U(TXT)); PFK.put(pb, arrowX + 6 - k, ay + k, U(TXT)); PFK.put(pb, arrowX + 7 - k, ay + k + 1, U('#1a0500')); }
+    for (let k = 1; k <= 3; k++) { const xx = tipX - dir * k; PFK.put(pb, xx, ay - k, U(TXT)); PFK.put(pb, xx, ay + k, U(TXT)); PFK.put(pb, xx + 1, ay + k + 1, U('#1a0500')); }
     return tw;
   }
   /** Poste con capuchón */

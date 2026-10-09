@@ -53,6 +53,23 @@ const PFTerrain = (() => {
     while (bi < B.length - 1 && y >= B[bi + 1].y + off(B[bi + 1])) bi++;
     const bl = B[bi], rawTop = bl.y + off(bl), bTop = Math.max(rawTop, gy + 1), bBot = (B[bi + 1] ? B[bi + 1].y + off(B[bi + 1]) : 999);
     const dt = y - bTop, db = bBot - 1 - y, d = y - gy;
+    // repisas (terrazas en la pared): cara superior iluminada con vegetación, nivel superior retraído
+    let tierK = 0;
+    for (const L of s._ledges || []) {
+      const lx0 = L.x0 + Math.round((PFK.vn(y * 0.2, L.x0, 4) - 0.5) * 6), lx1 = L.x1 + Math.round((PFK.vn(y * 0.2, L.x1, 4) - 0.5) * 6);
+      if (x < lx0 || x > lx1) continue;
+      const ly = L.y + Math.round((PFK.vn(x * 0.08, L.y, 5) - 0.5) * 3);
+      if (y >= ly - L.h && y < ly) {
+        const S = PFK.P32(SANDF), k = y - (ly - L.h);
+        if (k === 0) return P[2];
+        if (y === ly - 1) return U(LIP);
+        const g = PFK.cl(x, y, 2, 61);
+        if (g < 0.22) return PFK.P32(RAMP.grassR)[3 + (k > 2 ? 1 : 0)];
+        return S[clamp(6 + k - (x === lx0 || x === lx1 ? 2 : 0), 3, 9)];
+      }
+      if (y < ly - L.h && y > ly - L.h - 16) tierK = -0.2 + (ly - L.h - y) * 0.012;
+      else if (y >= ly && y < ly + 60) tierK = 0.06;
+    }
     // grietas entre columnas y juntas entre bloques
     const gap = 1 + (c.p < 0.35 ? 1 : 0);
     if (dl <= gap - 1 || (dl === gap && PFK.cl(x, y, 2, c.seed) < 0.5)) return P[d < 4 ? 3 : 0];
@@ -78,6 +95,7 @@ const PFTerrain = (() => {
     const h = hash2(x, y, c.seed); if (h < 0.025) t += 0.12; else if (h > 0.975) t -= 0.2;
     // primer plano más oscuro hacia abajo
     t -= clamp((d - 70) / 160, 0, 0.32);
+    t += tierK;
     return P[clamp(Math.round(t * 8.4), 0, 8)];
   }
 
@@ -236,7 +254,15 @@ const PFTerrain = (() => {
     const def = world.def, P = def.pf || {};
     const segs = (P.terrain || []).map((s, i) => Object.assign({ seed: 101 + i * 37 }, s));
     for (const s of segs) {
-      if (s.face === 'cliff') { s._cols = buildCols(s.x0 - 30, s.x1 + 30, s.seed); s._ci = 0; }
+      if (s.face === 'cliff') {
+        s._cols = buildCols(s.x0 - 30, s.x1 + 30, s.seed); s._ci = 0;
+        const r = RNG(s.seed + 7); s._ledges = [];
+        if (s.ledges !== false) for (let x = s.x0 + r.int(16, 50); x < s.x1 - 50; ) {
+          const w = r.int(44, 110), cx = Math.min(world.w, Math.round(x + w / 2));
+          s._ledges.push({ x0: x, x1: Math.min(s.x1 - 8, x + w), y: world.ground[cx] + r.int(38, 74), h: r.int(5, 7) });
+          x += w + r.int(30, 110);
+        }
+      }
       const w = (world.water || []).find(w => w.cutaway && w.x0 < s.x1 && w.x1 > s.x0);
       if (w) { s._sea = { x0: w.x0, x1: w.x1, y: w.y }; s.waterY = w.y; if (s.face === 'pier') s._hole = [Math.max(s.x0, w.x0), Math.min(s.x1, w.x1)]; }
     }
@@ -312,8 +338,9 @@ const PFTerrain = (() => {
     const [h0, h1] = s._hole;
     const bed = (x) => (world.def.pf && world.def.pf.bedAt) ? world.def.pf.bedAt(x) : h;
     const UW = PFK.P32(RAMP.underR);
-    for (let px = h0 + 18; px < h1 - 6; px += 46) {
-      const gy = world.ground[px], big = Math.round((px - h0 - 18) / 46) % 2 === 0, pw = big ? 13 : 7;
+    for (let px0 = h0 + 18, idx = 0; px0 < h1 - 6; px0 += 46, idx++) {
+      const big = idx % 2 === 0, pw = big ? 13 : 7, px = px0 + Math.round((hash1(idx, 31) - 0.5) * 8);
+      const gy = world.ground[px];
       // viga transversal bajo la cubierta
       for (let y = gy + 10; y < gy + 14; y++) for (let x = px - 23; x < px + 23; x++) if (x > h0 && x < h1 && !(PFK.get(pb, x, y) >>> 24)) PFK.put(pb, x, y, y === gy + 10 ? U('#1e1a1c') : U('#2c2830'));
       const yb = bed(px);
@@ -332,22 +359,42 @@ const PFTerrain = (() => {
         }
         PFK.put(pb, x, y, u);
       }
+      // algas bajo la línea de agua y escollera en la base de los pilotes grandes
+      for (let k = 0; k < pw; k += 2) { const L = 3 + Math.floor(hash2(px + k, 1, 5) * 9); for (let q = 0; q < L; q++) PFK.put(pb, px - (pw >> 1) + k, wl + 1 + q, PFK.mixU(U(q < 2 ? '#3f6a26' : '#2a4f22'), UW[5], 0.35 + q * 0.04)); }
+      if (big) for (let yy = yb - 9; yy < yb + 2; yy++) for (let xx = px - 15; xx <= px + 15; xx++) {
+        const nx = (xx - px) / 15, ny = (yy - yb - 1) / 10; if (nx * nx + ny * ny > 1) continue;
+        const u = boulderPix(xx, yy, 303, 7, 5, PFK.P32(RAMP.rockWarmR));
+        if (u !== -1) PFK.put(pb, xx, yy, PFK.mixU(u, UW[2], 0.72));
+      }
     }
   }
   /** Plantas que crecen en las juntas del acantilado */
   function ledgePlants(pb, world, s) {
     const r = RNG(s.seed + 5);
+    // vegetación densa sobre cada repisa
+    for (const L of s._ledges || []) {
+      for (let x = L.x0 + 3; x < L.x1 - 3; x += 5 + r.int(0, 6)) {
+        const y = L.y - 1, k = r();
+        if (k < 0.32) PFFlora.tuft(pb, x, y, 7 + r() * 6, 6 + r() * 7, x * 3 + y);
+        else if (k < 0.5) PFFlora.bush(pb, x, y, 12 + r() * 10, 8 + r() * 7, RAMP.foliageR, x + y);
+        else if (k < 0.6) PFFlora.hibiscusBush(pb, x, y, 13 + r() * 6, 10 + r() * 5, x * 7 + y);
+        else if (k < 0.7) { for (let q = 0; q < 3; q++) PFFlora.lupine(pb, x + q * 3, y, 9 + r() * 8, x + q); }
+        else if (k < 0.82) PFFlora.flowerPatch(pb, x, y, 9, x + y);
+        else if (k < 0.9) PFFlora.fern(pb, x, y, 9, x + y * 3);
+        else PFFlora.agave(pb, x, y, 6, x + y);
+      }
+    }
+    // matas sueltas en algunas juntas (pocas, más grandes)
     for (const c of s._cols) {
       if (c.x0 < s.x0 || c.x1 > s.x1) continue;
       for (const b of c.blocks) {
         const gy = world.ground[clamp(Math.round((c.x0 + c.x1) / 2), 0, world.w)];
-        if (b.y < gy + 18 || b.y > gy + 150) continue;
+        if (b.y < gy + 18 || b.y > gy + 140) continue;
         const k = r();
-        const x = Math.round(c.x0 + 2 + r() * (c.x1 - c.x0 - 4)), y = b.y;
-        if (k < 0.16) PFFlora.tuft(pb, x, y, 6 + r() * 5, 5 + r() * 6, x * 3 + y);
-        else if (k < 0.22) PFFlora.flowerPatch(pb, x, y, 7, x + y);
-        else if (k < 0.26) PFFlora.fern(pb, x, y, 7, x + y * 3);
-        else if (k < 0.28) PFFlora.agave(pb, x, y, 5, x + y);
+        const x = Math.round(c.x0 + 3 + r() * (c.x1 - c.x0 - 6)), y = b.y;
+        if (k < 0.07) PFFlora.tuft(pb, x, y, 8 + r() * 5, 7 + r() * 6, x * 3 + y);
+        else if (k < 0.1) PFFlora.fern(pb, x, y, 9, x + y * 3);
+        else if (k < 0.12) PFFlora.flowerPatch(pb, x, y, 8, x + y);
       }
     }
   }

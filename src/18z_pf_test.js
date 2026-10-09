@@ -33,5 +33,6 @@ const PF_KIT_TEST = {
     g.drawImage(this.c, 0, 0);
     if (this.page === 'labels' && typeof WorldLabels !== 'undefined') WorldLabels.gallery(g);
     if (this.page === 'fauna' && typeof PFFauna !== 'undefined') PFFauna.gallery(g, this.t);
+    if (this.page === 'stations') ['terminal', 'sensor', 'sim', 'solo', 'valve', 'book', 'clue'].forEach((k, i) => { drawStationSprite(g, k, 40 + i * 60, 250, { glow: '#56e5ff', progress: 2 }); if (i === 6) PFStations.drawEcho(g, 40 + 7 * 60, 230, this.t); });
   },
 };

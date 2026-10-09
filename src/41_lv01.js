@@ -13,14 +13,14 @@ LEVELS[1] = {
   /* Composición vertical (≥ 6 alturas): acantilado de inicio 246–248 → terraza 264 → playa 292–298 →
      roquedal 262–292 → escalinata → muelle 268 sobre el corte submarino → explanada de filtros 282 →
      sendero rocoso ascendente 274 → 262 → 246 → 230 hacia la salida. Altura extra (hasta 460) solo abajo. */
-  ground: [[0, 248], [120, 246], [236, 248, 'step'], [262, 264], [300, 266], [360, 290], [470, 292], [560, 293], [700, 294], [770, 290],
+  ground: [[0, 248], [120, 246], [228, 248, 'step'], [232, 266], [256, 266], [300, 290], [360, 290], [470, 292], [560, 293], [700, 294], [770, 290],
     [810, 272, 'lin'], [880, 264], [960, 268], [1010, 280], [1050, 292], [1084, 292, 'step'], [1090, 286, 'step'], [1096, 280, 'step'], [1102, 274, 'step'],
     [1108, 268], [1612, 268, 'step'], [1618, 274, 'step'], [1624, 280, 'step'], [1630, 282], [1860, 282], [1900, 278], [1960, 274],
     [1990, 274, 'step'], [2010, 262], [2110, 256, 'step'], [2130, 246], [2250, 242], [2330, 238, 'step'], [2360, 230], [2600, 232]],
   terrain: [{ x0: 0, x1: 360, mat: 'rock' }, { x0: 360, x1: 780, mat: 'beach' }, { x0: 780, x1: 1060, mat: 'rock' }, { x0: 1060, x1: 1880, mat: 'stone' }, { x0: 1880, x1: 2600, mat: 'rock' }],
   /* Mar en corte: una sola masa de agua a lo largo de la costa (la playa, el roquedal, el muelle y la
      explanada de filtros salen del agua). Su superficie (y 296) queda por debajo de toda la línea de paso. */
-  water: [{ x0: 338, x1: 1996, y: 296, tint: '#20d6c7', deep: '#1063a6', pf: true, cutaway: true, crestFrom: 4, crestTo: 2 }],
+  water: [{ x0: 266, x1: 1996, y: 296, tint: '#20d6c7', deep: '#1063a6', pf: true, cutaway: true, crestFrom: 4, crestTo: 2 }],
   platforms: [
     { x: 820, y: 236, w: 46, type: 'rock', baked: true }, { x: 900, y: 222, w: 52, type: 'rock', baked: true },
     { x: 1640, y: 206, w: 150, type: 'metal', baked: true },
@@ -32,8 +32,8 @@ LEVELS[1] = {
   /* ---------------- plano jugable con kit PF ---------------- */
   pf: {
     terrain: [
-      { x0: 0, x1: 345, surf: 'path', face: 'cliff', depth: 16 },
-      { x0: 345, x1: 785, surf: 'sand', face: 'beach', shore: true, depth: 14 },
+      { x0: 0, x1: 268, surf: 'path', face: 'cliff', depth: 16 },
+      { x0: 268, x1: 785, surf: 'sand', face: 'beach', shore: true, depth: 14 },
       { x0: 785, x1: 1060, surf: 'rock', face: 'rocks', depth: 14 },
       { x0: 1060, x1: 1108, surf: 'paving', face: 'quay', depth: 16 },
       { x0: 1108, x1: 1612, surf: 'deck', face: 'pier', depth: 20 },
@@ -43,7 +43,7 @@ LEVELS[1] = {
     ],
     /** Lecho marino del corte submarino (mundo) */
     bedAt(x) {
-      const B = [[330, 314], [420, 334], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
+      const B = [[262, 318], [330, 326], [420, 336], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
       let i = 0; while (i < B.length - 2 && B[i + 1][0] <= x) i++;
       const t = clamp((x - B[i][0]) / (B[i + 1][0] - B[i][0]), 0, 1);
       return Math.round(lerp(B[i][1], B[i + 1][1], smooth(t)) + Math.sin(x * 0.07) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
@@ -52,8 +52,8 @@ LEVELS[1] = {
     water: { intake: { x: 1462, y: 374, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 24, fishX: [380, 1980] },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
-      { kind: 'canopy', x: -16, y: -6, w: 230, h: 74, seed: 31, side: -1, n: 14, vines: 4 },
-      { kind: 'clump', x: -14, w: 120, h: 92, seed: 3, spikes: 6, leaves: 11 },
+      { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
+      { kind: 'clump', x: -18, w: 150, h: 104, seed: 3, spikes: 8, leaves: 14 },
       { kind: 'clump', x: 600, w: 110, h: 70, seed: 8, spikes: 2, leaves: 9 },
       { kind: 'clump', x: 1150, w: 100, h: 64, seed: 13, spikes: 3, leaves: 8 },
       { kind: 'clump', x: 1640, w: 120, h: 66, seed: 17, spikes: 4, leaves: 10 },
@@ -70,7 +70,7 @@ LEVELS[1] = {
     { x: 1500, y: 330, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 352 },
     { x: 1250, y: 372, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 388 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
-    { x: 2040, y: 232, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2018, ay: 262 },
+    { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
@@ -81,12 +81,12 @@ LEVELS[1] = {
     const r = RNG(1101);
     const F = PFFlora, I = PFInfra;
     /* ===== 1. ACANTILADO DE INICIO (0–345): letrero, flores, palmeras ===== */
-    F.palm(pb, 230, back(230) + 2, 66, -7, 12);
+    F.palm(pb, 212, back(212) + 2, 66, -7, 12);
     F.tree(pb, 150, back(150) + 3, 58, 14, { wide: 1.1 });
-    F.scatter(pb, (x) => back(x) + 2, 0, 345, 21, { gap: 8, mix: { tuft: 5, bush: 3, flowers: 2, agave: 1, fern: 2, lupine: 1, hibiscus: 1 } });
+    F.scatter(pb, (x) => back(x) + 2, 0, 268, 21, { gap: 8, mix: { tuft: 5, bush: 3, flowers: 2, agave: 1, fern: 2, lupine: 1, hibiscus: 1 } });
     F.palm(pb, 10, back(10) + 3, 84, 7, 11, { frondK: 1.05 });
-    F.palm(pb, 322, back(322) + 2, 56, 4, 13);
-    rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 268, back(268) + 6, 18, 7, 4);
+    F.palm(pb, 300, back(300) + 2, 56, 4, 13);
+    rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 246, back(246) + 6, 18, 7, 4);
     // letrero de destinos (como en la referencia)
     PFSigns.post(pb, 14, gy(14) - 7, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7);
     F.hibiscusBush(pb, 104, gy(104) - 5, 22, 16, 41);
@@ -94,10 +94,10 @@ LEVELS[1] = {
     F.flowerPatch(pb, 180, gy(180) - 4, 18, 45);
     F.tuft(pb, 200, gy(200) - 3, 10, 9, 47); F.tuft(pb, 38, gy(38) - 3, 10, 8, 48);
     // terraza baja
-    F.bush(pb, 284, gy(284) - 9, 22, 14, RAMP.foliageR, 51); F.agave(pb, 300, gy(300) - 5, 8, 52);
+    F.bush(pb, 250, gy(250) - 9, 20, 13, RAMP.foliageR, 51); F.agave(pb, 276, gy(276) - 5, 8, 52);
     /* ===== 2. PLAYA (345–785): cabaña de Tía Marea, botes, redes ===== */
     F.palm(pb, 398, back(398) + 2, 66, -6, 61); F.palm(pb, 445, back(445) + 2, 50, 5, 62);
-    F.scatter(pb, (x) => back(x) + 3, 350, 470, 63, { gap: 13, mix: { tuft: 4, dry: 3, agave: 1 } });
+    F.scatter(pb, (x) => back(x) + 3, 290, 470, 63, { gap: 13, mix: { tuft: 4, dry: 3, agave: 1 } });
     mareaHut(pb, 470, gy(500) - 6);
     nets(pb, 584, gy(584) - 8);
     boat(pb, 606, gy(606) - 5, ['#ff7656', '#a6303a', '#5a1018'], 71); boat(pb, 664, gy(664) - 7, ['#ffd84a', '#c8861a', '#6a3a08'], 72);
@@ -121,6 +121,10 @@ LEVELS[1] = {
     I.glassHall(pb, 1302, deckY - 6, 96, 26, 14);
     I.intakeTower(pb, 1430, deckY - 4, 206, 50);
     I.gantry(pb, 1508, deckY - 8, 64, 84);
+    // contenedor de cloración bajo el pórtico y tanque de amortiguación al final del muelle
+    I.box3q(pb, 1516, deckY - 9, 40, 17, 10, { ramp: ['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'], front: (xx, yy, u, v) => PFK.P32(['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'])[(xx - 1516) % 4 === 0 ? 2 : 3 - Math.round(v)] });
+    for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < 5; xx++) if (Math.abs(xx - 2) + Math.abs(yy - 2) <= 2) PFK.put(pb, 1546 + xx, deckY - 21 + yy, U(Math.abs(xx - 2) + Math.abs(yy - 2) === 2 ? '#2a282e' : '#ffd84a'));
+    I.cylV(pb, 1586, deckY - 8, 8, 50, { dome: 0.5, bands: [{ y: 9, h: 3 }, { y: 38, h: 2 }], ladder: true, plate: '#11bedd', stain: true });
     // bandeja de cables: transformador → casa de bombas
     for (let x = 1146; x < 1182; x++) { PFK.put(pb, x, 238, U('#2a282e')); PFK.put(pb, x, 239, U('#4f4d51')); if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76')); }
     // succión: torre → nave de rejas → casa de bombas; impulsión: casa de bombas → filtros
@@ -130,8 +134,8 @@ LEVELS[1] = {
     I.pipe(pb, [[1300, 260], [1604, 260]], 1, 'steel', { flange: 30 }); // retorno de lavado
     I.valve(pb, 1330, 254); I.valve(pb, 1470, 254); I.valve(pb, 1590, 254); I.gauge(pb, 1286, 243, 3, -1.2); I.gauge(pb, 1420, 243, 3, -0.4);
     for (const x of [1124, 1352, 1500, 1598]) I.bollard(pb, x, deckY - 2);
-    I.lifeRing(pb, 1404, deckY - 13); I.lamp(pb, 1116, deckY - 14, 36); I.lamp(pb, 1590, deckY - 14, 36);
-    I.crate(pb, 1540, deckY - 8, 10, 8, 4); I.crate(pb, 1552, deckY - 8, 8, 6, 3); I.barrel(pb, 1566, deckY - 7); I.barrel(pb, 1573, deckY - 6, ['#5a1010', '#8a1a1a', '#c02a2a', '#e04a3a', '#f07a5a', '#ffb090']);
+    I.lifeRing(pb, 1404, deckY - 13); I.lamp(pb, 1116, deckY - 14, 36); I.lamp(pb, 1604, deckY - 12, 36);
+    I.crate(pb, 1488, deckY - 6, 10, 8, 4); I.crate(pb, 1562, deckY - 4, 8, 6, 3); I.barrel(pb, 1572, deckY - 4); I.barrel(pb, 1415, deckY - 5, ['#5a1010', '#8a1a1a', '#c02a2a', '#e04a3a', '#f07a5a', '#ffb090']);
     I.cabinet(pb, 1282, deckY - 7, 9, 13, 4); I.cabinet(pb, 1484, deckY - 7, 8, 11, 3);
     ropeCoil(pb, 1504, deckY - 4);
     /* ===== 6. PRETRATAMIENTO (1612–1885): batería de filtros de arena, caseta, dosificación ===== */
@@ -154,7 +158,7 @@ LEVELS[1] = {
   /** Primer plano a ras de suelo (delante de los pies): pasto alto, flores */
   propsFront(pb, world) {
     const gy = (x) => world.groundAt(x), F = PFFlora;
-    for (let x = 6; x < 340; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (let x = 6; x < 262; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
     for (let x = 360; x < 780; x += 31) F.tuft(pb, x, gy(x) + 3, 8, 6, x + 3, PFFlora.DRY);
     for (let x = 800; x < 1050; x += 37) F.tuft(pb, x, gy(x) + 3, 7, 6, x + 5);
     for (let x = 1890; x < 2600; x += 29) if ((x * 7) % 4 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x + 9);

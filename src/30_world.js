@@ -437,6 +437,7 @@ class Station extends Entity {
 }
 /** Sprites genéricos de estaciones */
 function drawStationSprite(g, kind, x, y, st) {
+  if (typeof PFStations !== 'undefined' && PFStations.draw(g, kind, x, y, st)) return; // aspecto en 3/4 del kit PF
   const t = Game.time, glow = st.glow;
   switch (kind) {
     case 'terminal': {
@@ -507,6 +508,7 @@ class Pickup extends Entity {
   render(g, cam) {
     const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy);
     if (this.draw) { this.draw(g, x, y, this); return; }
+    if (this.kind === 'echo' && typeof PFStations !== 'undefined') { PFStations.drawEcho(g, x, y, this.t); return; }
     if (this.kind === 'echo') {
       const r = 4 + Math.sin(this.t * 5);
       fdisc(g, x, y, r + 2, '#3f2690'); fdisc(g, x, y, r, '#8d6bff'); fdisc(g, x - 1, y - 1, r * 0.45, '#dcd0ff');

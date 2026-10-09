@@ -6267,6 +6267,23 @@ const PFTerrain = (() => {
     while (bi < B.length - 1 && y >= B[bi + 1].y + off(B[bi + 1])) bi++;
     const bl = B[bi], rawTop = bl.y + off(bl), bTop = Math.max(rawTop, gy + 1), bBot = (B[bi + 1] ? B[bi + 1].y + off(B[bi + 1]) : 999);
     const dt = y - bTop, db = bBot - 1 - y, d = y - gy;
+    // repisas (terrazas en la pared): cara superior iluminada con vegetación, nivel superior retraído
+    let tierK = 0;
+    for (const L of s._ledges || []) {
+      const lx0 = L.x0 + Math.round((PFK.vn(y * 0.2, L.x0, 4) - 0.5) * 6), lx1 = L.x1 + Math.round((PFK.vn(y * 0.2, L.x1, 4) - 0.5) * 6);
+      if (x < lx0 || x > lx1) continue;
+      const ly = L.y + Math.round((PFK.vn(x * 0.08, L.y, 5) - 0.5) * 3);
+      if (y >= ly - L.h && y < ly) {
+        const S = PFK.P32(SANDF), k = y - (ly - L.h);
+        if (k === 0) return P[2];
+        if (y === ly - 1) return U(LIP);
+        const g = PFK.cl(x, y, 2, 61);
+        if (g < 0.22) return PFK.P32(RAMP.grassR)[3 + (k > 2 ? 1 : 0)];
+        return S[clamp(6 + k - (x === lx0 || x === lx1 ? 2 : 0), 3, 9)];
+      }
+      if (y < ly - L.h && y > ly - L.h - 16) tierK = -0.2 + (ly - L.h - y) * 0.012;
+      else if (y >= ly && y < ly + 60) tierK = 0.06;
+    }
     // grietas entre columnas y juntas entre bloques
     const gap = 1 + (c.p < 0.35 ? 1 : 0);
     if (dl <= gap - 1 || (dl === gap && PFK.cl(x, y, 2, c.seed) < 0.5)) return P[d < 4 ? 3 : 0];
@@ -6292,6 +6309,7 @@ const PFTerrain = (() => {
     const h = hash2(x, y, c.seed); if (h < 0.025) t += 0.12; else if (h > 0.975) t -= 0.2;
     // primer plano más oscuro hacia abajo
     t -= clamp((d - 70) / 160, 0, 0.32);
+    t += tierK;
     return P[clamp(Math.round(t * 8.4), 0, 8)];
   }
 
@@ -6450,7 +6468,15 @@ const PFTerrain = (() => {
     const def = world.def, P = def.pf || {};
     const segs = (P.terrain || []).map((s, i) => Object.assign({ seed: 101 + i * 37 }, s));
     for (const s of segs) {
-      if (s.face === 'cliff') { s._cols = buildCols(s.x0 - 30, s.x1 + 30, s.seed); s._ci = 0; }
+      if (s.face === 'cliff') {
+        s._cols = buildCols(s.x0 - 30, s.x1 + 30, s.seed); s._ci = 0;
+        const r = RNG(s.seed + 7); s._ledges = [];
+        if (s.ledges !== false) for (let x = s.x0 + r.int(16, 50); x < s.x1 - 50; ) {
+          const w = r.int(44, 110), cx = Math.min(world.w, Math.round(x + w / 2));
+          s._ledges.push({ x0: x, x1: Math.min(s.x1 - 8, x + w), y: world.ground[cx] + r.int(38, 74), h: r.int(5, 7) });
+          x += w + r.int(30, 110);
+        }
+      }
       const w = (world.water || []).find(w => w.cutaway && w.x0 < s.x1 && w.x1 > s.x0);
       if (w) { s._sea = { x0: w.x0, x1: w.x1, y: w.y }; s.waterY = w.y; if (s.face === 'pier') s._hole = [Math.max(s.x0, w.x0), Math.min(s.x1, w.x1)]; }
     }
@@ -6526,8 +6552,9 @@ const PFTerrain = (() => {
     const [h0, h1] = s._hole;
     const bed = (x) => (world.def.pf && world.def.pf.bedAt) ? world.def.pf.bedAt(x) : h;
     const UW = PFK.P32(RAMP.underR);
-    for (let px = h0 + 18; px < h1 - 6; px += 46) {
-      const gy = world.ground[px], big = Math.round((px - h0 - 18) / 46) % 2 === 0, pw = big ? 13 : 7;
+    for (let px0 = h0 + 18, idx = 0; px0 < h1 - 6; px0 += 46, idx++) {
+      const big = idx % 2 === 0, pw = big ? 13 : 7, px = px0 + Math.round((hash1(idx, 31) - 0.5) * 8);
+      const gy = world.ground[px];
       // viga transversal bajo la cubierta
       for (let y = gy + 10; y < gy + 14; y++) for (let x = px - 23; x < px + 23; x++) if (x > h0 && x < h1 && !(PFK.get(pb, x, y) >>> 24)) PFK.put(pb, x, y, y === gy + 10 ? U('#1e1a1c') : U('#2c2830'));
       const yb = bed(px);
@@ -6546,22 +6573,42 @@ const PFTerrain = (() => {
         }
         PFK.put(pb, x, y, u);
       }
+      // algas bajo la línea de agua y escollera en la base de los pilotes grandes
+      for (let k = 0; k < pw; k += 2) { const L = 3 + Math.floor(hash2(px + k, 1, 5) * 9); for (let q = 0; q < L; q++) PFK.put(pb, px - (pw >> 1) + k, wl + 1 + q, PFK.mixU(U(q < 2 ? '#3f6a26' : '#2a4f22'), UW[5], 0.35 + q * 0.04)); }
+      if (big) for (let yy = yb - 9; yy < yb + 2; yy++) for (let xx = px - 15; xx <= px + 15; xx++) {
+        const nx = (xx - px) / 15, ny = (yy - yb - 1) / 10; if (nx * nx + ny * ny > 1) continue;
+        const u = boulderPix(xx, yy, 303, 7, 5, PFK.P32(RAMP.rockWarmR));
+        if (u !== -1) PFK.put(pb, xx, yy, PFK.mixU(u, UW[2], 0.72));
+      }
     }
   }
   /** Plantas que crecen en las juntas del acantilado */
   function ledgePlants(pb, world, s) {
     const r = RNG(s.seed + 5);
+    // vegetación densa sobre cada repisa
+    for (const L of s._ledges || []) {
+      for (let x = L.x0 + 3; x < L.x1 - 3; x += 5 + r.int(0, 6)) {
+        const y = L.y - 1, k = r();
+        if (k < 0.32) PFFlora.tuft(pb, x, y, 7 + r() * 6, 6 + r() * 7, x * 3 + y);
+        else if (k < 0.5) PFFlora.bush(pb, x, y, 12 + r() * 10, 8 + r() * 7, RAMP.foliageR, x + y);
+        else if (k < 0.6) PFFlora.hibiscusBush(pb, x, y, 13 + r() * 6, 10 + r() * 5, x * 7 + y);
+        else if (k < 0.7) { for (let q = 0; q < 3; q++) PFFlora.lupine(pb, x + q * 3, y, 9 + r() * 8, x + q); }
+        else if (k < 0.82) PFFlora.flowerPatch(pb, x, y, 9, x + y);
+        else if (k < 0.9) PFFlora.fern(pb, x, y, 9, x + y * 3);
+        else PFFlora.agave(pb, x, y, 6, x + y);
+      }
+    }
+    // matas sueltas en algunas juntas (pocas, más grandes)
     for (const c of s._cols) {
       if (c.x0 < s.x0 || c.x1 > s.x1) continue;
       for (const b of c.blocks) {
         const gy = world.ground[clamp(Math.round((c.x0 + c.x1) / 2), 0, world.w)];
-        if (b.y < gy + 18 || b.y > gy + 150) continue;
+        if (b.y < gy + 18 || b.y > gy + 140) continue;
         const k = r();
-        const x = Math.round(c.x0 + 2 + r() * (c.x1 - c.x0 - 4)), y = b.y;
-        if (k < 0.16) PFFlora.tuft(pb, x, y, 6 + r() * 5, 5 + r() * 6, x * 3 + y);
-        else if (k < 0.22) PFFlora.flowerPatch(pb, x, y, 7, x + y);
-        else if (k < 0.26) PFFlora.fern(pb, x, y, 7, x + y * 3);
-        else if (k < 0.28) PFFlora.agave(pb, x, y, 5, x + y);
+        const x = Math.round(c.x0 + 3 + r() * (c.x1 - c.x0 - 6)), y = b.y;
+        if (k < 0.07) PFFlora.tuft(pb, x, y, 8 + r() * 5, 7 + r() * 6, x * 3 + y);
+        else if (k < 0.1) PFFlora.fern(pb, x, y, 9, x + y * 3);
+        else if (k < 0.12) PFFlora.flowerPatch(pb, x, y, 8, x + y);
       }
     }
   }
@@ -6775,7 +6822,7 @@ const PFWater = (() => {
       fish.push({ x: xx, y: wy + 16 + r() * (Math.max(30, bedAt(Math.round(xx)) - wy - 40)), vx: (r() < 0.5 ? -1 : 1) * (5 + r() * 6), kind, ph: r() * 10, home: xx, range: 60 + r() * 120 });
     }
     const contacts = [x0 + 4];
-    for (const [a, b] of holes) for (let px = a + 18; px < b - 6; px += 46) contacts.push(px);
+    for (const [a, b] of holes) for (let px = a + 18, idx = 0; px < b - 6; px += 46, idx++) contacts.push(px + Math.round((hash1(idx, 31) - 0.5) * 8));
     for (const cx of (W_.contacts || [])) contacts.push(cx);
     return { w, x0, x1, y0, wy, c: pb.toCanvas(), crest, shaft, fishS, fishB, fishO, fish, bedAt, holes, maxD, contacts };
   }
@@ -7416,9 +7463,10 @@ const PFSigns = (() => {
     const tx = dir > 0 ? x + 7 : x + tip + 6, ty = y + Math.round((h - 7) / 2) + 1;
     PFK.text(pb, text, tx, ty, U(TXT), { font: 'main', shadow: U('#1a0500') });
     const ax = dir > 0 ? x + w - tip - 4 : x + tip - 4, ay = y + Math.round(h / 2);
-    const arrowX = dir > 0 ? Math.max(tx + tw + 4, ax - 6) : x + 6;
+    const arrowX = dir > 0 ? Math.max(tx + tw + 4, ax - 6) : tx + tw + 5;
+    const tipX = dir > 0 ? arrowX + 6 : arrowX;
     for (let k = 0; k < 7; k++) { PFK.put(pb, arrowX + k, ay, U(TXT)); PFK.put(pb, arrowX + k + 1, ay + 1, U('#1a0500')); }
-    for (let k = 1; k <= 3; k++) { PFK.put(pb, arrowX + 6 - k, ay - k, U(TXT)); PFK.put(pb, arrowX + 6 - k, ay + k, U(TXT)); PFK.put(pb, arrowX + 7 - k, ay + k + 1, U('#1a0500')); }
+    for (let k = 1; k <= 3; k++) { const xx = tipX - dir * k; PFK.put(pb, xx, ay - k, U(TXT)); PFK.put(pb, xx, ay + k, U(TXT)); PFK.put(pb, xx + 1, ay + k + 1, U('#1a0500')); }
     return tw;
   }
   /** Poste con capuchón */
@@ -7666,6 +7714,121 @@ const PFStage = (() => {
   return { build, renderBack, renderWaterBack, renderWaterFront, renderFrontPlane };
 })();
 
+/* ===== 18i_pf_stations.js ===== */
+/* =====================================================================
+   18i_pf_stations.js — Aspecto de estaciones interactivas y coleccionables (kit PF).
+   Cuerpos prerenderizados en 3/4 (acero blanco cálido, contorno selectivo,
+   especular, LED) + partes animadas mínimas por cuadro (pantallas, ondas,
+   pulsos). Mantiene las huellas y alturas de los sprites anteriores para
+   que los avisos de interacción (hY) sigan en su sitio.
+   drawStationSprite(g, kind, x, y, st) delega aquí si existe PFStations.
+   ===================================================================== */
+const PFStations = (() => {
+  const cache = new Map();
+  const S = () => PFK.P32(PFInfra.STEEL);
+  function body(kind) {
+    let c = cache.get(kind); if (c) return c;
+    let pb, ox, oy;
+    if (kind === 'terminal') {
+      pb = new PixelBuffer(24, 36); ox = 12; oy = 35;
+      PFInfra.box3q(pb, 5, 35, 14, 3, 4, { ramp: PFTerrain.CONC });
+      PFInfra.box3q(pb, 6, 32, 12, 18, 4, { ramp: PFInfra.STEEL });
+      // cabezal inclinado con pantalla
+      PFK.polyFill(pb, [[4, 14], [19, 14], [21, 5], [6, 5]], (x, y) => S()[y < 7 ? 6 : 4]);
+      PFK.polyFill(pb, [[6, 13], [17, 13], [19, 7], [8, 7]], U('#06122a'));
+      for (let x = 4; x < 20; x++) PFK.put(pb, x, 14, U('#2a282e'));
+      // teclado y placa
+      for (let x = 8; x < 16; x += 2) PFK.put(pb, x, 18, U('#4f4d51'));
+      PFK.put(pb, 9, 22, U('#ff5a4a')); PFK.put(pb, 12, 22, U('#3fe0a0')); PFK.put(pb, 15, 22, U('#ffd84a'));
+      PFK.selOut(pb, -0.6, 'lrb');
+    } else if (kind === 'sensor') {
+      pb = new PixelBuffer(18, 38); ox = 9; oy = 37;
+      for (let y = 12; y < 37; y++) { PFK.put(pb, 8, y, S()[5]); PFK.put(pb, 9, y, S()[2]); }
+      PFInfra.box3q(pb, 3, 16, 10, 8, 3, { ramp: PFInfra.STEEL });
+      for (let y = 10; y < 14; y++) for (let x = 5; x < 11; x++) PFK.put(pb, x, y, U(y === 10 ? '#7cdfec' : '#0a3a5a'));
+      PFInfra.pvPanel(pb, 2, 5, 9, 3);
+      for (let y = 0; y < 6; y++) PFK.put(pb, 14, y, U('#c8d8e0')); PFK.put(pb, 14, 0, U('#ff4e5d'));
+      for (let x = 4; x < 14; x++) PFK.put(pb, x, 37, U('#2a282e'));
+      PFK.selOut(pb, -0.6, 'lrb');
+    } else if (kind === 'sim') {
+      pb = new PixelBuffer(40, 40); ox = 20; oy = 39;
+      PFInfra.box3q(pb, 3, 39, 32, 4, 5, { ramp: PFTerrain.CONC });
+      PFInfra.box3q(pb, 4, 35, 30, 14, 6, { ramp: ['#141a28', '#22304a', '#34507a', '#4a6ea0', '#7a9cc8', '#b8d0ea'] });
+      // monitor grande
+      PFK.polyFill(pb, [[5, 21], [33, 21], [35, 3], [7, 3]], (x, y) => PFK.P32(PFInfra.STEEL)[y < 5 ? 6 : 3]);
+      PFK.polyFill(pb, [[7, 19], [31, 19], [33, 5], [9, 5]], U('#04102a'));
+      for (let x = 10; x < 18; x += 3) { PFK.put(pb, x, 27, U('#ffd84a')); PFK.put(pb, x + 1, 27, U('#c89020')); }
+      for (let x = 20; x < 30; x += 3) { PFK.put(pb, x, 27, U('#3fe0a0')); PFK.put(pb, x + 1, 27, U('#1a8a60')); }
+      PFK.selOut(pb, -0.6, 'lrb');
+    } else if (kind === 'solo') {
+      pb = new PixelBuffer(36, 52); ox = 18; oy = 51;
+      const ST = ['#120a24', '#1e1238', '#2e1d53', '#433c7b', '#6b5aa8', '#9a8ad0', '#c8bcf0'];
+      PFInfra.box3q(pb, 2, 51, 32, 4, 6, { ramp: PFTerrain.CONC });
+      // pilares y dintel de piedra violeta
+      for (const px of [4, 26]) PFInfra.box3q(pb, px, 47, 6, 40, 4, { ramp: ST });
+      PFInfra.box3q(pb, 2, 11, 32, 6, 5, { ramp: ST });
+      for (let y = 12; y < 47; y++) for (let x = 10; x < 26; x++) PFK.put(pb, x, y, U(y < 14 ? '#2a1a66' : '#0a0718'));
+      for (const [x, y] of [[6, 18], [6, 26], [6, 34], [28, 22], [28, 30], [28, 38]]) { PFK.put(pb, x, y, U('#b49cff')); PFK.put(pb, x + 1, y, U('#e6dcff')); }
+      PFK.selOut(pb, -0.6, 'lrb');
+    } else if (kind === 'valve') {
+      pb = new PixelBuffer(26, 24); ox = 13; oy = 23;
+      PFInfra.pipe(pb, [[1, 18], [25, 18]], 3, 'steel', { flange: 0 });
+      PFInfra.box3q(pb, 9, 22, 8, 8, 3, { ramp: PFInfra.STEEL });
+      for (let y = 6; y < 14; y++) { PFK.put(pb, 12, y, S()[5]); PFK.put(pb, 13, y, S()[2]); }
+    } else if (kind === 'book') {
+      pb = new PixelBuffer(20, 22); ox = 10; oy = 21;
+      const Wd = ['#2a1408', '#4a2a14', '#6e4422', '#8e5e32', '#b07e4a', '#d0a46a'];
+      for (let y = 10; y < 21; y++) { PFK.put(pb, 9, y, U(Wd[4])); PFK.put(pb, 10, y, U(Wd[2])); }
+      PFK.polyFill(pb, [[2, 11], [18, 11], [16, 4], [4, 4]], (x, y) => U(x < 10 ? '#f4ecdc' : '#e2d8c6'));
+      for (let y = 5; y < 11; y++) PFK.put(pb, 10, y, U('#7a1f36'));
+      for (let x = 5; x < 9; x++) { PFK.put(pb, x, 7, U('#b8a890')); PFK.put(pb, x, 9, U('#b8a890')); }
+      for (let x = 2; x < 19; x++) PFK.put(pb, x, 11, U('#7a1f36'));
+      PFK.selOut(pb, -0.6, 'lrb');
+    }
+    if (!pb) return null;
+    c = { c: pb.toCanvas(), ox, oy };
+    cache.set(kind, c); return c;
+  }
+  function draw(g, kind, x, y, st) {
+    const t = Game.time, glow = st.glow || '#56e5ff';
+    const B = body(kind);
+    if (!B) return false;
+    g.drawImage(B.c, x - B.ox, y - B.oy);
+    if (kind === 'terminal') {
+      g.fillStyle = glow; for (let i = 0; i < 3; i++) g.fillRect(x - 4 + i, y - 27 + i * 2, 3 + ((i * 5 + Math.floor(t * 4)) % 7), 1);
+      if (!st.done && (Math.floor(t * 2) % 2)) { g.fillStyle = glow; g.fillRect(x + 6, y - 33, 1, 1); PFK.drawGlow(g, x + 6.5, y - 32.5, 3, glow, 0.6); }
+    } else if (kind === 'sensor') {
+      g.fillStyle = (Math.floor(t * 3) % 2) ? glow : '#106884'; g.fillRect(x - 3, y - 25, 2, 2);
+      for (let i = 0; i < 2; i++) { const r = ((t * 14 + i * 6) % 12); g.globalAlpha = 1 - r / 12; g.fillStyle = glow; for (let a = -3; a <= 3; a++) g.fillRect(Math.round(x + 5 + Math.sin(a * 0.3) * r), Math.round(y - 37 - Math.cos(a * 0.3) * r * 0.6), 1, 1); g.globalAlpha = 1; }
+    } else if (kind === 'sim') {
+      g.fillStyle = glow;
+      for (let i = 0; i < 22; i++) g.fillRect(x - 11 + i, Math.round(y - 27 + Math.sin(i * 0.5 + t * 3) * 4), 1, 1);
+      g.fillStyle = '#ffd84a'; for (let i = 0; i < 22; i += 2) g.fillRect(x - 11 + i, Math.round(y - 25 + Math.cos(i * 0.3 + t * 2) * 3), 1, 1);
+    } else if (kind === 'solo') {
+      for (let i = 0; i < 5; i++) { const on = (st.progress || 0) > i; g.fillStyle = on ? '#ffe14d' : '#3f2690'; g.fillRect(x - 9 + i * 4, y - 45, 3, 2); }
+      g.fillStyle = st.done ? '#3fe0a0' : '#b49cff';
+      for (let i = 0; i < 8; i++) g.fillRect(x - 7 + ((i * 5 + Math.floor(t * 6)) % 14), y - 34 + i * 4, 1, 1);
+      g.globalAlpha = 0.18 + 0.1 * Math.sin(t * 2); g.fillStyle = st.done ? '#3fe0a0' : '#8d6bff'; g.fillRect(x - 8, y - 37, 16, 33); g.globalAlpha = 1;
+      drawText(g, 'SOLO', x, y - 60, { font: 'tiny', align: 'center', color: '#ffe14d', shadow: '#0a0718' });
+    } else if (kind === 'valve') {
+      const a = st.done ? 1.2 : 0;
+      for (let k = 0; k < 4; k++) { const an = a + k * Math.PI / 2; fline(g, x, y - 18, x + Math.cos(an) * 6, y - 18 + Math.sin(an) * 2.5, '#e04a3a'); }
+      fpx(g, x, y - 18, '#ff8a6a');
+    }
+    return true;
+  }
+  /** Coleccionable eco de KIRU: cristal facetado violeta con anillo orbital */
+  function drawEcho(g, x, y, t) {
+    const b = Math.round(Math.sin(t * 3) * 1);
+    PFK.drawGlow(g, x, y + b, 9, '#8d6bff', 0.55);
+    const pts = [[0, -6], [4, -1], [0, 6], [-4, -1]];
+    g.fillStyle = '#3f2690'; g.beginPath(); g.moveTo(x + pts[0][0], y + b + pts[0][1]); for (const p of pts) g.lineTo(x + p[0], y + b + p[1]); g.fill();
+    frect(g, x - 2, y + b - 4, 2, 7, '#b49cff'); frect(g, x, y + b - 4, 2, 5, '#8d6bff'); frect(g, x - 1, y + b - 4, 1, 2, '#f4f0ff');
+    for (let k = 0; k < 5; k++) { const a = t * 2 + k * 1.256; fpx(g, x + Math.cos(a) * 9, y + b + Math.sin(a) * 3, k % 2 ? '#b49cff' : '#e6dcff'); }
+  }
+  return { draw, drawEcho, body };
+})();
+
 /* ===== 18z_pf_test.js ===== */
 /* =====================================================================
    18z_pf_test.js — Galería del kit PF para comparar con la referencia.
@@ -7702,6 +7865,7 @@ const PF_KIT_TEST = {
     g.drawImage(this.c, 0, 0);
     if (this.page === 'labels' && typeof WorldLabels !== 'undefined') WorldLabels.gallery(g);
     if (this.page === 'fauna' && typeof PFFauna !== 'undefined') PFFauna.gallery(g, this.t);
+    if (this.page === 'stations') ['terminal', 'sensor', 'sim', 'solo', 'valve', 'book', 'clue'].forEach((k, i) => { drawStationSprite(g, k, 40 + i * 60, 250, { glow: '#56e5ff', progress: 2 }); if (i === 6) PFStations.drawEcho(g, 40 + 7 * 60, 230, this.t); });
   },
 };
 
@@ -10405,6 +10569,7 @@ class Station extends Entity {
 }
 /** Sprites genéricos de estaciones */
 function drawStationSprite(g, kind, x, y, st) {
+  if (typeof PFStations !== 'undefined' && PFStations.draw(g, kind, x, y, st)) return; // aspecto en 3/4 del kit PF
   const t = Game.time, glow = st.glow;
   switch (kind) {
     case 'terminal': {
@@ -10475,6 +10640,7 @@ class Pickup extends Entity {
   render(g, cam) {
     const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy);
     if (this.draw) { this.draw(g, x, y, this); return; }
+    if (this.kind === 'echo' && typeof PFStations !== 'undefined') { PFStations.drawEcho(g, x, y, this.t); return; }
     if (this.kind === 'echo') {
       const r = 4 + Math.sin(this.t * 5);
       fdisc(g, x, y, r + 2, '#3f2690'); fdisc(g, x, y, r, '#8d6bff'); fdisc(g, x - 1, y - 1, r * 0.45, '#dcd0ff');
@@ -12217,14 +12383,14 @@ LEVELS[1] = {
   /* Composición vertical (≥ 6 alturas): acantilado de inicio 246–248 → terraza 264 → playa 292–298 →
      roquedal 262–292 → escalinata → muelle 268 sobre el corte submarino → explanada de filtros 282 →
      sendero rocoso ascendente 274 → 262 → 246 → 230 hacia la salida. Altura extra (hasta 460) solo abajo. */
-  ground: [[0, 248], [120, 246], [236, 248, 'step'], [262, 264], [300, 266], [360, 290], [470, 292], [560, 293], [700, 294], [770, 290],
+  ground: [[0, 248], [120, 246], [228, 248, 'step'], [232, 266], [256, 266], [300, 290], [360, 290], [470, 292], [560, 293], [700, 294], [770, 290],
     [810, 272, 'lin'], [880, 264], [960, 268], [1010, 280], [1050, 292], [1084, 292, 'step'], [1090, 286, 'step'], [1096, 280, 'step'], [1102, 274, 'step'],
     [1108, 268], [1612, 268, 'step'], [1618, 274, 'step'], [1624, 280, 'step'], [1630, 282], [1860, 282], [1900, 278], [1960, 274],
     [1990, 274, 'step'], [2010, 262], [2110, 256, 'step'], [2130, 246], [2250, 242], [2330, 238, 'step'], [2360, 230], [2600, 232]],
   terrain: [{ x0: 0, x1: 360, mat: 'rock' }, { x0: 360, x1: 780, mat: 'beach' }, { x0: 780, x1: 1060, mat: 'rock' }, { x0: 1060, x1: 1880, mat: 'stone' }, { x0: 1880, x1: 2600, mat: 'rock' }],
   /* Mar en corte: una sola masa de agua a lo largo de la costa (la playa, el roquedal, el muelle y la
      explanada de filtros salen del agua). Su superficie (y 296) queda por debajo de toda la línea de paso. */
-  water: [{ x0: 338, x1: 1996, y: 296, tint: '#20d6c7', deep: '#1063a6', pf: true, cutaway: true, crestFrom: 4, crestTo: 2 }],
+  water: [{ x0: 266, x1: 1996, y: 296, tint: '#20d6c7', deep: '#1063a6', pf: true, cutaway: true, crestFrom: 4, crestTo: 2 }],
   platforms: [
     { x: 820, y: 236, w: 46, type: 'rock', baked: true }, { x: 900, y: 222, w: 52, type: 'rock', baked: true },
     { x: 1640, y: 206, w: 150, type: 'metal', baked: true },
@@ -12236,8 +12402,8 @@ LEVELS[1] = {
   /* ---------------- plano jugable con kit PF ---------------- */
   pf: {
     terrain: [
-      { x0: 0, x1: 345, surf: 'path', face: 'cliff', depth: 16 },
-      { x0: 345, x1: 785, surf: 'sand', face: 'beach', shore: true, depth: 14 },
+      { x0: 0, x1: 268, surf: 'path', face: 'cliff', depth: 16 },
+      { x0: 268, x1: 785, surf: 'sand', face: 'beach', shore: true, depth: 14 },
       { x0: 785, x1: 1060, surf: 'rock', face: 'rocks', depth: 14 },
       { x0: 1060, x1: 1108, surf: 'paving', face: 'quay', depth: 16 },
       { x0: 1108, x1: 1612, surf: 'deck', face: 'pier', depth: 20 },
@@ -12247,7 +12413,7 @@ LEVELS[1] = {
     ],
     /** Lecho marino del corte submarino (mundo) */
     bedAt(x) {
-      const B = [[330, 314], [420, 334], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
+      const B = [[262, 318], [330, 326], [420, 336], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
       let i = 0; while (i < B.length - 2 && B[i + 1][0] <= x) i++;
       const t = clamp((x - B[i][0]) / (B[i + 1][0] - B[i][0]), 0, 1);
       return Math.round(lerp(B[i][1], B[i + 1][1], smooth(t)) + Math.sin(x * 0.07) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
@@ -12256,8 +12422,8 @@ LEVELS[1] = {
     water: { intake: { x: 1462, y: 374, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 24, fishX: [380, 1980] },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
-      { kind: 'canopy', x: -16, y: -6, w: 230, h: 74, seed: 31, side: -1, n: 14, vines: 4 },
-      { kind: 'clump', x: -14, w: 120, h: 92, seed: 3, spikes: 6, leaves: 11 },
+      { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
+      { kind: 'clump', x: -18, w: 150, h: 104, seed: 3, spikes: 8, leaves: 14 },
       { kind: 'clump', x: 600, w: 110, h: 70, seed: 8, spikes: 2, leaves: 9 },
       { kind: 'clump', x: 1150, w: 100, h: 64, seed: 13, spikes: 3, leaves: 8 },
       { kind: 'clump', x: 1640, w: 120, h: 66, seed: 17, spikes: 4, leaves: 10 },
@@ -12274,7 +12440,7 @@ LEVELS[1] = {
     { x: 1500, y: 330, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 352 },
     { x: 1250, y: 372, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 388 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
-    { x: 2040, y: 232, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2018, ay: 262 },
+    { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
@@ -12285,12 +12451,12 @@ LEVELS[1] = {
     const r = RNG(1101);
     const F = PFFlora, I = PFInfra;
     /* ===== 1. ACANTILADO DE INICIO (0–345): letrero, flores, palmeras ===== */
-    F.palm(pb, 230, back(230) + 2, 66, -7, 12);
+    F.palm(pb, 212, back(212) + 2, 66, -7, 12);
     F.tree(pb, 150, back(150) + 3, 58, 14, { wide: 1.1 });
-    F.scatter(pb, (x) => back(x) + 2, 0, 345, 21, { gap: 8, mix: { tuft: 5, bush: 3, flowers: 2, agave: 1, fern: 2, lupine: 1, hibiscus: 1 } });
+    F.scatter(pb, (x) => back(x) + 2, 0, 268, 21, { gap: 8, mix: { tuft: 5, bush: 3, flowers: 2, agave: 1, fern: 2, lupine: 1, hibiscus: 1 } });
     F.palm(pb, 10, back(10) + 3, 84, 7, 11, { frondK: 1.05 });
-    F.palm(pb, 322, back(322) + 2, 56, 4, 13);
-    rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 268, back(268) + 6, 18, 7, 4);
+    F.palm(pb, 300, back(300) + 2, 56, 4, 13);
+    rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 246, back(246) + 6, 18, 7, 4);
     // letrero de destinos (como en la referencia)
     PFSigns.post(pb, 14, gy(14) - 7, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7);
     F.hibiscusBush(pb, 104, gy(104) - 5, 22, 16, 41);
@@ -12298,10 +12464,10 @@ LEVELS[1] = {
     F.flowerPatch(pb, 180, gy(180) - 4, 18, 45);
     F.tuft(pb, 200, gy(200) - 3, 10, 9, 47); F.tuft(pb, 38, gy(38) - 3, 10, 8, 48);
     // terraza baja
-    F.bush(pb, 284, gy(284) - 9, 22, 14, RAMP.foliageR, 51); F.agave(pb, 300, gy(300) - 5, 8, 52);
+    F.bush(pb, 250, gy(250) - 9, 20, 13, RAMP.foliageR, 51); F.agave(pb, 276, gy(276) - 5, 8, 52);
     /* ===== 2. PLAYA (345–785): cabaña de Tía Marea, botes, redes ===== */
     F.palm(pb, 398, back(398) + 2, 66, -6, 61); F.palm(pb, 445, back(445) + 2, 50, 5, 62);
-    F.scatter(pb, (x) => back(x) + 3, 350, 470, 63, { gap: 13, mix: { tuft: 4, dry: 3, agave: 1 } });
+    F.scatter(pb, (x) => back(x) + 3, 290, 470, 63, { gap: 13, mix: { tuft: 4, dry: 3, agave: 1 } });
     mareaHut(pb, 470, gy(500) - 6);
     nets(pb, 584, gy(584) - 8);
     boat(pb, 606, gy(606) - 5, ['#ff7656', '#a6303a', '#5a1018'], 71); boat(pb, 664, gy(664) - 7, ['#ffd84a', '#c8861a', '#6a3a08'], 72);
@@ -12325,6 +12491,10 @@ LEVELS[1] = {
     I.glassHall(pb, 1302, deckY - 6, 96, 26, 14);
     I.intakeTower(pb, 1430, deckY - 4, 206, 50);
     I.gantry(pb, 1508, deckY - 8, 64, 84);
+    // contenedor de cloración bajo el pórtico y tanque de amortiguación al final del muelle
+    I.box3q(pb, 1516, deckY - 9, 40, 17, 10, { ramp: ['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'], front: (xx, yy, u, v) => PFK.P32(['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'])[(xx - 1516) % 4 === 0 ? 2 : 3 - Math.round(v)] });
+    for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < 5; xx++) if (Math.abs(xx - 2) + Math.abs(yy - 2) <= 2) PFK.put(pb, 1546 + xx, deckY - 21 + yy, U(Math.abs(xx - 2) + Math.abs(yy - 2) === 2 ? '#2a282e' : '#ffd84a'));
+    I.cylV(pb, 1586, deckY - 8, 8, 50, { dome: 0.5, bands: [{ y: 9, h: 3 }, { y: 38, h: 2 }], ladder: true, plate: '#11bedd', stain: true });
     // bandeja de cables: transformador → casa de bombas
     for (let x = 1146; x < 1182; x++) { PFK.put(pb, x, 238, U('#2a282e')); PFK.put(pb, x, 239, U('#4f4d51')); if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76')); }
     // succión: torre → nave de rejas → casa de bombas; impulsión: casa de bombas → filtros
@@ -12334,8 +12504,8 @@ LEVELS[1] = {
     I.pipe(pb, [[1300, 260], [1604, 260]], 1, 'steel', { flange: 30 }); // retorno de lavado
     I.valve(pb, 1330, 254); I.valve(pb, 1470, 254); I.valve(pb, 1590, 254); I.gauge(pb, 1286, 243, 3, -1.2); I.gauge(pb, 1420, 243, 3, -0.4);
     for (const x of [1124, 1352, 1500, 1598]) I.bollard(pb, x, deckY - 2);
-    I.lifeRing(pb, 1404, deckY - 13); I.lamp(pb, 1116, deckY - 14, 36); I.lamp(pb, 1590, deckY - 14, 36);
-    I.crate(pb, 1540, deckY - 8, 10, 8, 4); I.crate(pb, 1552, deckY - 8, 8, 6, 3); I.barrel(pb, 1566, deckY - 7); I.barrel(pb, 1573, deckY - 6, ['#5a1010', '#8a1a1a', '#c02a2a', '#e04a3a', '#f07a5a', '#ffb090']);
+    I.lifeRing(pb, 1404, deckY - 13); I.lamp(pb, 1116, deckY - 14, 36); I.lamp(pb, 1604, deckY - 12, 36);
+    I.crate(pb, 1488, deckY - 6, 10, 8, 4); I.crate(pb, 1562, deckY - 4, 8, 6, 3); I.barrel(pb, 1572, deckY - 4); I.barrel(pb, 1415, deckY - 5, ['#5a1010', '#8a1a1a', '#c02a2a', '#e04a3a', '#f07a5a', '#ffb090']);
     I.cabinet(pb, 1282, deckY - 7, 9, 13, 4); I.cabinet(pb, 1484, deckY - 7, 8, 11, 3);
     ropeCoil(pb, 1504, deckY - 4);
     /* ===== 6. PRETRATAMIENTO (1612–1885): batería de filtros de arena, caseta, dosificación ===== */
@@ -12358,7 +12528,7 @@ LEVELS[1] = {
   /** Primer plano a ras de suelo (delante de los pies): pasto alto, flores */
   propsFront(pb, world) {
     const gy = (x) => world.groundAt(x), F = PFFlora;
-    for (let x = 6; x < 340; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (let x = 6; x < 262; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
     for (let x = 360; x < 780; x += 31) F.tuft(pb, x, gy(x) + 3, 8, 6, x + 3, PFFlora.DRY);
     for (let x = 800; x < 1050; x += 37) F.tuft(pb, x, gy(x) + 3, 7, 6, x + 5);
     for (let x = 1890; x < 2600; x += 29) if ((x * 7) % 4 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x + 9);
