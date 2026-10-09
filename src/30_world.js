@@ -347,7 +347,7 @@ class Kiru extends Entity {
       this.vx = Math.abs(d) > 2 ? sign(d) * (this.target.speed || 80) : 0;
       if (Math.abs(d) <= 2) { this.target.done = true; this.target = null; }
     } else if (this.follow && P) {
-      const tx = P.x - P.facing * 30;
+      const tx = P.x - P.facing * KIRU_FOLLOW;
       const d = tx - this.x;
       if (Math.abs(P.x - this.x) > 340 || Math.abs(P.y - this.y) > 220) { this.x = P.x - P.facing * 24; this.y = P.y - 10; W_.ps.emit('energy', this.x, this.y - 10, 0, 0, 10, 8); }
       const sp = Math.abs(d) > 70 ? 170 : Math.abs(d) > 20 ? 95 : 0;
@@ -369,14 +369,27 @@ class Kiru extends Entity {
     if (this.scanT > 0) a = 'scan';
     if (this.forced) a = this.forced;
     if (a !== this.anim) { this.anim = a; this.animT = 0; }
+    // altura de vuelo: reposa a la altura de la cabeza de Amaya y baja un poco al desplazarse (solo visual)
+    const moving = Math.abs(this.vx) > 6 || this.air;
+    this.lift = approach(this.lift ?? KIRU_LIFT, moving ? KIRU_LIFT_MOVE : KIRU_LIFT, (moving ? 60 : 24) * dt);
   }
+  /** Desplazamiento vertical de dibujo respecto al ancla del sprite (que ya incluye KIRU_LIFT) */
+  get dropY() { return Math.round(KIRU_LIFT - (this.lift ?? KIRU_LIFT)); }
   render(g, cam) {
-    const x = this.x - cam.ox, y = this.y - cam.oy;
-    drawChar(g, 'kiru', this.anim, this.animT, x, y, this.facing, { expr: this.mood });
-    if (this.scanT > 0) { for (let i = 0; i < 3; i++) { const r = ((Game.time * 30 + i * 8) % 24); g.globalAlpha = 1 - r / 24; for (let a = 0; a < 16; a++) fpx(g, x + Math.cos(a / 16 * TAU) * r, y - 22 + Math.sin(a / 16 * TAU) * r * 0.5, '#56e5ff'); g.globalAlpha = 1; } }
+    const x = this.x - cam.ox, y = this.y - cam.oy, dy = this.dropY;
+    drawChar(g, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false });
+    // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
+    const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+    if (this.scanT > 0) {
+      // anillos de escaneo centrados en el visor (ancla del ojo del sprite)
+      const ey = Math.round(y + dy - (CHARS.kiru.oy - 38));
+      for (let i = 0; i < 3; i++) { const r = ((Game.time * 30 + i * 8) % 24); g.globalAlpha = 1 - r / 24; for (let a = 0; a < 16; a++) fpx(g, x + this.facing * 6 + Math.cos(a / 16 * TAU) * r, ey + Math.sin(a / 16 * TAU) * r * 0.5, '#56e5ff'); g.globalAlpha = 1; }
+    }
   }
   renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - 36, this.bubble.text, '#20d6c7', this.bubble.t); }
 }
+/** Distancia de seguimiento de KIRU detrás de Amaya (px): deja libre la coleta y la mochila */
+const KIRU_FOLLOW = 36;
 
 /** Globo de diálogo ambiental (navy de la referencia, con nombre y cola hacia la cabeza del hablante).
     (x,y) = punto sobre el personaje en pantalla; si coincide con un KIRU/actor del nivel se ancla a su cabeza real. */

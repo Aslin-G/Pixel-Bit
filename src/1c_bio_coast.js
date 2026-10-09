@@ -221,8 +221,8 @@ BIOMES.coast = function (L) {
     coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
     const A = dc.anchors;
     labels.push(
-      { x: A.membranas.x - 10, y: COAST_LY + A.membranas.y - 4, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
-      { x: A.potable.x + 26, y: COAST_LY + A.potable.y - 16, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
+      { x: A.membranas.x - 40, y: COAST_LY + A.membranas.y - 22, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
+      { x: A.potable.x + 40, y: COAST_LY + A.potable.y - 28, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
       { x: A.salmuera.x - 4, y: COAST_LY + A.salmuera.y - 35, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
     );
     // rocas en la orilla con espuma

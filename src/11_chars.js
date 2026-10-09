@@ -220,13 +220,31 @@ function renderHumanoid(id, D, anim, t, opts) {
   return pb;
 }
 
+/* Ojos de Amaya (perfil casi lateral, mira a la derecha). Columna 0 = remate exterior de la
+   pestaña (lado de la oreja); iris hacia delante; brillo blanco arriba; iris que aclara abajo. */
+const EYE_AM = {
+  open: { oy: -2, rows: ['.KKKK', 'KKhDD', '.wDDM', '.wMLL', '..ss.'] },
+  look: { oy: -2, rows: ['.KKKK', 'KKwhD', '.wwDD', '.wwML', '..ss.'] },
+  half: { oy: -1, rows: ['.KKKK', 'KKKDD', '.wDLM', '..ss.'] },
+  soft: { oy: 0, rows: ['.KKKK', 'K.DLM', '..ss.'] },
+  determined: { oy: -2, rows: ['KKKKK', '.KhDD', '.wDDM', '.wMLL', '..ss.'] },
+  wide: { oy: -3, rows: ['..KKK', '.KKKK', 'KwhDD', '.wDDM', '.wMLL', '..ww.'] },
+  surprised: { oy: -3, rows: ['..KKK', '.K..K', 'Kwwhw', '.wDDw', '.wDDw', '..ww.'] },
+  worried: { oy: -2, rows: ['...KK', 'KKKK.', '.whDD', '.wDDM', '.wMLL', '..ss.'] },
+  sad: { oy: -2, rows: ['...KK', '.KKK.', 'K.hDD', '.wDDM', '.wMLL', '..ss.'] },
+  blink: { oy: 1, rows: ['KKKKK', '..ss.'] },
+};
+
 /* ------------------------------------------------------------------ */
 /* AMAYA SERRANO — canon de la referencia (STYLE LOCK §10)              */
 /* ------------------------------------------------------------------ */
 const AMAYA_D = {
   thigh: 13, shin: 13.5, footH: 3, footL: 7.5, pelvisH: 5, chestH: 16, torsoW: 12.8,
   headRX: 10.5, headRY: 11.5, upperArm: 10, foreArm: 9.5, armW: 2.5, legW: 3.1, handR: 2.2, neckR: 2.5,
-  face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#1e0901', '#4a1c0c', '#9a5228'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06' },
+  // cara amable/decidida como la referencia: ojo grande con brillo e iris castaño claro, sin ojo lejano
+  // (perfil casi lateral), boca suave y rubor; sonrisa leve por defecto
+  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#6a3418', '#b06a34'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
+  defaultExpr: 'smile', earDX: -3.4, earDY: 2.5,
   shortSleeve: 0.55, fingerless: true, wristBand: true, sole: '#1a0a06', laces: '#e48a4a', bootTall: 4, earZ: 56,
   energetic: 1.15, shadowR: 12,
   prepare() {
@@ -306,7 +324,7 @@ const AMAYA_D = {
     const { hx, hy, rx, ry, pose } = o;
     const H = M.hairAm;
     // casquete + volumen trasero hasta la nuca
-    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.76, faceDX: -0.4, faceDY: -0.3, base: 3 });
+    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.84, faceDX: -1.4, faceDY: -1.0, base: 3 });
     R.ellipse(hx - rx * 0.55, hy + 1, 5, 7.5, { mat: H, base: 3, z: 54, group: 'hair', bevel: 2.2 }, 0.25);
     // coleta alta voluminosa: 6 mechones afilados que se abren hacia atrás
     HAIR2.ponytail(R, o, H, {
@@ -314,14 +332,15 @@ const AMAYA_D = {
       clumps: [[0.5, 13, 3.0, -0.16], [0.26, 18, 4.0, -0.24], [0.02, 20, 4.3, -0.3], [-0.2, 18, 4.0, -0.34], [-0.42, 15, 3.4, -0.38], [-0.66, 11, 2.7, -0.4]],
     });
     // flequillo en puntas hasta la línea de las cejas
+    // (las puntas terminan sobre la pestaña: la frente y el ojo quedan despejados)
     HAIR2.bangs(R, o, H, [
-      [[-1, -10.5], [1.5, -6], [2.2, -3], 2.8],
-      [[2.5, -11], [5, -6.5], [6.2, -2.4], 2.8],
-      [[6, -10], [8.2, -6], [9.6, -2.2], 2.5],
-      [[8.5, -8.5], [10.6, -5.2], [11.5, -1.5], 1.8],
+      [[-1, -10.5], [1.2, -6.5], [2.0, -4.0], 2.8],
+      [[2.5, -11], [4.8, -7.2], [6.0, -4.2], 2.7],
+      [[6, -10.5], [8.0, -7.2], [9.4, -4.6], 2.3],
+      [[8.5, -9.2], [10.3, -6.8], [11.0, -4.6], 1.6],
     ]);
     // mechón lateral delante de la oreja
-    HAIR2.lock(R, o, H, [[0.2, -5], [0.4, 2], [1.4, 8]], 1.9);
+    HAIR2.lock(R, o, H, [[-1.6, -5], [-1.5, 2], [-0.6, 7.5]], 1.7);
     // brillo en arco sobre la coronilla y en la coleta
     HAIR2.shine(R, o, ['hair', 'bangs'], RAMP.hairAm[6], -2.6, -1.25, 0.74);
     R.stamp(pb => {
@@ -372,9 +391,13 @@ const KIRU_EYE_TPL = {
   star: { n: ['.y.', 'ywy', '.y.'], f: ['y.', 'wy', 'y.'], dy: 2, star: 1 },
   blink: { n: ['ccc'], f: ['cc'], dy: 4 },
 };
+/* KIRU flota a la altura de la cabeza de Amaya (como en la referencia): el hueco de levitación
+   va en el ancla. Lienzo 60×72; pies del dibujo en y≈59; oy = 70 + KIRU_LIFT (altura de reposo).
+   Kiru.render (30_world.js) lo baja hasta KIRU_LIFT_MOVE px al desplazarse. */
+const KIRU_LIFT = 48, KIRU_LIFT_MOVE = 32;
 function renderKiru(anim, t, opts) {
   const M = charMats();
-  const R = new Rig(60, 64, { v2: true });
+  const R = new Rig(60, 72, { v2: true });
   const S = Math.sin, C = Math.cos, P = TAU * t;
   const a = ANIM_ALIAS[anim] || anim;
   // flotación ±1,5 px; inclinación hacia delante al moverse
@@ -396,7 +419,7 @@ function renderKiru(anim, t, opts) {
   // orejas caídas en culpa/tristeza, aplastadas atrás si hay alarma
   if (eyeMode === 'down' || eyeMode === 'guilty' || eyeMode === 'crying') earA = Math.max(earA, 0.6);
   if (eyeMode === 'big') earA = Math.min(earA, -0.15) + 0.35;
-  const hx = 31 + lean * 0.5, hy = 30 + bob + hop + Math.max(0, lean) * 0.5;
+  const hx = 31 + lean * 0.5, hy = 38 + bob + hop + Math.max(0, lean) * 0.5;
   // ---- orejas de zorro en aleta: marco gris, banda naranja→amarilla, panel solar cian con celdas
   const ear = (bx, by, ang, len, w, z, dark, grp) => {
     const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
@@ -420,8 +443,9 @@ function renderKiru(anim, t, opts) {
       } });
   };
   const eb = earA + earTw * 0.08;
-  ear(hx - 11, hy - 7, -2.32 - eb, 21, 11, 2, 1, 'earB');
-  ear(hx - 5, hy - 12, -2.12 - eb * 0.8 + earTw * 0.06, 19.5, 10.5, 14, 0, 'earF');
+  // orejas largas y separadas (la trasera inclinada atrás, la delantera casi erguida), como en la referencia
+  ear(hx - 12, hy - 8, -2.24 - eb, 22, 9, 2, 1, 'earB');
+  ear(hx - 3.5, hy - 12, -1.96 - eb * 0.8 + earTw * 0.06, 23, 9, 14, 0, 'earF');
   // ---- cola de lagartija corta con microturbina naranja
   const tb = [hx - 12, hy + 15];
   const tp = [[tb[0], tb[1]], [tb[0] - 4.5, tb[1] + 0.5 + tailA * 3], [tb[0] - 8, tb[1] - 2 + tailA * 5], [tb[0] - 9.5 + S(P) * 0.6, tb[1] - 6 + tailA * 6 + C(P) * 0.6]];
@@ -516,10 +540,11 @@ function renderKiru(anim, t, opts) {
     }
   }, 100);
   const pb = R.render({ env: opts.env, outlineColor: '#070813' });
-  pb.anchors = { head: { x: hx, y: hy }, eye: { x: hx + 5, y: hy }, shadowR: 8 - Math.max(-1, Math.min(1, bob)) };
+  // sombra de contacto pequeña: KIRU vuela alto
+  pb.anchors = { head: { x: hx, y: hy }, eye: { x: hx + 5, y: hy }, shadowR: 6 - Math.max(-1, Math.min(1, bob)) };
   return pb;
 }
-CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30, oy: 62, shadowR: 8, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
+CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30, oy: 70 + KIRU_LIFT, shadowR: 6, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
 
 /* ------------------------------------------------------------------ */
 /* Peinados v1 (se conservan por compatibilidad)                         */

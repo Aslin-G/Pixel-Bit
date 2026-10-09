@@ -65,7 +65,7 @@ LEVELS[1] = {
   },
   /** Etiquetas científicas en el mundo (WorldLabels) */
   labels: [
-    { x: 1226, y: 150, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 168 },
+    { x: 1226, y: 196, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 212 },
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
     { x: 1500, y: 330, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 352 },
     { x: 1250, y: 372, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 388 },
@@ -88,7 +88,7 @@ LEVELS[1] = {
     F.palm(pb, 300, back(300) + 2, 56, 4, 13);
     rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 246, back(246) + 6, 18, 7, 4);
     // letrero de destinos (como en la referencia)
-    PFSigns.post(pb, 14, gy(14) - 7, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7);
+    PFSigns.post(pb, 2, gy(2) + 2, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7, { font: 'tiny' });
     F.hibiscusBush(pb, 104, gy(104) - 5, 22, 16, 41);
     for (let k = 0; k < 4; k++) F.lupine(pb, 124 + k * 4, gy(124) - 6, 14 + (k % 2) * 6, 43 + k);
     F.flowerPatch(pb, 180, gy(180) - 4, 18, 45);
