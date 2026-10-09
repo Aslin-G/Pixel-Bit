@@ -162,9 +162,10 @@ const Touch = {
       { a: 'jump', x: W - 36, y: H - 42, r: r * 1.1, icon: 'A' },
       { a: 'interact', x: W - 36 - 2.4 * r, y: H - 36, r, icon: 'E' },
       { a: 'tool', x: W - 36 - 1.1 * r, y: H - 42 - 2.2 * r, r: r * 0.85, icon: 'Q' },
-      { a: 'lens', x: W - 22, y: 64, r: 11, icon: 'N' },
-      { a: 'pause', x: W - 22, y: 22, r: 11, icon: 'II' },
-      { a: 'hint', x: W - 22, y: 98, r: 10, icon: '?' },
+      // columna derecha bajo el minimapa «MAPA» y las ranuras de herramienta (no los tapa)
+      { a: 'pause', x: W - 22, y: 118, r: 11, icon: 'II' },
+      { a: 'lens', x: W - 22, y: 146, r: 11, icon: 'N' },
+      { a: 'hint', x: W - 22, y: 172, r: 10, icon: '?' },
     ];
   },
   enabledFor() { const sc = Game.top(); return Input.touchMode && sc && sc.touchControls; },
@@ -196,10 +197,12 @@ const Touch = {
     if (!this.enabledFor()) return;
     for (const b of this.layout()) {
       const on = Input.virt.has(b.a);
-      fdisc(g, b.x, b.y + 2, b.r, 'rgba(20,13,38,0.45)');
-      fdisc(g, b.x, b.y, b.r, on ? 'rgba(86,229,255,0.55)' : 'rgba(255,250,240,0.18)');
-      fdisc(g, b.x, b.y, b.r - 2, on ? 'rgba(32,214,199,0.5)' : 'rgba(20,13,38,0.35)');
-      drawText(g, b.icon, b.x, b.y - 4, { align: 'center', color: on ? '#140d26' : '#fffaf0' });
+      // botón navy con bisel claro (lenguaje de la interfaz), translúcido para no tapar el juego
+      fdisc(g, b.x, b.y + 2, b.r, 'rgba(0,6,51,0.45)');
+      fdisc(g, b.x, b.y, b.r, on ? 'rgba(232,246,255,0.9)' : 'rgba(168,200,255,0.55)');
+      fdisc(g, b.x, b.y, b.r - 1, on ? 'rgba(31,134,184,0.85)' : 'rgba(7,34,72,0.62)');
+      fdisc(g, b.x, b.y - 1, b.r - 3, on ? 'rgba(127,216,246,0.5)' : 'rgba(18,48,90,0.45)');
+      drawText(g, b.icon, b.x, b.y - 4, { align: 'center', font: 'bold', color: '#e6f8fe' });
     }
   },
 };

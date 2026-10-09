@@ -501,7 +501,7 @@ const Sim09 = makeSim({
       const a3 = Gui.toggle(g, 'as3', CX + 6, 180, 'Incertidumbre visible', this.assume.uncertainty); if (!this.done) this.assume.uncertainty = a3;
       drawTextBlock(g, 'Restricciones duras: déficit ≤ 25 m³/d · salmuera ≤ 6. No se compensan con puntos.', CX + 6, 198, CW - 14, { font: 'tiny', color: '#ff9a8a', lineH: 8 });
     } else if (ph === 'guided') {
-      drawTextBlock(g, 'Dominada: otra alternativa es igual o mejor en todos los criterios y estrictamente mejor en al menos uno. Las flechas indican si conviene bajar (↓) o subir (↑).', CX + 6, 34, CW - 12, { font: 'tiny', color: '#cfd6f0' });
+      drawTextBlock(g, '{y}Dominada:{/} otra alternativa es igual o mejor en todos los criterios y estrictamente mejor en al menos uno. Las flechas indican si conviene bajar (↓) o subir (↑).', CX + 6, 34, CW - 12, { color: '#e2ebfc' });
       if (Gui.button(g, 'hintb', CX + 6, 200, 54, 16, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
     } else if (ph === 'free') {
       drawText(g, 'PESOS (decisión de valores)', CX + 6, 32, { font: 'tiny', color: '#eab02a' });

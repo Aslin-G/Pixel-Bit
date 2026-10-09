@@ -120,7 +120,7 @@ const DialogueScene = {
     avoid.push({ x: ax - 16, y: ay + 2, w: 32, h: head });
     const gp = GameplayScene;
     if (gp.player && ent.e !== gp.player) { const px = gp.player.x - gp.cam.ox, py = gp.player.y - gp.cam.oy; avoid.push({ x: px - 14, y: py - UIK.headTop('amaya'), w: 28, h: UIK.headTop('amaya') }); }
-    UIK.speechBubble(g, ax, ay, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: this.full, max: shown, w: 224, style, avoid, minY: 4, maxY: H - 18, more: this.done });
+    UIK.speechBubble(g, ax, ay, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: this.full, max: shown, w: 210, style, avoid, minY: 4, maxY: H - 18, more: this.done });
   },
   renderCinematic(g, L, sp, style, shown, hint = '') {
     const big = Game.settings.textScale > 1;

@@ -239,7 +239,8 @@ const GameplayScene = {
     // objetivo (bajo el retrato, tras la cinta)
     if (this.objective && ct > 3.5) {
       const o = this.objective;
-      const slide = Math.min(1, o.t * 3);
+      o.shownT = (o.shownT || 0) + Game.dt; // avanza también durante diálogos superpuestos
+      const slide = Math.min(1, o.shownT * 3);
       const x = Math.round(6 - (1 - slide) * 230);
       const oh = UIK.objectiveCard(g, x, 64, 204, o.text, o.icon === 'target' || !Icons.hasBig(o.icon) ? 'target' : o.icon);
       rects.push({ x: 0, y: 60, w: 214, h: oh + 6 });

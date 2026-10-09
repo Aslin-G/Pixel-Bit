@@ -231,7 +231,7 @@ UIK.shapeFrame = function (w, h, inside, s, o = {}) {
     for (const i of mark) D[i] = L;
   }
   const split = Math.round(h * (o.split ?? 0.42));
-  const hiU = U(o.hi || s.hi), loU = U(o.lo || s.lo), midU = U(s.mid), inkU = U(s.ink), f0 = U(s.fill[0]), f1 = U(s.fill[1]);
+  const hiU = U(o.hi || s.hi), loU = U(o.lo || s.lo), midU = U(s.mid), inkU = U(s.ink), f0 = U(o.fill ? o.fill[0] : s.fill[0]), f1 = U(o.fill ? o.fill[1] : s.fill[1]);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const d = D[y * w + x];
     if (d < 0) continue;
@@ -441,8 +441,11 @@ UIK.bubbleCanvas = function (w, h, tail, style = 'tech') {
       const xa = left ? tx0 - shift : tx0 + (wTop - ww) + shift;
       return x >= xa && x < xa + ww;
     };
-    const c = UIK.shapeFrame(bw, h, inside, s, { split: 0.4 });
+    // relleno casi plano como el globo de la referencia (banda superior apenas más clara)
+    const c = UIK.shapeFrame(bw, h, inside, s, { split: 0.3, fill: style === 'tech' ? ['#08204a', '#061a3e'] : null });
     const b = c.getContext('2d');
+    // línea interior tenue en la parte baja (como en la referencia)
+    if (bh > 30) { b.fillStyle = s.key; b.fillRect(6, top + bh - 6, bw - 12, 1); }
     // destellos de esquina como en la referencia
     const yb = top + bh;
     fpx(b, bw - 7, top + 4, s.spark || '#7fb8ff'); fpx(b, bw - 6, top + 5, '#e8f6ff'); fpx(b, bw - 5, top + 4, s.spark || '#7fb8ff');
@@ -458,10 +461,10 @@ UIK.bubbleCanvas = function (w, h, tail, style = 'tech') {
 UIK.speechBubble = function (g, ax, ay, o = {}) {
   const lineH = o.lineH || (Game.settings && Game.settings.textScale > 1 ? 13 : 12);
   const maxW = o.w || 200;
-  const lines = wrapText(o.text || '', maxW - 16);
+  const lines = wrapText(o.text || '', maxW - 20);
   const nameW = o.name ? FONTS.bold.measure(o.name) : 0;
-  const w = Math.round(clamp(Math.max(nameW + 24, ...lines.map(l => FONTS.main.measure(l))) + 18, 60, maxW));
-  const bodyH = (o.name ? 19 : 7) + lines.length * lineH + 5;
+  const w = Math.round(clamp(Math.max(nameW + 24, ...lines.map(l => FONTS.main.measure(l))) + 20, 60, maxW));
+  const bodyH = (o.name ? 22 : 8) + lines.length * lineH + 6;
   const TH = 8, h = bodyH + TH;
   const minY = o.minY ?? 4, maxY = o.maxY ?? (H - 4);
   const avoid = o.avoid || [];
@@ -488,14 +491,14 @@ UIK.speechBubble = function (g, ax, ay, o = {}) {
   g.drawImage(cv, r.x, r.y);
   const s = panelStyle(o.style || 'tech');
   const ty = r.y + (C.tail[0] === 't' ? TH : 0);
-  let yy = ty + 6;
+  let yy = ty + 7;
   if (o.name) {
-    drawText(g, o.name, r.x + 8, yy, { font: 'bold', color: s.title });
-    if (o.nameCol) frect(g, r.x + 8, yy + 10, Math.min(16, nameW), 2, o.nameCol);
-    yy += 14;
+    drawText(g, o.name, r.x + 10, yy, { font: 'bold', color: s.title });
+    if (o.nameCol) frect(g, r.x + 10, yy + 10, Math.min(16, nameW), 2, o.nameCol);
+    yy += 15;
   }
   let rem = o.max ?? Infinity;
-  lines.forEach((l, i) => { if (rem > 0) drawText(g, l, r.x + 8, yy + i * lineH, { color: s.text, max: rem }); rem -= stripMarkup(l).length + 1; });
+  lines.forEach((l, i) => { if (rem > 0) drawText(g, l, r.x + 10, yy + i * lineH, { color: s.text, max: rem }); rem -= stripMarkup(l).length + 1; });
   if (o.more) { const bx = r.x + w - 12, by2 = ty + bodyH - 9 + Math.round(Math.sin(Game.time * 6)); frect(g, bx, by2, 5, 1, '#ffd23a'); frect(g, bx + 1, by2 + 1, 3, 1, '#ffd23a'); fpx(g, bx + 2, by2 + 2, '#ffd23a'); }
   return { x: r.x, y: r.y, w, h, tail: C.tail };
 };
