@@ -413,13 +413,14 @@ function renderKiru(anim, t, opts) {
         const ER = RAMP.kiruEarInner;
         // celdas solares: líneas cada 3 px a lo largo y una diagonal
         const cu = Math.round(u * len), cv = Math.round(v * w * 1.2);
-        if ((cu % 5 === 0 && dep > 3.6) || (cv + cu) % 7 === 0) return dark ? '#0a2a4a' : (dep > 4.5 ? '#1478a8' : ER[0]);
+        if (cu % 6 === 3 && dep > 3.4) return dark ? '#0a2a4a' : (dep > 4.6 ? '#1478a8' : ER[0]);
+        if (cv === 0 && cu > 4 && cu < len - 4) return dark ? '#0a2a4a' : '#1478a8';
         const lit = (1 - u) * 0.4 + (v > 0 ? 0.35 : 0) + (dep > 4.5 ? 0.3 : 0) - (dark ? 0.55 : 0);
         return lit > 0.75 ? ER[3] : lit > 0.3 ? ER[2] : ER[1];
       } });
   };
   const eb = earA + earTw * 0.08;
-  ear(hx - 12, hy - 6, -2.5 - eb, 21, 11, 2, 1, 'earB');
+  ear(hx - 11, hy - 7, -2.32 - eb, 21, 11, 2, 1, 'earB');
   ear(hx - 5, hy - 12, -2.12 - eb * 0.8 + earTw * 0.06, 19.5, 10.5, 14, 0, 'earF');
   // ---- cola de lagartija corta con microturbina naranja
   const tb = [hx - 12, hy + 15];

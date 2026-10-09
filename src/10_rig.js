@@ -632,8 +632,8 @@ function poseFor(anim, t, ch) {
     case 'jump': {
       // 0 despegue estirado · 1 subida · 2 recogida en el ápice
       const f = Math.min(2, Math.floor(t * 3 + 1e-6));
-      if (f === 0) { p.hipF = 0.35; p.kneeF = -0.5; p.hipB = -0.45; p.kneeB = -0.2; p.footB = 0.6; p.shF = 2.95; p.elF = 0.2; p.shB = -0.9; p.elB = 0.4; p.lean = 0.12; p.bob = -1; }
-      else if (f === 1) { p.hipF = 0.8; p.kneeF = -1.3; p.hipB = -0.3; p.kneeB = -0.9; p.shF = 3.0; p.elF = 0.15; p.shB = -0.7; p.elB = 0.6; p.lean = 0.08; }
+      if (f === 0) { p.hipF = 0.35; p.kneeF = -0.5; p.hipB = -0.45; p.kneeB = -0.2; p.footB = 0.6; p.shF = 1.85; p.elF = 0.55; p.shB = -0.9; p.elB = 0.4; p.lean = 0.12; p.bob = -1; }
+      else if (f === 1) { p.hipF = 0.8; p.kneeF = -1.3; p.hipB = -0.3; p.kneeB = -0.9; p.shF = 1.95; p.elF = 0.5; p.shB = -0.8; p.elB = 0.6; p.lean = 0.08; }
       else { p.hipF = 1.0; p.kneeF = -1.7; p.hipB = 0.2; p.kneeB = -1.5; p.shF = 1.5; p.elF = 1.0; p.shB = 0.5; p.elB = 1.2; p.lean = 0.1; p.crouch = -1; }
       p.hair = { base: 0.55 - f * 0.15, amp: 0.05, P, lag: 0.4 }; p.pack = -1; p.handF = 'fist';
       p.expr = ch.jumpExpr || null;
@@ -641,7 +641,7 @@ function poseFor(anim, t, ch) {
     }
     case 'fall': {
       p.hipF = 0.35; p.kneeF = -0.55; p.hipB = -0.45; p.kneeB = -0.35;
-      p.shF = 2.0 + S(P) * 0.2; p.elF = 0.4; p.shB = 2.5 - S(P) * 0.2; p.elB = 0.4; p.lean = -0.03;
+      p.shF = 1.45 + S(P) * 0.15; p.elF = 0.7; p.shB = 2.6 - S(P) * 0.2; p.elB = 0.4; p.lean = -0.03;
       p.hair = { base: -0.15, amp: 0.25, P: P + 1, lag: 0.4 }; p.pack = 1;
       break;
     }
@@ -684,7 +684,7 @@ function poseFor(anim, t, ch) {
     }
     case 'celebrate': {
       const up = Math.max(0, S(P));
-      p.bob = -Math.round(up * 7); p.shF = 2.9; p.elF = 0.2 + S(P * 2) * 0.2; p.shB = 2.5 + S(P) * 0.3; p.elB = 0.3;
+      p.bob = -Math.round(up * 7); p.shF = 1.9 + S(P * 2) * 0.15; p.elF = 0.7; p.shB = 3.1 + S(P) * 0.1; p.elB = -0.05; p.armStretchB = 1.25; p.shLiftB = 3.5; p.backHandZ = 56.5;
       p.hipF = 0.45 * up; p.kneeF = -0.9 * up; p.hipB = -0.25 * up; p.kneeB = -0.8 * up; p.expr = 'joy'; p.handF = 'fist'; p.handB = 'fist';
       p.hair = { base: 0.5 * up - 0.1, amp: 0.15, P, lag: 0.5 }; p.pack = Math.round(up * 2);
       break;
@@ -710,7 +710,7 @@ function poseFor(anim, t, ch) {
       break;
     }
     case 'climb': {
-      p.shF = 2.6 + S(P) * 0.4; p.shB = 2.6 - S(P) * 0.4; p.elF = 0.6; p.elB = 0.6;
+      p.shF = 2.2 + S(P) * 0.35; p.shB = 2.7 - S(P) * 0.35; p.elF = 0.9; p.elB = 0.5;
       p.hipF = 0.6 + S(P) * 0.4; p.kneeF = -1.2; p.hipB = 0.6 - S(P) * 0.4; p.kneeB = -1.2; p.handF = 'fist'; p.handB = 'fist'; p.back = true;
       p.hair = { base: 0.2, amp: 0.1, P, lag: 0.4 };
       break;
@@ -734,7 +734,7 @@ function poseFor(anim, t, ch) {
     }
     case 'observe': {
       // mano haciendo visera, inclinada hacia delante, oteando el horizonte
-      p.shF = 2.35; p.elF = 2.15 + S(P) * 0.04; p.handF = 'flat'; p.shB = -0.2; p.elB = 0.5;
+      p.shB = 2.2; p.elB = 0.72 + S(P) * 0.04; p.handB = 'visor'; p.backHandFront = true; p.shF = -0.3; p.elF = 1.9; p.handF = 'fist';
       p.lean = 0.1; p.headTilt = -0.05 + S(P) * 0.02; p.hipF = 0.25; p.kneeF = -0.1; p.hipB = -0.15;
       p.expr = 'curious'; p.bob = Math.round(S(P) * 0.5 + 0.5); p.hair = { base: -0.1, amp: 0.1, P, lag: 0.5 };
       break;
@@ -773,7 +773,7 @@ function poseFor(anim, t, ch) {
     case 'victory': {
       // brazo en alto sostenido (distinto de celebrate), otro en la cadera
       const b = S(P);
-      p.shF = 2.95; p.elF = 0.12; p.handF = 'fist'; p.shB = -0.35; p.elB = 2.0; p.handB = 'fist';
+      p.shB = 3.08 + b * 0.04; p.elB = -0.05; p.handB = 'fist'; p.armStretchB = 1.25; p.shLiftB = 3.5; p.backHandZ = 56.5; p.shF = -0.35; p.elF = 2.0; p.handF = 'fist'; p.headTilt = -0.06;
       p.hipF = 0.18; p.hipB = -0.18; p.bob = -Math.round(Math.max(0, b) * 1.5); p.lean = -0.04;
       p.expr = 'joy'; p.hair = { base: 0.15, amp: 0.18, P, lag: 0.5 };
       break;
@@ -841,9 +841,12 @@ function buildHumanoid(R, D, pose, opts = {}) {
   // ---- brazos
   const shFX = cx + tw * 0.12 + lx, shBX = cx - tw * 0.16 + lx * 0.95;
   const armL1 = D.upperArm * sc, armL2 = D.foreArm * sc, aw = D.armW * (D.wideArm || 1);
-  const af = limb(shFX, shoulderY + 2.5, pose.shF, armL1, pose.elF, armL2);
-  const ab = limb(shBX, shoulderY + 2.5, pose.shB, armL1, pose.elB, armL2);
-  af.sx = shFX; af.sy = shoulderY + 2.5; ab.sx = shBX; ab.sy = shoulderY + 2.5;
+  // estiramiento y encogimiento de hombro para poses de brazo en alto (la mano supera la cabeza)
+  const kF = pose.armStretchF || 1, kB = pose.armStretchB || 1;
+  const syF = shoulderY + 2.5 - (pose.shLiftF || 0), syB = shoulderY + 2.5 - (pose.shLiftB || 0);
+  const af = limb(shFX, syF, pose.shF, armL1 * kF, pose.elF, armL2 * kF);
+  const ab = limb(shBX, syB, pose.shB, armL1 * kB, pose.elB, armL2 * kB);
+  af.sx = shFX; af.sy = syF; ab.sx = shBX; ab.sy = syB;
   R.anchors.armF = af; R.anchors.armB = ab;
   const sleeveM = asMat(M.sleeve || M.top), foreM = asMat(D.foreMat || M.sleeve || M.top);
   const arm = (A, z, grp, dark, hand) => {
@@ -860,6 +863,8 @@ function buildHumanoid(R, D, pose, opts = {}) {
     handPart(R, A, hand, D, z + 1, grp, dark);
   };
   arm(ab, 5, 'armB', 1, pose.handB);
+  // la mano lejana puede pasar delante de la cara (visera de 'observe')
+  if (pose.backHandFront || pose.backHandZ) for (let k = R.parts.length - 1; k >= 0 && R.parts[k].group === 'armB'; k--) if (R.parts[k].z >= 6) { R.parts[k].z = pose.backHandZ || 81.5; R.parts[k].dark = 0; }
   // ---- cabeza
   const tilt = pose.headTilt || 0;
   const headM = skin;
@@ -928,7 +933,11 @@ function handPart(R, A, kind, D, z, group, dark) {
   const hx = A.ex + ux * (r * 0.55), hy = A.ey + uy * (r * 0.55);
   const glove = asMat(D.mat.gloves || D.mat.skin), skin = asMat(D.mat.skin);
   const rot = Math.atan2(uy, ux);
-  if (kind === 'point') {
+  if (kind === 'visor') {
+    // palma horizontal sobre la frente, dedos hacia delante (visera)
+    R.capsule(hx - 2.5, hy + 0.8, hx + 1.2, hy + 0.2, r * 0.72, r * 0.62, { mat: glove, base: 4, z, group, bevel: 0.8, dark, cast: { on: ['bangs', 'head', 'hair', 'lock'], dx: -1, dy: 2 } });
+    R.capsule(hx + 1.2, hy + 0.2, hx + r + 4.2, hy - 0.2, r * 0.62, r * 0.45, { mat: D.fingerless ? skin : glove, base: 4, z: z + 0.02, group, bevel: 0.7, dark, cast: { on: ['bangs', 'head', 'hair', 'lock'], dx: -1, dy: 2 } });
+  } else if (kind === 'point') {
     R.box(hx, hy, r * 0.75, r * 0.7, r * 0.45, { mat: glove, base: 4, z, group, bevel: 0.9, dark }, rot);
     R.capsule(hx, hy, hx + ux * (r + 2.6), hy + uy * (r + 2.6), 0.75, 0.6, { mat: skin, base: 4, z: z + 0.1, group, dark, bevel: 0.6 });
   } else if (kind === 'flat') {
