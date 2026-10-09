@@ -11,6 +11,8 @@
      VISTA.saltPans(pb, {x0, x1, y0, rows, seed, k, sky}) → {ponds:[{x,y,w,h,col}], glints}
      VISTA.crystals(pb, x, y, s, seed, {k}) → {glints:[[x,y]]}
      VISTA.hoodoo(pb, x, y, h, w, seed, {k, ramp})
+     VISTA.butte(pb, x, y, w, h, seed, {k, ramp, warm}) → {top, x0}   farallón de techo plano
+     VISTA.saltCrust(pb, x0, x1, y0, y1, {k, ramp, seed, sparse})      costra lisa con grietas
      VISTA.drawStars(g, n, t, seed, {y1, a})
      VISTA.drawFlamingos(g, list, ox, oy, t)    list: [{x, y, s}]
      VISTA.drawBuoys(g, list, ox, oy, t)        list: [[x, y, col]]
@@ -99,6 +101,31 @@
         V.put(pb, x + xx, y - q, R[clamp(i - (u > 0.8 ? 1 : 0), 0, n - 1)]);
       }
     }
+  };
+  /**
+   * Farallón (butte) de techo plano: caras verticales con estratos, cara del lado del
+   * sol (derecha) encendida en rosa cálido, cara de sombra azul, talud de derrubios.
+   */
+  V.butte = function (pb, x, y, w, h, seed, o = {}) {
+    const k = o.k || 0, R = ramp(o.ramp || V.RAMPS.canyonDusk, k), n = R.length, WARM = U(V.hzc(o.warm || '#ffb0a0', k));
+    const top = new Int16Array(w + 24).fill(32767), x0 = x - 12;
+    for (let xx = -12; xx < w + 12; xx++) {
+      const edge = xx < 0 ? (xx + 12) / 12 : xx >= w ? 1 - (xx - w) / 12 : 1;
+      const cap = Math.round((fbm1((x + xx) * 0.09, 2, seed) - 0.5) * 4);
+      const th = edge < 1 ? Math.round(h * 0.28 * Math.pow(edge, 1.5)) : h + cap;
+      const ty = y - th; top[xx + 12] = ty;
+      const u = clamp(xx / Math.max(1, w), 0, 1), lit = xx >= w - 3 ? 0.9 : xx < 2 ? 0.25 : 0.4 + u * 0.3;
+      for (let yy = ty; yy <= y; yy++) {
+        const d = yy - ty, sv = yy + Math.round(vnoise((x + xx) * 0.05, 0.4, seed) * 5), layer = Math.floor(sv / 6);
+        let t = (edge < 1 ? 0.45 : lit) + (layer % 2 ? 0.05 : -0.03) - (d / Math.max(1, h)) * 0.25 + (d < 2 ? 0.25 : 0) + (hash2((x + xx) >> 1, yy >> 1, seed) - 0.5) * 0.08;
+        if (edge >= 1 && hash2((x + xx) >> 2, 0, seed + 5) < 0.08 && d > 4) t -= 0.2;
+        let c = R[V.band(clamp(t, 0, 0.999), n, x + xx, yy, 0.04, seed)];
+        if (xx >= w - 3 && edge >= 1) c = V.mixU(c, WARM, 0.45);
+        V.put(pb, x + xx, yy, c);
+      }
+      if (edge >= 1) V.put(pb, x + xx, ty, V.mixU(R[n - 1], WARM, 0.5));
+    }
+    return { top, x0 };
   };
   /* ---------------- dinámicos ---------------- */
   V.drawStars = function (g, n, t, seed, o = {}) {

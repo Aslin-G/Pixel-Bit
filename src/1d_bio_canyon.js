@@ -95,11 +95,11 @@ BIOMES.canyon = function (L) {
   P(0.34, 100, 170, (pb, w, h) => {
     const k = 0.03, r = RNG(121), base = h - 1;
     for (let x = 40; x < w; x += r.int(90, 200)) {
-      const big = false;
+      const big = r.chance(0.45);
       if (big) {
-        // farallón: muro con meseta y vetas
-        const ww = r.int(60, 110), hh = r.int(70, 120);
-        V.relief(pb, { x0: Math.max(0, x - 10), x1: Math.min(w, x + ww + 10), yBase: base, nv: 16, dvy: 0.3, seed: 123 + x, hMax: hh, H: V.massif([{ x: x + ww / 2, v: 8, h: hh, w: ww * 0.7, d: 12, k: 0.5 }], { seed: 123 + x, rough: 0.45, scale: 0.06, apron: 3, plateaus: [{ x: x + ww / 2, w: ww * 0.25, h: hh * 0.9 }] }), ramp: CANYON, contrast: 2.3, t0: 0.5, facet: 0.35, cav: 0.12, rim: '#ffc0a8', rimK: 0.8, tex: 0.06 });
+        // farallón de techo plano con la cara del sol encendida
+        V.butte(pb, x, base, r.int(36, 70), r.int(96, 150), 123 + x, { k });
+        x += 60;
       } else { V.hoodoo(pb, x, base, r.int(40, 96), r.int(10, 20), x, { k }); if (r.chance(0.5)) V.hoodoo(pb, x + r.int(12, 20), base, r.int(24, 50), r.int(7, 12), x + 7, { k }); }
       const c = V.crystals(pb, x + r.int(-10, 10), base - 1, r.int(1, 3), x, { k });
       hoodFx.glints.push(...c.glints.map(([gx, gy]) => [gx, gy, 3]));

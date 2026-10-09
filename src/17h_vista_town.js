@@ -12,6 +12,9 @@
      VISTA.cypress(pb, x, y, h, seed, {k})
      VISTA.bunting(pb, x0, y0, x1, y1, sag, {k, cols, step})
      VISTA.hillTown(pb, {x0, x1, seed, k, rows:[{y(x), w:[a,b], h:[a,b], gap:[a,b], wall:{h, kind}, veg, roofs, pals, skip(x,w)}], lit, bunting}) → {houses, wins, tops}
+     VISTA.slopeTown(pb, info, {x0, x1, n, v, w, h, seed, k, minY, maxY, steep, cluster, trees, roofs, pals, s, lit}) → {houses, wins, tops}
+     VISTA.fields(pb, x0, x1, y0, y1, {k, seed, gold, irrig})      huertas del llano en perspectiva
+     VISTA.civic(pb, x, y, w, h, seed, {k, kind:'arcade'|'church'|'school', pal, lit})
      VISTA.synaraTower(pb, x, y, h, {k}) → {top, tip:[x,y], glows:[[x,y,r]], beacon:[x,y]}
      VISTA.litWindows(pb, wins, {k, col, halo})       ventanas encendidas (tarde/noche), horneado
      VISTA.drawKites(g, list, ox, oy, t)             list: [{x, y, col, sp, ph, tail}]
