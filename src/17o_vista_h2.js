@@ -96,6 +96,16 @@
       V.put(pb, xx, yy, u);
     }
     for (let xx = x + 6; xx < x + w - 6; xx += 6) cells.push([xx, wy + Math.round(wh / 2)]);
+    // grano de fachada: juntas de panel, rejillas de ventilación y equipos de cubierta
+    for (let xx = x + 1; xx < x + w - 1; xx++) for (let yy = y - h + 1; yy < y - 1; yy++) {
+      if (yy >= wy - 1 && yy < wy + wh + 1) continue;
+      const c = V.get(pb, xx, yy); if (!(c >>> 24)) continue;
+      if ((xx - x) % 12 === 0) V.put(pb, xx, yy, V.shU(c, -0.12, 240));
+      else if ((xx - x) % 12 === 1) V.put(pb, xx, yy, V.shU(c, 0.06));
+      else if (((yy - (y - h)) % 7 === 0) && hash2(xx >> 2, yy, 13) < 0.5) V.put(pb, xx, yy, V.shU(c, -0.06, 240));
+    }
+    for (let xx = x + 4; xx < x + w - 8; xx += 12) { const vy = y - h + 3; V.rect(pb, xx, vy, 5, 3, D[2]); V.put(pb, xx, vy, D[1]); for (let q = 0; q < 5; q += 2) V.put(pb, xx + q, vy + 1, D[4]); }
+    for (let xx = x + 6; xx < x + w - 10; xx += 22 + ((xx * 7) % 9)) { const ry = y - h - Math.round(d * 0.5) + 1; V.box3q(pb, xx + dx, ry, 7, 4, 4, { ramp: P.WHT, k: k + 0.05, front: 4, side: 2, top: 6 }); }
     // franja cian corporativa y rótulo de nave
     for (let xx = x; xx < x + w; xx++) { V.put(pb, xx, y - Math.round(h * 0.2), C[3]); V.put(pb, xx, y - Math.round(h * 0.2) + 1, C[2]); }
     return { win, cells, top: y - h - dy };
