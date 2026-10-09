@@ -702,7 +702,7 @@ const Portraits = {
     const id2 = PDEFS[id] ? id : 'amaya';
     const def = pdef(id2);
     const E = pexpr(expr);
-    if (def.faceFn) return def.faceFn(this, scale, pexprName(expr), E, talk, blink, id2);
+    if (def.faceFn) return def.faceFn(this, scale, pexprName(expr), E, talk, blink, expr);
     return stampHumanFace(this.base(id2, scale), scale, E, talk, blink);
   },
   /** Retrato de diálogo 96×96 (transparente, sin marco) */
@@ -1196,3 +1196,397 @@ PDEFS.financia = phMake({
   mats: () => ({ skin: PK.mat(RAMP.skinE, '#1e100a', RAMP.skinE[2]), hair: PK.mat(RAMP.hairN.concat(['#7472b0']), '#06050e', RAMP.hairN[1]), top: MAT.tshirtW, jacket: RAMP_CH.charcoal, tie: NPC_CLOTH[5] }),
   lash: '#0e0806', brow: '#211e40', head: { jawDrop: 2.5, rx: 25.5, chinY: 34.5 }, face: { mouthY: 23.5 },
 });
+
+/* =====================================================================
+   KIRU — retrato (fusión biblia + referencia, 02_personajes §3.2/§5.4).
+   Concha blanco perla ×2,2 del sprite, visor negro-navy con brillo en
+   arco y líneas de barrido sutiles, ojos cápsula cian emisivos (las
+   expresiones son plantillas de ojo), orejas de zorro en aleta con borde
+   naranja/amarillo y celdas solares cian, placa dorsal turquesa y
+   escotilla de muestras naranja. Orejas: arriba / caídas / hacia atrás.
+   ===================================================================== */
+PDEFS.kiru = () => {
+  const R = RAMP;
+  const M = {
+    shell: PK.mat(R.kiruShell, '#070813', R.kiruShell[3]), visor: PK.mat(R.kiruVisor, '#070813', R.kiruVisor[0]),
+    rim: PK.mat(['#0a0c16', '#2c3344', '#3a4456', '#556275', '#6e7a8e', '#8a96aa'], '#070813', '#2c3344'),
+    earO: PK.mat(R.kiruEarOuter, '#070813', '#363c4d'), turq: PK.mat(R.kiruTurq, '#070813', R.kiruTurq[0]),
+    orange: PK.mat(R.kiruOrange, '#070813', R.kiruOrange[0]), joint: PK.mat(['#04060e', '#0a0c16', '#161c2c', '#242c40', '#343e56', '#4a566e'], '#070813', '#0a0c16'),
+    pod: PK.mat(['#000616', '#000c2a', '#061b4d', '#0e2f66', '#1a4a86', '#3a6aa6', '#6a94c8'], '#070813', '#000616'),
+  };
+  const hx = 50, hy = 55, vx = 61.9, vy = 58.7;
+  const pose = (mode) => (['down', 'guilty', 'crying'].includes(mode) ? 'droop' : mode === 'big' ? 'back' : 'up');
+  const ear = (P, bx, by, ang, len, w, z, dark, grp) => {
+    const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
+    const pt = (u, v) => [bx + dx * u * len + px * v * w, by + dy * u * len + py * v * w];
+    const pts = [pt(0, 0.42), pt(0.2, 0.6), pt(0.5, 0.58), pt(0.78, 0.36), pt(1, 0), pt(0.8, -0.3), pt(0.5, -0.48), pt(0.2, -0.5), pt(0, -0.4)];
+    const ER = R.kiruEarInner, ks = 1.9;
+    P.poly(pts, { mat: M.earO, z, group: grp, base: 3, line: true, tex: (x, y, idx, p, d) => {
+      const dep = -d, u = ((x - bx) * dx + (y - by) * dy) / len, v = ((x - bx) * px + (y - by) * py) / w;
+      if (dep < 0.9 * ks) return dark ? '#2a2f3e' : (v > 0 && u < 0.6 ? '#556275' : '#363c4d');
+      if (v < 0.05) {
+        if (dep < 2.6 * ks) return dark ? '#a8600e' : (u > 0.6 ? '#fa8c01' : u > 0.25 ? '#dc8a1f' : '#875b23');
+        if (dep < 3.6 * ks) return dark ? '#b09a30' : '#eed546';
+      } else if (dep < 1.8 * ks) return dark ? '#b09a30' : '#eed546';
+      const cu = Math.floor(u * len), cv = Math.floor(v * w * 1.2);
+      if (cu % 7 === 3 && dep > 3.4 * ks) return dark ? '#0a2a4a' : (dep > 4.6 * ks ? '#1478a8' : ER[0]);
+      if (Math.abs(v * w) < 0.6 && cu > 6 && cu < len - 6) return dark ? '#0a2a4a' : '#1478a8';
+      const lit = (1 - u) * 0.4 + (v > 0 ? 0.35 : 0) + (dep > 4.5 * ks ? 0.3 : 0) - (dark ? 0.55 : 0);
+      return lit > 0.75 ? ER[3] : lit > 0.3 ? ER[2] : ER[1];
+    } });
+  };
+  function build(scale, sc, variant) {
+    const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
+    const eb = variant === 'droop' ? 0.55 : variant === 'back' ? -0.3 : 0;
+    ear(P, hx - 24, hy - 15, -2.32 - eb, 34, 20, 2, 1, 'earB');
+    ear(P, hx - 12, hy - 26, -2.08 - eb * 0.8, 33, 19, 14, 0, 'earF');
+    // cuerpo, placa dorsal turquesa, escotilla naranja (borde inferior)
+    P.ellipse(hx - 5.5, hy + 33, 22, 14, { mat: M.shell, z: 4, group: 'body', base: 5, bevel: 6, shiny: true });
+    P.ellipse(hx - 20, hy + 30, 8.4, 9.7, { mat: M.turq, z: 5, group: 'plate', base: 2, bevel: 3 }, -0.4);
+    P.box(hx + 3, hy + 37.5, 8, 5.2, 2, { mat: M.orange, z: 6, group: 'hatch', base: 2, bevel: 1.6 });
+    P.ellipse(hx - 2, hy + 25, 16, 5, { mat: M.joint, z: 7, group: 'joint', base: 3, bevel: 2 });
+    // cabeza de concha perla
+    const head = SDF.smoothUnion(8.8, SDF.box(hx, hy, 34, 28.6, 22), SDF.ellipse(hx - 3.3, hy - 3.3, 33, 29.7));
+    P.custom(head, [hx - 38, hy - 36, hx + 36, hy + 32], { mat: M.shell, z: 20, group: 'head', base: 5, bevel: 11, shiny: true, hiT: 0.62, cast: { on: ['joint', 'body', 'plate'], dx: -1, dy: 3, k: 1 } });
+    // cresta dorsal (3 escamas turquesa) en la nuca
+    for (let k = 0; k < 3; k++) P.circle(hx - 32 + k * 0.9, hy - 6.6 + k * 9.2, 3.6, { mat: M.turq, z: 19, group: 'ridge', base: 3, bevel: 1.8 });
+    // visor con aro gris
+    P.ellipse(hx + 11.4, hy + 3.5, 24.6, 22.9, { mat: M.rim, z: 21, group: 'visorRim', base: 3, flat: true });
+    const vis = SDF.smoothUnion(6.6, SDF.box(vx, vy, 22, 20.5, 14.3), SDF.ellipse(vx, vy, 22.4, 20.9));
+    P.custom(vis, [vx - 25, vy - 23, vx + 25, vy + 23], { mat: M.visor, z: 22, group: 'visor', base: 2, line: false, rim: false,
+      shade: (x, y) => { const dx = x - vx, dy = y - vy; return dx + dy * 1.2 > 17 ? 1 : 2; } });
+    P.stamp((pb, c) => {
+      const X = c.X, Y = c.Y, sm = c.S < 1;
+      // barrido sutil cada 3.ª fila del visor
+      const vi = c.parts.findIndex(p => p.group === 'visor');
+      for (let y = 0; y < pb.h; y += 3) for (let x = 0; x < pb.w; x++) { const i = y * pb.w + x; if (c.zb[i] === vi && pb.data[i] === M.visor.rampU[2]) pb.data[i] = U('#04154a'); }
+      // brillo en arco + punto
+      for (let k = 0; k < (sm ? 12 : 24); k++) { const an = -2.75 + k * (sm ? 0.1 : 0.05); pb.set(X(vx + Math.cos(an) * 18), Y(vy + Math.sin(an) * 16.8), k < (sm ? 8 : 16) ? '#1e3a6a' : '#7a8cb0'); }
+      pb.set(X(vx - 15.4), Y(vy - 6.6), '#c7d8e1'); if (!sm) { pb.set(X(vx - 14.4), Y(vy - 6.6), '#c7d8e1'); pb.set(X(vx - 15.4), Y(vy - 5.6), '#7a8cb0'); }
+      // motas cian (calcomanías) en la concha
+      [[-9, -6, '#40e8e7'], [-11, -2, '#378aa9'], [-7, -9, '#378aa9'], [-12, 3, '#40e8e7'], [-4, -11, '#9ff6f8'], [-8, 5, '#378aa9']].forEach(([dx, dy, col]) => {
+        const x = X(hx + dx * 2.2), y = Y(hy + dy * 2.2);
+        if (c.group(x, y) !== 'head') return;
+        pb.set(x, y, col); if (!sm) { pb.set(x + 1, y, col); pb.set(x, y + 1, col); pb.set(x + 1, y + 1, shade(col, -0.25)); }
+      });
+      // ventanilla cian de la escotilla y tornillos
+      if (sm) pb.set(X(hx + 3), Y(hy + 37), '#56e5ff');
+      else { pb.rect(X(hx), Y(hy + 35.5), 6, 4, '#56e5ff'); pb.rect(X(hx), Y(hy + 35.5), 2, 2, '#e6fdff'); pb.hline(X(hx), X(hx + 5), Y(hy + 39), '#2480a3'); }
+    }, 5);
+    const r = P.render({ rimK: 0.24, rimColor: '#9fe8ff', outlineColor: '#070813' });
+    return r;
+  }
+  /* ojos cápsula 96: forma por fila → [x0, x1] relativos; tokens c cuerpo · w núcleo · b base · g halo */
+  const PAL = { c: '#17f3f7', w: '#e6fdff', b: '#2480a3', g: '#0e406e', G: '#0a2a5a', y: '#ffe14d', Y: '#fff6b0', t: '#a6f4ff' };
+  function capsule(pb, cx, cy, w, h, opt = {}) {
+    // opt.cutIn/cutOut: filas recortadas arriba en el lado interior/exterior (pendiente); opt.flat: recorte plano
+    const rows = [];
+    for (let r = 0; r < h; r++) {
+      const e = r < 2 ? 2 - r : r > h - 3 ? r - (h - 3) : 0;
+      let x0 = -Math.floor(w / 2) + (e > 1 ? 2 : e), x1 = Math.ceil(w / 2) - 1 - (e > 1 ? 2 : e);
+      rows.push([x0, x1]);
+    }
+    const cells = new Map();
+    rows.forEach(([x0, x1], r) => {
+      for (let x = x0; x <= x1; x++) {
+        const t = (x - x0) / Math.max(1, x1 - x0), side = opt.side || 1;
+        // recortes del párpado
+        const cutR = opt.flat ? opt.flat : opt.slope ? Math.round(opt.slope * (side > 0 ? (1 - t) : t) * h * 0.5 + (opt.slopeBase || 0)) : 0;
+        if (r < cutR) continue;
+        const core = Math.abs(x - (x0 + x1) / 2 + (opt.coreDx || 0)) < (w >= 7 ? 1.1 : 0.6) && r > 1 && r < h - 3;
+        cells.set(r * 64 + (x + 32), r >= h - 2 ? 'b' : core ? 'w' : 'c');
+      }
+    });
+    // halo 1 px
+    for (const k of cells.keys()) { const r = Math.floor(k / 64), x = (k % 64) - 32; for (const [ax, ay] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { const kk = (r + ay) * 64 + (x + ax + 32); if (!cells.has(kk)) pb.set(cx + x + ax, cy - Math.floor(h / 2) + r + ay, PAL.g); } }
+    for (const [k, t] of cells) { const r = Math.floor(k / 64), x = (k % 64) - 32; pb.set(cx + x, cy - Math.floor(h / 2) + r, PAL[t]); }
+  }
+  function arc(pb, cx, cy, w, up, thick = 3) {
+    for (let x = -w; x <= w; x++) {
+      const y = Math.round((up ? -1 : 1) * (Math.sqrt(Math.max(0, 1 - (x / (w + 0.5)) ** 2)) * (w * 0.55)));
+      for (let k = 0; k < thick; k++) pb.set(cx + x, cy + (up ? y + k : y - k), k === 1 ? PAL.w : PAL.c);
+      pb.set(cx + x, cy + (up ? y - 1 : y + 1), PAL.g);
+    }
+  }
+  function star(pb, cx, cy, s) {
+    for (let k = -s; k <= s; k++) { const a = Math.abs(k); const c = a < 2 ? PAL.Y : PAL.y; pb.set(cx + k, cy, c); pb.set(cx, cy + k, c); if (a < s - 2) { pb.set(cx + k, cy + (k > 0 ? 1 : -1) * 0, c); } }
+    for (const [dx, dy] of [[1, 1], [-1, -1], [1, -1], [-1, 1]]) pb.set(cx + dx, cy + dy, PAL.y);
+    pb.set(cx, cy, '#ffffff');
+  }
+  function eyes96(pb, mode, blink, X, Y) {
+    const nx = X(vx - 6.6), fx = X(vx + 7.7), ey = Y(vy - 2.2);
+    if (blink) { capsule(pb, nx, ey + 6, 9, 3); capsule(pb, fx, ey + 6, 6, 3); return; }
+    switch (mode) {
+      case 'happy': arc(pb, nx, ey + 2, 5, true); arc(pb, fx, ey + 2, 4, true); break;
+      case 'calm': arc(pb, nx, ey + 1, 5, false); arc(pb, fx, ey + 1, 4, false); break;
+      case 'big': capsule(pb, nx, ey - 1, 10, 19); capsule(pb, fx, ey - 1, 7, 18); break;
+      case 'smile': capsule(pb, nx, ey + 1, 7, 13); capsule(pb, fx, ey + 1, 5, 12); break;
+      case 'down': capsule(pb, nx - 1, ey + 4, 7, 11, { slope: 0.9, side: 1 }); capsule(pb, fx, ey + 4, 5, 10, { slope: 0.9, side: -1 }); break;
+      case 'guilty': capsule(pb, nx - 2, ey + 6, 7, 8, { flat: 2 }); capsule(pb, fx - 1, ey + 6, 5, 7, { flat: 2 }); break;
+      case 'crying': capsule(pb, nx - 1, ey + 4, 7, 11, { slope: 0.9, side: 1 }); capsule(pb, fx, ey + 4, 5, 10, { slope: 0.9, side: -1 }); for (let k = 0; k < 5; k++) pb.set(nx - 2, ey + 10 + k, k === 4 ? '#e6fdff' : PAL.t); break;
+      case 'brave': capsule(pb, nx, ey + 1, 7, 15, { slope: 0.7, side: -1 }); capsule(pb, fx, ey + 1, 5, 14, { slope: 0.7, side: 1 }); break;
+      case 'focus': capsule(pb, nx, ey + 2, 7, 13, { flat: 3 }); capsule(pb, fx, ey + 2, 5, 12, { flat: 3 }); break;
+      case 'tired': capsule(pb, nx, ey + 6, 9, 3); capsule(pb, fx, ey + 6, 7, 3); pb.hline(nx - 3, nx + 3, ey + 9, PAL.b); pb.hline(fx - 2, fx + 2, ey + 9, PAL.b); break;
+      case 'skeptical': capsule(pb, nx, ey, 7, 16); capsule(pb, fx, ey + 5, 6, 4); break;
+      case 'mixed': capsule(pb, nx, ey, 7, 15); capsule(pb, fx, ey + 5, 6, 4);
+        pb.stampMap(fx + 4, ey - 12, ['.yyy.', 'y...y', '....y', '...y.', '..y..', '.....', '..y..'], { y: PAL.y }); break;
+      case 'star': star(pb, nx, ey, 6); star(pb, fx, ey, 5); break;
+      default: capsule(pb, nx, ey, 7, 16); capsule(pb, fx, ey, 5, 15);
+    }
+  }
+  function mouth(pb, mode, talk, X, Y, sm) {
+    const mx = X(vx - 1), my = Y(vy + 11);
+    if (sm) {
+      if (talk) { pb.hline(mx - 1, mx + 1, my, PAL.c); pb.set(mx, my + 1, PAL.b); }
+      else if (mode === 'happy' || mode === 'smile' || mode === 'star' || mode === 'calm') { pb.set(mx - 1, my, PAL.c); pb.set(mx, my + 1, PAL.c); pb.set(mx + 1, my, PAL.c); }
+      else if (mode === 'big') pb.rect(mx, my, 2, 2, PAL.c);
+      else pb.hline(mx, mx + 1, my, PAL.b);
+      return;
+    }
+    if (talk) { pb.stampMap(mx - 3, my - 1, ['.ggggg.', 'gcccccg', 'gcbbbcg', '.gcccg.', '..ggg..'], PAL); return; }
+    if (mode === 'happy' || mode === 'smile' || mode === 'star' || mode === 'calm') pb.stampMap(mx - 3, my - 1, ['gg...gg', 'cg...gc', 'gcg.gcg', '.gcccg.', '..ggg..'], PAL);
+    else if (mode === 'big') pb.stampMap(mx - 2, my - 1, ['.ggg.', 'gcccg', 'gcbcg', 'gcccg', '.ggg.'], PAL);
+    else if (mode === 'down' || mode === 'guilty' || mode === 'crying') pb.stampMap(mx - 3, my, ['..ggg..', '.gcccg.', 'gc...cg'], PAL);
+    else pb.stampMap(mx - 2, my, ['ggggg', 'gbbbg', 'ggggg'], PAL);
+  }
+  return {
+    M, custom: build,
+    faceFn(Pt, scale, name, E, talk, blink, raw) {
+      const KE = typeof KIRU_EYES !== 'undefined' ? KIRU_EYES : {};
+      const mode = KE[raw] || KE[name] || 'open';
+      const base = Pt.base('kiru', scale, pose(mode));
+      const pb = pbClone(base.pb), S = base.S;
+      const X = (x) => Math.floor((x - base.ox) * S), Y = (y) => Math.floor((y - base.oy) * S);
+      if (scale === 'B') {
+        // busto: las plantillas del sprite (3×8 / 2×7) encajan a esta escala
+        const T = KIRU_EYE_TPL[blink ? 'blink' : mode] || KIRU_EYE_TPL.open;
+        const pal = { c: PAL.c, w: PAL.w, b: PAL.b, g: PAL.g, y: PAL.y, t: PAL.t };
+        const halo = (x0, y0, rows) => { for (let j = 0; j < rows.length; j++) for (let i = 0; i < rows[j].length; i++) if (rows[j][i] !== '.') for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { const r2 = rows[j + oy], ch = r2 ? r2[i + ox] : undefined; if (!ch || ch === '.') pb.set(x0 + i + ox, y0 + j + oy, pal.g); } };
+        const ex = X(vx - 4.5) + (T.dx || 0), ey = Y(vy - 5.5) + (T.dy || 0);
+        halo(ex, ey, T.n); pb.stampMap(ex, ey, T.n, pal);
+        const fx = X(vx + 4), fy = ey + (T.fdy || 0) + (T.n.length - T.f.length > 2 ? 1 : 0);
+        halo(fx, fy, T.f); pb.stampMap(fx, fy, T.f, pal);
+        if (T.q) { pb.set(fx + 3, fy - 3, PAL.y); pb.set(fx + 4, fy - 4, PAL.y); pb.set(fx + 5, fy - 3, PAL.y); pb.set(fx + 4, fy - 1, PAL.y); }
+        mouth(pb, mode, talk, X, Y, true);
+      } else { eyes96(pb, mode, blink, X, Y); mouth(pb, mode, talk, X, Y, false); }
+      return pb;
+    },
+  };
+};
+
+/* =====================================================================
+   LIMEN — protocolo cristalino: cabeza de cristal facetada con núcleo
+   ojo (cian calma · coral alerta · amarillo aviso), halo de esquirlas y
+   hombros de facetas. Aristas claras, contorno navy, sin tramado.
+   ===================================================================== */
+PDEFS.limen = () => {
+  const L = RAMP.limen, M = { cr: PK.mat(L, '#0b2238', '#c4fbff') };
+  const cx = 48, cy = 42;
+  function build(scale, sc) {
+    const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
+    const facet = (pts, base, z, g) => P.poly(pts, { mat: M.cr, z, group: g, base, flat: true, line: true, lineU: U(L[5]) });
+    // hombros
+    for (const s of [-1, 1]) {
+      facet([[cx + s * 14, 70], [cx + s * 44, 80], [cx + s * 46, 99], [cx + s * 10, 99]], s < 0 ? 2 : 4, 4, 'sh' + s);
+      facet([[cx + s * 14, 70], [cx + s * 10, 99], [cx, 99], [cx, 74]], s < 0 ? 3 : 5, 4.1, 'sh2' + s);
+      facet([[cx + s * 30, 76], [cx + s * 44, 80], [cx + s * 40, 86]], s < 0 ? 4 : 6, 4.2, 'sh3' + s);
+    }
+    facet([[cx - 7, 62], [cx + 7, 62], [cx + 4, 78], [cx - 4, 78]], 2, 5, 'neck');
+    // cabeza: octaedro de 4 facetas + facetas de mejilla
+    const top = [cx + 1, 4], l = [cx - 23, 38], r = [cx + 24, 36], b = [cx, 70], m = [cx + 2, 40];
+    facet([top, l, m], 3, 10, 'f1'); facet([top, m, r], 5, 10.1, 'f2');
+    facet([l, m, b], 2, 10.2, 'f3'); facet([m, r, b], 4, 10.3, 'f4');
+    facet([top, [cx - 10, 18], [cx - 3, 30]], 5, 10.4, 'f5'); facet([[cx + 12, 24], r, [cx + 16, 46]], 6, 10.5, 'f6');
+    facet([l, [cx - 12, 52], [cx - 18, 46]], 1, 10.6, 'f7');
+    // halo de esquirlas
+    for (let i = 0; i < 7; i++) {
+      const a = -Math.PI * 0.95 + i * Math.PI * 0.95 / 3, rx = 40, ry = 30;
+      const x = cx + Math.cos(a) * rx, y = 38 + Math.sin(a) * ry;
+      if (y > 60) continue;
+      const nx = Math.cos(a), ny = Math.sin(a), tx = -ny, ty = nx, len = 7 + (i % 2) * 3, wd = 2.6;
+      facet([[x - nx * len * 0.3, y - ny * len * 0.3], [x + tx * wd, y + ty * wd], [x + nx * len, y + ny * len]], Math.cos(a - 0.9) > 0 ? 5 : 3, 6 + i * 0.01, 'sa' + i);
+      facet([[x - nx * len * 0.3, y - ny * len * 0.3], [x - tx * wd, y - ty * wd], [x + nx * len, y + ny * len]], Math.cos(a - 0.9) > 0 ? 4 : 2, 6.005 + i * 0.01, 'sb' + i);
+    }
+    P.stamp((pb, c) => {
+      const X = c.X, Y = c.Y;
+      pb.line(X(cx - 18), Y(34), X(cx - 2), Y(8), '#ffffff'); pb.line(X(cx + 6), Y(60), X(cx + 18), Y(42), '#c4fbff');
+      if (c.S >= 1) { pb.set(X(cx + 10), Y(14), '#ffffff'); pb.set(X(cx + 11), Y(15), '#c4fbff'); }
+    }, 5);
+    return P.render({ rim: false, outlineColor: '#0b2238' });
+  }
+  return {
+    M, custom: build,
+    faceFn(Pt, scale, name, E, talk, blink) {
+      const base = Pt.base('limen', scale);
+      const pb = pbClone(base.pb), S = base.S, sm = scale === 'B';
+      const X = (x) => Math.floor((x - base.ox) * S), Y = (y) => Math.floor((y - base.oy) * S);
+      const mood = ['alert', 'angry', 'scared', 'surprised', 'frustrated', 'alarmado'].includes(name) ? 'alert' : ['warn', 'worried', 'sad', 'tired', 'guilty', 'skeptical'].includes(name) ? 'warn' : 'calm';
+      const core = mood === 'alert' ? RAMP.coral : mood === 'warn' ? RAMP.yellow : RAMP.cyan;
+      const ccx = X(cx + 1), ccy = Y(39), r = sm ? 5 : 10;
+      // anillo oscuro + núcleo con bandas (luz arriba-derecha) + pupila en rendija
+      for (let y = -r - 2; y <= r + 2; y++) for (let x = -r - 2; x <= r + 2; x++) {
+        const d = Math.hypot(x + 0.5, y + 0.5);
+        if (d > r + 1.6) continue;
+        if (d > r) { pb.set(ccx + x, ccy + y, '#0b2238'); continue; }
+        const l = -(x * 0.5 - y * 0.8) / r;
+        const i = d > r - 1.2 ? 2 : l < -0.35 ? 3 : l < 0.25 ? 4 : l < 0.6 ? 5 : 6;
+        pb.set(ccx + x, ccy + y, core[Math.min(core.length - 1, i)]);
+      }
+      const ink = '#0e2b4a';
+      if (blink) pb.hline(ccx - r + 2, ccx + r - 2, ccy, ink);
+      else {
+        const sh = mood === 'alert' ? r - 1 : r - 3, sw = sm ? 0 : (talk || name === 'speak') ? 2 : 1;
+        for (let y = -sh; y <= sh; y++) for (let x = -sw; x <= sw; x++) if (!(Math.abs(y) === sh && Math.abs(x) === sw && sw > 0)) pb.set(ccx + x, ccy + y, ink);
+        if (talk && !sm) { pb.hline(ccx - 4, ccx + 4, ccy + 1, ink); pb.hline(ccx - 3, ccx + 3, ccy + 2, ink); }
+        if (name === 'happy' || name === 'smile' || name === 'joy') for (let x = -4; x <= 4; x++) pb.set(ccx + x, ccy + r + 3 + (Math.abs(x) > 2 ? -1 : 0), core[5]);
+      }
+      pb.rect(ccx - Math.round(r * 0.6), ccy - Math.round(r * 0.6), sm ? 1 : 2, sm ? 1 : 2, '#ffffff');
+      // alerta: esquirlas encendidas
+      if (mood !== 'calm' && !sm) for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + 0.3; pb.set(ccx + Math.round(Math.cos(a) * (r + 6)), ccy + Math.round(Math.sin(a) * (r + 5)), core[5]); }
+      return pb;
+    },
+  };
+};
+
+/* =====================================================================
+   MIRAGE / MOSAICO — el gemelo digital. MIRAGE: cabeza de espejo sin
+   rostro que refleja un cielo perfecto (bandas iridiscentes, destello en
+   diagonal, mapa sin personas). MOSAICO: la misma figura hecha de
+   teselas de colores con ojos y sonrisa sencillos.
+   ===================================================================== */
+function twinDef(mosaic) {
+  return () => {
+    const MR = RAMP.mirage, M = { m: PK.mat(MR, mosaic ? '#06100a' : '#1d0b3a', MR[2]) };
+    const hx = 50, hy = 36;
+    const tile = (x, y, idx) => {
+      const c = 6, gx = Math.floor(x / c), gy = Math.floor(y / c);
+      if (((x % c) + c) % c < 1 || ((y % c) + c) % c < 1) return '#0e1a2a';
+      const col = MOSAIC_LAYERS[Math.floor(hash2(gx, gy, 11) * MOSAIC_LAYERS.length)];
+      return idx <= 2 ? shade(col, -0.28) : idx >= 6 ? shade(col, 0.15) : col;
+    };
+    const iri = (x, y, idx) => {
+      const cols = ['#a830b8', '#e050c8', '#ff8ad0', '#56e5ff', '#ffd0e8', '#6a1c94'];
+      const b = Math.floor((y * 0.5 + Math.sin(x * 0.12) * 5) / 4);
+      let c = cols[((b % 6) + 6) % 6];
+      if (Math.abs(Math.sin(x * 0.2 + y * 0.08) + Math.sin(y * 0.15 - x * 0.04)) < 0.06) c = '#fff6ff';
+      return idx <= 2 ? shade(c, -0.35) : idx >= 6 ? shade(c, 0.12) : c;
+    };
+    function build(scale, sc) {
+      const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
+      const tex = mosaic ? tile : iri;
+      P.poly([[2, 99], [6, 88], [22, 78], [40, 74], [60, 74], [78, 78], [92, 88], [96, 99]], { mat: M.m, z: 5, group: 'body', base: 4, bevel: 10, tex });
+      P.capsule(hx, hy + 22, hx, hy + 44, 7, 10, { mat: M.m, z: 6, group: 'neck', base: 4, bevel: 5, tex, cast: undefined });
+      P.ellipse(hx, hy, 20, 25, { mat: M.m, z: 10, group: 'head', base: 5, bevel: 9, tex: mosaic ? tile : null, cast: { on: ['neck'], dx: 0, dy: 3, k: 1 } }, 0.08);
+      P.stamp((pb, c) => {
+        const X = c.X, Y = c.Y;
+        for (let i = 0; i < 17; i++) { const a = -Math.PI * 1.05 + i * Math.PI * 1.1 / 16; const x = X(hx + Math.cos(a) * 30), y = Y(hy - 2 + Math.sin(a) * 33); const col = mosaic ? MOSAIC_LAYERS[i % 7] : (i % 2 ? '#56e5ff' : '#ffd84a'); pb.set(x, y, col); if (c.S >= 1) { pb.set(x + 1, y, col); pb.set(x, y + 1, shade(col, -0.3)); } }
+      }, 5);
+      const r = P.render({ rim: false, outlineColor: mosaic ? '#06100a' : '#1d0b3a' });
+      return r;
+    }
+    return {
+      M, custom: build,
+      faceFn(Pt, scale, name, E, talk, blink) {
+        const base = Pt.base(mosaic ? 'mosaico' : 'mirage', scale);
+        const pb = pbClone(base.pb), S = base.S, sm = scale === 'B', c = base.ctx;
+        const X = (x) => Math.floor((x - base.ox) * S), Y = (y) => Math.floor((y - base.oy) * S);
+        const isHead = (x, y) => c.group(x, y) === 'head';
+        const happy = ['happy', 'joy', 'smile', 'proud', 'relieved', 'calm'].includes(name), think = ['thinking', 'skeptical', 'curious', 'focused'].includes(name);
+        if (!mosaic) {
+          // cara de espejo: cielo perfecto reflejado (bandas), destello diagonal y mapa sin personas
+          const sky = ['#ffd0e8', '#fff6ff', '#c4fbff', '#56e5ff', '#e050c8', '#6a1c94'];
+          const x0 = X(hx - 22), x1 = X(hx + 22), y0 = Y(hy - 27), y1 = Y(hy + 27);
+          for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+            if (!isHead(x, y)) continue;
+            const wx = (x + 0.5) / S + base.ox, wy = (y + 0.5) / S + base.oy;
+            const k = (wy - hy + 25) / 50, sw = think ? Math.sin(Math.atan2(wy - hy, wx - hx) * 2 + Math.hypot(wx - hx, wy - hy) * 0.25) * 0.6 : 0;
+            let col = sky[clamp(Math.floor(k * 6 + Math.sin(wx * 0.22) * 0.45 + sw + (happy ? -Math.abs(wx - hx) * 0.025 : 0)), 0, 5)];
+            if (Math.abs((wx - hx) + (wy - hy) * 0.55 + 6) < 1.6) col = '#ffffff';
+            if (Math.abs((wx - hx) + (wy - hy) * 0.55 + 12) < 0.7) col = '#fff6ff';
+            const d = ((wx - hx) / 20) ** 2 + ((wy - hy) / 25) ** 2;
+            if (d > 0.82) col = shade(col, -0.3);
+            pb.set(x, y, col);
+          }
+          if (!sm) for (let i = 0; i < 5; i++) pb.hline(X(hx - 12 + i * 2), X(hx + 9 - i), Y(hy + 6 + i * 3), '#e050c8');
+          if (talk) for (let i = 0; i < 3; i++) pb.hline(X(hx - 7), X(hx + 7), Y(hy + 16 + i * 2), i % 2 ? '#56e5ff' : '#ffd84a');
+          if (happy && !sm) for (const [dx, dy] of [[-10, -12], [12, -6], [-4, 14]]) { const x = X(hx + dx), y = Y(hy + dy); pb.set(x, y, '#ffffff'); pb.set(x - 1, y, '#fff6ff'); pb.set(x + 1, y, '#fff6ff'); pb.set(x, y - 1, '#fff6ff'); pb.set(x, y + 1, '#fff6ff'); }
+        } else {
+          // MOSAICO: ojos y sonrisa sencillos sobre las teselas
+          const ink = '#0e1a2a', ex1 = X(hx - 8), ex2 = X(hx + 9), ey = Y(hy - 1), mx = X(hx + 1), my = Y(hy + 12);
+          const eye = (x) => {
+            if (blink || happy && name !== 'calm') { if (sm) pb.hline(x - 1, x + 1, ey, ink); else { pb.hline(x - 3, x + 3, ey + 1, ink); pb.set(x - 4, ey + 2, ink); pb.set(x + 4, ey + 2, ink); if (!blink) { pb.hline(x - 3, x + 3, ey, ink); } } return; }
+            if (sm) { pb.rect(x - 1, ey - 1, 2, 3, ink); pb.set(x - 1, ey - 1, '#ffffff'); return; }
+            pb.rect(x - 3, ey - 4, 6, 8, ink); pb.rect(x - 2, ey - 3, 2, 2, '#ffffff'); pb.set(x + 1, ey + 2, '#56e5ff');
+            if (think && x === ex2) pb.rect(x - 3, ey - 4, 6, 3, '#86e36f');
+          };
+          eye(ex1); eye(ex2);
+          if (sm) { if (talk) pb.rect(mx - 1, my, 3, 2, ink); else { pb.set(mx - 2, my - 1, ink); pb.hline(mx - 1, mx + 1, my, ink); pb.set(mx + 2, my - 1, ink); } }
+          else if (talk) pb.stampMap(mx - 4, my - 1, ['.KKKKKKK.', 'KrrrrrrrK', 'KrrttttrK', '.KKKKKKK.'], { K: ink, r: '#6a1a2a', t: '#ff7656' });
+          else if (['sad', 'worried', 'guilty', 'tired'].includes(name)) pb.stampMap(mx - 4, my, ['..KKKKK..', '.K.....K.', 'K.......K'], { K: ink });
+          else pb.stampMap(mx - 5, my - 2, ['K.........K', 'KK.......KK', '.KKKKKKKKK.', '...KKKKK...'], { K: ink });
+        }
+        return pb;
+      },
+    };
+  };
+}
+PDEFS.mirage = twinDef(false);
+PDEFS.mosaico = twinDef(true);
+
+/* =====================================================================
+   BETA-9 — robot batería: cuerpo metálico con borne superior, pantalla
+   con cara de píxeles y barra de carga (SOC) que expresa su ánimo.
+   ===================================================================== */
+PDEFS.beta9 = () => {
+  const ST = RAMP.steelRefR, M = { st: PK.mat(ST, '#0a0c16', ST[2]), dk: PK.mat(['#04060e', '#0a0c16', '#161c2c', '#242c40', '#343e56', '#4a566e'], '#04060e') };
+  const bx = 48, by = 56;
+  function build(scale, sc) {
+    const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
+    for (const s of [-1, 1]) P.capsule(bx + s * 32, 60, bx + s * 40, 86, 4.5, 4, { mat: M.st, z: s < 0 ? 3 : 8, group: 'arm' + s, base: 4, bevel: 2.5, dark: s < 0 ? 1 : 0 });
+    P.box(bx, by + 4, 30, 34, 8, { mat: M.st, z: 5, group: 'body', base: 5, bevel: 7, shiny: true });
+    P.box(bx, by - 34, 11, 5, 2.5, { mat: M.st, z: 4, group: 'cap', base: 6, bevel: 2.5, shiny: true });
+    P.box(bx, by - 14, 23, 17, 3.5, { mat: M.dk, z: 6, group: 'screenRim', base: 3, flat: true });
+    P.box(bx, by - 14, 20.5, 14.5, 2.5, { mat: M.dk, z: 7, group: 'screen', base: 1, flat: true, line: false });
+    P.stamp((pb, c) => {
+      const X = c.X, Y = c.Y;
+      for (let y = by + 12; y < by + 36; y += 5) { pb.hline(X(bx - 24), X(bx + 24), Y(y), ST[2]); if (c.S >= 1) pb.hline(X(bx - 24), X(bx + 24), Y(y) + 1, ST[6]); }
+      if (c.S >= 1) { pb.rect(X(bx + 18), Y(by + 4), 6, 4, '#20262e'); pb.set(X(bx + 19), Y(by + 5), '#86e36f'); pb.set(X(bx - 26), Y(by - 30), '#ffffff'); pb.set(X(bx - 25), Y(by - 30), ST[6]); }
+      const sx = c.parts.findIndex(p => p.group === 'screen');
+      for (let y = 0; y < pb.h; y += 2) for (let x = 0; x < pb.w; x++) { const i = y * pb.w + x; if (c.zb[i] === sx) pb.data[i] = U('#0a1030'); }
+    }, 5);
+    return P.render({ rimK: 0.2, rimColor: '#9fe8ff', outlineColor: '#0a0c16' });
+  }
+  return {
+    M, custom: build,
+    faceFn(Pt, scale, name, E, talk, blink) {
+      const base = Pt.base('beta9', scale);
+      const pb = pbClone(base.pb), S = base.S, sm = scale === 'B';
+      const X = (x) => Math.floor((x - base.ox) * S), Y = (y) => Math.floor((y - base.oy) * S);
+      const low = ['sad', 'crying', 'guilty'].includes(name), mid = ['scared', 'worried', 'tired', 'surprised', 'alert', 'embarrassed'].includes(name);
+      const soc = low ? 0.2 : mid ? 0.4 : name === 'happy' || name === 'joy' ? 0.9 : 0.65;
+      const col = soc < 0.25 ? '#ff4e5d' : soc < 0.45 ? '#ffb83e' : '#86e36f', dim = '#1c2350';
+      const glow = shade(col, -0.45);
+      // barra SOC de 10 celdas
+      for (let i = 0; i < 10; i++) { const x = X(bx - 18 + i * 3.7), y = Y(by - 4); pb.rect(x, y, sm ? 1 : 3, sm ? 1 : 3, i < Math.round(soc * 10) ? col : dim); }
+      // cara de píxeles
+      const ex1 = X(bx - 8), ex2 = X(bx + 8), ey = Y(by - 20), mx = X(bx), my = Y(by - 11), u = sm ? 1 : 2;
+      const eye = (x) => {
+        if (blink) { pb.rect(x - 2 * u, ey + u, 4 * u, u, col); return; }
+        if (name === 'happy' || name === 'joy') { pb.rect(x - 2 * u, ey, u, u, col); pb.rect(x - u, ey - u, 2 * u, u, col); pb.rect(x + u, ey, u, u, col); return; }
+        if (name === 'tired') { pb.rect(x - 2 * u, ey + u, 4 * u, u, col); pb.rect(x - u, ey + 2 * u, 2 * u, u, glow); return; }
+        if (name === 'scared' || name === 'surprised' || name === 'alert') { pb.rect(x - 2 * u, ey - 2 * u, 4 * u, 4 * u, col); pb.rect(x - u, ey - u, 2 * u, 2 * u, '#0a1030'); return; }
+        if (low) { pb.rect(x - u, ey, 2 * u, 2 * u, col); pb.rect(x - 2 * u, ey - u, u, u, glow); return; }
+        pb.rect(x - u, ey - u, 2 * u, 3 * u, col); if (!sm) pb.set(x - u, ey - u, '#e8ffd8');
+      };
+      eye(ex1); eye(ex2);
+      if (talk) pb.rect(mx - 3 * u, my, 6 * u, 2 * u, col);
+      else if (low || name === 'worried') { pb.rect(mx - 2 * u, my, 4 * u, u, col); pb.rect(mx - 3 * u, my + u, u, u, col); pb.rect(mx + 2 * u, my + u, u, u, col); }
+      else if (name === 'scared') { pb.rect(mx - 3 * u, my, u, u, col); pb.rect(mx - 2 * u, my - u, u, u, col); pb.rect(mx - u, my, u, u, col); pb.rect(mx, my - u, u, u, col); pb.rect(mx + u, my, u, u, col); pb.rect(mx + 2 * u, my - u, u, u, col); }
+      else if (name === 'tired' || name === 'calm' || name === 'neutral') pb.rect(mx - 2 * u, my, 4 * u, u, col);
+      else { pb.rect(mx - 3 * u, my - u, u, u, col); pb.rect(mx - 2 * u, my, 4 * u, u, col); pb.rect(mx + 2 * u, my - u, u, u, col); }
+      // LED del borne: rojo al hablar
+      pb.set(X(bx), Y(by - 37), talk ? '#ff4e5d' : '#ffe14d');
+      return pb;
+    },
+  };
+};
