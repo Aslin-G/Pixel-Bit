@@ -438,6 +438,8 @@ LEVELS[0] = {
     for (let x = 1500; x < 1640; x += 7) ART.grass(pb, x, world.groundAt(x) + 2, 1, x, RAMP.moss);
   },
   /* ---------------- dinámico ---------------- */
+  // el panorama sabe si hay apagón (la torre de SYNARA pasa a baliza roja)
+  skyFx(g, sc) { if (sc.backdrop) sc.backdrop.power = sc.state && sc.state.dark ? 0 : 1; },
   renderBack(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
     // guirnaldas de luces sobre la calle (se apagan con el apagón)

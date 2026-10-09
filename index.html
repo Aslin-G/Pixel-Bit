@@ -10602,6 +10602,553 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
   };
 })();
 
+/* ===== 17h_vista_town.js ===== */
+/* =====================================================================
+   17h_vista_town.js — Ciudad en colina del panorama (VISTA), en 3/4.
+   Casas encaladas/ocres con ventanas en arco, contraventanas, balcones,
+   buganvillas y techos variados (cúpula, teja, terraza con pérgola, FV,
+   depósito, campanario); filas de casas escalonadas con muros de
+   contención, escaleras y jardines; cipreses; banderines; la torre de
+   SYNARA (obelisco blanco con franjas turquesa y punta cian); cometas,
+   banderas y fuegos artificiales dinámicos. Sin tramado.
+   API:
+     VISTA.WALLS                                     rampas de fachada
+     VISTA.townHouse(pb, x, y, w, h, seed, {k, pal, roof, d, s, lit, flowers}) → {x,y,w,h,dx,dy,top,wins,roof:[x,y]}
+     VISTA.cypress(pb, x, y, h, seed, {k})
+     VISTA.bunting(pb, x0, y0, x1, y1, sag, {k, cols, step})
+     VISTA.hillTown(pb, {x0, x1, seed, k, rows:[{y(x), w:[a,b], h:[a,b], gap:[a,b], wall:{h, kind}, veg, roofs, pals, skip(x,w)}], lit, bunting}) → {houses, wins, tops}
+     VISTA.synaraTower(pb, x, y, h, {k}) → {top, tip:[x,y], glows:[[x,y,r]], beacon:[x,y]}
+     VISTA.litWindows(pb, wins, {k, col, halo})       ventanas encendidas (tarde/noche), horneado
+     VISTA.drawKites(g, list, ox, oy, t)             list: [{x, y, col, sp, ph, tail}]
+     VISTA.drawFlags(g, list, ox, oy, t)             list: [{x, y, col}] (mástil ya horneado)
+     VISTA.drawFireworks(g, list, ox, oy, t)         list: [{x, y, col, ph, per, r}]
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  const ramp = (r, k) => V.P32(V.hz(r, k || 0));
+  const WALLS = {
+    white: ['#5a5466', '#7e7686', '#a39aa4', '#c4bcc0', '#ddd6d4', '#efe9e2', '#faf6ee', '#ffffff'],
+    ochre: ['#4a2c1c', '#6e4428', '#946034', '#b67e44', '#d09c5a', '#e4b874', '#f2d296', '#fae6be'],
+    terra: ['#3c1a14', '#5e2a1e', '#86402a', '#a85a38', '#c8764a', '#e09464', '#f0b484', '#f8d0a8'],
+    sand: ['#4c3a2c', '#6e5640', '#927456', '#b4946e', '#ceb08a', '#e2caa4', '#f0e0c0', '#faf0dc'],
+    rose: ['#4a2a36', '#6e3e4c', '#965a66', '#ba7a82', '#d49aa0', '#e8bcbc', '#f4d8d4', '#fcece6'],
+    aqua: ['#1e3a42', '#2e5660', '#447a82', '#5e9ca2', '#80bcbe', '#a6d6d4', '#c8eae4', '#e8f8f2'],
+  };
+  V.WALLS = WALLS;
+  const BLUEW = ['#0e1f3a', '#15305a', '#1e4a7c', '#2e6aa0', '#4a8cc0', '#7ab4e0', '#b4daf4'];
+  const SHUT = [['#0e2a4a', '#1e4a7c', '#3a78b0'], ['#0e3a3a', '#1a6a6a', '#30a0a0'], ['#1e3a14', '#3a6a24', '#5a9a34'], ['#4a1a10', '#8a3020', '#c05030']];
+  const TILE = ['#3a140c', '#5e2214', '#86341c', '#a84a26', '#c86434', '#e08448', '#f0a464'];
+  const DOMEB = ['#0e1f3a', '#15305a', '#1e4a7c', '#2e6aa0', '#4a8cc0', '#7ab4e0', '#b4daf4', '#e6f4fc'];
+  const DOMEW = ['#7e7686', '#a39aa4', '#c4bcc0', '#ddd6d4', '#efe9e2', '#faf6ee', '#ffffff'];
+  const WOOD = ['#2a140a', '#4a2814', '#6e4020', '#94603a', '#b8845a'];
+  const AWN = [['#7a1a1a', '#c03030', '#f06a5a'], ['#0a4a5a', '#108a9a', '#30c0c8'], ['#7a5a0a', '#c09a20', '#f0d04a'], ['#4a1a6a', '#7a3aa0', '#a868d0']];
+  const PVR = ['#16214a', '#1e2a55', '#2a3a6c', '#3f5590', '#6a7aa4', '#8b9cc2', '#b7c7e7'];
+  const GOLD = U('#f0c040');
+  /** Ventana en arco (2–3 px de ancho) con reflejo arriba-izquierda y alféizar claro */
+  function win(pb, x, y, ww, wh, WIN, sill, arch) {
+    for (let yy = 0; yy < wh; yy++) for (let xx = 0; xx < ww; xx++) {
+      if (arch && yy === 0 && ww >= 3 && (xx === 0 || xx === ww - 1)) continue;
+      let i = yy === wh - 1 ? 0 : (xx === 0 && yy <= 1) ? 4 : (yy < wh * 0.45) ? 2 : 1;
+      if (ww >= 3 && xx === 1 && yy > 0 && yy < wh - 1) i = Math.max(0, i - 1); // montante
+      V.put(pb, x + xx, y + yy, WIN[i]);
+    }
+    for (let xx = -1; xx <= ww; xx++) V.put(pb, x + xx, y + wh, sill);
+  }
+  /** Casa de la ciudad en 3/4 (más detalle que VISTA.house: arcos, balcones, techos variados) */
+  V.townHouse = function (pb, x, y, w, h, seed, o = {}) {
+    const r = RNG(seed), k = o.k || 0;
+    const palName = o.pal || r.pick(['white', 'white', 'white', 'ochre', 'sand', 'white', 'terra', 'rose', 'aqua']);
+    const pal = V.hz(WALLS[palName] || WALLS.white, k), R = V.P32(pal), n = R.length;
+    const d = o.d ?? Math.max(3, Math.round(w * 0.42));
+    const { dx, dy } = V.box3q(pb, x, y, w, h, d, { ramp: pal, front: n - 3, side: 2, top: n - 1 });
+    const WIN = ramp(BLUEW, k), sill = R[n - 1], shadow = R[Math.max(0, n - 5)];
+    // canto iluminado izquierdo y zócalo con manchas de humedad
+    for (let yy = y - h + 1; yy < y; yy++) V.put(pb, x, yy, R[n - 2]);
+    for (let xx = x + 1; xx < x + w; xx++) if (hash2(xx >> 1, y, seed) < 0.5) V.put(pb, xx, y - 2, R[n - 4]);
+    // cornisa: sombra 1 px bajo el borde del techo
+    for (let xx = x + 1; xx < x + w; xx++) V.put(pb, xx, y - h + 1, shadow);
+    const big = (o.s ?? (w >= 15 ? 2 : 1)) >= 2;
+    const ww = big ? 3 : (w >= 8 ? 2 : 1), wh = big ? 5 : (h >= 8 ? 3 : 2), fh = big ? 8 : 5, sp = big ? 6 : 4;
+    const floors = Math.max(1, Math.floor((h - 3) / fh));
+    const nC = Math.max(1, Math.floor((w - 2) / sp));
+    const x0 = x + Math.round((w - (nC * sp - (sp - ww))) / 2);
+    const shut = r.chance(big ? 0.6 : 0.2) ? ramp(r.pick(SHUT), k) : null;
+    const wins = [];
+    const doorC = big ? Math.floor(nC / 2) : -1;
+    for (let f = 0; f < floors; f++) {
+      const wy = y - h + 3 + f * fh;
+      if (wy + wh > y - 1) break;
+      const ground = f === floors - 1 && floors > 1;
+      for (let c = 0; c < nC; c++) {
+        const wx = x0 + c * sp;
+        if (wx + ww > x + w - 1) break;
+        if (ground && c === doorC) {
+          // puerta en arco de madera o azul
+          const D = r.chance(0.5) ? ramp(WOOD, k) : WIN;
+          for (let yy = wy - 1; yy < y; yy++) for (let xx = 0; xx < ww; xx++) { if (yy === wy - 1 && (xx === 0 || xx === ww - 1)) continue; V.put(pb, wx + xx, yy, D[yy < wy + 1 ? 3 : xx === 0 ? 2 : 1]); }
+          continue;
+        }
+        if (r.chance(0.08)) continue;
+        win(pb, wx, wy, ww, wh, WIN, sill, big);
+        if (shut && big) for (let yy = 0; yy < wh; yy++) { V.put(pb, wx - 1, wy + yy, shut[(yy & 1) ? 1 : 2]); V.put(pb, wx + ww, wy + yy, shut[(yy & 1) ? 0 : 1]); }
+        wins.push([wx, wy, ww, wh]);
+      }
+      // balcón de hierro en la planta alta (casas grandes)
+      if (big && f === 0 && floors >= 2 && r.chance(0.55)) {
+        const by = wy + wh + 1, IR = U(V.hzc('#2a2030', k)), IL = U(V.hzc('#5a5070', k));
+        for (let xx = x + 1; xx < x + w - 1; xx++) { V.put(pb, xx, by - 2, IL); if ((xx & 1) === 0) V.put(pb, xx, by - 1, IR); V.put(pb, xx, by, R[n - 1]); V.put(pb, xx, by + 1, shadow); }
+      }
+    }
+    // toldo rayado sobre la planta baja
+    if (o.awning ?? (big && r.chance(0.35))) {
+      const A = ramp(r.pick(AWN), k), ay = y - Math.min(h - 2, fh + 1);
+      for (let xx = x - 1; xx < x + w + 1; xx++) { const st = ((xx - x) >> 1) & 1; V.put(pb, xx, ay, A[st ? 2 : 1]); V.put(pb, xx, ay + 1, A[st ? 1 : 0]); if ((xx - x) % 3 === 0) V.put(pb, xx, ay + 2, A[0]); }
+    }
+    // buganvilla que cuelga de una esquina
+    if (r.chance(o.flowers ?? 0.35)) {
+      const BG = ramp(RAMP.bougainR, k), LF = ramp(['#1e3a14', '#2e5a1c', '#4a7a24'], k);
+      const side = r.chance(0.5) ? 0 : 1, fx = side ? x + w - 2 : x + 1, len = r.int(3, Math.max(4, Math.round(h * 0.7)));
+      for (let i = 0; i < len * 4; i++) {
+        const yy = y - h + 1 + Math.floor(Math.pow(r(), 1.6) * len), xx = fx + (side ? -1 : 1) * Math.floor(r() * Math.max(2, (len - (yy - (y - h))) * 0.6));
+        V.put(pb, xx, yy, r.chance(0.3) ? LF[r.int(0, 2)] : BG[r.int(0, 2)]);
+      }
+    }
+    // techo
+    const roof = o.roof || r.pick(['flat', 'dome', 'tiles', 'terrace', 'solar', 'tiles', 'terrace', 'tank']);
+    const rcx = Math.round(x + w / 2 + dx / 2), rcy = Math.round(y - h - dy / 2);
+    let top = y - h - dy;
+    if (roof === 'dome') {
+      const rr = Math.max(2, Math.round(w * 0.3)), D = ramp(r.chance(0.6) ? DOMEB : DOMEW, k), nD = D.length;
+      if (rr >= 4) for (let xx = -rr + 1; xx < rr; xx++) for (let q = 0; q < 2; q++) V.put(pb, rcx + xx, rcy - q, R[xx < 0 ? n - 2 : n - 4]);
+      const by = rcy - (rr >= 4 ? 2 : 0);
+      V.ellipse(pb, rcx + 0.5, by + 0.5, rr + 0.5, rr * 0.92 + 0.5, (nx, ny) => {
+        if (ny > 0.05) return 0;
+        let t = 0.62 - nx * 0.42 - ny * 0.3;
+        if (rr >= 5 && Math.abs(((nx * 2.2 + 3) % 1) - 0.5) < 0.12) t -= 0.18; // nervios
+        return D[clamp(Math.round(t * (nD - 1)), 0, nD - 1)];
+      });
+      for (let q = 1; q <= 2 + (rr >> 2); q++) V.put(pb, rcx, by - Math.round(rr * 0.92) - q, q === 1 ? D[2] : GOLD);
+      top = by - Math.round(rr * 0.92) - 3;
+    } else if (roof === 'tiles') {
+      const T = ramp(TILE, k), nT = T.length, rh = Math.max(2, Math.round(dy * 0.6 + w * 0.08));
+      const ry = y - h - Math.round(dy / 2) - rh, rx0 = x + Math.round(dx / 2);
+      V.poly(pb, [[x - 1, y - h + 1], [x + w + 1, y - h + 1], [rx0 + w, ry], [rx0, ry]], (px, py) => {
+        const row = (py - ry) >> 1, joint = ((px + row * 2) % 4) === 0;
+        let i = (py - ry) % 2 === 0 ? nT - 2 : nT - 4;
+        if (joint) i -= 1; if (py >= y - h) i = 1;
+        if (hash2(px, py, seed) < 0.06) i -= 1;
+        return T[clamp(i, 0, nT - 1)];
+      });
+      V.poly(pb, [[x + w + 1, y - h + 1], [x + w + dx, y - h - dy + 1], [rx0 + w, ry]], (px, py) => T[((py & 1) ? 1 : 2)]);
+      for (let xx = rx0; xx <= rx0 + w; xx++) V.put(pb, xx, ry, T[nT - 1]);
+      for (let xx = x; xx < x + w; xx++) V.put(pb, xx, y - h + 2, shadow);
+      top = ry;
+    } else if (roof === 'terrace') {
+      // parapeto, pérgola con parra, macetas y toldo
+      const Wd = ramp(WOOD, k), G = ramp(RAMP.foliageR.slice(2, 8), k);
+      const px0 = x + 1 + Math.round(dx * 0.3), px1 = px0 + Math.max(4, Math.round(w * 0.55)), py = rcy + 1;
+      if (w >= 9) {
+        for (const pxx of [px0, px1]) for (let q = 0; q < 4; q++) V.put(pb, pxx, py - q, Wd[2]);
+        for (let xx = px0 - 1; xx <= px1 + 1; xx++) { V.put(pb, xx, py - 4, Wd[3]); if (hash2(xx, py, seed) < 0.75) V.put(pb, xx, py - 5, G[r.int(1, 5)]); }
+        top = Math.min(top, py - 6);
+      }
+      for (let i = 0; i < 3; i++) { const qx = x + 2 + r.int(0, Math.max(0, w - 4)) + Math.round(dx * 0.6), qy = y - h - r.int(1, Math.max(1, dy - 1)); V.put(pb, qx, qy, U(V.hzc('#a8603a', k))); V.put(pb, qx, qy - 1, G[3]); V.put(pb, qx + 1, qy - 1, G[2]); V.put(pb, qx, qy - 2, G[5]); }
+      if (r.chance(0.5)) { const A = ramp(r.pick(AWN), k); for (let xx = x + w - 5; xx < x + w; xx++) { V.put(pb, xx, y - h - 3, A[2]); V.put(pb, xx, y - h - 2, A[1]); V.put(pb, xx + 1, y - h - 1, A[0]); } top = Math.min(top, y - h - 3); }
+    } else if (roof === 'solar') {
+      const S = ramp(PVR, k), FR = U(V.hzc('#d7dbe8', k));
+      const rows = Math.max(1, Math.floor(dy / 2));
+      for (let j = 0; j < rows; j++) {
+        const yy = y - h - 1 - j * 2, xo = x + 1 + Math.round(j * dx / Math.max(1, rows));
+        for (let xx = xo; xx < xo + w - 2; xx++) { V.put(pb, xx, yy - 1, (xx - xo) % 4 === 0 ? S[4] : S[2 + ((xx + j) % 3 === 0 ? 1 : 0)]); V.put(pb, xx, yy, (xx - xo) % 4 === 0 ? FR : S[1]); V.put(pb, xx, yy - 2, S[5]); }
+      }
+      top = y - h - dy - 2;
+    } else if (roof === 'tank') {
+      V.cylV(pb, x + w - 3 + Math.round(dx / 2), rcy, 2, 4, WALLS.white, { k, ell: 1 });
+      const S = ramp(PVR, k);
+      for (let xx = x + 2; xx < x + 2 + Math.min(6, w - 5); xx++) { V.put(pb, xx + 1, rcy - 1, S[3]); V.put(pb, xx, rcy, S[2]); }
+      top = rcy - 6;
+    } else if (roof === 'belfry') {
+      const bw = Math.max(4, Math.round(w * 0.38)), bh = Math.max(5, Math.round(bw * 1.3)), bx = rcx - (bw >> 1);
+      V.box3q(pb, bx, rcy + 1, bw, bh, 3, { ramp: pal, front: n - 3, side: 2, top: n - 1 });
+      for (let yy = rcy - bh + 3; yy < rcy - 1; yy++) V.put(pb, bx + (bw >> 1), yy, WIN[0]);
+      const D = ramp(DOMEB, k);
+      V.ellipse(pb, bx + bw / 2 + 0.5, rcy - bh + 0.5, bw / 2 + 0.5, bw / 2, (nx, ny) => ny > 0 ? 0 : D[clamp(Math.round((0.6 - nx * 0.4 - ny * 0.3) * 7), 0, 7)]);
+      V.put(pb, bx + (bw >> 1), rcy - bh - Math.round(bw / 2) - 1, GOLD);
+      top = rcy - bh - Math.round(bw / 2) - 2;
+    } else {
+      // azotea plana: parapeto, antena o macetas
+      if (r.chance(0.4)) { const ax = x + 2 + Math.round(dx / 2); for (let q = 0; q < 4; q++) V.put(pb, ax, rcy - q, U(V.hzc('#5a5466', k))); V.put(pb, ax - 1, rcy - 3, U(V.hzc('#8a8296', k))); V.put(pb, ax + 1, rcy - 3, U(V.hzc('#8a8296', k))); top = rcy - 4; }
+    }
+    // sombra de contacto (granate/violeta) a la derecha de la base
+    for (let xx = x + w + dx; xx < x + w + dx + 2; xx++) for (let yy = y - dy; yy <= y; yy++) { const c = V.get(pb, xx, yy); if (c >>> 24 && yy > y - dy + 1) V.put(pb, xx, yy, V.shU(c, -0.2, 265)); }
+    if (o.lit) V.litWindows(pb, wins, { k, ...o.lit });
+    return { x, y, w, h, dx, dy, top, wins, roof: [rcx, top] };
+  };
+  /** Ventanas encendidas al atardecer: cristal cálido y halo horneado en la fachada */
+  V.litWindows = function (pb, wins, o = {}) {
+    const k = o.k || 0, Wm = V.P32(V.hz(o.ramp || ['#a0401a', '#e08a3a', '#ffc860', '#fff0b0'], k * 0.6)), HC = U(o.halo || '#ffb050');
+    for (const [x, y, w, h] of wins) {
+      if (hash2(x, y, 13) < (o.off ?? 0.25)) continue;
+      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) V.put(pb, x + xx, y + yy, Wm[yy === 0 ? 3 : yy < h / 2 ? 2 : 1]);
+      for (let yy = -1; yy <= h; yy++) for (let xx = -1; xx <= w; xx++) {
+        if (yy >= 0 && yy < h && xx >= 0 && xx < w) continue;
+        const c = V.get(pb, x + xx, y + yy); if (c >>> 24) V.put(pb, x + xx, y + yy, V.mixU(c, HC, 0.35));
+      }
+    }
+  };
+  /** Ciprés: huso verde oscuro con luz a la izquierda */
+  V.cypress = function (pb, x, y, h, seed, o = {}) {
+    const R = ramp(o.ramp || ['#0e1a10', '#16281a', '#1e3a22', '#2c5028', '#3e6a30', '#5a8a3c'], o.k), n = R.length;
+    const wmax = Math.max(2, Math.round(h * 0.16));
+    for (let yy = 0; yy < h; yy++) {
+      const t = yy / h, hw = Math.max(0.6, wmax * Math.sin(Math.min(1, (1 - t) * 1.25) * Math.PI * 0.62) * (t < 0.12 ? t / 0.12 + 0.2 : 1));
+      for (let xx = -Math.ceil(hw); xx <= Math.ceil(hw); xx++) {
+        if (Math.abs(xx) > hw + 0.3) continue;
+        const nx = xx / (hw + 0.5);
+        let i = Math.round((0.55 - nx * 0.4 + (hash2(x + xx, (y - yy) >> 1, seed) - 0.5) * 0.4) * (n - 1));
+        if (Math.abs(xx) >= Math.floor(hw) && nx > 0) i -= 1;
+        V.put(pb, x + xx, y - yy, R[clamp(i, 0, n - 1)]);
+      }
+    }
+  };
+  /** Guirnalda de banderines horneada (cordel combado + triángulos de colores) */
+  V.bunting = function (pb, x0, y0, x1, y1, sag, o = {}) {
+    const k = o.k || 0, cols = (o.cols || ['#e83b41', '#f5dc5a', '#11bedd', '#8d6bff', '#ff9f43', '#3fe0a0']).map(c => U(V.hzc(c, k))), str = U(V.hzc('#4a3a3a', k));
+    const n = Math.max(2, Math.round(Math.abs(x1 - x0)));
+    const step = o.step || 4;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = Math.round(lerp(x0, x1, t)), y = Math.round(lerp(y0, y1, t) + Math.sin(t * Math.PI) * sag);
+      V.put(pb, x, y, str);
+      if (i % step === 1 && i < n - 1) {
+        const c = cols[((i / step) | 0) % cols.length];
+        V.put(pb, x, y + 1, c); V.put(pb, x + 1, y + 1, c); V.put(pb, x, y + 2, V.shU(c, -0.2, 260));
+        if (o.big) { V.put(pb, x - 1, y + 1, c); V.put(pb, x, y + 3, V.shU(c, -0.3, 260)); }
+      }
+    }
+  };
+  /** Vegetación de jardín entre casas (árbol, palmera, ciprés o arbusto) */
+  function gardenVeg(pb, x, y, r, k, scale) {
+    const kind = r.pick(['tree', 'tree', 'cypress', 'palm', 'shrub', 'cypress']);
+    if (kind === 'tree') V.tree(pb, x, y, Math.round(r.range(3, 5.5) * scale), r.int(1, 1e6), { k });
+    else if (kind === 'cypress') V.cypress(pb, x, y, Math.round(r.range(10, 18) * scale), r.int(1, 1e6), { k });
+    else if (kind === 'palm') V.palm(pb, x, y, Math.round(r.range(14, 22) * scale), r.range(-3, 3), r.int(1, 1e6), { k });
+    else V.shrub(pb, x, y, Math.round(r.range(2, 4) * scale), r.int(1, 1e6), { k });
+  }
+  /**
+   * Filas de casas escalonadas en la ladera (de atrás hacia delante). Cada fila:
+   * y(x) = línea de base; casas con solapes aleatorios (orden por profundidad),
+   * huecos con jardín, muro de contención con cornisa iluminada y escaleras.
+   */
+  V.hillTown = function (pb, o) {
+    const r = RNG(o.seed || 1), k = o.k || 0, out = { houses: [], wins: [], tops: [] };
+    const STN = ramp(o.wallRamp || ['#4a2a22', '#6e4232', '#906048', '#b07e5e', '#c8987a', '#dcb494', '#ecd0b0'], k), nS = STN.length;
+    for (let ri = 0; ri < o.rows.length; ri++) {
+      const row = o.rows[ri], items = [], sc = row.scale || 1;
+      // jardín de fondo (detrás de las casas)
+      for (let x = o.x0 + r.int(0, 10); x < o.x1; x += r.int(row.vegGap?.[0] ?? 10, row.vegGap?.[1] ?? 26)) {
+        if (row.skip && row.skip(x, 1)) continue;
+        if (r.chance(row.veg ?? 0.5)) gardenVeg(pb, x, row.y(x) - r.int(1, 3), r, k, sc);
+      }
+      for (let x = o.x0 + r.int(0, 6); x < o.x1;) {
+        const w = r.int(row.w[0], row.w[1]), h = r.int(row.h[0], row.h[1]);
+        if (row.skip && row.skip(x, w)) { x += Math.max(4, w >> 1); continue; }
+        if (r.chance(row.hole ?? 0.1)) { x += Math.round(w * 0.8); continue; }
+        items.push({ x, y: Math.round(row.y(x + w / 2)) + r.int(-1, 2), w, h, seed: (o.seed || 1) * 7919 + ri * 1009 + x });
+        x += w + r.int(row.gap[0], row.gap[1]);
+      }
+      items.sort((a, b) => a.y - b.y);
+      for (const it of items) {
+        const roofs = row.roofs, roof = roofs ? r.pick(roofs) : null;
+        const hs = V.townHouse(pb, it.x, it.y, it.w, it.h, it.seed, { k, roof, pal: row.pals ? r.pick(row.pals) : null, flowers: row.flowers, s: row.s, lit: o.lit });
+        out.houses.push(hs); out.wins.push(...hs.wins); out.tops.push([it.x + (it.w >> 1), hs.top, ri]);
+      }
+      // muro de contención delante de la fila (cornisa iluminada, hiladas, sombra)
+      if (row.wall) {
+        const wh = row.wall.h || 4;
+        for (let x = o.x0; x < o.x1; x++) {
+          if (row.skip && row.skip(x, 1)) continue;
+          const y0 = Math.round(row.y(x));
+          for (let q = 0; q < wh; q++) {
+            const course = (q % 3 === 2), joint = ((x + (((q / 3) | 0) & 1) * 3) % 6) === 0;
+            let i = q === 0 ? nS - 1 : course ? 2 : joint ? 3 : 4 + (hash2(x >> 1, q, 5) < 0.3 ? 1 : 0);
+            if (q === wh - 1) i = 1;
+            V.put(pb, x, y0 + 1 + q, STN[i]);
+          }
+        }
+        // escaleras blancas que bajan por el muro
+        for (let x = o.x0 + r.int(20, 60); x < o.x1; x += r.int(70, 160)) {
+          if (row.skip && row.skip(x, 6)) continue;
+          const y0 = Math.round(row.y(x)), Wt = ramp(WALLS.white, k);
+          for (let q = 0; q < wh + 1; q++) { V.put(pb, x + q, y0 + q, Wt[7]); V.put(pb, x + q + 1, y0 + q, Wt[5]); V.put(pb, x + q + 2, y0 + q, Wt[3]); V.put(pb, x + q, y0 + q + 1, Wt[1]); }
+        }
+      }
+      // guirnaldas entre tejados de la fila
+      if (o.bunting && row.bunting !== false) {
+        const tops = out.tops.filter(t => t[2] === ri).sort((a, b) => a[0] - b[0]);
+        for (let i = 0; i + 1 < tops.length; i++) {
+          const a = tops[i], b = tops[i + 1];
+          if (b[0] - a[0] < 12 || b[0] - a[0] > 60 || !r.chance(o.bunting)) continue;
+          V.bunting(pb, a[0], a[1] + 3, b[0], b[1] + 3, Math.min(6, (b[0] - a[0]) * 0.12), { k, step: sc > 1.3 ? 5 : 4, big: sc > 1.3 });
+        }
+      }
+    }
+    return out;
+  };
+  /**
+   * Edificio cívico: 'arcade' (mercado con soportales en arco y teja), 'church'
+   * (nave con campanario y cúpula azul), 'school' (pabellón con cubierta FV).
+   */
+  V.civic = function (pb, x, y, w, h, seed, o = {}) {
+    const k = o.k || 0, kind = o.kind || 'arcade';
+    const hs = V.townHouse(pb, x, y, w, h, seed, { k, pal: o.pal || 'white', roof: kind === 'school' ? 'solar' : kind === 'church' ? 'dome' : 'tiles', s: 2, flowers: 0.6, awning: false, lit: o.lit });
+    const R = V.P32(V.hz(WALLS[o.pal || 'white'], k)), n = R.length, D = ramp(BLUEW, k);
+    if (kind === 'arcade' || kind === 'school') {
+      // soportales: arcos oscuros con columnas iluminadas en la planta baja
+      const ah = Math.min(h - 4, 8), aw = 4;
+      for (let ax = x + 2; ax + aw < x + w - 1; ax += aw + 2) {
+        for (let yy = y - ah; yy < y; yy++) for (let xx = 0; xx < aw; xx++) { if (yy === y - ah && (xx === 0 || xx === aw - 1)) continue; V.put(pb, ax + xx, yy, D[yy < y - ah + 2 ? 2 : xx === 0 ? 1 : 0]); }
+        V.put(pb, ax - 1, y - ah, R[n - 1]);
+      }
+      for (let xx = x; xx < x + w; xx++) V.put(pb, xx, y - ah - 1, R[n - 1]);
+    }
+    if (kind === 'church') {
+      const tw = Math.max(6, Math.round(w * 0.22)), th = Math.round(h * 1.1), tx = x + w - tw - 1;
+      V.townHouse(pb, tx, y - h + 2, tw, th, seed + 7, { k, pal: o.pal || 'white', roof: 'belfry', s: 1, flowers: 0 });
+    }
+    return hs;
+  };
+  /**
+   * Barrio orgánico sobre un relieve (info de VISTA.relief): casas y árboles en la
+   * superficie visible, agrupados en vecindarios por ruido; las laderas muy
+   * empinadas quedan como peñas desnudas. Cada casa asienta sobre un rellano de roca.
+   * o: {x0, x1, n, v:[a,b], w:[a,b], h:[a,b], seed, k, minY, maxY, steep, cluster, trees, roofs, pals, lit, s, skip(x)}
+   */
+  V.slopeTown = function (pb, info, o) {
+    const r = RNG(o.seed || 1), k = o.k || 0, out = { houses: [], wins: [], tops: [] };
+    const items = [];
+    const RK = ramp(o.ledge || V.RAMPS.hill, k), nR = RK.length;
+    for (let i = 0; i < (o.n || 100); i++) {
+      const x = r.int(o.x0, o.x1 - 1);
+      if (o.skip && o.skip(x)) continue;
+      const cl = vnoise(x * (o.clusterF ?? 0.018), 3.3, (o.seed || 1) + 5);
+      if (cl < (o.cluster ?? 0.35)) continue;
+      const v = r.int(o.v?.[0] ?? 2, o.v?.[1] ?? 20);
+      const y = info.onSurf(x, v); if (y == null || y < (o.minY ?? 0) || y > (o.maxY ?? pb.h - 4)) continue;
+      const sl = Math.abs((info.top[Math.min(pb.w - 1, x + 4)] ?? y) - (info.top[Math.max(0, x - 4)] ?? y));
+      if (sl > (o.steep ?? 9)) continue;
+      const tree = r.chance(o.trees ?? 0.3);
+      items.push({ x, y, tree, w: r.int(o.w[0], o.w[1]), h: r.int(o.h[0], o.h[1]), seed: (o.seed || 1) * 131 + i * 17 });
+    }
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) {
+      if (it.tree) { gardenVeg(pb, it.x, it.y + 1, r, k, o.vegScale || 1); continue; }
+      const x = it.x - (it.w >> 1);
+      // rellano de roca: losa iluminada y cara en sombra bajo la casa
+      for (let xx = x - 1; xx < x + it.w + Math.round(it.w * 0.3); xx++) { V.put(pb, xx, it.y + 1, RK[nR - 2]); V.put(pb, xx, it.y + 2, RK[Math.max(0, nR - 6)]); V.put(pb, xx, it.y + 3, RK[2]); }
+      const hs = V.townHouse(pb, x, it.y + 1, it.w, it.h, it.seed, { k, roof: o.roofs ? r.pick(o.roofs) : null, pal: o.pals ? r.pick(o.pals) : null, s: o.s, flowers: o.flowers, lit: o.lit });
+      out.houses.push(hs); out.wins.push(...hs.wins); out.tops.push([it.x, hs.top, 0]);
+    }
+    return out;
+  };
+  /**
+   * Torre de SYNARA (hito): obelisco blanco en 3/4 con franjas turquesa, aristas
+   * iluminadas, coronación de cristal cian y punta luminosa (como el núcleo del Nivel 0).
+   */
+  V.synaraTower = function (pb, x, y, h, o = {}) {
+    const k = o.k || 0, Wt = ramp(WALLS.white, k), n = Wt.length;
+    const TQ = ramp(['#0a4a5a', '#108a9a', '#20c0c8', '#5ae8e8', '#c4fbff'], k), CY = ramp(['#1a6a8a', '#22c1e7', '#71dfef', '#c4fbff', '#ffffff'], k * 0.5);
+    const w0 = Math.max(6, Math.round(h * 0.17)), w1 = Math.max(3, Math.round(w0 * 0.45)), sd = Math.max(2, Math.round(w0 * 0.35));
+    const glows = [];
+    // podio de dos escalones
+    V.box3q(pb, x - Math.round(w0 * 0.9), y, Math.round(w0 * 1.8) + 1, Math.max(3, Math.round(h * 0.05)), Math.round(sd * 1.6), { ramp: WALLS.white, k, front: 5, side: 2, top: 7 });
+    const yb = y - Math.max(3, Math.round(h * 0.05));
+    for (let yy = 0; yy < h; yy++) {
+      const t = yy / h, hw = lerp(w0 / 2, w1 / 2, t), sw = Math.max(1, Math.round(lerp(sd, sd * 0.5, t)));
+      const py = yb - yy, xl = Math.round(x - hw), xr = Math.round(x + hw);
+      const band = (Math.floor(yy / Math.max(4, h * 0.09)) % 2 === 1) && t > 0.1 && t < 0.86;
+      for (let xx = xl; xx <= xr; xx++) {
+        const u = (xx - xl) / Math.max(1, xr - xl);
+        let c;
+        if (band && u > 0.18 && u < 0.86) c = TQ[clamp(Math.round(3 - u * 2 + (yy % 3 === 0 ? 1 : 0)), 0, 4)];
+        else c = Wt[xx === xl ? n - 1 : u < 0.3 ? n - 2 : u < 0.8 ? n - 3 : n - 4];
+        V.put(pb, xx, py, c);
+      }
+      for (let q = 1; q <= sw; q++) V.put(pb, xr + q, py - Math.round(q * 0.5), band ? TQ[0] : Wt[2]);
+    }
+    // nervio luminoso central (núcleo de datos)
+    for (let yy = Math.round(h * 0.12); yy < Math.round(h * 0.86); yy += 1) if ((yy % 5) !== 0) V.put(pb, x, yb - yy, CY[2]);
+    // coronación: anillo y cristal cian
+    const ty = yb - h, cr = Math.max(3, Math.round(w0 * 0.55));
+    V.ellipse(pb, x + 0.5, ty + 0.5, cr + 0.5, Math.max(1.5, cr * 0.35), (nx, ny) => Wt[ny < 0 ? n - 1 : 3]);
+    const ch = Math.round(h * 0.16);
+    for (let yy = 0; yy < ch; yy++) {
+      const hw = Math.max(0, Math.round((cr - 1) * (1 - yy / ch)));
+      for (let xx = -hw; xx <= hw; xx++) V.put(pb, x + xx, ty - 1 - yy, CY[xx < 0 ? 3 : xx === 0 ? 4 : 1 + (yy & 1)]);
+    }
+    for (let q = 0; q < 4; q++) V.put(pb, x, ty - ch - 1 - q, q < 2 ? Wt[5] : CY[4]);
+    glows.push([x, ty - Math.round(ch * 0.4), Math.max(5, cr + 3)], [x, yb - Math.round(h * 0.5), 3], [x, yb - Math.round(h * 0.3), 3]);
+    // alas solares en el podio
+    const S = ramp(PVR, k);
+    for (const sdn of [-1, 1]) for (let i = 0; i < Math.round(w0 * 0.9); i++) { const px = x + sdn * (Math.round(w0 * 0.5) + 2 + i), py = yb - 2 - Math.round(i * 0.25); V.put(pb, px, py, S[2 + (i % 3 === 0 ? 2 : 0)]); V.put(pb, px, py + 1, S[1]); }
+    return { top: ty - ch - 5, tip: [x, ty - ch - 4], glows, beacon: [x, ty - ch - 4], x0: x - w0, x1: x + w0 + sd };
+  };
+  /* ---------------- dinámicos ---------------- */
+  const _kite = new Map();
+  function kiteSpr(col) {
+    let c = _kite.get(col); if (c) return c;
+    const pb = new PixelBuffer(9, 11), A = U(col), Bc = U(shadeTo(col, -0.3, 260)), L = U(shadeTo(col, 0.35)), F = U('#3a2a2a');
+    for (let y = 0; y < 11; y++) { const hw = y < 5 ? y : 10 - y; for (let x = -hw; x <= hw; x++) V.put(pb, 4 + x, y, x < 0 ? (y < 5 ? L : A) : (y < 5 ? A : Bc)); }
+    for (let y = 1; y < 10; y++) V.put(pb, 4, y, F);
+    for (let x = 1; x < 8; x++) V.put(pb, x, 5, F);
+    c = pb.toCanvas(); _kite.set(col, c); return c;
+  }
+  /** Cometas del festival: rombo + cola de lazos que se mece (≈14 fillRect cada una) */
+  V.drawKites = function (g, list, ox, oy, t) {
+    for (const K of list) {
+      const x = Math.round(K.x + ox + Math.sin(t * (K.sp || 0.6) + (K.ph || 0)) * 10), y = Math.round(K.y + oy + Math.sin(t * 1.1 + (K.ph || 0) * 2) * 5);
+      if (x < -20 || x > W + 20) continue;
+      g.drawImage(kiteSpr(K.col), x - 4, y - 5);
+      const n = K.tail || 10;
+      for (let i = 1; i <= n; i++) {
+        const tx = x + Math.sin(t * 3 + i * 0.7 + (K.ph || 0)) * (1 + i * 0.25) - i * 0.4, ty = y + 5 + i * 2;
+        g.fillStyle = i % 3 === 0 ? (K.bow || '#fff6d0') : '#f4ecd8'; g.fillRect(Math.round(tx), Math.round(ty), i % 3 === 0 ? 2 : 1, 1);
+      }
+      // hilo hacia la ciudad
+      if (K.line) { g.fillStyle = 'rgba(250,246,238,0.5)'; for (let i = 1; i < 10; i++) g.fillRect(Math.round(x + i * K.line[0] / 10), Math.round(y + 5 + i * K.line[1] / 10), 1, 1); }
+    }
+  };
+  let _flags = null;
+  function flagStrips() {
+    if (_flags) return _flags;
+    _flags = {};
+    for (const col of ['#e83b41', '#11bedd', '#f5dc5a', '#3fe0a0', '#8d6bff']) {
+      const A = U(col), D = U(shadeTo(col, -0.3, 260)), L = U(shadeTo(col, 0.3));
+      _flags[col] = V.strip(3, 8, 6, (pb, f) => {
+        for (let x = 0; x < 7; x++) {
+          const off = Math.round(Math.sin(x * 0.9 - f * 2.1) * 1);
+          for (let y = 0; y < 4; y++) V.put(pb, x, y + 1 + off, ((x + f) % 3 === 0) ? D : y === 0 ? L : A);
+        }
+      });
+    }
+    return _flags;
+  }
+  /** Banderas que ondean en mástiles horneados */
+  V.drawFlags = function (g, list, ox, oy, t) {
+    const F = flagStrips();
+    for (const f of list) { const x = f.x + ox, y = f.y + oy; if (x < -10 || x > W + 10) continue; V.drawStrip(g, F[f.col] || F['#e83b41'], Math.floor(t * 8 + f.x) % 3, x + 1, y); }
+  };
+  /** Fuegos artificiales (atardecer de fiesta): estela, estallido radial que cae y se apaga */
+  V.drawFireworks = function (g, list, ox, oy, t) {
+    g.globalCompositeOperation = 'lighter';
+    for (const F of list) {
+      const per = F.per || 5, u = ((t + (F.ph || 0)) % per) / per;
+      const x = F.x + ox, y = F.y + oy;
+      if (x < -40 || x > W + 40) continue;
+      if (u < 0.18) { const k = u / 0.18; g.globalAlpha = 0.8; g.fillStyle = '#fff0c0'; g.fillRect(Math.round(x), Math.round(y + (1 - k) * 60), 1, 2); continue; }
+      const k = (u - 0.18) / 0.82; if (k > 0.85) continue;
+      const rr = (F.r || 16) * Math.sqrt(k), n = 14;
+      g.globalAlpha = 1 - k / 0.85;
+      for (let i = 0; i < n; i++) {
+        const a = i / n * TAU + (F.ph || 0), px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr + k * k * 10;
+        g.fillStyle = i % 2 ? F.col : '#ffffff'; g.fillRect(Math.round(px), Math.round(py), 1, 1);
+        if (k < 0.4) { g.fillStyle = F.col; g.fillRect(Math.round(x + Math.cos(a) * rr * 0.6), Math.round(y + Math.sin(a) * rr * 0.6 + k * k * 6), 1, 1); }
+      }
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  };
+})();
+
+/* ===== 17i_vista_light.js ===== */
+/* =====================================================================
+   17i_vista_light.js — Luz del panorama (VISTA): soles de color propio
+   (atardecer, mediodía blanco), haces de luz horneados en el cielo,
+   resplandor solar dinámico en anillos (aditivo, sin tramado), brillo
+   de calor (espejismo) y destellos especulares que recorren superficies.
+   API:
+     VISTA.sunDisc(pb, cx, cy, r, halo, {disc, core, edge, rings:[[dr, col, a]...]})
+     VISTA.rays(pb, sx, sy, {n, len, col, a, seed, spread, ang, w})   haces horneados
+     VISTA.drawBloom(g, x, y, r, col, a, t)    resplandor solar en 2 anillos (≤ 2 drawImage)
+     VISTA.drawHeat(g, x0, y0, w, h, t, {col, a, n})   ondulación de calor (líneas 1 px)
+     VISTA.drawGlints(g, list, ox, oy, t)      list: [{x, y, len, ph, sp}] destello que recorre una fila
+     VISTA.drawPulse(g, list, ox, oy, t, col, a0, a1, sp)  halos [[x,y,r]] que laten
+   ===================================================================== */
+(() => {
+  const V = VISTA;
+  V.SUNS = {
+    dusk: { disc: '#ffd890', core: '#fff4d0', edge: '#ffc070', rings: [[1.6, '#ffc070', 0.95], [3.4, '#f8a868', 0.62], [6, '#ec9478', 0.44], [9, '#d8849a', 0.32], [12.5, '#b87ab0', 0.22], [0, '#9a78c0', 0.13]] },
+    noon: { disc: '#fffcea', core: '#ffffff', edge: '#fff4c0', rings: [[1.4, '#fff6c8', 0.95], [3.2, '#fbe6b0', 0.66], [5.6, '#ead2b4', 0.46], [8.6, '#cdbcc6', 0.32], [12, '#aab4dc', 0.22], [0, '#8aa6e4', 0.14]] },
+  };
+  /** Sol con colores propios (anillos con borde desplazado por clusters, sin halo tramado) */
+  V.sunDisc = function (pb, cx, cy, r = 11, haloR = 24, o = {}) {
+    const S = typeof o === 'string' ? V.SUNS[o] : (o.rings ? o : V.SUNS[o.kind || 'noon']);
+    const ring = S.rings.map(([dr, c, a]) => [dr ? r + dr : haloR, U(c), a]);
+    const DISC = U(S.disc), CORE = U(S.core), EDGE = U(S.edge);
+    const x0 = Math.floor(cx - haloR - 2), x1 = Math.ceil(cx + haloR + 2), y0 = Math.floor(cy - haloR - 2), y1 = Math.ceil(cy + haloR + 2);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) continue;
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy), i = y * pb.w + x;
+      if (d <= r) { const kk = Math.hypot(x + 0.5 - (cx - r * 0.3), y + 0.5 - (cy - r * 0.3)) / r; pb.data[i] = d > r - 1 ? EDGE : kk < 0.55 ? CORE : DISC; continue; }
+      const j = (hash2((x / 2) | 0, (y / 2) | 0, 77) - 0.5) * 1.6;
+      for (const [rr, u, a] of ring) if (d + j <= rr) { pb.data[i] = V.mixU(pb.data[i], u, a); break; }
+    }
+  };
+  /** Haces de luz horneados: cuñas muy suaves que salen del sol (2 niveles de alfa, borde en clusters) */
+  V.rays = function (pb, sx, sy, o = {}) {
+    const r = RNG(o.seed || 9), n = o.n || 6, len = o.len || 260, col = U(o.col || '#fff4d8'), a = o.a ?? 0.1;
+    const base = o.ang ?? Math.PI / 2, spread = o.spread ?? 1.4, yMax = o.yMax ?? pb.h;
+    for (let i = 0; i < n; i++) {
+      const ang = base + (i / Math.max(1, n - 1) - 0.5) * spread + r.range(-0.08, 0.08), hw = (o.w || 0.035) * r.range(0.6, 1.4);
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      const x0 = Math.max(0, Math.floor(sx - len)), x1 = Math.min(pb.w - 1, Math.ceil(sx + len)), y0 = Math.max(0, Math.floor(sy)), y1 = Math.min(yMax - 1, Math.ceil(sy + len));
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const dx = x - sx, dy = y - sy, along = dx * ca + dy * sa; if (along < 6 || along > len) continue;
+        const across = Math.abs(-dx * sa + dy * ca) / along;
+        const j = (hash2((x / 3) | 0, (y / 2) | 0, 31 + i) - 0.5) * 0.012;
+        if (across + j > hw) continue;
+        const fade = 1 - along / len, inner = across < hw * 0.45;
+        const k = a * fade * (inner ? 1 : 0.55);
+        if (k < 0.012) continue;
+        const idx = y * pb.w + x; pb.data[idx] = V.mixU(pb.data[idx], col, k);
+      }
+    }
+  };
+  /** Resplandor solar aditivo que respira (2 halos cacheados en anillos) */
+  V.drawBloom = function (g, x, y, r, col, a = 0.3, t = 0) {
+    const k = 1 + Math.sin(t * 0.9) * 0.08;
+    V.drawGlow(g, x, y, r, col, a * k);
+    V.drawGlow(g, x, y, Math.round(r * 0.45), '#ffffff', a * 0.9 * k);
+  };
+  /** Ondulación de calor: segmentos horizontales claros que se desplazan (≤ n fillRect) */
+  V.drawHeat = function (g, x0, y0, w, h, t, o = {}) {
+    const n = o.n || 40;
+    g.fillStyle = o.col || '#fff4dc';
+    for (let i = 0; i < n; i++) {
+      const hy = hash1(i, 41), hx = hash1(i, 43), ph = hash1(i, 47) * TAU;
+      const y = Math.round(y0 + hy * h + Math.sin(t * 2.4 + ph) * 1.2), len = 3 + Math.round(hash1(i, 53) * 9);
+      const x = Math.round(x0 + ((hx * w + t * (6 + hy * 8)) % w));
+      const a = (Math.sin(t * 3 + ph) + 1) * 0.5;
+      if (a < 0.35) continue;
+      g.globalAlpha = (o.a ?? 0.35) * a; g.fillRect(x, y, len, 1);
+    }
+    g.globalAlpha = 1;
+  };
+  /** Destello especular que recorre filas (paneles, cristal): 1 fillRect por destello */
+  V.drawGlints = function (g, list, ox, oy, t) {
+    for (const G of list) {
+      const u = ((t * (G.sp || 0.25) + (G.ph || 0)) % 1.6);
+      if (u > 1) continue;
+      const x = Math.round(G.x + ox + u * G.len), y = Math.round(G.y + oy + u * (G.dy || 0));
+      if (x < -4 || x > W + 4) continue;
+      g.globalAlpha = Math.sin(u * Math.PI) * (G.a ?? 0.9); g.fillStyle = G.col || '#ffffff'; g.fillRect(x, y, G.w || 2, 1);
+      g.globalAlpha = 1;
+    }
+  };
+  /** Halos que laten (emisivos) */
+  V.drawPulse = function (g, list, ox, oy, t, col, a0 = 0.35, a1 = 0.25, sp = 2) {
+    for (const [x, y, r] of list) { const sx = x + ox; if (sx < -r - 4 || sx > W + r + 4) continue; V.drawGlow(g, sx, y + oy, r, col, a0 + a1 * Math.sin(t * sp + x * 0.7)); }
+  };
+})();
+
 /* ===== 17z_vista_test.js ===== */
 /* =====================================================================
    17z_vista_test.js — Banco de pruebas del panorama (solo fondo).
@@ -13266,6 +13813,309 @@ BIOMES.coast = function (L) {
 };
 
 BIOME_LABELS.coast = BIOME_LABELS.coast || [];
+
+/* ===== 1d_bio_plaza.js ===== */
+/* =====================================================================
+   1d_bio_plaza.js — BIOMA PLAZA DE ARIDIA (Nivel 00 y epílogo, Nivel 11)
+   con el kit de panorama VISTA. Sustituye a BIOMES.plaza de 16_biomes.js.
+   El fondo es la propia ciudad en la colina, con todo el nexo a la vista:
+   cielo+sol (0) · cirros/cúmulos (0,01–0,07) · cordillera lila (0,08) ·
+   mar lejano (0,1) · cúmulos bajos (0,1) · montañas medias con
+   aerogeneradores (0,15) · llano costero con la desaladora SYNARA, FV,
+   H₂ verde e invernaderos (0,2) · colina de ARIDIA con la cúpula, la
+   torre de SYNARA, cascadas y terrazas de cultivo (0,26) · barrio alto
+   en terrazas (0,36) · barrio bajo con banderines, cometas y jardines (0,48)
+   Nivel 11 («La Primera Cosecha»): misma ciudad al atardecer, más verde,
+   con cosecha dorada en las terrazas, ventanas encendidas y fuegos.
+   Contrato: B.horizon, B.sun, B.seaY(cam), B.power (0 = apagón: la torre
+   de SYNARA parpadea en rojo; lo fija LEVELS[0].skyFx).
+   ===================================================================== */
+var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+
+BIOMES.plaza = function (L) {
+  const V = VISTA;
+  const B = new Backdrop(L.width, L.height);
+  const EV = L.id === 11;
+  const HZ = 172;
+  const SUN = EV ? { x: 128, y: 132, r: 13, halo: 32 } : { x: 452, y: 30, r: 11, halo: 26 };
+  B.horizon = HZ; B.sun = SUN; B.power = 1;
+  B.seaY = () => HZ;
+  const T = () => Game.time;
+  const labels = [];
+  /** plano cuya parte superior queda en ys de pantalla con cam.y = 0 (cámara de la plaza) */
+  const P = (f, ys, h, draw, opts) => B.vplane(f, ys - Math.round(V.CAMY * f * 0.3), h, draw, opts);
+  // paleta del momento del día
+  const HZC = EV ? '#c49ab4' : '#a9a6cc';            // bruma de montañas
+  const RIM = EV ? '#ffc890' : '#f6dcc8';
+  const RIMN = EV ? '#ffd8a0' : '#fcd8ae';
+  const vegK = EV ? 1.45 : 1;
+  const CLOUD = EV ? ['#6a4a8a', '#8c5a9a', '#b46c9c', '#d88494', '#f0a490', '#fcc49a', '#ffe0b4', '#fff0c8'] : null;
+  /* ---------------- cielo, sol y haces ---------------- */
+  B.sky = V.timed('sky', () => {
+    const pb = V.sky(W, H, {
+      horizonY: HZ, sun: SUN, curve: EV ? 1.1 : 1.2,
+      stops: EV ? ['#1c2a6e', '#283a88', '#3a4a9e', '#5a5aae', '#7c64b0', '#a46cac', '#cc7ca4', '#ec9a98', '#f8b890', '#fcd49a']
+        : ['#1466d8', '#1a74e2', '#2484ec', '#3292f2', '#40a0f6', '#58acf6', '#7cbcf2', '#a2caf0', '#c4d0ec', '#dcd2e2'],
+      haze: EV ? ['#f4c0a0', '#f8c898', '#fcd8a0', '#ffe4b0'] : ['#d8cce0', '#e4cad4', '#ecd0c8', '#f0d8c4'],
+    });
+    if (EV) V.sunDisc(pb, SUN.x, SUN.y, SUN.r, SUN.halo, 'dusk');
+    V.rays(pb, SUN.x, SUN.y, EV ? { n: 7, len: 300, col: '#ffe0b0', a: 0.1, spread: 2.6, ang: -0.2, w: 0.05, seed: 4, yMax: HZ + 20 }
+      : { n: 6, len: 230, col: '#fff6dc', a: 0.07, spread: 1.6, ang: Math.PI / 2 + 0.15, w: 0.04, seed: 4, yMax: HZ });
+    return pb.toCanvas();
+  });
+  B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, EV ? 46 : 38, EV ? '#ffb070' : '#fff0c0', EV ? 0.22 : 0.16, T()), { tag: 'bloom' });
+  /* ---------------- nubes altas ---------------- */
+  B.cloudDeck({ kind: 'cirrus', n: 6, seed: 31, f: [0.01, 0.03], y: [6, 46], w: [70, 160], speed: [1, 2], pal: EV ? ['#c88aa8', '#e8a8a8', '#f8c8b0', '#fff0d0'] : null });
+  B.cloudDeck({ n: 8, seed: 37, f: [0.03, 0.07], y: [-6, 50], w: [50, 124], bias: 0.6, speed: [2, 3.5], sunX: SUN.x, pal: CLOUD });
+  // fuegos artificiales de la fiesta (tras las montañas)
+  const fireworks = EV ? [{ x: 220, y: 60, col: '#ff6aa0', per: 4.2, ph: 0 }, { x: 420, y: 46, col: '#f5dc5a', per: 5.1, ph: 1.7, r: 20 }, { x: 560, y: 72, col: '#3fe0f0', per: 4.6, ph: 3.1 }, { x: 330, y: 84, col: '#9cff8a', per: 5.6, ph: 2.4, r: 13 }] : [];
+  if (EV) B.vdyn(0.02, (g, cam) => V.drawFireworks(g, fireworks, -Math.round(cam.x * 0.02), 0, T()), { tag: 'fireworks' });
+  /* ---------------- cordillera lejana lila (0,08) ---------------- */
+  P(0.08, HZ - 72, 75, (pb, w, h) => {
+    const r = RNG(57), peaks = [];
+    for (let x = 120; x < w + 60;) {
+      const ww = r.int(50, 120);
+      peaks.push({ x: x + ww * 0.5, v: r.int(14, 34), h: r.int(22, 58) * (x < 260 ? 0.6 : 1), w: ww, d: r.int(16, 30) });
+      x += r.int(34, 84);
+    }
+    V.relief(pb, {
+      yBase: h - 1, nv: 44, dvy: 0.32, seed: 59, hMax: 58,
+      H: V.massif(peaks, { seed: 59, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }),
+      ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55,
+      haze: { col: EV ? '#d4a8c0' : '#b9bde0', k0: 0.0, k: 0.22 }, mist: { col: EV ? '#e8b8b8' : '#c3c7e6', h: 12, k: 0.5 }, rim: EV ? '#ffd0a0' : '#e8c2b4', tex: 0.04,
+    });
+  }, { tag: 'far' });
+  /* ---------------- mar lejano (0,1) ---------------- */
+  P(0.1, HZ, 84, (pb) => V.seaFar(pb, 0, pb.h, { seed: 7, stops: EV ? ['#e8b8b0', '#b49ac0', '#7a86c0', '#4a74b8', '#2a66ae', '#2a6aae', '#3474b4', '#3c80ba'] : null, horizonCol: EV ? '#ffe0c0' : null }), {
+    tag: 'sea', dyn: (g, cam, Ly) => { const [, oy] = B.vofs(Ly, cam); V.drawSeaFx(g, 0, oy, W, 50, T(), { sunX: SUN.x, density: 0.7 }); },
+  });
+  /* ---------------- cúmulos bajos ---------------- */
+  B.cloudDeck({ n: 5, seed: 41, f: [0.09, 0.12], y: [56, 100], w: [90, 140], speed: [1.5, 2.5], sunX: SUN.x, tall: true, haze: 0.06, pal: CLOUD });
+  /* ---------------- montañas medias con aerogeneradores (0,15) ---------------- */
+  const midT = [];
+  P(0.15, 46, 166, (pb, w, h) => {
+    const r = RNG(63), peaks = [];
+    for (let x = 140; x < w + 60;) {
+      if (r.chance(0.18)) { x += r.int(40, 90); continue; }
+      const ww = r.int(80, 160), hh = r.int(54, 118) * (x < 300 ? 0.55 : 1);
+      peaks.push({ x: x + ww * 0.5, v: r.int(18, 40), h: hh, w: ww, d: r.int(24, 40) });
+      if (r.chance(0.6)) peaks.push({ x: x + ww * r.range(0.15, 0.85), v: r.int(4, 14), h: hh * r.range(0.35, 0.6), w: ww * 0.55, d: 18 });
+      x += r.int(70, 140);
+    }
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 56, dvy: 0.4, seed: 67, hMax: 118,
+      H: V.massif(peaks, { seed: 67, rough: 0.6, scale: 0.034, apron: 7, spurs: 6, spurW: 0.45 }),
+      ramp: V.RAMPS.mid, contrast: 2.3, facet: 0.35, cav: 0.1,
+      haze: { col: HZC, k0: 0.0, k: 0.14 }, mist: { col: EV ? '#e0b0b8' : '#b4b4d8', h: 30, k: 0.55 }, rim: RIM, tex: 0.05,
+      veg: { ramp: V.RAMPS.vegMid, density: 0.03 * vegK, maxSlope: 0.6, minY: 70 },
+    });
+    for (const x of [330, 410, 560, 700, 820, 980, 1100]) {
+      if (x >= w - 10) continue;
+      let bx = x; for (let q = -20; q <= 20; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
+      const y = info.top[bx] + 1; if (y > h - 34) continue;
+      const hub = V.turbineTower(pb, bx, y, 24, { k: 0.3, w: 2 });
+      midT.push({ x: hub.hx, y: hub.hy, R: 10, k: 0.3, sp: 1.8 + (x % 7) * 0.2, ph: x });
+    }
+  }, { tag: 'mid', dyn: (g, cam, Ly) => drawTurbines(g, cam, Ly, midT) });
+  /* ---------------- llano costero: la cadena del nexo en miniatura (0,2) ---------------- */
+  const plainFx = { glows: [], perm: null, fauna: [], glints: [] };
+  const PLAIN_YS = 150;
+  const plainL = P(0.2, PLAIN_YS, 74, (pb, w, h) => {
+    const k = 0.1, r = RNG(71), yB = 28; // orilla (pantalla ≈ 178)
+    const info = V.relief(pb, {
+      yBase: yB + 2, nv: 26, dvy: 0.3, seed: 73, hMax: 30,
+      H: V.massif([{ x: 330, v: 12, h: 20, w: 90, d: 16 }, { x: 470, v: 14, h: 26, w: 110, d: 18 }, { x: 640, v: 14, h: 30, w: 120, d: 20 }, { x: 820, v: 12, h: 24, w: 100, d: 16 }, { x: 960, v: 12, h: 22, w: 90, d: 16 }],
+        { seed: 73, rough: 0.4, scale: 0.06, apron: 3, plateaus: [{ x: 300, w: 60, h: 10 }, { x: 640, w: 50, h: 18 }] }),
+      ramp: V.RAMPS.low, contrast: 1.7, haze: { col: EV ? '#d0a0b0' : '#c0b0cc', k0: 0.1, k: 0.06 }, rim: RIMN, tex: 0.06,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.12 * vegK, maxSlope: 1.1, minY: 0, size: 2 },
+    });
+    // tierra baja hasta el borde inferior (tapada casi siempre por la colina)
+    const LO = V.P32(V.hz(V.RAMPS.low, 0.12, HZC));
+    for (let x = 0; x < w; x++) for (let y = yB + 3; y < h; y++) V.put(pb, x, y, LO[5 + ((hash2(x >> 1, y >> 1, 3) < 0.3) ? 1 : 0) - (y > h - 20 ? 1 : 0)]);
+    const SAND = V.P32(V.hz(['#c58440', '#edaf5f', '#fccf85'], k)), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
+    for (let x = 0; x < w; x++) { V.put(pb, x, yB, SAND[2]); V.put(pb, x, yB + 1, SAND[1]); V.put(pb, x, yB + 2, SAND[0]); if (info.top[x] >= yB) V.put(pb, x, yB - 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); }
+    // desaladora SYNARA en miniatura sobre la orilla (mismo orden de proceso que el Nivel 1)
+    const dc = V.desalChain(pb, 34, yB + 3, { k, s: 0.55, climb: 6 });
+    plainFx.perm = dc.perm;
+    // FV en la meseta y H₂ verde en la loma
+    const pv = V.pvArray(pb, 262, info.yAt(300, 8) - 1, { tables: 3, cols: 12, rows: 2, cw: 3, ch: 2, gap: 2, skew: 2, k, shift: 2 });
+    plainFx.glints.push({ x: pv.x0 + 2, y: pv.y0 + 2, len: pv.x1 - pv.x0 - 4, ph: 0.2, sp: 0.18 }, { x: pv.x0 + 4, y: pv.y1 - 4, len: pv.x1 - pv.x0 - 8, ph: 0.9, sp: 0.2 });
+    const h2 = V.h2Plant(pb, 600, info.yAt(640, 10) - 1, { k, s: 0.62 });
+    plainFx.glows.push(...h2.glows.map(([x, y, rr]) => [x, y, Math.max(2, rr - 1)]));
+    // invernaderos, casas de labor, palmeras y huertos
+    V.greenhouse(pb, 740, yB + 1, 22, 9, { k }); V.greenhouse(pb, 900, yB + 1, 18, 8, { k });
+    for (const [x, ww, hh, s] of [[200, 7, 5, 1], [226, 6, 4, 2], [500, 8, 5, 3], [790, 7, 5, 4], [850, 8, 6, 5], [1000, 7, 5, 6]]) { const y = info.onSurf(x, 6); if (y != null) V.house(pb, x, y + 1, ww, hh, 7100 + s, { k, roof: s % 2 ? 'solar' : 'terrace' }); }
+    V.scatterVeg(pb, (x) => info.top[x] < yB ? info.top[x] + 1 : null, 160, w, 7200, { k, gap: 7, mix: { tree: 4, shrub: 3, palm: 2 }, ramp: V.RAMPS.vegLow, scale: 0.8 });
+    for (let x = 170; x < w; x += r.int(20, 46)) if (!(x > 560 && x < 700)) V.palm(pb, x, yB + 1, r.int(10, 16), r.range(-3, 3), 7300 + x, { k });
+    plainFx.fauna.push({ kind: 'gull', x: 120, y: 10, r: 200, sp: 6 }, { kind: 'gull', x: 140, y: 16, r: 220, sp: 5 });
+  }, {
+    tag: 'plain', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      if (plainFx.perm) V.drawFlow(g, plainFx.perm, ox, oy, t, { col: '#f4ffff', speed: 10, gap: 5 });
+      V.drawPulse(g, plainFx.glows, ox, oy, t, '#4cd48e', 0.35, 0.2, 2);
+      V.drawGlints(g, plainFx.glints, ox, oy, t);
+      V.drawFauna(g, plainFx.fauna, ox, oy, t);
+    },
+  });
+  /* ---------------- colina de ARIDIA: cúpula, torre de SYNARA, cascadas (0,26) ---------------- */
+  const hillT = [], hillFalls = [], hillGlints = [], towerFx = { glows: [], beacon: null }, hillFauna = [];
+  const CITY_X = 476, TOWER_X = 272;
+  P(0.26, 0, 252, (pb, w, h) => {
+    const k = 0.08, r = RNG(81);
+    const peaks = [
+      { x: CITY_X, v: 26, h: 150, w: 190, d: 34, k: 0.8 }, { x: TOWER_X, v: 18, h: 120, w: 120, d: 26, k: 0.85 }, { x: CITY_X + 120, v: 16, h: 96, w: 120, d: 24 },
+      { x: 160, v: 10, h: 54, w: 90, d: 18 }, { x: 760, v: 14, h: 84, w: 120, d: 22 }, { x: 880, v: 12, h: 70, w: 100, d: 20 }, { x: 1010, v: 16, h: 92, w: 130, d: 24, k: 0.9 }, { x: 1110, v: 10, h: 60, w: 90, d: 18 },
+    ];
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 48, dvy: 0.3, seed: 83, hMax: 150,
+      H: V.massif(peaks, { seed: 83, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 80, h: 128 }, { x: TOWER_X, w: 30, h: 110 }, { x: 1010, w: 40, h: 80 }] }),
+      ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1,
+      haze: { col: EV ? '#c8a0b8' : '#b0a8d0', k0: 0.0, k: 0.1 }, mist: { col: EV ? '#e8c0b8' : '#c6bcd8', h: 16, k: 0.3 }, rim: RIMN, tex: 0.06,
+      veg: { ramp: V.RAMPS.vegHill, density: 0.13 * vegK, maxSlope: 1.1, minY: 96, size: 3 },
+    });
+    // terrazas de cultivo talladas en los flancos (cosecha dorada en el epílogo)
+    const TA = V.carveTerraces(pb, info, { x0: 560, x1: 700, yTop: 150, yBot: h - 30, stepH: [8, 11], wallK: 0.42, k, seed: 85, kinds: EV ? ['rows', 'orchard', 'flowers', 'rows', 'vine'] : ['rows', 'vine', 'rows', 'orchard'], crop: EV ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 620, w: 3, from: 0 }] });
+    const TB = V.carveTerraces(pb, info, { x0: 940, x1: 1080, yTop: 168, yBot: h - 24, stepH: [8, 10], wallK: 0.42, k, seed: 87, kinds: ['rows', 'orchard', 'rows', 'flowers'], falls: [] });
+    hillFalls.push(...TA.falls, ...TB.falls);
+    V.scatterVeg(pb, (x) => (Math.abs(x - CITY_X) < 60 || Math.abs(x - TOWER_X) < 22) ? null : info.top[x] + 1, 100, w, 8101, { k: k + 0.02, gap: 7, mix: { tree: 4, shrub: 3, palm: 1 }, ramp: V.RAMPS.vegHill });
+    // casas blancas en las laderas altas
+    for (let i = 0; i < 40; i++) {
+      const x = r.pick([r.int(140, 420), r.int(560, 760), r.int(800, 1100)]);
+      const y = info.onSurf(x, r.int(4, 18)); if (y == null || y < 100 || y > h - 10) continue;
+      if (Math.abs(x - TOWER_X) < 16) continue;
+      V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 8200 + i, { k: k + 0.02 });
+    }
+    // aerogeneradores en las crestas de la derecha
+    for (const [x, th, R] of [[760, 44, 16], [812, 50, 18], [880, 40, 15], [1110, 46, 17]]) {
+      if (x >= w - 8) continue;
+      let bx = x; for (let q = -8; q <= 8; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
+      const hub = V.turbineTower(pb, bx, info.top[bx] + 2, th, { k: 0.12 });
+      hillT.push({ x: hub.hx, y: hub.hy, R, k: 0.12, sp: 2.1 + (x % 5) * 0.3, ph: x * 0.37 });
+    }
+    // torre de SYNARA en su loma (hito visible desde toda la isla)
+    const tw = V.synaraTower(pb, TOWER_X, info.top[TOWER_X] + 4, 92, { k: 0.04 });
+    towerFx.glows = tw.glows; towerFx.beacon = tw.beacon;
+    // ciudad de ARIDIA sobre la meseta
+    const dc = V.domeCity(pb, CITY_X, info.top[CITY_X] + 8, { k: 0.03, s: 0.9 });
+    hillGlints.push([CITY_X - 12, dc.top + 26], [CITY_X + 8, dc.top + 32], [CITY_X - 4, dc.top + 40]);
+    for (const F of dc.falls) {
+      let y0 = dc.base, x0 = F.x, wf = F.w;
+      const tiers = F.w > 8 ? [0.3, 0.27, 0.24, 0.19] : [0.45, 0.55], total = h - 6 - y0;
+      for (let ti = 0; ti < tiers.length; ti++) {
+        const y1 = Math.round(y0 + total * tiers[ti]);
+        V.fall(pb, x0, y0, y1, wf, { k: 0.02 });
+        hillFalls.push({ x: x0, y0, y1, w: wf });
+        const RK = V.P32(V.RAMPS.hill);
+        for (let xx = x0 - 4; xx < x0 + wf + 4; xx++) { V.put(pb, xx, y1 + 2, RK[2]); V.put(pb, xx, y1 + 1, RK[7]); V.put(pb, xx, y1, U(xx < x0 || xx >= x0 + wf ? '#3adcf1' : '#e8f8fc')); }
+        y0 = y1 + 2; x0 += (ti % 2 ? -2 : 2); if (wf > 8) wf += 2;
+      }
+    }
+    for (let i = 0; i < 20; i++) { const x = CITY_X + r.pick([-1, 1]) * r.int(50, 84); const y = info.onSurf(x, r.int(4, 18)); if (y != null) V.tree(pb, x, y + 1, r.int(3, 5), 8300 + i, { k }); }
+    hillFauna.push({ kind: 'eagle', x: 360, y: 40, r: 90 }, { kind: 'drone', x: CITY_X + 70, y: info.top[CITY_X] - 40, r: 30 }, { kind: 'drone', x: 960, y: 120, r: 26 });
+    if (!EV) labels.push({ x: 640, y: 140, f: 0.26, title: 'AGRICULTURA', sub: 'Terrazas con riego', kind: 'green', ax: 630, ay: 162, camX: [700, 1700] });
+  }, {
+    tag: 'hill', dyn: (g, cam, Ly) => {
+      drawTurbines(g, cam, Ly, hillT);
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawFalls(g, hillFalls, ox, oy, t, { speed: 40, alpha: 0.8 });
+      for (const [x, y] of hillGlints) V.drawGlow(g, x + ox, y + oy, 3, '#bff8ff', 0.35 + 0.35 * Math.sin(t * 1.3 + x));
+      // torre de SYNARA: núcleo cian que late; en el apagón, baliza roja intermitente
+      const on = B.power > 0.5;
+      if (on) V.drawPulse(g, towerFx.glows, ox, oy, t, '#5ae8f0', 0.4, 0.2, 1.6);
+      else if (Math.floor(t * 3) % 3 === 0) V.drawGlow(g, towerFx.beacon[0] + ox, towerFx.beacon[1] + oy, 6, '#ff4e5d', 0.7);
+      if (on && towerFx.beacon && Math.floor(t * 1.5) % 2) { g.fillStyle = '#ff6a5a'; g.fillRect(towerFx.beacon[0] + ox, towerFx.beacon[1] + oy - 1, 1, 1); }
+      V.drawFauna(g, hillFauna, ox, oy, t);
+    },
+  });
+  /* ---------------- barrio alto sobre la colina (0,36) ---------------- */
+  const upFx = { kites: [], flags: [] };
+  P(0.36, 96, 166, (pb, w, h) => {
+    const k = 0.05, r = RNG(91);
+    const peaks = [];
+    peaks.push({ x: 150, v: 8, h: 26, w: 120, d: 14 });
+    for (let x = 330, i = 0; x < w + 80; i++) { const ww = r.int(150, 260); peaks.push({ x, v: r.int(10, 16), h: r.int(70, 118), w: ww, d: r.int(18, 24), k: r.range(0.8, 1.1) }); x += r.int(130, 230); }
+    const info = V.relief(pb, {
+      yBase: h - 1, nv: 34, dvy: 0.3, seed: 93, hMax: 118,
+      H: V.massif(peaks, { seed: 93, rough: 0.45, scale: 0.05, apron: 3, spurs: 6, spurW: 0.4 }),
+      ramp: V.RAMPS.hill, contrast: 2.0, t0: 0.55, facet: 0.3, cav: 0.1,
+      haze: { col: EV ? '#c8a0a8' : '#b8a8c8', k0: 0.04, k: 0.05 }, rim: RIMN, tex: 0.06,
+      veg: { ramp: V.RAMPS.vegHill, density: 0.14 * vegK, maxSlope: 1.2, minY: 20, size: 3 },
+    });
+    const town = V.slopeTown(pb, info, {
+      x0: 0, x1: w, n: Math.round(w * 0.42), v: [2, 28], w: [8, 13], h: [6, 10], seed: 95, k, minY: 30, steep: 8, cluster: 0.3, trees: 0.32 * vegK,
+      roofs: ['dome', 'flat', 'terrace', 'solar', 'tiles', 'tiles', 'tank', 'terrace', 'belfry'], lit: EV ? { off: 0.35 } : null,
+    });
+    // banderas en algunos tejados y cometas sobre el barrio
+    for (const [x, y] of town.tops) if (hash2(x, y, 7) < 0.05) { const PL = U(V.hzc('#e8e4de', k)); for (let q = 0; q < 8; q++) V.put(pb, x, y - q, PL); upFx.flags.push({ x, y: y - 8, col: ['#e83b41', '#11bedd', '#f5dc5a', '#3fe0a0', '#8d6bff'][(x >> 3) % 5] }); }
+    const KC = ['#e83b41', '#f5dc5a', '#8d6bff', '#11bedd', '#ff9f43', '#3fe0a0'];
+    for (let x = 160, i = 0; x < w; x += r.int(150, 260), i++) upFx.kites.push({ x, y: -36 - r.int(0, 34), col: KC[i % KC.length], sp: r.range(0.4, 0.8), ph: r.range(0, 6), tail: r.int(8, 12), line: [r.int(-14, 14), 30] });
+  }, {
+    tag: 'up', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawFlags(g, upFx.flags, ox, oy, t);
+      V.drawKites(g, upFx.kites, ox, oy, t);
+    },
+  });
+  /* ---------------- barrio bajo junto a la plaza (0,48) ---------------- */
+  const lowFx = { flags: [], lanterns: [] };
+  P(0.48, 150, 142, (pb, w, h) => {
+    const k = 0.02, r = RNG(101);
+    const peaks = [];
+    for (let x = 250; x < w + 80;) { const ww = r.int(140, 240); peaks.push({ x, v: r.int(8, 12), h: r.int(36, 66), w: ww, d: r.int(14, 18), k: 1.1 }); x += r.int(150, 260); }
+    const info = V.relief(pb, {
+      yBase: h - 12, nv: 24, dvy: 0.3, seed: 105, hMax: 66,
+      H: V.massif(peaks, { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }),
+      ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: EV ? '#c8a0a8' : '#c0a8c0', k0: 0.0, k: 0.03 }, rim: RIMN, tex: 0.06,
+      veg: { ramp: V.RAMPS.vegLow, density: 0.16 * vegK, maxSlope: 1.3, minY: 10, size: 3 },
+    });
+    // jardines al pie de la ladera
+    const GR = V.P32(V.hz(['#2a3a0c', '#3b5312', '#597611', '#7b981a', '#9cb42c'], k));
+    for (let x = 0; x < w; x++) for (let y = h - 12; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
+    const up = V.slopeTown(pb, info, {
+      x0: 0, x1: w, n: Math.round(w * 0.2), v: [2, 18], w: [14, 22], h: [11, 17], seed: 107, k, minY: 8, steep: 9, cluster: 0.26, trees: 0.34 * vegK, vegScale: 1.3, s: 2, flowers: 0.45,
+      roofs: ['dome', 'terrace', 'tiles', 'solar', 'belfry', 'terrace', 'tiles'], lit: EV ? { off: 0.25 } : null,
+    });
+    // edificios cívicos: mercado con soportales, iglesia con campanario, escuela con FV
+    for (const [x, ww, hh, kind] of [[430, 46, 18, 'arcade'], [900, 30, 20, 'church'], [1290, 42, 16, 'school'], [1760, 44, 18, 'arcade']]) {
+      if (x > w - 30) continue;
+      const y = info.onSurf(x + (ww >> 1), 3); if (y == null) continue;
+      V.civic(pb, x, y + 1, ww, hh, 11000 + x, { k, kind, lit: EV ? { off: 0.15 } : null });
+    }
+    // fila de casas que cierra la plaza (más grandes, con toldos y buganvillas)
+    const front = V.hillTown(pb, {
+      x0: -8, x1: w + 8, seed: 109, k, bunting: 0.6, lit: EV ? { off: 0.2 } : null,
+      rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.02) * 1), w: [18, 30], h: [14, 24], gap: [-5, 10], hole: 0.22, veg: 0.85 * vegK, vegGap: [10, 24], roofs: ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles', 'flat'], scale: 1.45, s: 2, flowers: 0.55 }],
+    });
+    for (const [x, y] of [...up.tops, ...front.tops]) if (hash2(x, y, 11) < 0.1) { const PL = U(V.hzc('#e8e4de', k)); for (let q = 0; q < 10; q++) V.put(pb, x, y - q, PL); lowFx.flags.push({ x, y: y - 10, col: ['#e83b41', '#11bedd', '#f5dc5a', '#3fe0a0', '#8d6bff'][(x >> 4) % 5] }); }
+    // jardineras y buganvillas al pie del muro de la plaza
+    const BG = V.P32(V.hz(RAMP.bougainR, k)), FL = V.P32(V.hz(RAMP.flowerR, k));
+    for (let x = 0; x < w; x += r.int(6, 14)) { const y = h - 1 - r.int(0, 2); V.shrub(pb, x, y, r.int(2, 4), 10100 + x, { k, ramp: V.RAMPS.vegLow }); for (let q = 0; q < 4; q++) V.put(pb, x + r.int(-3, 3), y - r.int(1, 5), r.chance(0.6) ? BG[r.int(0, 2)] : FL[r.int(1, 3)]); }
+    if (EV) for (const hs of front.houses) if (hash2(hs.x, 1, 3) < 0.6) lowFx.lanterns.push([hs.x + 3, hs.y - hs.h + 2, 4]);
+  }, {
+    tag: 'low', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      V.drawFlags(g, lowFx.flags, ox, oy, t);
+      if (EV) { V.drawPulse(g, lowFx.lanterns, ox, oy, t, '#ffb050', 0.4, 0.15, 3); g.fillStyle = '#ffe0a0'; for (const [x, y] of lowFx.lanterns) g.fillRect(x + ox, y + oy, 1, 2); }
+      V.drawMotes(g, EV ? 22 : 16, t, 13, { y0: 40, y1: 230, col: EV ? '#ffd8a0' : '#fff6d0' });
+    },
+  });
+  function drawTurbines(g, cam, Ly, list) {
+    const [ox, oy] = B.vofs(Ly, cam), t = T();
+    const spin = (L.windSpin ? L.windSpin() : 1.3) / 1.3;
+    for (const tb of list) {
+      const x = tb.x + ox, y = tb.y + oy;
+      if (x < -30 || x > W + 30) continue;
+      if (!tb.rot) tb.rot = V.rotor(tb.R, { k: tb.k });
+      V.drawRotor(g, tb.rot, x, y, t * tb.sp * spin + tb.ph);
+    }
+  }
+  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc);
+  BIOME_LABELS.plaza = labels;
+  B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
+  return B;
+};
+
+BIOME_LABELS.plaza = BIOME_LABELS.plaza || [];
 
 /* ===== 20_models.js ===== */
 /* =====================================================================
@@ -17517,6 +18367,8 @@ LEVELS[0] = {
     for (let x = 1500; x < 1640; x += 7) ART.grass(pb, x, world.groundAt(x) + 2, 1, x, RAMP.moss);
   },
   /* ---------------- dinámico ---------------- */
+  // el panorama sabe si hay apagón (la torre de SYNARA pasa a baliza roja)
+  skyFx(g, sc) { if (sc.backdrop) sc.backdrop.power = sc.state && sc.state.dark ? 0 : 1; },
   renderBack(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
     // guirnaldas de luces sobre la calle (se apagan con el apagón)
