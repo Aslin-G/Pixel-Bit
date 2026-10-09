@@ -22055,6 +22055,43 @@ TESTS.ui = {
   },
 };
 
+/* Composición de comparación con la referencia: ?test=uiref&px=120
+   Nivel 1 jugable con HUD, globo de KIRU anclado, panel PREGUNTA a la derecha y tira de capítulos abajo. */
+const UIRefOverlay = {
+  overlay: true,
+  enter() { this.sel = 2; this.t = 0; },
+  update(dt) { this.t += dt; },
+  render(g) {
+    const gp = GameplayScene;
+    if (gp.kiru) {
+      const k = gp.kiru, ax = Math.round(k.x - gp.cam.ox), ay = Math.round(k.y - gp.cam.oy - UIK.headTop('kiru') - 3);
+      UIK.speechBubble(g, ax + 8, ay, { name: 'KIRU', nameCol: SPEAKERS.kiru.color, text: '¡Mira! Esa agua de mar se desaliniza usando {y}energía solar{/}. Luego se almacena para las comunidades y los cultivos.', w: 210, avoid: UIK._hudRects || [], place: ['bl', 'br'] });
+    }
+    const qw = 222, qx = W - 8 - qw, stem = '¿Cuál es la función principal de las {o}membranas{/} en un sistema de ósmosis inversa?';
+    const opts = ['Eliminar materia orgánica', 'Aumentar la temperatura del agua', 'Separar las sales del agua de mar', 'Generar energía eléctrica'];
+    const M = UIK.measureQuestion(qw, stem, opts);
+    const qy = 284 - M.h;
+    Gui.begin();
+    const r = UIK.questionPanel(g, qx, qy, qw, M.h, { title: 'PREGUNTA', icon: 'book', stem });
+    let yy = r.contentY;
+    opts.forEach((o, i) => { const c = Gui.choice(g, 'rq' + i, r.x, yy, r.w, o, 'ABCD'[i], { state: i === this.sel ? 'correct' : null }); if (c.clicked) this.sel = i; yy += c.h + 3; });
+    Gui.end();
+    frect(g, 0, 292, W, 68, '#00152c'); frect(g, 0, 292, W, 1, '#101220'); frect(g, 0, 293, W, 1, '#1e5a8a'); frect(g, 0, 294, W, 1, '#0a2444');
+    for (let i = 0; i < 8; i++) UIK.levelCard(g, 6 + i * 79, 297, 74, 57, { id: i + 1, label: LEVEL_CARD_NAME[i + 1], state: i < 1 ? 'done' : i === 1 ? 'current' : 'open', selected: i === 1 });
+  },
+};
+TESTS.uiref = {
+  enter() {
+    const q = new URLSearchParams(location.search);
+    Game.setScene(GameplayScene, { level: parseInt(q.get('lv') || '1') });
+    GS.s.unlocked = [0, 1, 2, 3, 4, 5, 6, 7, 8]; GS.s.completed = [0];
+    const P = GameplayScene.player; P.x = parseFloat(q.get('px') || '120'); P.y = GameplayScene.world.groundAt(P.x);
+    if (GameplayScene.kiru) { GameplayScene.kiru.x = P.x - 30; GameplayScene.kiru.y = P.y; }
+    GameplayScene.cam.snap(P); GameplayScene.chapterCard.t = 9;
+    Game.push(UIRefOverlay, {});
+  }, update() { }, render() { },
+};
+
 </script>
 </body>
 </html>
