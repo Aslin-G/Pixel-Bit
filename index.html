@@ -7267,8 +7267,8 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
       if (o.kind === 'cirrus') pb = V.cirrus(w, Math.round(w * r.range(0.1, 0.18)) + 4, (o.seed || 1) * 100 + i, o);
       else {
         const sunSide = clamp(((o.sunX ?? 410) - (x - w / 2)) / 260, -1, 1);
-        const h = Math.round(w * r.range(o.tall ? 0.5 : 0.36, o.tall ? 0.72 : 0.52));
-        pb = V.cumulus(w, h, (o.seed || 1) * 100 + i, { sun: sunSide, tower: o.tall ? r.range(0.6, 1) : r.range(0.15, 0.7), pal: o.pal });
+        const h = Math.round(w * r.range(o.tall ? 0.52 : 0.42, o.tall ? 0.74 : 0.58));
+        pb = V.cumulus(w, h, (o.seed || 1) * 100 + i, { sun: sunSide, tower: o.tall ? r.range(0.65, 1) : r.range(0.45, 0.85), pal: o.pal });
       }
       if (o.haze) for (let k = 0; k < pb.data.length; k++) { const c = pb.data[k]; if (c >>> 24) pb.data[k] = (V.mixU(c, U(o.hazeCol || '#c9c4e2'), o.haze) & 0xffffff | (c & 0xff000000)) >>> 0; }
       deck.clouds.push({ c: pb.toCanvas(), x, y, f, w: pb.w, h: pb.h, span, speed: lerp(S[0], S[1], r()) });
@@ -7410,12 +7410,14 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
     const veg = [];
     const tAt = (x, v) => {
       const h = hAt(x, v);
-      const dx = (hAt(x + 1, v) - hAt(x - 1, v)) * 0.5, dv = (hAt(x, v + 1) - hAt(x, v - 1)) * 0.5 * kv;
+      let dx = (hAt(x + 1, v) - hAt(x - 1, v)) * 0.5, dv = (hAt(x, v + 1) - hAt(x, v - 1)) * 0.5 * kv;
+      // facetas: normal cuantizada → planos de luz con bordes nítidos (roca esculpida)
+      if (o.facet) { const q = o.facet, jx = (hash2((x / 3) | 0, v >> 1, seed + 5) - 0.5) * q * 0.6; dx = Math.round((dx + jx) / q) * q; dv = Math.round(dv / q) * q; }
       const inv = 1 / Math.hypot(dx, dv, 1);
       const I = (dx * -L[0] + dv * -L[1] * 0.9 + L[2]) * inv;
       // cavidad: comparación con la media local
       const avg = (hAt(x - 3, v) + hAt(x + 3, v) + hAt(x, v - 2) + hAt(x, v + 2)) * 0.25;
-      const cav = clamp((h - avg) * 0.06, -0.25, 0.25);
+      const cav = clamp((h - avg) * (o.cav ?? 0.06), -0.3, 0.3);
       const hgt = o.hMax ? clamp(h / o.hMax, 0, 1) * (o.hgtK ?? 0.12) : 0;
       return [clamp((o.t0 ?? 0.5) + (I - 0.62) * (o.contrast ?? 1.55) + cav + hgt, 0, 0.999), dx, dv];
     };
@@ -7432,7 +7434,7 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
         for (let y = y0; y < yt; y++) {
           // textura en clusters ±1 paso (sin tramado)
           const j = (hash2((x / 2) | 0, (y / 2) | 0, seed + 3) - 0.5) * tex * 2;
-          const k = V.band(clamp(t + j - (y - sy) * 0.012, 0, 0.999), n, x, y, 0.05, seed);
+          const k = V.band(clamp(t + j - (y - sy) * (o.spanDark ?? 0.012), 0, 0.999), n, x, y, 0.05, seed);
           if (y < pb.h) pb.data[y * w + x] = R[k];
         }
         if (v === 0 || surf[x] === 32767) surf[x] = sy;
@@ -10633,7 +10635,7 @@ BIOMES.coast = function (L) {
     const info = V.relief(pb, {
       yBase: h - 1, nv: 56, dvy: 0.4, seed: 19, hMax: 112,
       H: V.massif(peaks, { seed: 19, rough: 0.6, scale: 0.034, apron: 7, spurs: 6, spurW: 0.45 }),
-      ramp: V.RAMPS.mid, contrast: 2.1,
+      ramp: V.RAMPS.mid, contrast: 2.3, facet: 0.35, cav: 0.1,
       haze: { col: '#a9a6cc', k0: 0.0, k: 0.14 }, mist: { col: '#b4b4d8', h: 30, k: 0.55 }, rim: '#f6dcc8', tex: 0.05,
       veg: { ramp: V.RAMPS.vegMid, density: 0.025, maxSlope: 0.6, minY: 72 },
     });
@@ -10659,7 +10661,7 @@ BIOMES.coast = function (L) {
     const info = V.relief(pb, {
       yBase: h - 1, nv: 46, dvy: 0.3, seed: 41, hMax: 100,
       H: V.massif(peaks, { seed: 41, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 76, h: 98 }, { x: 1010, w: 44, h: 78 }] }),
-      ramp: V.RAMPS.hill, contrast: 1.9, t0: 0.54,
+      ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1,
       haze: { col: '#b0a8d0', k0: 0.0, k: 0.1 }, mist: { col: '#c6bcd8', h: 14, k: 0.3 }, rim: '#fcd8ae', tex: 0.06,
       veg: { ramp: V.RAMPS.vegHill, density: 0.12, maxSlope: 1.1, minY: 92, size: 3 },
     });
@@ -10790,7 +10792,7 @@ BIOMES.coast = function (L) {
     labels.push(
       { x: A.membranas.x - 10, y: COAST_LY + A.membranas.y - 4, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
       { x: A.potable.x + 26, y: COAST_LY + A.potable.y - 16, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
-      { x: A.salmuera.x + 42, y: COAST_LY + A.salmuera.y - 8, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
+      { x: A.salmuera.x - 4, y: COAST_LY + A.salmuera.y - 35, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
     );
     // rocas en la orilla con espuma
     for (let x = 300; x < w; x += r.int(30, 90)) {

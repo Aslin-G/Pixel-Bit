@@ -66,7 +66,7 @@ BIOMES.coast = function (L) {
     const info = V.relief(pb, {
       yBase: h - 1, nv: 56, dvy: 0.4, seed: 19, hMax: 112,
       H: V.massif(peaks, { seed: 19, rough: 0.6, scale: 0.034, apron: 7, spurs: 6, spurW: 0.45 }),
-      ramp: V.RAMPS.mid, contrast: 2.1,
+      ramp: V.RAMPS.mid, contrast: 2.3, facet: 0.35, cav: 0.1,
       haze: { col: '#a9a6cc', k0: 0.0, k: 0.14 }, mist: { col: '#b4b4d8', h: 30, k: 0.55 }, rim: '#f6dcc8', tex: 0.05,
       veg: { ramp: V.RAMPS.vegMid, density: 0.025, maxSlope: 0.6, minY: 72 },
     });
@@ -92,7 +92,7 @@ BIOMES.coast = function (L) {
     const info = V.relief(pb, {
       yBase: h - 1, nv: 46, dvy: 0.3, seed: 41, hMax: 100,
       H: V.massif(peaks, { seed: 41, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 76, h: 98 }, { x: 1010, w: 44, h: 78 }] }),
-      ramp: V.RAMPS.hill, contrast: 1.9, t0: 0.54,
+      ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1,
       haze: { col: '#b0a8d0', k0: 0.0, k: 0.1 }, mist: { col: '#c6bcd8', h: 14, k: 0.3 }, rim: '#fcd8ae', tex: 0.06,
       veg: { ramp: V.RAMPS.vegHill, density: 0.12, maxSlope: 1.1, minY: 92, size: 3 },
     });

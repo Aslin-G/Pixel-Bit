@@ -62,12 +62,14 @@
     const veg = [];
     const tAt = (x, v) => {
       const h = hAt(x, v);
-      const dx = (hAt(x + 1, v) - hAt(x - 1, v)) * 0.5, dv = (hAt(x, v + 1) - hAt(x, v - 1)) * 0.5 * kv;
+      let dx = (hAt(x + 1, v) - hAt(x - 1, v)) * 0.5, dv = (hAt(x, v + 1) - hAt(x, v - 1)) * 0.5 * kv;
+      // facetas: normal cuantizada → planos de luz con bordes nítidos (roca esculpida)
+      if (o.facet) { const q = o.facet, jx = (hash2((x / 3) | 0, v >> 1, seed + 5) - 0.5) * q * 0.6; dx = Math.round((dx + jx) / q) * q; dv = Math.round(dv / q) * q; }
       const inv = 1 / Math.hypot(dx, dv, 1);
       const I = (dx * -L[0] + dv * -L[1] * 0.9 + L[2]) * inv;
       // cavidad: comparación con la media local
       const avg = (hAt(x - 3, v) + hAt(x + 3, v) + hAt(x, v - 2) + hAt(x, v + 2)) * 0.25;
-      const cav = clamp((h - avg) * 0.06, -0.25, 0.25);
+      const cav = clamp((h - avg) * (o.cav ?? 0.06), -0.3, 0.3);
       const hgt = o.hMax ? clamp(h / o.hMax, 0, 1) * (o.hgtK ?? 0.12) : 0;
       return [clamp((o.t0 ?? 0.5) + (I - 0.62) * (o.contrast ?? 1.55) + cav + hgt, 0, 0.999), dx, dv];
     };
@@ -84,7 +86,7 @@
         for (let y = y0; y < yt; y++) {
           // textura en clusters ±1 paso (sin tramado)
           const j = (hash2((x / 2) | 0, (y / 2) | 0, seed + 3) - 0.5) * tex * 2;
-          const k = V.band(clamp(t + j - (y - sy) * 0.012, 0, 0.999), n, x, y, 0.05, seed);
+          const k = V.band(clamp(t + j - (y - sy) * (o.spanDark ?? 0.012), 0, 0.999), n, x, y, 0.05, seed);
           if (y < pb.h) pb.data[y * w + x] = R[k];
         }
         if (v === 0 || surf[x] === 32767) surf[x] = sy;

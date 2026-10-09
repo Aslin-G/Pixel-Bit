@@ -174,8 +174,8 @@
       if (o.kind === 'cirrus') pb = V.cirrus(w, Math.round(w * r.range(0.1, 0.18)) + 4, (o.seed || 1) * 100 + i, o);
       else {
         const sunSide = clamp(((o.sunX ?? 410) - (x - w / 2)) / 260, -1, 1);
-        const h = Math.round(w * r.range(o.tall ? 0.5 : 0.36, o.tall ? 0.72 : 0.52));
-        pb = V.cumulus(w, h, (o.seed || 1) * 100 + i, { sun: sunSide, tower: o.tall ? r.range(0.6, 1) : r.range(0.15, 0.7), pal: o.pal });
+        const h = Math.round(w * r.range(o.tall ? 0.52 : 0.42, o.tall ? 0.74 : 0.58));
+        pb = V.cumulus(w, h, (o.seed || 1) * 100 + i, { sun: sunSide, tower: o.tall ? r.range(0.65, 1) : r.range(0.45, 0.85), pal: o.pal });
       }
       if (o.haze) for (let k = 0; k < pb.data.length; k++) { const c = pb.data[k]; if (c >>> 24) pb.data[k] = (V.mixU(c, U(o.hazeCol || '#c9c4e2'), o.haze) & 0xffffff | (c & 0xff000000)) >>> 0; }
       deck.clouds.push({ c: pb.toCanvas(), x, y, f, w: pb.w, h: pb.h, span, speed: lerp(S[0], S[1], r()) });
