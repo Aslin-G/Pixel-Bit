@@ -69,6 +69,8 @@
     // base difusa: los últimos píxeles se funden con un velo denso
     const FU = U(o.tint || '#c46a34');
     for (let y = Math.round(h * 0.65); y < h; y++) { const k = (y - h * 0.65) / (h * 0.35); for (let x = 0; x < w; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], FU, k * 0.55); else if (k > 0.4) pb.data[i] = ((Math.round((k - 0.4) * 1.6 * 200) << 24) | (FU & 0xffffff)) >>> 0; } }
+    // contraluz: borde superior de las torres de polvo encendido por el sol velado
+    V.rim(pb, U(o.rim || '#f0a060'), o.rimK ?? 0.6, 0, -1); V.rim(pb, U(o.rim2 || '#d88048'), 0.4, 1, 0);
     return pb;
   };
   /** Baña un plano en polvo (más denso hacia la base) */

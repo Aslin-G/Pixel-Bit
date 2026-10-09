@@ -11293,6 +11293,8 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
     // base difusa: los últimos píxeles se funden con un velo denso
     const FU = U(o.tint || '#c46a34');
     for (let y = Math.round(h * 0.65); y < h; y++) { const k = (y - h * 0.65) / (h * 0.35); for (let x = 0; x < w; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], FU, k * 0.55); else if (k > 0.4) pb.data[i] = ((Math.round((k - 0.4) * 1.6 * 200) << 24) | (FU & 0xffffff)) >>> 0; } }
+    // contraluz: borde superior de las torres de polvo encendido por el sol velado
+    V.rim(pb, U(o.rim || '#f0a060'), o.rimK ?? 0.6, 0, -1); V.rim(pb, U(o.rim2 || '#d88048'), 0.4, 1, 0);
     return pb;
   };
   /** Baña un plano en polvo (más denso hacia la base) */
@@ -14318,8 +14320,8 @@ function buildCalima(L) {
     V.relief(pb, {
       yBase: h - 1, nv: 40, dvy: 0.3, seed: 1023, hMax: 50,
       H: V.massif(peaks, { seed: 1023, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }),
-      ramp: V.RAMPS.mid, contrast: 1.6, t0: 0.5,
-      haze: { col: '#c8784a', k0: 0.5, k: 0.15 }, mist: { col: '#d88a52', h: 20, k: 0.7 }, rim: '#f0b070', tex: 0.04,
+      ramp: V.RAMPS.hill, contrast: 1.6, t0: 0.5,
+      haze: { col: '#d08a54', k0: 0.55, k: 0.15 }, mist: { col: '#e09a5a', h: 22, k: 0.7 }, rim: '#f6c080', tex: 0.04,
     });
   }, { tag: 'far' });
   const veils = [
@@ -14347,7 +14349,7 @@ function buildCalima(L) {
     const dc = V.domeCity(pb, cx, info.top[cx] + 6, { k: 0.5, s: 0.5, label: false });
     ariFx.beacons.push([cx, dc.top + 1, '#ff5040'], ...dc.towers.map(tw => [tw.x + (tw.w >> 1), tw.top, '#56e5ff']).slice(0, 4));
     for (let i = 0; i < 40; i++) { const x = r.int(cx - 50, cx + 50), y = info.top[x] + r.int(2, 14); if (V.get(pb, x, y) >>> 24) { V.put(pb, x, y, U('#ffd890')); if (r.chance(0.3)) ariFx.lights.push([x, y, '#ffe0a0']); } }
-    V.dustPlane(pb, '#c87a48', 0.45);
+    V.dustPlane(pb, '#c87a48', 0.55);
   }, {
     tag: 'aridia', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
@@ -14475,7 +14477,7 @@ function buildCitadel(L) {
   const T = () => Game.time;
   B.horizon = HZ;
   B.sun = SUN;
-  B.weather.wind = 0.2;
+  // viento: valor por defecto de Backdrop (0,3), como el bioma anterior
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, {
       horizonY: HZ, sun: SUN, curve: 1.05, bands: 26,
@@ -14730,7 +14732,7 @@ BIOMES.council = function (L) {
   const T = () => Game.time;
   B.horizon = HZ;
   B.sun = SUN;
-  B.weather.wind = 0.1;
+  // viento: valor por defecto de Backdrop (0,3), como el bioma anterior
   B.sky = V.timed('sky', () => V.sky(W, H, {
     horizonY: HZ, sun: SUN, curve: 1.0, bands: 26,
     stops: ['#1c1e5e', '#282a72', '#3a3484', '#523e90', '#704896', '#925496', '#b45e90', '#d26c86', '#ea8478', '#f8a06c', '#ffc070'],

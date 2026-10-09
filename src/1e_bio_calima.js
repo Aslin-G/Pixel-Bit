@@ -64,8 +64,8 @@ function buildCalima(L) {
     V.relief(pb, {
       yBase: h - 1, nv: 40, dvy: 0.3, seed: 1023, hMax: 50,
       H: V.massif(peaks, { seed: 1023, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }),
-      ramp: V.RAMPS.mid, contrast: 1.6, t0: 0.5,
-      haze: { col: '#c8784a', k0: 0.5, k: 0.15 }, mist: { col: '#d88a52', h: 20, k: 0.7 }, rim: '#f0b070', tex: 0.04,
+      ramp: V.RAMPS.hill, contrast: 1.6, t0: 0.5,
+      haze: { col: '#d08a54', k0: 0.55, k: 0.15 }, mist: { col: '#e09a5a', h: 22, k: 0.7 }, rim: '#f6c080', tex: 0.04,
     });
   }, { tag: 'far' });
   const veils = [
@@ -93,7 +93,7 @@ function buildCalima(L) {
     const dc = V.domeCity(pb, cx, info.top[cx] + 6, { k: 0.5, s: 0.5, label: false });
     ariFx.beacons.push([cx, dc.top + 1, '#ff5040'], ...dc.towers.map(tw => [tw.x + (tw.w >> 1), tw.top, '#56e5ff']).slice(0, 4));
     for (let i = 0; i < 40; i++) { const x = r.int(cx - 50, cx + 50), y = info.top[x] + r.int(2, 14); if (V.get(pb, x, y) >>> 24) { V.put(pb, x, y, U('#ffd890')); if (r.chance(0.3)) ariFx.lights.push([x, y, '#ffe0a0']); } }
-    V.dustPlane(pb, '#c87a48', 0.45);
+    V.dustPlane(pb, '#c87a48', 0.55);
   }, {
     tag: 'aridia', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();

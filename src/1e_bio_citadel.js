@@ -35,7 +35,7 @@ function buildCitadel(L) {
   const T = () => Game.time;
   B.horizon = HZ;
   B.sun = SUN;
-  B.weather.wind = 0.2;
+  // viento: valor por defecto de Backdrop (0,3), como el bioma anterior
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, {
       horizonY: HZ, sun: SUN, curve: 1.05, bands: 26,

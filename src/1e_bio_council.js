@@ -22,7 +22,7 @@ BIOMES.council = function (L) {
   const T = () => Game.time;
   B.horizon = HZ;
   B.sun = SUN;
-  B.weather.wind = 0.1;
+  // viento: valor por defecto de Backdrop (0,3), como el bioma anterior
   B.sky = V.timed('sky', () => V.sky(W, H, {
     horizonY: HZ, sun: SUN, curve: 1.0, bands: 26,
     stops: ['#1c1e5e', '#282a72', '#3a3484', '#523e90', '#704896', '#925496', '#b45e90', '#d26c86', '#ea8478', '#f8a06c', '#ffc070'],
