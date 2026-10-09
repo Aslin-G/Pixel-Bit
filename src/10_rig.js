@@ -591,6 +591,7 @@ const ANIMS = {
   fear: { frames: 4, fps: 10, loop: true },
   determined: { frames: 4, fps: 6, loop: true },
   victory: { frames: 4, fps: 6, loop: true },
+  glide: { frames: 4, fps: 6, loop: true },
 };
 /** Alias de animación (nombres del prompt §13) */
 const ANIM_ALIAS = { interact: 'help', analyze: 'scan', operate: 'program', anger: 'frustrate', sadness: 'sad', celebration: 'celebrate', worried: 'worry', scared: 'fear' };
@@ -784,6 +785,16 @@ function poseFor(anim, t, ch) {
       p.expr = 'determined'; p.hair = { base: -0.15, amp: 0.12, P, lag: 0.5 };
       break;
     }
+    case 'glide': {
+      // colgada de la Vela de Brisa: brazos en alto sujetando las cuerdas, piernas recogidas que se balancean, pelo hacia atrás
+      const sw = S(P);
+      p.shF = 3.0 + sw * 0.04; p.elF = -0.1; p.shB = 2.95 - sw * 0.04; p.elB = 0.12; p.handF = 'fist'; p.handB = 'fist';
+      p.armStretchF = 1.32; p.armStretchB = 1.32; p.shLiftF = 4; p.shLiftB = 4; p.backHandZ = 49.5; p.frontArmZ = 49;
+      p.hipF = 0.45 + sw * 0.12; p.kneeF = -0.7 - sw * 0.1; p.hipB = -0.1 - sw * 0.12; p.kneeB = -0.85; p.footF = 0.2; p.footB = 0.3;
+      p.lean = 0.04; p.headTilt = -0.05; p.bob = 0;
+      p.hair = { base: -0.55, amp: 0.25, P: P * 2, lag: 0.5 }; p.pack = -1; p.expr = ch.glideExpr || null;
+      break;
+    }
     case 'victory': {
       // brazo en alto sostenido (distinto de celebrate), otro en la cadera
       const b = S(P);
@@ -903,6 +914,8 @@ function buildHumanoid(R, D, pose, opts = {}) {
   if (D.extra) D.extra(R, Object.assign({ hx, hy }, A));
   // ---- brazo delantero (encima del torso y del pelo largo)
   arm(af, 80, 'armF', 0, pose.handF);
+  // brazo cercano por detrás de la cabeza (brazos en alto: planeo, colgarse)
+  if (pose.frontArmZ) for (let k = R.parts.length - 1; k >= 0 && R.parts[k].group.startsWith('armF'); k--) R.parts[k].z = pose.frontArmZ + (R.parts[k].z - 80) * 0.01;
   // ---- cara (plantillas v2)
   R.stamp((pb) => {
     const exprName = pose.expr || opts.expr || D.defaultExpr || 'neutral';

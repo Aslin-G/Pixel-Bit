@@ -282,17 +282,17 @@ const PostCreditsScene = {
     frect(g, 0, 270, W, H - 270, '#0e1a12'); fdither(g, 0, 270, W, 8, '#1f3a24', 0.5);
     for (let x = 6; x < W; x += 11) { const hh = 2 + (x * 7) % 4; frect(g, x, 270 - hh, 1, hh, '#1f5a34'); fpx(g, x + 1, 270 - hh + 1, '#2f7a44'); }
     // farol junto a Amaya
-    frect(g, 178, 236, 2, 34, '#3a3a5a'); fdisc(g, 179, 234, 3, '#ffe8a0'); fdither(g, 150, 214, 60, 56, '#ffd86a', 0.1);
+    frect(g, 178, 196, 2, 74, '#3a3a5a'); frect(g, 176, 196, 6, 2, '#5a5a7a'); fdisc(g, 179, 194, 3, '#ffe8a0'); PFK.drawGlow(g, 179, 194, 30, '#ffd86a', 0.35);
     // casa de sombra
-    frect(g, 300, 196, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 196, 3, 74, '#2a3a2a'); fdither(g, 300, 200, 200, 70, '#1a2a1a', 0.5);
+    frect(g, 300, 178, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 178, 3, 92, '#2a3a2a'); fdither(g, 300, 182, 200, 88, '#1a2a1a', 0.5);
     for (let k = 0; k < 8; k++) { const x = 312 + k * 23, hh = 12 + (k * 5) % 10; frect(g, x, 270 - hh, 2, hh, '#1f854c'); fpx(g, x - 1, 270 - hh, '#4ccb70'); fpx(g, x + 2, 270 - hh + 2, '#4ccb70'); }
     // sensor con la alarma
-    frect(g, 456, 236, 2, 34, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 234, 3, on ? '#ffe14d' : '#6a5a10'); if (on) fdither(g, 440, 218, 34, 30, '#ffe14d', 0.12);
+    frect(g, 456, 226, 2, 44, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 224, 3, on ? '#ffe14d' : '#6a5a10'); if (on) PFK.drawGlow(g, 457, 224, 14, '#ffe14d', 0.4);
     // Amaya y KIRU
     drawChar(g, 'amaya', 'idle', t, 220, 270, 1, { expr: this.i >= 4 ? 'smile' : 'surprised' });
     drawChar(g, 'kiru', 'idle', t, 260, 270, -1, {});
     // taza de té con vapor
-    frect(g, 248, 248, 8, 6, '#fff6d8'); frect(g, 256, 249, 2, 3, '#fff6d8'); for (let i = 0; i < 3; i++) fpx(g, 251 + Math.round(Math.sin(t * 3 + i) * 1.5), 244 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0');
+    frect(g, 225, 238, 7, 6, '#fff6d8'); frect(g, 232, 239, 2, 3, '#fff6d8'); frect(g, 225, 243, 7, 1, '#cfc4a8'); for (let i = 0; i < 3; i++) fpx(g, 228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0'); // taza en la mano de Amaya (sprite de 74 px)
     this.ps.render(g);
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {

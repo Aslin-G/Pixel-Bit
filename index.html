@@ -4030,6 +4030,7 @@ const ANIMS = {
   fear: { frames: 4, fps: 10, loop: true },
   determined: { frames: 4, fps: 6, loop: true },
   victory: { frames: 4, fps: 6, loop: true },
+  glide: { frames: 4, fps: 6, loop: true },
 };
 /** Alias de animación (nombres del prompt §13) */
 const ANIM_ALIAS = { interact: 'help', analyze: 'scan', operate: 'program', anger: 'frustrate', sadness: 'sad', celebration: 'celebrate', worried: 'worry', scared: 'fear' };
@@ -4223,6 +4224,16 @@ function poseFor(anim, t, ch) {
       p.expr = 'determined'; p.hair = { base: -0.15, amp: 0.12, P, lag: 0.5 };
       break;
     }
+    case 'glide': {
+      // colgada de la Vela de Brisa: brazos en alto sujetando las cuerdas, piernas recogidas que se balancean, pelo hacia atrás
+      const sw = S(P);
+      p.shF = 3.0 + sw * 0.04; p.elF = -0.1; p.shB = 2.95 - sw * 0.04; p.elB = 0.12; p.handF = 'fist'; p.handB = 'fist';
+      p.armStretchF = 1.32; p.armStretchB = 1.32; p.shLiftF = 4; p.shLiftB = 4; p.backHandZ = 49.5; p.frontArmZ = 49;
+      p.hipF = 0.45 + sw * 0.12; p.kneeF = -0.7 - sw * 0.1; p.hipB = -0.1 - sw * 0.12; p.kneeB = -0.85; p.footF = 0.2; p.footB = 0.3;
+      p.lean = 0.04; p.headTilt = -0.05; p.bob = 0;
+      p.hair = { base: -0.55, amp: 0.25, P: P * 2, lag: 0.5 }; p.pack = -1; p.expr = ch.glideExpr || null;
+      break;
+    }
     case 'victory': {
       // brazo en alto sostenido (distinto de celebrate), otro en la cadera
       const b = S(P);
@@ -4342,6 +4353,8 @@ function buildHumanoid(R, D, pose, opts = {}) {
   if (D.extra) D.extra(R, Object.assign({ hx, hy }, A));
   // ---- brazo delantero (encima del torso y del pelo largo)
   arm(af, 80, 'armF', 0, pose.handF);
+  // brazo cercano por detrás de la cabeza (brazos en alto: planeo, colgarse)
+  if (pose.frontArmZ) for (let k = R.parts.length - 1; k >= 0 && R.parts[k].group.startsWith('armF'); k--) R.parts[k].z = pose.frontArmZ + (R.parts[k].z - 80) * 0.01;
   // ---- cara (plantillas v2)
   R.stamp((pb) => {
     const exprName = pose.expr || opts.expr || D.defaultExpr || 'neutral';
@@ -14757,7 +14770,7 @@ class Player extends Entity {
     if (this.landT > 0) this.landT -= dt;
     if (this.forcedAnim) this.setAnim(this.forcedAnim);
     else if (this.lock > 0 && this.anim === 'hit') { }
-    else if (!this.onGround) this.setAnim(this.vy < 0 ? 'jump' : 'fall');
+    else if (!this.onGround) this.setAnim(this.gliding ? 'glide' : this.vy < 0 ? 'jump' : 'fall');
     else if (this.landT > 0) this.setAnim('land');
     else if (Math.abs(this.vx) > 8) this.setAnim(this.wading ? 'wade' : Math.abs(this.vx) > PHYS.walk + 10 ? 'run' : 'walk');
     else this.setAnim('idle');
@@ -14771,17 +14784,38 @@ class Player extends Entity {
   render(g, cam) {
     if (this.inv > 0 && (Math.floor(this.inv * 20) % 2) && this.anim !== 'hit') return;
     const x = this.x - cam.ox, y = this.y - cam.oy;
-    if (this.gliding) drawGlider(g, x, y - 70, this.facing);
+    if (this.gliding) drawGlider(g, x + this.facing * 2, y - 102, this.facing); // vela sobre la cabeza (sprite de 74 px, puños en alto ≈ y−76)
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
-    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 9, wy, 18, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 8, wy + 1, 16, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 8, wy + 3, 16, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 9 + ((Game.frame >> 3) % 18), wy, '#ffffff'); }
+    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
   }
 }
+/** Vela de Brisa: lona curva prerenderizada (3 cuadros de flameo) con franjas cian, luz arriba,
+    sombra en la panza y contorno navy; cuerdas hasta las manos en alto (y + 26). */
+const _gliderStrip = { c: null };
 function drawGlider(g, x, y, f) {
   const t = Game.time;
-  g.fillStyle = '#fffaf0';
-  for (let i = -14; i <= 14; i++) { const yy = Math.round(y + Math.abs(i) * 0.35 + Math.sin(t * 8 + i * 0.3) * 0.6); g.fillRect(Math.round(x + i), yy, 1, 2); }
-  g.fillStyle = '#56e5ff'; for (let i = -14; i <= 14; i += 4) g.fillRect(Math.round(x + i), Math.round(y + Math.abs(i) * 0.35 + 2), 2, 1);
-  fline(g, x - 13, y + 5, x - 3, y + 26, '#cfe8ee'); fline(g, x + 13, y + 5, x + 3, y + 26, '#cfe8ee');
+  if (!_gliderStrip.c) {
+    const fw = 46, fh = 16;
+    _gliderStrip.c = PFK.strip(3, fw, fh, (pb, i) => {
+      const cx = fw / 2, P = PFK.P32(['#1d2a48', '#7a8aa8', '#b8c8d8', '#e8f0f4', '#fffaf0', '#ffffff']), C = PFK.P32(['#0c4560', '#1491aa', '#22bdd0', '#56e5ff', '#a6f4ff']);
+      for (let xx = 1; xx < fw - 1; xx++) {
+        const u = (xx - cx) / (cx - 1), arc = Math.round(Math.abs(u) * Math.abs(u) * 7 + Math.sin(u * 5 + i * 2.1) * 0.7);
+        const th = Math.round(4 - Math.abs(u) * 2.2);
+        for (let k = 0; k < th; k++) {
+          const stripe = Math.floor((xx + 2) / 6) % 2 === 0;
+          let col = k === 0 ? (stripe ? C[4] : P[5]) : k === th - 1 ? (stripe ? C[1] : P[2]) : (stripe ? C[3] : P[4]);
+          if (u > 0.55 && k > 0) col = stripe ? C[2] : P[3];
+          PFK.put(pb, xx, 2 + arc + k, col);
+        }
+        PFK.put(pb, xx, 1 + arc, P[0]); PFK.put(pb, xx, 2 + arc + th, P[0]);
+      }
+      PFK.put(pb, 0, 9, P[0]); PFK.put(pb, fw - 1, 9, P[0]);
+    });
+  }
+  const S = _gliderStrip.c, sway = Math.round(Math.sin(t * 3) * 1);
+  PFK.drawStrip(g, S, Math.floor(t * 7) % 3, x - (S.w >> 1), y - 3 + sway);
+  fline(g, x - 21, y + 5 + sway, x - 4, y + 26, '#cfe8ee'); fline(g, x + 21, y + 5 + sway, x + 4, y + 26, '#cfe8ee');
+  fline(g, x - 10, y + 2 + sway, x - 3, y + 26, '#8aa8c0'); fline(g, x + 10, y + 2 + sway, x + 3, y + 26, '#8aa8c0');
 }
 
 /** KIRU: compañero que sigue, comenta y reacciona */
@@ -14894,7 +14928,7 @@ class Actor extends Entity {
     if (this.preDraw) this.preDraw(g, x, y);
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant });
   }
-  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 74), this.bubble.text, '#ffe14d', this.bubble.t); }
+  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 92), this.bubble.text, '#ffe14d', this.bubble.t); }
 }
 
 /** Estación interactiva (terminal, sensor, válvula, simulador, evidencia) */
@@ -23272,17 +23306,17 @@ const PostCreditsScene = {
     frect(g, 0, 270, W, H - 270, '#0e1a12'); fdither(g, 0, 270, W, 8, '#1f3a24', 0.5);
     for (let x = 6; x < W; x += 11) { const hh = 2 + (x * 7) % 4; frect(g, x, 270 - hh, 1, hh, '#1f5a34'); fpx(g, x + 1, 270 - hh + 1, '#2f7a44'); }
     // farol junto a Amaya
-    frect(g, 178, 236, 2, 34, '#3a3a5a'); fdisc(g, 179, 234, 3, '#ffe8a0'); fdither(g, 150, 214, 60, 56, '#ffd86a', 0.1);
+    frect(g, 178, 196, 2, 74, '#3a3a5a'); frect(g, 176, 196, 6, 2, '#5a5a7a'); fdisc(g, 179, 194, 3, '#ffe8a0'); PFK.drawGlow(g, 179, 194, 30, '#ffd86a', 0.35);
     // casa de sombra
-    frect(g, 300, 196, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 196, 3, 74, '#2a3a2a'); fdither(g, 300, 200, 200, 70, '#1a2a1a', 0.5);
+    frect(g, 300, 178, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 178, 3, 92, '#2a3a2a'); fdither(g, 300, 182, 200, 88, '#1a2a1a', 0.5);
     for (let k = 0; k < 8; k++) { const x = 312 + k * 23, hh = 12 + (k * 5) % 10; frect(g, x, 270 - hh, 2, hh, '#1f854c'); fpx(g, x - 1, 270 - hh, '#4ccb70'); fpx(g, x + 2, 270 - hh + 2, '#4ccb70'); }
     // sensor con la alarma
-    frect(g, 456, 236, 2, 34, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 234, 3, on ? '#ffe14d' : '#6a5a10'); if (on) fdither(g, 440, 218, 34, 30, '#ffe14d', 0.12);
+    frect(g, 456, 226, 2, 44, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 224, 3, on ? '#ffe14d' : '#6a5a10'); if (on) PFK.drawGlow(g, 457, 224, 14, '#ffe14d', 0.4);
     // Amaya y KIRU
     drawChar(g, 'amaya', 'idle', t, 220, 270, 1, { expr: this.i >= 4 ? 'smile' : 'surprised' });
     drawChar(g, 'kiru', 'idle', t, 260, 270, -1, {});
     // taza de té con vapor
-    frect(g, 248, 248, 8, 6, '#fff6d8'); frect(g, 256, 249, 2, 3, '#fff6d8'); for (let i = 0; i < 3; i++) fpx(g, 251 + Math.round(Math.sin(t * 3 + i) * 1.5), 244 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0');
+    frect(g, 225, 238, 7, 6, '#fff6d8'); frect(g, 232, 239, 2, 3, '#fff6d8'); frect(g, 225, 243, 7, 1, '#cfc4a8'); for (let i = 0; i < 3; i++) fpx(g, 228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0'); // taza en la mano de Amaya (sprite de 74 px)
     this.ps.render(g);
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {

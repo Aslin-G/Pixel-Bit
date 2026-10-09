@@ -306,7 +306,7 @@ class Player extends Entity {
     if (this.landT > 0) this.landT -= dt;
     if (this.forcedAnim) this.setAnim(this.forcedAnim);
     else if (this.lock > 0 && this.anim === 'hit') { }
-    else if (!this.onGround) this.setAnim(this.vy < 0 ? 'jump' : 'fall');
+    else if (!this.onGround) this.setAnim(this.gliding ? 'glide' : this.vy < 0 ? 'jump' : 'fall');
     else if (this.landT > 0) this.setAnim('land');
     else if (Math.abs(this.vx) > 8) this.setAnim(this.wading ? 'wade' : Math.abs(this.vx) > PHYS.walk + 10 ? 'run' : 'walk');
     else this.setAnim('idle');
@@ -320,17 +320,38 @@ class Player extends Entity {
   render(g, cam) {
     if (this.inv > 0 && (Math.floor(this.inv * 20) % 2) && this.anim !== 'hit') return;
     const x = this.x - cam.ox, y = this.y - cam.oy;
-    if (this.gliding) drawGlider(g, x, y - 70, this.facing);
+    if (this.gliding) drawGlider(g, x + this.facing * 2, y - 102, this.facing); // vela sobre la cabeza (sprite de 74 px, puños en alto ≈ y−76)
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
-    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 9, wy, 18, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 8, wy + 1, 16, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 8, wy + 3, 16, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 9 + ((Game.frame >> 3) % 18), wy, '#ffffff'); }
+    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
   }
 }
+/** Vela de Brisa: lona curva prerenderizada (3 cuadros de flameo) con franjas cian, luz arriba,
+    sombra en la panza y contorno navy; cuerdas hasta las manos en alto (y + 26). */
+const _gliderStrip = { c: null };
 function drawGlider(g, x, y, f) {
   const t = Game.time;
-  g.fillStyle = '#fffaf0';
-  for (let i = -14; i <= 14; i++) { const yy = Math.round(y + Math.abs(i) * 0.35 + Math.sin(t * 8 + i * 0.3) * 0.6); g.fillRect(Math.round(x + i), yy, 1, 2); }
-  g.fillStyle = '#56e5ff'; for (let i = -14; i <= 14; i += 4) g.fillRect(Math.round(x + i), Math.round(y + Math.abs(i) * 0.35 + 2), 2, 1);
-  fline(g, x - 13, y + 5, x - 3, y + 26, '#cfe8ee'); fline(g, x + 13, y + 5, x + 3, y + 26, '#cfe8ee');
+  if (!_gliderStrip.c) {
+    const fw = 46, fh = 16;
+    _gliderStrip.c = PFK.strip(3, fw, fh, (pb, i) => {
+      const cx = fw / 2, P = PFK.P32(['#1d2a48', '#7a8aa8', '#b8c8d8', '#e8f0f4', '#fffaf0', '#ffffff']), C = PFK.P32(['#0c4560', '#1491aa', '#22bdd0', '#56e5ff', '#a6f4ff']);
+      for (let xx = 1; xx < fw - 1; xx++) {
+        const u = (xx - cx) / (cx - 1), arc = Math.round(Math.abs(u) * Math.abs(u) * 7 + Math.sin(u * 5 + i * 2.1) * 0.7);
+        const th = Math.round(4 - Math.abs(u) * 2.2);
+        for (let k = 0; k < th; k++) {
+          const stripe = Math.floor((xx + 2) / 6) % 2 === 0;
+          let col = k === 0 ? (stripe ? C[4] : P[5]) : k === th - 1 ? (stripe ? C[1] : P[2]) : (stripe ? C[3] : P[4]);
+          if (u > 0.55 && k > 0) col = stripe ? C[2] : P[3];
+          PFK.put(pb, xx, 2 + arc + k, col);
+        }
+        PFK.put(pb, xx, 1 + arc, P[0]); PFK.put(pb, xx, 2 + arc + th, P[0]);
+      }
+      PFK.put(pb, 0, 9, P[0]); PFK.put(pb, fw - 1, 9, P[0]);
+    });
+  }
+  const S = _gliderStrip.c, sway = Math.round(Math.sin(t * 3) * 1);
+  PFK.drawStrip(g, S, Math.floor(t * 7) % 3, x - (S.w >> 1), y - 3 + sway);
+  fline(g, x - 21, y + 5 + sway, x - 4, y + 26, '#cfe8ee'); fline(g, x + 21, y + 5 + sway, x + 4, y + 26, '#cfe8ee');
+  fline(g, x - 10, y + 2 + sway, x - 3, y + 26, '#8aa8c0'); fline(g, x + 10, y + 2 + sway, x + 3, y + 26, '#8aa8c0');
 }
 
 /** KIRU: compañero que sigue, comenta y reacciona */
@@ -443,7 +464,7 @@ class Actor extends Entity {
     if (this.preDraw) this.preDraw(g, x, y);
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant });
   }
-  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 74), this.bubble.text, '#ffe14d', this.bubble.t); }
+  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 92), this.bubble.text, '#ffe14d', this.bubble.t); }
 }
 
 /** Estación interactiva (terminal, sensor, válvula, simulador, evidencia) */
