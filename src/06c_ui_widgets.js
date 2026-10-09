@@ -661,7 +661,7 @@ UIK.minimapPanel = function (g, x = 532, y = 4, w = 104, h = 70, o = {}) {
 
 /* ---------- Miniaturas de capítulo (70×41) y tarjetas de la tira inferior ---------- */
 const LEVEL_CARD_ACCENT = { 0: '#54c3e2', 1: '#6dd0eb', 2: '#6dd0eb', 3: '#a086d0', 4: '#e0cb77', 5: '#9fe6ff', 6: '#e070d0', 7: '#54be93', 8: '#86e36f', 9: '#8fb4ff', 10: '#eb9484', 11: '#ffd23a' };
-const LEVEL_CARD_NAME = { 0: 'ORIGEN', 1: 'LA TOMA', 2: 'DESALINIZACIÓN', 3: 'SALMUERA', 4: 'SOLAR', 5: 'EÓLICA', 6: 'BATERÍAS', 7: 'HIDRÓGENO VERDE', 8: 'AGROECOLOGÍA', 9: 'LA MESA', 10: 'GRAN CALIMA', 11: 'NEXO FINAL' };
+const LEVEL_CARD_NAME = { 0: 'ORIGEN', 1: 'CAPTACIÓN', 2: 'DESALINIZACIÓN', 3: 'SALMUERA', 4: 'SOLAR', 5: 'EÓLICA', 6: 'BATERÍAS', 7: 'HIDRÓGENO', 8: 'AGROECOLOGÍA', 9: 'LA MESA', 10: 'GRAN CALIMA', 11: 'NEXO FINAL' };
 const LevelThumbs = {
   cache: new Map(), lastBuild: -1,
   /** Devuelve la miniatura (o null si aún no se generó; se genera como máximo una por cuadro) */
@@ -817,7 +817,7 @@ UIK.levelCard = function (g, x, y, w, h, o = {}) {
   const by = y + h - 14;
   frect(g, x + 2, by, w - 4, 1, shade(acc, -0.4)); frect(g, x + 2, by + 1, w - 4, 11, '#011b2b');
   const label = (o.id != null ? o.id + '. ' : '') + (o.label || '');
-  drawText(g, fitText(label, w - 10, 'tiny'), x + 5, by + 4, { font: 'tiny', color: locked ? '#5a7090' : '#d9f8fe' });
+  drawText(g, fitText(label, w - 7, 'tiny'), x + 4, by + 4, { font: 'tiny', color: locked ? '#5a7090' : '#d9f8fe' });
   if (o.state === 'done') { frect(g, x + w - 13, y + 3, 10, 9, '#000633'); Icons.draw(g, 'check', x + w - 14, y + 1); }
   if (o.state === 'current') { const t = Game.time; fpx(g, x + w - 6, y + 4 + Math.round(Math.sin(t * 5)), '#fff2a0'); fpx(g, x + w - 5, y + 5 + Math.round(Math.sin(t * 5)), '#ffffff'); }
   if (sel) { const t = (Game.time * 40) % (w + h); const sx = t < w ? x + t : x + w - 1, sy = t < w ? y : y + (t - w); fpx(g, sx, sy, '#ffffff'); }

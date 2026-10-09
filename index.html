@@ -1928,7 +1928,7 @@ const UIK = {
   bar(g, x, y, w, h, frac, col, bg = null, segs = 0) {
     x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
     const ink = '#000633';
-    const track = (!bg || bg === '#0a0c22') ? mixHex(shade(col, -0.62), '#041533', 0.45) : bg;
+    const track = (!bg || bg === '#0a0c22') ? mixHex('#0b2444', col, 0.12) : bg;
     frect(g, x + 1, y, w - 2, h, ink); frect(g, x, y + 1, w, h - 2, ink);
     frect(g, x + 1, y + 1, w - 2, h - 2, track);
     const fw = Math.round((w - 2) * clamp(frac, 0, 1));
@@ -3142,7 +3142,7 @@ UIK.minimapPanel = function (g, x = 532, y = 4, w = 104, h = 70, o = {}) {
 
 /* ---------- Miniaturas de capítulo (70×41) y tarjetas de la tira inferior ---------- */
 const LEVEL_CARD_ACCENT = { 0: '#54c3e2', 1: '#6dd0eb', 2: '#6dd0eb', 3: '#a086d0', 4: '#e0cb77', 5: '#9fe6ff', 6: '#e070d0', 7: '#54be93', 8: '#86e36f', 9: '#8fb4ff', 10: '#eb9484', 11: '#ffd23a' };
-const LEVEL_CARD_NAME = { 0: 'ORIGEN', 1: 'LA TOMA', 2: 'DESALINIZACIÓN', 3: 'SALMUERA', 4: 'SOLAR', 5: 'EÓLICA', 6: 'BATERÍAS', 7: 'HIDRÓGENO VERDE', 8: 'AGROECOLOGÍA', 9: 'LA MESA', 10: 'GRAN CALIMA', 11: 'NEXO FINAL' };
+const LEVEL_CARD_NAME = { 0: 'ORIGEN', 1: 'CAPTACIÓN', 2: 'DESALINIZACIÓN', 3: 'SALMUERA', 4: 'SOLAR', 5: 'EÓLICA', 6: 'BATERÍAS', 7: 'HIDRÓGENO', 8: 'AGROECOLOGÍA', 9: 'LA MESA', 10: 'GRAN CALIMA', 11: 'NEXO FINAL' };
 const LevelThumbs = {
   cache: new Map(), lastBuild: -1,
   /** Devuelve la miniatura (o null si aún no se generó; se genera como máximo una por cuadro) */
@@ -3298,7 +3298,7 @@ UIK.levelCard = function (g, x, y, w, h, o = {}) {
   const by = y + h - 14;
   frect(g, x + 2, by, w - 4, 1, shade(acc, -0.4)); frect(g, x + 2, by + 1, w - 4, 11, '#011b2b');
   const label = (o.id != null ? o.id + '. ' : '') + (o.label || '');
-  drawText(g, fitText(label, w - 10, 'tiny'), x + 5, by + 4, { font: 'tiny', color: locked ? '#5a7090' : '#d9f8fe' });
+  drawText(g, fitText(label, w - 7, 'tiny'), x + 4, by + 4, { font: 'tiny', color: locked ? '#5a7090' : '#d9f8fe' });
   if (o.state === 'done') { frect(g, x + w - 13, y + 3, 10, 9, '#000633'); Icons.draw(g, 'check', x + w - 14, y + 1); }
   if (o.state === 'current') { const t = Game.time; fpx(g, x + w - 6, y + 4 + Math.round(Math.sin(t * 5)), '#fff2a0'); fpx(g, x + w - 5, y + 5 + Math.round(Math.sin(t * 5)), '#ffffff'); }
   if (sel) { const t = (Game.time * 40) % (w + h); const sx = t < w ? x + t : x + w - 1, sy = t < w ? y : y + (t - w); fpx(g, sx, sy, '#ffffff'); }
@@ -10762,16 +10762,19 @@ const SOLOScene = {
     this.onDone && this.onDone({ results: this.results, correct: ok, total: this.items.length });
   },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.82);
+    UIK.scrim(g, 0.72);
     const C = this.C;
-    UIK.panel(g, 8, 8, W - 16, H - 16, 'dialog');
-    UIK.header(g, 8, 8, W - 16, 'PUERTA DE EVIDENCIA · ' + (C ? C.title : ''), 'dialog', 'question');
-    // barra de progreso SOLO
+    // cabecera: insignia + título + progreso SOLO (píldoras con número de nivel)
+    UIK.panel(g, 8, 6, W - 16, 22, 'tech', null, { chamfer: 2, key: false });
+    UIK.badge(g, 'question', 5, 3, 22, 'tech');
+    drawText(g, fitText('PUERTA DE EVIDENCIA · ' + (C ? C.title : ''), W - 190, 'bold'), 32, 13, { font: 'bold', color: '#e6f8fe' });
     for (let k = 0; k < this.items.length; k++) {
       const r = this.results.find(rr => rr.id === this.items[k].id);
-      const col = r ? '#86e36f' : k === this.i && this.phase === 'item' ? '#ffe14d' : '#3f2690';
-      frect(g, W - 132 + k * 24, 12, 20, 6, col);
-      drawText(g, String(this.items[k].solo), W - 122 + k * 24, 20, { font: 'tiny', color: '#cfd6f0', align: 'center' });
+      const cur = k === this.i && this.phase === 'item';
+      const col = r ? '#3fe0a0' : cur ? '#ffd23a' : '#3a5a8a';
+      const px = W - 134 + k * 24;
+      frect(g, px, 10, 20, 14, '#000633'); frect(g, px + 1, 11, 18, 12, col); frect(g, px + 2, 12, 16, 10, r ? '#0a5a44' : cur ? '#553a08' : '#061a38');
+      drawText(g, String(this.items[k].solo), px + 10, 14, { font: 'bold', color: r ? '#eafff6' : cur ? '#fff2a0' : '#93a6c8', align: 'center' });
     }
     Gui.begin();
     if (this.phase === 'intro') this.renderIntro(g);
@@ -10782,69 +10785,84 @@ const SOLOScene = {
   },
   renderContext(g, x, y, w, h) {
     const C = this.C;
-    UIK.panel(g, x, y, w, h, 'paper');
-    drawText(g, C.sim ? 'DATOS SIMULADOS PARA FINES EDUCATIVOS' : 'DATOS CON FUENTE', x + 6, y + 5, { font: 'tiny', color: C.sim ? '#a82c40' : '#1f6440' });
-    let yy = y + 14;
-    yy += drawTextBlock(g, C.text, x + 6, yy, w - 12, { color: '#3a1a10' }) + 4;
-    if (C.table) yy = drawDataTable(g, C.table, x + 6, yy, w - 12) + 4;
-    if (C.chart) { const ch = C.chart; Charts.line(g, x + 6, yy, w - 12, Math.min(70, y + h - yy - 6), ch.series, Object.assign({ bg: '#1a1838' }, ch.opts)); }
+    UIK.panel(g, x, y, w, h, 'sheet');
+    UIK.badge(g, 'chart', x - 3, y - 3, 22, 'sheet');
+    drawText(g, 'DATOS', x + 26, y + 7, { font: 'bold', color: '#e6f8fe' });
+    UIK.pill(g, x + w - 7, y + 6, C.sim ? 'SIMULADOS · FINES EDUCATIVOS' : 'CON FUENTE', { align: 'right', rim: C.sim ? '#ff8a7a' : '#3fe0a0', fill: C.sim ? '#3a0c1c' : '#073d2e', color: C.sim ? '#ffd8d0' : '#c2f5de' });
+    frect(g, x + 22, y + 18, w - 28, 1, '#12305a'); frect(g, x + 22, y + 19, w - 28, 1, '#0b2a58');
+    let yy = y + 25;
+    yy += drawTextBlock(g, C.text, x + 8, yy, w - 16, { color: '#d9eefc' }) + 4;
+    if (C.table) yy = drawDataTable(g, C.table, x + 8, yy, w - 16) + 4;
+    if (C.chart) { const ch = C.chart; Charts.line(g, x + 8, yy, w - 16, Math.min(70, y + h - yy - 8), ch.series, Object.assign({ bg: '#020e26' }, ch.opts)); }
   },
   renderIntro(g) {
     const C = this.C;
-    this.renderContext(g, 20, 30, W - 40, 230);
-    drawTextBlock(g, '{y}' + (C.ra || '') + '{/} ' + (RA[C.ra] || ''), 24, 268, W - 48, { color: '#cfd6f0', font: 'main' });
-    if (Gui.button(g, 'start', W / 2 - 80, H - 40, 160, 22, 'Comenzar (' + this.items.length + ' tareas)', { style: 'gold', icon: 'play' })) this.phase = 'item';
+    this.renderContext(g, 20, 40, W - 40, 216);
+    UIK.panel(g, 20, 262, W - 40, 50, 'tech', null, { chamfer: 2, key: false });
+    drawTextBlock(g, '{y}' + (C.ra || '') + '{/} ' + (RA[C.ra] || ''), 28, 268, W - 56, { color: UI_INK.body });
+    if (Gui.button(g, 'start', W / 2 - 90, H - 40, 180, 22, 'Comenzar (' + this.items.length + ' tareas)', { style: 'gold', icon: 'play' })) this.phase = 'item';
   },
   renderItem(g) {
     const Q = this.cur, fb = this.feedback;
     const leftW = 236;
-    this.renderContext(g, 16, 28, leftW, H - 50);
-    const x = 16 + leftW + 8, w = W - x - 18;
-    drawText(g, 'NIVEL SOLO ' + this.Q.solo + ' · ' + SOLO_NAMES[this.Q.solo].toUpperCase() + (this.variant ? ' · VARIANTE' : ''), x, 30, { font: 'tiny', color: '#ffe14d' });
-    let y = 38;
-    y += drawTextBlock(g, Q.stem, x, y, w, { color: '#fffaf0', shadow: '#0a0718' }) + 4;
+    this.renderContext(g, 14, 38, leftW, H - 46);
+    const x = 14 + leftW + 10, w = W - x - 12, y0 = 38, ph = H - 46;
+    UIK.panel(g, x, y0, w, ph, 'tech', null, { chamfer: 3 });
+    UIK.badge(g, 'book', x - 3, y0 - 3, 22, 'tech');
+    drawText(g, 'PREGUNTA', x + 26, y0 + 7, { font: 'bold', color: '#e6f8fe' });
+    UIK.pill(g, x + w - 7, y0 + 6, 'SOLO ' + this.Q.solo + ' · ' + SOLO_NAMES[this.Q.solo].toUpperCase() + (this.variant ? ' · VARIANTE' : ''), { align: 'right', rim: '#ffd23a', fill: '#1a1404', color: '#fff2c0' });
+    frect(g, x + 22, y0 + 18, w - 28, 1, '#12305a'); frect(g, x + 22, y0 + 19, w - 28, 1, '#0b2a58');
+    const ix = x + 8, iw = w - 16;
+    let y = y0 + 25;
+    y += drawTextBlock(g, Q.stem, ix, y, iw, { color: '#d5dcf5', lineH: 11 }) + 5;
     const letters = 'ABCD';
     Q.options.forEach((op, k) => {
       let st = this.sel === k ? 'selected' : null;
       if (k === this.eliminated) st = 'dim';
       if (fb) { if (k === Q.key && fb.correct) st = 'correct'; else if (k === fb.chosen && !fb.correct) st = 'wrong'; else st = 'dim'; }
-      const r = Gui.choice(g, 'op' + k + '_' + this.i + '_' + this.attempt, x, y, w, op, letters[k], { state: st, disabled: !!fb || k === this.eliminated });
+      const r = Gui.choice(g, 'op' + k + '_' + this.i + '_' + this.attempt, ix, y, iw, op, letters[k], { state: st, disabled: !!fb || k === this.eliminated });
       if (r.clicked && !fb && k !== this.eliminated) this.sel = k;
       y += r.h + 3;
     });
-    const by = H - 34;
+    const by = y0 + ph - 28;
     if (!fb) {
-      // metacognición: confianza para ítems clave
       const needConf = this.Q.solo >= 3;
       if (needConf) {
-        drawText(g, '¿Qué tan seguro estás?', x, by - 16, { color: '#cfd6f0', font: 'tiny' });
-        ['poco', 'medio', 'mucho'].forEach((c, k) => { if (Gui.button(g, 'cf' + c, x + 100 + k * 56, by - 20, 52, 14, c.toUpperCase(), { style: this.conf === c ? 'gold' : 'ghost', selected: this.conf === c })) this.conf = c; });
+        drawText(g, '¿Qué tan seguro estás?', ix, by - 17, { color: UI_INK.dim });
+        ['poco', 'medio', 'mucho'].forEach((c, k) => { if (Gui.button(g, 'cf' + c, ix + 130 + k * 58, by - 21, 54, 16, c.toUpperCase(), { style: this.conf === c ? 'gold' : 'ghost', selected: this.conf === c })) this.conf = c; });
       }
-      // pistas
       const hintLbl = ['Pista: pregunta', 'Pista: evidencia', 'Pista: parcial', 'Sin más pistas'][this.hints];
-      if (Gui.button(g, 'hint', x, by, 110, 20, hintLbl, { icon: 'hint', style: 'ghost', disabled: this.hints >= 3, tip: 'Las pistas reducen la recompensa, no el acceso al aprendizaje.' })) this.useHint();
+      if (Gui.button(g, 'hint', ix, by, 124, 20, hintLbl, { icon: 'hint', style: 'ghost', disabled: this.hints >= 3, tip: 'Las pistas reducen la recompensa, no el acceso al aprendizaje.' })) this.useHint();
       const can = this.sel >= 0 && (!needConf || this.conf);
-      if (Gui.button(g, 'submit', x + w - 120, by, 120, 20, 'Comprobar', { style: 'good', icon: 'check', disabled: !can })) this.submit();
+      if (Gui.button(g, 'submit', ix + iw - 124, by, 124, 20, 'Comprobar', { style: 'good', icon: 'check', disabled: !can })) this.submit();
       if (this.hints > 0) {
-        const hy = 30;
         const htxt = this.hints >= 1 ? (Q.hints ? Q.hints[Math.min(this.hints - 1, Q.hints.length - 1)] : defaultHint(Q, this.hints)) : '';
-        if (htxt) { const hh = textHeight(htxt, w - 16) + 8; UIK.panel(g, x, by - 26 - hh - (needConf ? 18 : 0), w, hh, 'glass'); drawTextBlock(g, '{y}' + ['', 'Pregunta', 'Evidencia', 'Parcial'][this.hints] + ':{/} ' + htxt, x + 6, by - 22 - hh - (needConf ? 18 : 0), w - 12, { color: '#fffaf0' }); }
+        if (htxt) {
+          const full = '{y}' + ['', 'Pregunta', 'Evidencia', 'Parcial'][this.hints] + ':{/} ' + htxt;
+          const hh = textHeight(full, iw - 16) + 10;
+          const hy = Math.max(y + 2, (needConf ? by - 25 : by - 5) - hh);
+          UIK.panel(g, ix, hy, iw, hh, 'sheet', null, { chamfer: 2, key: false });
+          drawTextBlock(g, full, ix + 8, hy + 5, iw - 16, { color: UI_INK.body });
+        }
       }
     } else {
-      // feedback causal
+      // feedback causal (color + icono + palabra)
       const fy = Math.min(y + 2, by - 74);
       const fh = by - fy - 4;
-      UIK.panel(g, x, fy, w, fh, fb.correct ? 'green' : 'alert');
+      UIK.panel(g, ix, fy, iw, fh, fb.correct ? 'green' : 'alert', null, { chamfer: 2, key: false });
+      Icons.draw(g, fb.correct ? 'check' : 'warn', ix + 5, fy + 4);
       let txt;
       if (fb.correct) txt = '{g}¡Correcto!{/} ' + Q.why;
       else {
         txt = '{o}Consecuencia segura:{/} ' + (Q.dist[fb.chosen] || 'Esa opción no se sostiene con los datos.') + ' {y}Pregunta orientadora:{/} ' + (Q.guide || defaultHint(Q, 1));
         if (fb.overconfident) txt += ' {p}Respondiste con mucha confianza: revisa la concepción "' + (this.Q.mis || 'relación causal') + '".{/}';
       }
-      drawTextBlock(g, txt, x + 6, fy + 5, w - 12, { color: '#fffaf0', shadow: '#0a0718' });
-      if (fb.correct) { if (Gui.button(g, 'next', x + w - 120, by, 120, 20, this.i + 1 >= this.items.length ? 'Ver resumen' : 'Siguiente', { style: 'good', icon: 'play' })) this.next(); }
+      g.save(); g.beginPath(); g.rect(ix + 2, fy + 2, iw - 4, fh - 4); g.clip();
+      drawTextBlock(g, txt, ix + 22, fy + 6, iw - 30, { color: fb.correct ? '#eafff6' : '#ffe8e4' });
+      g.restore();
+      if (fb.correct) { if (Gui.button(g, 'next', ix + iw - 124, by, 124, 20, this.i + 1 >= this.items.length ? 'Ver resumen' : 'Siguiente', { style: 'good', icon: 'play' })) this.next(); }
       else {
-        if (Gui.button(g, 'retry', x + w - 150, by, 150, 20, this.Q.retry && !this.variant ? 'Reintentar (variante)' : 'Reintentar', { style: 'gold', icon: 'reset' })) {
+        if (Gui.button(g, 'retry', ix + iw - 160, by, 160, 20, this.Q.retry && !this.variant ? 'Reintentar (variante)' : 'Reintentar', { style: 'gold', icon: 'reset' })) {
           GS.s.stats.retries++;
           if (this.Q.retry && !this.variant) { this.variant = true; this.sel = -1; this.eliminated = -1; this.hints = 0; }
           else { this.eliminated = fb.chosen; this.sel = -1; }
@@ -10855,18 +10873,21 @@ const SOLOScene = {
   },
   renderSummary(g) {
     const ok = this.results.filter(r => r.correct && r.attempts === 1).length;
-    UIK.panel(g, 40, 34, W - 80, H - 78, 'tech');
-    drawTitleText(g, 'EVIDENCIA REGISTRADA', W / 2, 44, 2, ['#fffaf0', '#ffe14d', '#ff9f43'], { align: 'center', shadow: '#140d26' });
-    let y = 78;
+    const x = 60, y = 40, w = W - 120, h = H - 84;
+    UIK.panel(g, x, y, w, h, 'tech');
+    UIK.header(g, x, y, w, 'EVIDENCIA REGISTRADA', 'tech', 'star');
+    let yy = y + 30;
     this.items.forEach((q, k) => {
       const r = this.results.find(rr => rr.id === q.id);
-      Icons.draw(g, r && r.attempts === 1 ? 'star' : r ? 'check' : 'cross', 60, y - 2);
-      drawText(g, 'SOLO ' + q.solo + ' · ' + SOLO_NAMES[q.solo] + (r ? ' · intentos: ' + r.attempts + (r.hints ? ' · pistas: ' + r.hints : '') : ''), 80, y, { color: '#fffaf0' });
-      y += 16;
+      const rowSt = r && r.attempts === 1 ? 'green' : r ? 'sheet' : 'alert';
+      UIK.panel(g, x + 12, yy - 3, w - 24, 16, rowSt, null, { chamfer: 2, key: false, spark: false });
+      Icons.draw(g, r && r.attempts === 1 ? 'star' : r ? 'check' : 'cross', x + 16, yy - 2);
+      drawText(g, 'SOLO ' + q.solo + ' · ' + SOLO_NAMES[q.solo] + (r ? ' · intentos: ' + r.attempts + (r.hints ? ' · pistas: ' + r.hints : '') : ''), x + 34, yy + 1, { color: UI_INK.body });
+      yy += 19;
     });
-    y += 6;
-    drawTextBlock(g, 'Aciertos al primer intento: {y}' + ok + '/' + this.items.length + '{/}. Cada tarea alimenta tu dominio estimado en: ' + (RA_CONCEPTS[this.C.ra] || []).map(c => '{c}' + MASTERY_LABELS[c] + '{/}').join(', ') + '.', 60, y, W - 120, { color: '#cfd6f0' });
-    if (Gui.button(g, 'done', W / 2 - 70, H - 64, 140, 22, 'Continuar', { style: 'good', icon: 'play' })) this.finish();
+    yy += 6;
+    drawTextBlock(g, 'Aciertos al primer intento: {y}' + ok + '/' + this.items.length + '{/}. Cada tarea alimenta tu dominio estimado en: ' + (RA_CONCEPTS[this.C.ra] || []).map(c => '{c}' + MASTERY_LABELS[c] + '{/}').join(', ') + '.', x + 14, yy, w - 28, { color: UI_INK.dim });
+    if (Gui.button(g, 'done', W / 2 - 70, y + h - 30, 140, 22, 'Continuar', { style: 'good', icon: 'play' })) this.finish();
   },
 };
 function defaultHint(Q, level) {
@@ -10879,16 +10900,17 @@ function drawDataTable(g, T, x, y, w) {
   const n = T.head.length;
   const cw = T.widths ? T.widths.map(f => f * w) : Array(n).fill(w / n);
   let cx = x;
-  frect(g, x, y, w, 11, '#7e4429');
-  T.head.forEach((hd, i) => { drawText(g, hd, cx + 2, y + 3, { font: 'tiny', color: '#fff6d8' }); cx += cw[i]; });
+  frect(g, x, y - 1, w, 13, '#000633');
+  frect(g, x + 1, y, w - 2, 11, '#1e5a8a'); frect(g, x + 1, y, w - 2, 1, '#3a7ab0');
+  T.head.forEach((hd, i) => { drawText(g, hd, cx + 3, y + 3, { font: 'tiny', color: '#e6f8fe' }); cx += cw[i]; });
   y += 11;
   T.rows.forEach((r, ri) => {
-    frect(g, x, y, w, 10, ri % 2 ? '#f2d898' : '#f8e6b8');
+    frect(g, x, y, w, 10, '#000633'); frect(g, x + 1, y, w - 2, 10, ri % 2 ? '#082248' : '#061a36');
     cx = x;
-    r.forEach((v, i) => { drawText(g, String(v), cx + 2, y + 2, { font: 'tiny', color: '#3a1a10' }); cx += cw[i]; });
+    r.forEach((v, i) => { if (i > 0) frect(g, Math.round(cx), y, 1, 10, '#12305a'); drawText(g, String(v), cx + 3, y + 2, { font: 'tiny', color: '#ceddf8' }); cx += cw[i]; });
     y += 10;
   });
-  frect(g, x, y, w, 1, '#7e4429');
+  frect(g, x, y, w, 1, '#000633'); frect(g, x + 1, y, w - 2, 1, '#163a6a');
   return y + 2;
 }
 
@@ -10918,17 +10940,28 @@ const MicroCheckScene = {
   },
   update(dt) { this.t += dt; },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.72);
-    const x = 70, y = 40, w = W - 140, h = 270;
-    UIK.panel(g, x, y, w, h, 'mirage');
-    UIK.header(g, x, y, w, 'ADVERSARIO CONCEPTUAL: ' + this.A.name.toUpperCase(), 'mirage', 'warn');
-    drawTextBlock(g, '{p}' + this.A.desc + '{/} Se disuelve solo si corriges la concepción.', x + 10, y + 22, w - 20, { color: '#ffd0e8' });
-    let yy = y + 50;
-    yy += drawTextBlock(g, this.Q.q, x + 10, yy, w - 20, { color: '#fffaf0', shadow: '#0a0718' }) + 6;
+    // panel PREGUNTA compacto a la derecha, sobre el mundo visible (velo ligero sin tramado)
+    UIK.scrim(g, 0.32);
+    const w = 236, x = W - 8 - w, y = 104;
+    const desc = '{p}' + this.A.desc + '{/} Se disuelve solo si corriges la concepción.';
+    const iw = w - 16, rw = iw - 18 - 14;
+    const dh = textHeight(desc, iw, { lineH: 11 }), sh = textHeight(this.Q.q, iw, { lineH: 11 });
+    const rows = this.order.map(k => Math.max(15, wrapText(this.Q.o[k], rw).length * 11 + 4));
+    const fbTxt = this.fb ? (this.fb.ok ? '{g}Concepción corregida.{/} ' : '{o}El adversario se refuerza (empujón no letal).{/} ') + this.Q.w : '';
+    const fbh = this.fb ? textHeight(fbTxt, iw - 24, { lineH: 11 }) + 10 + 26 : 0;
+    const h = Math.min(H - y - 6, 26 + dh + 4 + sh + 6 + rows.reduce((a, b) => a + b + 3, 0) + 4 + fbh);
+    UIK.panel(g, x, y, w, h, 'mirage', null, { chamfer: 3 });
+    UIK.badge(g, 'warn', x - 3, y - 3, 22, 'mirage');
+    drawText(g, 'PREGUNTA', x + 26, y + 7, { font: 'bold', color: '#fff0fc' });
+    UIK.pill(g, x + w - 7, y + 6, fitText(this.A.name.toUpperCase(), 92, 'tiny'), { align: 'right', rim: '#f6a8f0', fill: '#24093e', color: '#ffd0f4' });
+    frect(g, x + 22, y + 18, w - 28, 1, '#3a1250'); frect(g, x + 22, y + 19, w - 28, 1, '#2a0c40');
+    let yy = y + 25;
+    yy += drawTextBlock(g, desc, x + 8, yy, iw, { color: '#f6e6fa', lineH: 11 }) + 4;
+    yy += drawTextBlock(g, this.Q.q, x + 8, yy, iw, { color: '#e2ebfc', lineH: 11 }) + 6;
     Gui.begin();
     this.order.forEach((k, i) => {
       const st = this.fb ? (k === this.Q.k ? 'correct' : (k === this.fb.c ? 'wrong' : 'dim')) : null;
-      const r = Gui.choice(g, 'mc' + i, x + 10, yy, w - 20, this.Q.o[k], 'ABC'[i], { state: st, disabled: !!this.fb });
+      const r = Gui.choice(g, 'mc' + i, x + 8, yy, iw, this.Q.o[k], 'ABC'[i], { state: st, disabled: !!this.fb });
       if (r.clicked && !this.fb) {
         const ok = k === this.Q.k;
         this.fb = { c: k, ok };
@@ -10938,8 +10971,11 @@ const MicroCheckScene = {
       yy += r.h + 3;
     });
     if (this.fb) {
-      drawTextBlock(g, (this.fb.ok ? '{g}Concepción corregida.{/} ' : '{o}El adversario se refuerza (empujón no letal).{/} ') + this.Q.w, x + 10, yy + 4, w - 20, { color: '#fffaf0' });
-      if (Gui.button(g, 'mcok', x + w / 2 - 60, y + h - 28, 120, 20, 'Continuar', { style: this.fb.ok ? 'good' : 'gold' })) { Game.pop(); this.onDone && this.onDone(this.fb.ok); }
+      const fh = textHeight(fbTxt, iw - 24, { lineH: 11 }) + 10;
+      UIK.panel(g, x + 8, yy + 2, iw, fh, this.fb.ok ? 'green' : 'alert', null, { chamfer: 2, key: false, spark: false });
+      Icons.draw(g, this.fb.ok ? 'check' : 'warn', x + 12, yy + 5);
+      drawTextBlock(g, fbTxt, x + 28, yy + 7, iw - 24, { color: this.fb.ok ? '#eafff6' : '#ffe8e4', lineH: 11 });
+      if (Gui.button(g, 'mcok', x + w / 2 - 60, Math.min(y + h - 26, yy + fh + 6), 120, 20, 'Continuar', { style: this.fb.ok ? 'good' : 'gold', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(this.fb.ok); }
     }
     Gui.end();
   },
@@ -10954,7 +10990,7 @@ const AnalyticsScene = {
   enter() { Audio2.sfx('page'); },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
+    UIK.scrim(g, 0.78);
     UIK.panel(g, 10, 10, W - 20, H - 20, 'tech');
     UIK.header(g, 10, 10, W - 20, 'MI APRENDIZAJE · dominio estimado (no mide capacidades fijas)', 'tech', 'chart');
     const a = LearningModel.analytics();
@@ -10962,9 +10998,9 @@ const AnalyticsScene = {
     MASTERY_KEYS.forEach((k, i) => {
       const col = i < 10 ? 0 : 1, row = i % 10;
       const x = 20 + col * 200, y = 34 + row * 17;
-      drawText(g, MASTERY_LABELS[k], x, y, { font: 'tiny', color: '#cfd6f0' });
+      drawText(g, MASTERY_LABELS[k], x, y, { font: 'tiny', color: '#b8c8e8' });
       const v = a.mastery[k] / 100;
-      UIK.bar(g, x, y + 7, 180, 6, v, v > 0.7 ? '#86e36f' : v > 0.4 ? '#ffe14d' : '#ff9f43', '#0a0c22', 10);
+      UIK.bar(g, x, y + 7, 180, 6, v, v > 0.7 ? '#3fe0a0' : v > 0.4 ? '#ffd23a' : '#ff9f43', null, 10);
     });
     // SOLO
     const sx = 430;
@@ -10979,8 +11015,8 @@ const AnalyticsScene = {
     for (const k of a.reinforce) { drawText(g, '• ' + MASTERY_LABELS[k], sx, y, { font: 'tiny', color: '#ff9a8a' }); y += 9; }
     y = 214;
     drawText(g, 'ERRORES RECURRENTES', 20, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
-    if (!a.misconceptions.length) drawText(g, 'Aún no hay registros.', 20, y, { font: 'tiny', color: '#8a8fb8' });
-    for (const [m, n] of a.misconceptions.slice(0, 5)) { drawTextBlock(g, '×' + n + ' ' + m, 20, y, 400, { font: 'tiny', color: '#ffd0e8' }); y += 9; }
+    if (!a.misconceptions.length) drawText(g, 'Aún no hay registros.', 20, y, { color: '#93a6c8' });
+    for (const [m, n] of a.misconceptions.slice(0, 5)) { drawText(g, fitText('×' + n + ' ' + m, 400), 20, y, { color: '#ffd0e8' }); y += 12; }
     Gui.begin();
     if (Gui.button(g, 'csv', W - 230, H - 36, 100, 18, 'Exportar CSV', { icon: 'save', style: 'ghost' })) downloadText('aridia_nexus_aprendizaje.csv', LearningModel.exportCSV(), 'text/csv');
     if (Gui.button(g, 'txt', W - 124, H - 36, 100, 18, 'Exportar TXT', { icon: 'book', style: 'ghost' })) downloadText('aridia_nexus_resumen.txt', LearningModel.exportText());
@@ -11856,13 +11892,13 @@ const NumericScene = {
   },
   close() { Game.pop(); this.onDone && this.onDone(this.fb && this.fb.ok); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.68);
     const x = 120, w = W - 240;
     UIK.panel(g, x, 40, w, H - 80, 'tech');
     UIK.header(g, x, 40, w, 'CÁLCULO · ' + this.C.title, 'tech', 'chart');
-    drawTextBlock(g, this.prob.text, x + 12, 66, w - 24, { color: '#fffaf0' });
-    drawText(g, 'Datos simulados para fines educativos', x + 12, 96, { font: 'tiny', color: '#ff9a8a' });
-    frect(g, x + 12, 110, w - 24, 22, '#05030f'); frect(g, x + 13, 111, w - 26, 20, '#0a1030');
+    const th = drawTextBlock(g, this.prob.text, x + 12, 66, w - 24, { color: UI_INK.body });
+    UIK.pill(g, x + 12, Math.max(94, 68 + th), 'DATOS SIMULADOS PARA FINES EDUCATIVOS', { rim: '#ff8a7a', fill: '#3a0c1c', color: '#ffd8d0' });
+    Charts.frame(g, x + 12, 110, w - 24, 22);
     drawText(g, (this.input || '_') + ((Game.frame >> 4) & 1 ? '|' : '') + '  ' + this.prob.unit, x + 20, 117, { color: '#56e5ff' });
     Gui.begin();
     const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', ',', '0', '←'];
@@ -11870,7 +11906,8 @@ const NumericScene = {
     if (Gui.button(g, 'chk', x + 140, 140, 110, 20, 'Comprobar', { style: 'good', icon: 'check', disabled: !this.input || (this.fb && this.fb.ok) })) this.check();
     if (this.fb) {
       const t = this.fb.ok ? '{g}Correcto.{/} ' + this.prob.steps + ' ≈ ' + fmt(this.prob.ans, 2) + ' ' + this.prob.unit : '{o}Revisa:{/} tu valor ' + fmt(this.fb.v, 2) + ' no coincide. Pista: ' + this.prob.steps.split('=')[0] + '… revisa unidades.';
-      drawTextBlock(g, t, x + 140, 166, w - 152, { color: '#fffaf0' });
+      UIK.panel(g, x + 136, 164, w - 148, Math.min(H - 110 - 164, textHeight(t, w - 164) + 12), this.fb.ok ? 'green' : 'alert', null, { chamfer: 2, key: false, spark: false });
+      drawTextBlock(g, t, x + 142, 170, w - 160, { color: this.fb.ok ? '#eafff6' : '#ffe8e4' });
     }
     if (Gui.button(g, 'cls', x + w - 92, H - 66, 80, 18, this.fb && this.fb.ok ? 'Continuar' : 'Cerrar', { style: this.fb && this.fb.ok ? 'good' : 'ghost' })) this.close();
     Gui.end();
@@ -11886,27 +11923,29 @@ const DebateScene = {
   update() { },
   render(g) {
     const D = this.D;
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.7);
     const x = 40, w = W - 80;
-    UIK.panel(g, x, 20, w, H - 40, 'dialog');
-    UIK.header(g, x, 20, w, 'DEBATE ARGUMENTADO · ' + D.title, 'dialog', 'scale');
-    let y = 42;
-    y += drawTextBlock(g, D.prompt, x + 12, y, w - 24, { color: '#fffaf0' }) + 6;
+    UIK.panel(g, x, 20, w, H - 40, 'tech');
+    UIK.header(g, x, 20, w, 'DEBATE ARGUMENTADO · ' + D.title, 'tech', 'scale');
+    let y = 44;
+    y += drawTextBlock(g, D.prompt, x + 12, y, w - 24, { color: '#d5dcf5' }) + 6;
     Gui.begin();
     if (this.step === 0) {
-      drawText(g, '1. Elige tu posición (no hay una única correcta; se evalúa tu argumentación):', x + 12, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
-      D.positions.forEach((ps, i) => { if (Gui.button(g, 'p' + i, x + 12, y, w - 24, 18, ps, { style: 'choice', align: 'left' })) { this.pos = i; this.step = 1; } y += 22; });
+      drawText(g, '1. Elige tu posición (no hay una única correcta; se evalúa tu argumentación):', x + 12, y, { color: '#ffd23a' }); y += 14;
+      D.positions.forEach((ps, i) => { const r = Gui.choice(g, 'p' + i, x + 12, y, w - 24, ps, 'ABCDEF'[i], {}); if (r.clicked) { this.pos = i; this.step = 1; } y += r.h + 3; });
     } else if (this.step === 1) {
-      drawText(g, 'Posición: ' + D.positions[this.pos] + '. 2. ¿Qué argumento la sostiene MEJOR con evidencia?', x + 12, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
+      y += drawTextBlock(g, '{c}Posición:{/} ' + D.positions[this.pos] + '. {y}2. ¿Qué argumento la sostiene MEJOR con evidencia?{/}', x + 12, y, w - 24, { color: UI_INK.body }) + 3;
       this.order.forEach((k, i) => { const r = Gui.choice(g, 'a' + i, x + 12, y, w - 24, D.args[k][0], 'ABCD'[i], {}); if (r.clicked) { this.arg = k; this.step = 2; } y += r.h + 2; });
     } else if (this.step === 2) {
-      drawText(g, '3. ¿Qué costo o compromiso reconoces de tu posición?', x + 12, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
-      D.tradeoffs.forEach((t, i) => { if (Gui.button(g, 't' + i, x + 12, y, w - 24, 18, t, { style: 'choice', align: 'left' })) { this.trade = i; this.step = 3; this.evaluate(); } y += 22; });
-      if (Gui.button(g, 'tn', x + 12, y, w - 24, 18, 'Mi posición no tiene costos', { style: 'danger', align: 'left' })) { this.trade = -1; this.step = 3; this.evaluate(); }
+      drawText(g, '3. ¿Qué costo o compromiso reconoces de tu posición?', x + 12, y, { color: '#ffd23a' }); y += 14;
+      D.tradeoffs.forEach((t, i) => { const r = Gui.choice(g, 't' + i, x + 12, y, w - 24, t, 'ABCDEF'[i], {}); if (r.clicked) { this.trade = i; this.step = 3; this.evaluate(); } y += r.h + 3; });
+      if (Gui.button(g, 'tn', x + 12, y + 2, w - 24, 18, 'Mi posición no tiene costos', { style: 'danger', align: 'left' })) { this.trade = -1; this.step = 3; this.evaluate(); }
     } else {
       const q = D.args[this.arg][1];
       const t = (q === 2 ? '{g}Argumento basado en evidencia y relaciones del sistema.{/} ' : q === 0 ? '{y}Argumento débil:{/} apela a un valor o a una generalización sin datos. ' : '{o}Argumento con un error conceptual.{/} ') + (this.trade >= 0 ? '{g}Reconociste un compromiso:{/} eso hace tu posición discutible y honesta.' : '{o}Toda decisión en el Nexo tiene costos:{/} nombrarlos permite negociarlos.');
-      y += drawTextBlock(g, t, x + 12, y, w - 24, { color: '#fffaf0' }) + 8;
+      const fh = textHeight(t, w - 48) + 12;
+      UIK.panel(g, x + 12, y, w - 24, fh, q === 2 && this.trade >= 0 ? 'green' : q < 0 ? 'alert' : 'sheet', null, { chamfer: 2, key: false, spark: false });
+      drawTextBlock(g, t, x + 20, y + 6, w - 40, { color: UI_INK.body }); y += fh + 8;
       if (Gui.button(g, 'ok', x + w / 2 - 60, H - 52, 120, 20, 'Continuar', { style: 'good' })) { Game.pop(); this.onDone && this.onDone(this.score >= 2); }
     }
     Gui.end();
@@ -12226,34 +12265,35 @@ const CodexScene = {
     if (Input.pointer.wheel) this.scroll = Math.max(0, this.scroll + Input.pointer.wheel * 12);
   },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
-    UIK.panel(g, 8, 8, W - 16, H - 16, 'paper');
-    drawTitleText(g, 'ATLAS DEL NEXO', W / 2, 13, 1, ['#fff6d8', '#f8d677', '#e49c44'], { align: 'center', shadow: '#3a1a10' });
+    UIK.scrim(g, 0.75);
+    UIK.panel(g, 8, 8, W - 16, H - 16, 'tech');
+    UIK.header(g, 8, 8, W - 16, 'ATLAS DEL NEXO · ' + GS.s.codex.length + ' / ' + CODEX.length + ' fichas', 'tech', 'book');
     Gui.begin();
     // pestañas de sección
     CODEX_SECTIONS.forEach(([id, label, icon], i) => {
       const col = i % 7, row = Math.floor(i / 7);
       const n = CODEX.filter(e => e.sec === id && Codex.has(e.id)).length, tot = CODEX.filter(e => e.sec === id).length;
-      if (Gui.button(g, 'sec' + id, 14 + col * 87, 28 + row * 18, 84, 16, label.length > 11 ? label.slice(0, 10) + '.' : label, { icon, style: this.sec === id ? 'gold' : 'paper', selected: this.sec === id, align: 'left', tip: label + ' · ' + n + '/' + tot })) { this.sec = id; this.sel = null; this.scroll = 0; }
+      if (Gui.button(g, 'sec' + id, 14 + col * 87, 32 + row * 18, 84, 16, label.length > 11 ? label.slice(0, 10) + '.' : label, { icon, style: 'tab', selected: this.sec === id, align: 'left', tip: label + ' · ' + n + '/' + tot })) { this.sec = id; this.sel = null; this.scroll = 0; }
     });
-    // lista
+    // lista (pozo hundido)
     const list = CODEX.filter(e => e.sec === this.sec);
-    let ly = 68;
-    frect(g, 14, 66, 168, H - 86, '#e8c47a');
+    let ly = 72;
+    Charts.frame(g, 14, 70, 170, H - 90);
     for (const e of list) {
       const un = Codex.has(e.id);
-      if (ly > H - 34) break;
-      if (Gui.button(g, 'ent' + e.id, 16, ly, 164, 16, un ? (e.title.length > 26 ? e.title.slice(0, 25) + '…' : e.title) : '??? (bloqueada)', { style: this.sel === e.id ? 'gold' : 'paper', disabled: !un, align: 'left', textColor: '#3a1a10' })) { this.sel = e.id; this.scroll = 0; Audio2.sfx('page'); }
+      if (ly > H - 38) break;
+      if (Gui.button(g, 'ent' + e.id, 17, ly, 164, 16, un ? (e.title.length > 26 ? e.title.slice(0, 25) + '…' : e.title) : '??? (bloqueada)', { style: this.sel === e.id ? 'gold' : 'ghost', selected: this.sel === e.id, disabled: !un, align: 'left' })) { this.sel = e.id; this.scroll = 0; Audio2.sfx('page'); }
       ly += 18;
     }
     // página
-    const px = 190, pw = W - px - 18;
+    const px = 192, pw = W - px - 20;
+    UIK.panel(g, px - 4, 68, pw + 10, H - 86, 'sheet', null, { chamfer: 2, key: false });
     const e = this.sel && CODEX_BY_ID[this.sel];
-    g.save(); g.beginPath(); g.rect(px, 66, pw, H - 86); g.clip();
+    g.save(); g.beginPath(); g.rect(px, 70, pw, H - 90); g.clip();
     if (e) {
-      let y = 68 - this.scroll;
-      drawText(g, e.title, px, y, { color: '#7a1f36' }); y += 14;
-      const field = (lbl, txt) => { if (!txt) return; drawText(g, lbl, px, y, { font: 'tiny', color: '#a82c40' }); y += 8; y += drawTextBlock(g, txt, px, y, pw - 4, { color: '#3a1a10' }) + 4; };
+      let y = 74 - this.scroll;
+      drawText(g, e.title, px + 2, y, { font: 'bold', color: '#e6f8fe' }); y += 15;
+      const field = (lbl, txt) => { if (!txt) return; if (lbl) { drawText(g, lbl, px + 2, y, { font: 'tiny', color: '#ffd23a' }); y += 9; } y += drawTextBlock(g, txt, px + 2, y, pw - 8, { color: UI_INK.body }) + 5; };
       if (e.person) field('', e.def);
       else {
         field('DEFINICIÓN', e.def); field('VARIABLES', e.vars); field('UNIDADES', e.units); field('RELACIONES', e.rel); field('EJEMPLO', e.ex);
@@ -12262,12 +12302,12 @@ const CodexScene = {
       this.maxScroll = Math.max(0, y + this.scroll - (H - 30));
       this.scroll = Math.min(this.scroll, this.maxScroll);
     } else {
-      drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px, 80, pw, { color: '#5a3020' });
-      drawText(g, 'Fichas desbloqueadas: ' + GS.s.codex.length + ' / ' + CODEX.length, px, 130, { color: '#7a1f36' });
+      drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px + 2, 80, pw - 8, { color: UI_INK.body });
+      drawText(g, 'Fichas desbloqueadas: ' + GS.s.codex.length + ' / ' + CODEX.length, px + 2, 132, { color: '#8fdfff' });
     }
     g.restore();
-    if (e && this.maxScroll > 0) { const sh = H - 90; frect(g, W - 16, 66, 3, sh, '#c8925e'); frect(g, W - 16, 66 + (sh - 20) * this.scroll / this.maxScroll, 3, 20, '#7a1f36'); if (Gui.button(g, 'up', W - 40, H - 34, 16, 14, '↑', { style: 'paper' })) this.scroll = Math.max(0, this.scroll - 40); if (Gui.button(g, 'dn', W - 22, H - 34, 16, 14, '↓', { style: 'paper' })) this.scroll += 40; }
-    if (Gui.button(g, 'close', 16, H - 30, 80, 16, 'Cerrar', { style: 'paper', textColor: '#3a1a10' })) { Game.pop(); }
+    if (e && this.maxScroll > 0) { const sh = H - 94; frect(g, W - 18, 70, 3, sh, '#0b2444'); frect(g, W - 18, 70 + (sh - 20) * this.scroll / this.maxScroll, 3, 20, '#8fdfff'); if (Gui.button(g, 'up', W - 44, H - 36, 16, 14, '↑', { style: 'ghost' })) this.scroll = Math.max(0, this.scroll - 40); if (Gui.button(g, 'dn', W - 26, H - 36, 16, 14, '↓', { style: 'ghost' })) this.scroll += 40; }
+    if (Gui.button(g, 'close', 16, H - 32, 80, 16, 'Cerrar', { style: 'ghost' })) { Game.pop(); }
     Gui.end();
     Gui.renderTooltip(g);
   },
@@ -12945,52 +12985,109 @@ const DialogueScene = {
     if (this.i >= this.lines.length) { Game.pop(); this.onDone && this.onDone(this.result); }
     else this.startLine();
   },
+  /** Hablante visible en el plano jugable (para el modo globo anclado) o null */
+  speakerEntity(L) {
+    if (typeof GameplayScene === 'undefined') return null;
+    const k = Game.scenes.indexOf(this);
+    if (k < 1 || Game.scenes[k - 1] !== GameplayScene) return null;
+    const gp = GameplayScene;
+    if (!gp.world || !gp.cam || gp.hideHUD) return null;
+    const who = L.who, sp = SPEAKERS[who];
+    let e = null;
+    if (who === 'amaya') e = gp.player;
+    else if (who === 'kiru') e = gp.kiru;
+    else e = gp.world.entities.find(a => a instanceof Actor && !a.hidden && (a.id === who || a.charId === who || (sp && sp.portrait && a.charId === sp.portrait) || (sp && a.name && a.name === sp.name)));
+    if (!e) return null;
+    const sx = e.x - gp.cam.ox, sy = e.y - gp.cam.oy;
+    if (sx < 18 || sx > W - 18 || sy < 50 || sy > H + 8) return null;
+    return { e, sx, sy, cid: e === gp.player ? 'amaya' : e === gp.kiru ? 'kiru' : e.charId };
+  },
   render(g) {
     const L = this.lines[this.i];
     if (!L) return;
-    if (this.bgDim) fdither(g, 0, 0, W, H, '#05030f', this.bgDim);
+    if (this.bgDim) UIK.scrim(g, Math.min(0.85, this.bgDim));
     const sp = SPEAKERS[L.who] || SPEAKERS.narr;
+    const style = L.who === 'mirage' ? 'mirage' : L.who === 'limen' ? 'limen' : L.who === 'mosaico' ? 'mosaic' : 'tech';
+    const shown = Math.floor(this.shown);
+    // modo globo: el hablante está en pantalla, sin elecciones y con un texto breve
+    const ent = (!L.choices && L.mode !== 'portrait' && this.plain.length <= 190) ? this.speakerEntity(L) : null;
+    const hint = L.choices ? 'elige una opción' : (L.noSkip ? 'ENTER: seguir' : 'ENTER: seguir · X: saltar');
+    if (ent) { this.renderBubble(g, L, sp, ent, style, shown); UIK.pill(g, W - 6, H - 13, hint, { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' }); }
+    else this.renderCinematic(g, L, sp, style, shown, hint);
+  },
+  renderBubble(g, L, sp, ent, style, shown) {
+    const head = UIK.headTop(ent.cid);
+    const ax = Math.round(ent.sx), ay = Math.round(ent.sy - head - 3);
+    const avoid = (UIK._hudRects || []).slice();
+    avoid.push({ x: ax - 16, y: ay + 2, w: 32, h: head });
+    const gp = GameplayScene;
+    if (gp.player && ent.e !== gp.player) { const px = gp.player.x - gp.cam.ox, py = gp.player.y - gp.cam.oy; avoid.push({ x: px - 14, y: py - UIK.headTop('amaya'), w: 28, h: UIK.headTop('amaya') }); }
+    UIK.speechBubble(g, ax, ay, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: this.full, max: shown, w: 224, style, avoid, minY: 4, maxY: H - 18, more: this.done });
+  },
+  renderCinematic(g, L, sp, style, shown, hint = '') {
     const big = Game.settings.textScale > 1;
-    const boxH = big ? 104 : 86, boxY = H - boxH - 6;
+    const s = panelStyle(style);
     const side = L.side || (['amaya', 'kiru'].includes(L.who) ? 'left' : 'right');
-    const hasP = sp.portrait && L.portrait !== false;
-    // retrato grande sobre la caja
+    const hasP = !!(sp.portrait && L.portrait !== false);
+    let fw = 0;
     if (hasP) {
       const talking = !this.done && (Math.floor(this.t * 9) % 2 === 0);
       const pc = Portraits.get(sp.portrait, L.expr || 'neutral', talking ? 1 : 0, (Math.floor(Game.time * 0.4) % 7 === 0) && (Game.time % 2.5) < 0.12);
-      const px = side === 'left' ? 10 : W - 10 - 128;
-      const py = boxY - 128 + 34;
-      g.drawImage(pc, px, py);
+      const pw = pc.width, ph = pc.height;
+      fw = pw + 8; const fh = ph + 8;
+      const fx = side === 'left' ? 6 : W - 6 - fw, fy = H - 6 - fh;
+      // marco de retrato completo (sin recortar), fondo teñido con el color del personaje
+      const bg = mixHex('#041533', sp.color, 0.18);
+      UIK.frame(g, fx, fy, fw, fh, style, { bg });
+      g.save(); g.beginPath(); g.rect(fx + 4, fy + 4, pw, ph); g.clip();
+      g.globalAlpha = 0.35; fdisc(g, fx + 4 + pw / 2, fy + 4 + ph * 0.46, pw * 0.42, mixHex(bg, '#4a6ab0', 0.5));
+      g.globalAlpha = 0.35; fdisc(g, fx + 4 + pw / 2, fy + 4 + ph * 0.42, pw * 0.28, mixHex(bg, sp.color, 0.35)); g.globalAlpha = 1;
+      frect(g, fx + 4, fy + 4 + ph - 10, pw, 10, mixHex(bg, '#000633', 0.4));
+      if (side === 'right') { g.translate(fx + 4 + pw, fy + 4); g.scale(-1, 1); g.drawImage(pc, 0, 0); }
+      else g.drawImage(pc, fx + 4, fy + 4);
+      g.restore();
+      // placa de nombre sobre el borde superior del marco
+      if (sp.name) {
+        const nm = sp.name.toUpperCase(), nw = FONTS.bold.measure(nm) + 14;
+        const nx = side === 'left' ? fx + 6 : fx + fw - 6 - nw, ny = fy - 7;
+        UIK.panel(g, nx, ny, nw, 14, style, null, { chamfer: 2, key: false, spark: false });
+        frect(g, nx + 3, ny + 3, 2, 8, sp.color);
+        drawText(g, nm, nx + 8, ny + 4, { font: 'bold', color: s.title });
+      }
     }
-    UIK.panel(g, 6, boxY, W - 12, boxH, L.who === 'mirage' ? 'mirage' : L.who === 'limen' ? 'limen' : L.who === 'mosaico' ? 'mosaic' : 'dialog');
-    const tx = hasP && side === 'left' ? 146 : 16;
-    const tw = hasP ? W - 12 - 150 : W - 36;
-    // placa de nombre
+    const px = hasP && side === 'left' ? 6 + fw + 4 : 6;
+    const pw2 = hasP ? W - 12 - fw - 4 : W - 12;
+    // la caja se ajusta al texto (sin franjas vacías) y se apoya en el borde inferior
+    const lh = big ? 13 : 12;
+    const textH = textHeight(this.full, pw2 - 22, { lineH: lh });
+    const boxH = clamp(textH + (sp.name ? 15 : 0) + 22, 44, big ? 120 : 100), boxY = H - boxH - 6;
+    UIK.panel(g, px, boxY, pw2, boxH, style);
+    if (hint) UIK.pill(g, px + pw2 - 9, boxY + 6, hint, { align: 'right', rim: '#2b3b5d', fill: '#041533', color: '#93a6c8' });
+    let ty = boxY + 8;
     if (sp.name) {
-      const nw = FONTS.main.measure(sp.name) + 16;
-      const nx = hasP && side === 'left' ? 140 : (hasP ? W - 146 - nw : 14);
-      frect(g, nx, boxY - 9, nw, 13, '#0a0718'); frect(g, nx + 1, boxY - 8, nw - 2, 11, sp.color);
-      fdither(g, nx + 1, boxY - 8, nw - 2, 5, '#ffffff', 0.25);
-      drawText(g, sp.name, nx + nw / 2, boxY - 6, { align: 'center', color: '#0a0718' });
+      drawText(g, sp.name.toUpperCase(), px + 10, ty, { font: 'bold', color: s.title });
+      frect(g, px + 10, ty + 10, 16, 2, sp.color);
+      ty += 15;
     }
-    const opts = { color: '#fffaf0', shadow: '#0a0718', scale: big ? 1 : 1 };
-    drawTextBlock(g, this.full, tx, boxY + 12, tw, Object.assign({ max: Math.floor(this.shown), lineH: big ? 13 : 11 }, opts));
+    drawTextBlock(g, this.full, px + 10, ty, pw2 - 22, { max: shown, lineH: big ? 13 : 12, color: s.text });
     if (L.choices && this.done) {
       Gui.begin();
-      const n = L.choices.length;
-      const cw = Math.min(280, (W - 40) / Math.min(n, 2) - 8);
-      let cy = boxY - 8 - n * 22;
+      const cw = 262, cx = (hasP && side === 'right') ? 8 : W - 8 - cw;
+      const rw = cw - 12 - 18 - 14;
+      const hs = L.choices.map(c => Math.max(15, wrapText(c, rw).length * 11 + 4));
+      const tot = hs.reduce((a, b) => a + b + 3, 0) - 3;
+      let cy = boxY - 8 - tot - 12;
+      UIK.panel(g, cx, cy - 6, cw, tot + 12, style, null, { chamfer: 3, key: false });
       L.choices.forEach((c, k) => {
-        const by = cy + k * 22;
-        UIK.panel(g, W / 2 - cw / 2 - 4, by - 2, cw + 8, 22, 'glass');
-        if (Gui.button(g, 'ch' + k, W / 2 - cw / 2, by, cw, 18, c, { style: 'choice' })) this.next(k);
+        const r = Gui.choice(g, 'ch' + k, cx + 6, cy, cw - 12, c, 'ABCDEF'[k] || String(k + 1), {});
+        if (r.clicked) this.next(k);
+        cy += r.h + 3;
       });
       Gui.end();
     } else if (this.done) {
-      const bx = W - 22, by = boxY + boxH - 12 + Math.round(Math.sin(Game.time * 6));
-      frect(g, bx, by, 7, 2, '#ffe14d'); frect(g, bx + 1, by + 2, 5, 1, '#ffe14d'); frect(g, bx + 2, by + 3, 3, 1, '#ffe14d'); fpx(g, bx + 3, by + 4, '#ffe14d');
+      const bx = px + pw2 - 16, by = boxY + boxH - 12 + Math.round(Math.sin(Game.time * 6));
+      frect(g, bx, by, 7, 2, '#ffd23a'); frect(g, bx + 1, by + 2, 5, 1, '#ffd23a'); frect(g, bx + 2, by + 3, 3, 1, '#ffd23a'); fpx(g, bx + 3, by + 4, '#ffd23a');
     }
-    drawText(g, 'X: saltar', W - 16, boxY + 4, { font: 'tiny', color: '#5a5e80', align: 'right' });
   },
 };
 
@@ -13023,16 +13120,27 @@ const CLUES = {
 const REVEAL_AT = { discoveredLimenPurpose: ['earlyClose', 'clearPermeate'], foundOutlierDeletion: ['signedAS', 'outlierClean'], learnedElianaIsolation: ['humanPerturbation', 'reviewCommunity'], kiruDataUnlocked: ['kiruMemory'], rejectedSingleIndex: ['equityZero', 'perfectMap', 'minimums', 'mirrorSymbol'] };
 function clueRevealed(id) { for (const f in REVEAL_AT) if (REVEAL_AT[f].includes(id) && GS.flag(f)) return true; return false; }
 
+/** Corcho del tablero: grumos de 2–3 px en tres tonos (cacheado) */
+const _corkCache = new Map();
+function corkBoard(w, h) {
+  return _cacheGet(_corkCache, w + 'x' + h, () => {
+    const pb = new PixelBuffer(w, h), R = ['#7e4a24', '#9a5e2e', '#b8743e', '#c88a50'];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const n = fbm(x * 0.12, y * 0.12, 2, 41) + (hash2(x >> 1, y >> 1, 9) - 0.5) * 0.35; pb.set(x, y, R[clamp(Math.floor(n * 4), 0, 3)]); }
+    for (let x = 0; x < w; x++) { pb.set(x, 0, '#5a2e12'); pb.set(x, h - 1, '#5a2e12'); }
+    return pb.toCanvas();
+  }, 4);
+}
 const EvidenceScene = {
   overlay: true,
   enter() { this.sel = 0; this.t = 0; Audio2.sfx('page'); },
   update(dt) { this.t += dt; if (Input.pressed('cancel') || Input.pressed('data')) { Game.pop(); Audio2.sfx('uiBack'); } },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.72);
     UIK.panel(g, 20, 14, W - 40, H - 28, 'paper');
-    // corcho
-    frect(g, 28, 34, W - 56, H - 56, '#b8743e'); fdither(g, 28, 34, W - 56, H - 56, '#9a5e2e', 0.35);
-    drawTitleText(g, 'TABLERO DE EVIDENCIAS', W / 2, 18, 1, ['#fff6d8', '#f8d677', '#e49c44'], { align: 'center', shadow: '#3a1a10' });
+    // corcho (ruido en grumos prerenderizado, sin tramado)
+    g.drawImage(corkBoard(W - 56, H - 56), 28, 34);
+    UIK.badge(g, 'eye', 17, 11, 22, 'tech');
+    drawText(g, 'TABLERO DE EVIDENCIAS', 44, 20, { font: 'bold', color: '#3a1a10' });
     const ids = Object.keys(CLUES).filter(id => GS.s.clues.includes(id));
     if (!ids.length) { drawTextBlock(g, 'Aún no hay pistas. Observa anomalías, conversa y escanea: cada evidencia aparecerá aquí con su interpretación aparente. Las revelaciones de la historia las reinterpretarán.', 50, 120, W - 100, { color: '#3a1a10', align: 'center' }); return; }
     const cols = 3, cw = (W - 80) / cols, ch = 92;
@@ -13060,7 +13168,7 @@ const EvidenceScene = {
     });
     Gui.end();
     Gui.renderTooltip(g);
-    drawText(g, 'Pasa el cursor sobre una pista para ver la observación original · ESC para cerrar', W / 2, H - 22, { font: 'tiny', align: 'center', color: '#3a1a10' });
+    UIK.pill(g, W / 2, H - 26, 'Pasa el cursor sobre una pista para ver la observación original · ESC para cerrar', { align: 'center', rim: '#74381c', fill: '#f6e6cc', color: '#3a1a10' });
   },
 };
 
@@ -13387,7 +13495,7 @@ const PauseScene = {
   render(g) {
     UIK.scrim(g, 0.6);
     const x = W / 2 - 120, y = 40, w = 240;
-    UIK.panel(g, x, y, w, 270, 'tech');
+    UIK.panel(g, x, y, w, this.tab === 'map' ? 140 : 246, 'tech');
     UIK.header(g, x, y, w, 'PAUSA · ' + (LEVELS[this.gp.levelId].title || ''), 'tech', 'pause');
     Gui.begin();
     const B = (id, label, icon, fn, st) => { if (Gui.button(g, id, x + 20, this._y, w - 40, 22, label, { icon, align: 'left', style: st })) fn(); this._y += 26; };
@@ -13450,33 +13558,40 @@ const LevelCompleteScene = {
   enter(p) { this.id = p.level; this.t = 0; this.onDone = p.onDone; Audio2.sfx('unlock'); Audio2.playMusic('ending'); this.ps = new Particles(300); },
   update(dt) {
     this.t += dt; this.ps.update(dt);
-    if (Math.random() < 0.4) this.ps.emit('confetti', Math.random() * W, -4, 0, 30, 1);
+    // recompensa sobria: destellos de cristal y luciérnagas, sin confeti
+    if (Math.random() < 0.1) this.ps.emit(Math.random() < 0.5 ? 'crystal' : 'firefly', 120 + Math.random() * (W - 240), 60 + Math.random() * 200, 0, -6, 1);
   },
   render(g) {
     const M = LEVEL_META[this.id], lp = GS.lp(this.id);
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.7);
     this.ps.render(g);
     const x = 70, y = 22, w = W - 140, h = H - 44;
-    UIK.panel(g, x, y, w, h, 'dialog');
-    drawText(g, M.chapter + ' COMPLETADO', W / 2, y + 10, { align: 'center', font: 'tiny', color: '#ffe14d' });
-    drawTitleText(g, M.title, W / 2, y + 20, 2, ['#fffaf0', '#ffe14d', '#ff9f43'], { align: 'center', shadow: '#140d26', depth: 2 });
-    // insignia
-    const bx = x + 46, by = y + 92;
+    UIK.panel(g, x, y, w, h, 'tech');
+    UIK.badge(g, 'star', x - 3, y - 3, 22, 'tech');
+    drawText(g, M.chapter + ' COMPLETADO', x + 28, y + 7, { font: 'bold', color: '#ffd23a' });
+    frect(g, x + 22, y + 18, w - 28, 1, '#12305a'); frect(g, x + 22, y + 19, w - 28, 1, '#0b2a58');
+    drawTitleText(g, M.title, W / 2, y + 24, 2, ['#ffffff', '#e6f8fe', '#a8c8ff'], { align: 'center', font: 'bold', shadow: '#000633', depth: 1, outline: '#000633' });
+    // insignia (medalla de 48 px con el icono de la herramienta)
+    const bx = x + 50, by = y + 98;
     const k = Math.min(1, this.t * 1.5);
-    fdisc(g, bx, by, 26 * k, '#8a5e14'); fdisc(g, bx, by, 23 * k, '#eab02a'); fdisc(g, bx, by, 18 * k, M.pal[0]);
-    for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + this.t; fpx(g, bx + Math.cos(a) * 30, by + Math.sin(a) * 30, '#fff08a'); }
-    if (k >= 1) Icons.draw(g, TOOLS[M.tool].icon, bx - 14, by - 14, 2);
-    drawText(g, 'INSIGNIA', bx, by + 32, { align: 'center', font: 'tiny', color: '#ffe14d' });
-    drawTextBlock(g, M.badge, bx - 40, by + 40, 80, { align: 'center', color: '#fffaf0' });
+    if (k > 0.05) {
+      const r = Math.round(26 * k);
+      fdisc(g, bx, by, r + 1, '#000633'); fdisc(g, bx, by, r, '#ffd23a'); fdisc(g, bx, by, r - 2, '#9a6a12'); fdisc(g, bx, by, r - 4, mixHex('#041533', M.pal[0], 0.35)); fdisc(g, bx - 3, by - 4, (r - 4) * 0.55, mixHex('#072248', M.pal[0], 0.5));
+    }
+    for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + this.t * 0.6; fpx(g, bx + Math.cos(a) * 31, by + Math.sin(a) * 31, i % 2 ? '#fff2a0' : '#ffd23a'); }
+    if (k >= 1) { const ic = TOOLS[M.tool].icon; if (Icons.hasBig(ic)) Icons.drawBig(g, ic, bx, by); else Icons.draw(g, ic, bx - 14, by - 14, 2); }
+    UIK.pill(g, bx, by + 32, 'INSIGNIA', { align: 'center', rim: '#ffd23a', fill: '#1a1404', color: '#fff2c0' });
+    drawTextBlock(g, M.badge, bx - 44, by + 48, 88, { align: 'center', color: UI_INK.body });
     // criterios
-    let yy = y + 56;
-    drawText(g, 'CRITERIOS DE FINALIZACIÓN', x + 100, yy, { font: 'tiny', color: '#ffe14d' }); yy += 10;
-    for (const c in CRITERIA_LABELS) { Icons.draw(g, lp[c] ? 'check' : 'cross', x + 98, yy - 2); drawText(g, CRITERIA_LABELS[c], x + 116, yy + 1, { color: lp[c] ? '#fffaf0' : '#8a8fb8' }); yy += 15; }
+    let yy = y + 58;
+    drawText(g, 'CRITERIOS DE FINALIZACIÓN', x + 104, yy, { font: 'tiny', color: '#ffd23a' }); yy += 10;
+    for (const c in CRITERIA_LABELS) { Icons.draw(g, lp[c] ? 'check' : 'cross', x + 102, yy - 2); drawText(g, CRITERIA_LABELS[c], x + 120, yy + 1, { color: lp[c] ? UI_INK.body : UI_INK.dim }); yy += 15; }
     yy += 2;
-    drawText(g, 'HERRAMIENTA', x + 100, yy, { font: 'tiny', color: '#ffe14d' }); yy += 9;
-    Icons.draw(g, TOOLS[M.tool].icon, x + 98, yy - 2); drawText(g, TOOLS[M.tool].name, x + 116, yy + 1, { color: '#a6f4ff' }); yy += 18;
-    UIK.panel(g, x + 16, yy, w - 32, 40, 'glass');
-    drawTextBlock(g, '{y}Debrief:{/} ' + M.debrief, x + 24, yy + 6, w - 48, { color: '#fffaf0' });
+    drawText(g, 'HERRAMIENTA', x + 104, yy, { font: 'tiny', color: '#ffd23a' }); yy += 9;
+    Icons.draw(g, TOOLS[M.tool].icon, x + 102, yy - 2); drawText(g, TOOLS[M.tool].name, x + 120, yy + 1, { color: '#8fdfff' }); yy += 18;
+    const dt = '{y}Debrief:{/} ' + M.debrief, dh = textHeight(dt, w - 52) + 12;
+    UIK.panel(g, x + 16, yy, w - 32, dh, 'sheet', null, { chamfer: 2, key: false });
+    drawTextBlock(g, dt, x + 26, yy + 6, w - 52, { color: UI_INK.body });
     Gui.begin();
     if (this.t > 1 && Gui.button(g, 'cont', W / 2 - 80, y + h - 28, 160, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(); }
     Gui.end();
@@ -13489,6 +13604,18 @@ const LevelCompleteScene = {
    controles, error seguro y registro de evidencia.
    ===================================================================== */
 const SIM_PHASES = { demo: 'Demostración', guided: 'Práctica guiada', auto: 'Práctica autónoma', transfer: 'Transferencia', free: 'Laboratorio libre' };
+/** Fondo común de simuladores (cacheado): azul noche plano con rejilla de 16 px y viñeta en bandas */
+let _simBg = null;
+function simBackdrop() {
+  if (_simBg) return _simBg;
+  const c = makeCanvas(W, H), b = c.getContext('2d');
+  b.fillStyle = '#041026'; b.fillRect(0, 0, W, H);
+  b.fillStyle = '#071a36'; b.fillRect(0, Math.round(H * 0.42), W, H);
+  b.fillStyle = '#0a1e3a'; for (let x = 8; x < W; x += 16) b.fillRect(x, 0, 1, H); for (let y = 8; y < H; y += 16) b.fillRect(0, y, W, 1);
+  b.fillStyle = '#0e2850'; for (let x = 8; x < W; x += 64) for (let y = 8; y < H; y += 64) b.fillRect(x - 1, y, 3, 1), b.fillRect(x, y - 1, 1, 3);
+  b.globalAlpha = 0.5; b.fillStyle = '#020a1e'; b.fillRect(0, 0, W, 10); b.fillRect(0, H - 10, W, 10); b.globalAlpha = 1;
+  _simBg = c; return c;
+}
 function makeSim(def) {
   return Object.assign({
     overlay: true,
@@ -13541,44 +13668,46 @@ function makeSim(def) {
       this.ps.update(dt);
     },
     render(g) {
-      frect(g, 0, 0, W, H, '#070a1c');
-      fdither(g, 0, 0, W, H, '#0e1430', 0.5);
+      // fondo de laboratorio: azul noche plano con rejilla de 16 px (prerenderizado, sin tramado)
+      g.drawImage(simBackdrop(), 0, 0);
       this.draw && this.draw(g);
       this.ps.render(g);
-      // cabecera
-      UIK.panel(g, 4, 4, W - 8, 20, def.style || 'tech');
-      Icons.draw(g, def.icon || 'flask', 9, 7);
-      drawText(g, def.title, 26, 10, { color: '#fffaf0', shadow: '#070a1c' });
+      // cabecera: insignia + título en negrita + fase + puntos de fase + RA
+      UIK.panel(g, 4, 4, W - 8, 22, def.style || 'hud', null, { chamfer: 2, key: false });
+      UIK.badge(g, def.icon || 'flask', 2, 2, 22, def.style || 'hud');
       const ph = SIM_PHASES[this.phase] || this.phase;
       const phw = FONTS.main.measure(ph) + 14;
-      frect(g, W - phw - 120, 7, phw, 13, '#ffe14d'); drawText(g, ph, W - phw / 2 - 120, 10, { align: 'center', color: '#140d26' });
-      // indicadores de fase
-      def.phases.forEach((p2, i) => { const on = def.phases.indexOf(this.phase) >= i; frect(g, W - 110 + i * 14, 10, 10, 7, on ? '#86e36f' : '#1c2350'); });
-      drawText(g, def.ra || '', W - 52, 11, { font: 'tiny', color: '#a6f4ff' });
+      const phx = W - phw - 128;
+      drawText(g, fitText(def.title || '', phx - 40, 'bold'), 30, 11, { font: 'bold', color: '#edfcfe' });
+      frect(g, phx, 8, phw, 14, '#000633'); frect(g, phx + 1, 9, phw - 2, 12, '#ffd23a'); frect(g, phx + 2, 10, phw - 4, 5, '#ffe58a');
+      drawText(g, ph, phx + phw / 2, 11, { align: 'center', color: '#1a0f00' });
+      def.phases.forEach((p2, i) => { const on = def.phases.indexOf(this.phase) >= i; const dx = W - 118 + i * 14; frect(g, dx, 11, 11, 8, '#000633'); frect(g, dx + 1, 12, 9, 6, on ? '#3fe0a0' : '#0b2444'); if (on) frect(g, dx + 1, 12, 9, 1, '#c2f5de'); });
+      if (def.ra) UIK.pill(g, W - 9, 9, def.ra, { align: 'right', rim: '#8fdfff', fill: '#031128', color: '#c4fbff' });
+      // mensaje de KIRU (u otro guía) como globo con cola hacia su busto
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
-        const lines = wrapText(m.text, 300);
-        const hh = lines.length * 11 + 10;
-        const by = H - hh - 6;
-        UIK.panel(g, 6, by, 340, hh, 'glass');
-        Icons.draw(g, m.who === 'kiru' ? 'kiru' : 'person', 10, by + 4);
-        let rem = Math.floor(m.t * 60);
-        lines.forEach((l, i) => { if (rem > 0) drawText(g, l, 28, by + 5 + i * 11, { color: '#fffaf0', max: rem, shadow: '#070a1c' }); rem -= stripMarkup(l).length + 1; });
+        const bx = 6, by = H - 36;
+        UIK.frame(g, bx, by, 30, 30, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+        const bust = UIK.bust(sp.portrait || 'kiru', 'smile');
+        g.save(); g.beginPath(); g.rect(bx + 4, by + 4, 22, 22); g.clip();
+        g.drawImage(bust, 0, 0, bust.width, bust.height, bx + 2, by + 3, 26, 25);
+        g.restore();
+        UIK.speechBubble(g, bx + 30, by + 2, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);
     },
     renderSafeErr(g) {
       const e = this.safeErr;
-      fdither(g, 0, 0, W, H, '#2a0c18', 0.5);
+      UIK.scrim(g, 0.55, '#1a0612');
       const w = 380, x = W / 2 - w / 2;
-      const th = textHeight(e.text, w - 20) + textHeight(e.guide || '', w - 20) + 70;
-      const y = H / 2 - th / 2;
+      const th = textHeight('{o}Consecuencia (reversible):{/} ' + e.text, w - 20) + textHeight(e.guide ? '{y}Pregunta orientadora:{/} ' + e.guide : '', w - 20) + 70;
+      const y = Math.round(H / 2 - th / 2);
       UIK.panel(g, x, y, w, th, 'alert');
-      UIK.header(g, x, y, w, 'ESTADO DE ERROR SEGURO · ' + e.title, 'alert', 'warn');
-      let yy = y + 22;
-      yy += drawTextBlock(g, '{o}Consecuencia (reversible):{/} ' + e.text, x + 10, yy, w - 20, { color: '#fffaf0' }) + 4;
-      if (e.guide) yy += drawTextBlock(g, '{y}Pregunta orientadora:{/} ' + e.guide, x + 10, yy, w - 20, { color: '#fffaf0' }) + 4;
+      UIK.header(g, x, y, w, 'ERROR SEGURO · ' + e.title, 'alert', 'warn');
+      let yy = y + 24;
+      yy += drawTextBlock(g, '{o}Consecuencia (reversible):{/} ' + e.text, x + 10, yy, w - 20, { color: '#ffe8e4' }) + 4;
+      if (e.guide) yy += drawTextBlock(g, '{y}Pregunta orientadora:{/} ' + e.guide, x + 10, yy, w - 20, { color: '#ffe8e4' }) + 4;
       Gui.begin();
       if (Gui.button(g, 'serr_inspect', x + 10, y + th - 26, 150, 18, 'Inspeccionar datos', { icon: 'eye', style: 'ghost' })) { this.safeErr = null; this.inspect = true; }
       if (Gui.button(g, 'serr_retry', x + w - 160, y + th - 26, 150, 18, 'Corregir y continuar', { icon: 'reset', style: 'gold' })) { this.safeErr = null; this.paused = false; this.onSafeRetry && this.onSafeRetry(); }
@@ -13594,24 +13723,30 @@ const ExplainScene = {
   update() { },
   render(g) {
     const p = this.p;
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.62);
     const x = 50, w = W - 100;
-    UIK.panel(g, x, 30, w, H - 60, 'tech');
-    UIK.header(g, x, 30, w, 'EXPLICA LA RELACIÓN', 'tech', 'chart');
-    let y = 52;
-    y += drawTextBlock(g, p.prompt, x + 10, y, w - 20, { color: '#fffaf0' }) + 6;
+    const opts = this.order.map(k => p.options[k]);
+    const M = UIK.measureQuestion(w, p.prompt, opts);
+    let fbTxt = '';
+    if (this.fb) fbTxt = this.fb.ok ? '{g}Relación bien explicada.{/} ' + p.why : '{o}Revisa:{/} ' + (p.whyNot ? p.whyNot[this.fb.c] || p.why : p.why) + (this.conf === 'mucho' ? ' {p}(Respondiste con mucha confianza: es una buena oportunidad para revisar la concepción.){/}' : '');
+    const fbh = this.fb ? textHeight(fbTxt, w - 46, { lineH: 11 }) + 12 : 0;
+    const h = Math.min(H - 12, M.h + 34 + (fbh ? fbh + 4 : 0));
+    const y = Math.max(6, Math.round(H / 2 - h / 2));
+    const r = UIK.questionPanel(g, x, y, w, h, { title: 'EXPLICA LA RELACIÓN', icon: 'chart', stem: p.prompt, tag: 'RELACIONAL' });
+    let yy = r.contentY;
     Gui.begin();
     this.order.forEach((k, i) => {
       let st = this.sel === k ? 'selected' : null;
       if (this.fb) st = k === p.key ? 'correct' : (k === this.fb.c ? 'wrong' : 'dim');
-      const r = Gui.choice(g, 'ex' + i, x + 10, y, w - 20, p.options[k], 'ABCD'[i], { state: st, disabled: !!this.fb });
-      if (r.clicked && !this.fb) this.sel = k;
-      y += r.h + 3;
+      const c = Gui.choice(g, 'ex' + i, r.x, yy, r.w, p.options[k], 'ABCD'[i], { state: st, disabled: !!this.fb });
+      if (c.clicked && !this.fb) this.sel = k;
+      yy += c.h + 3;
     });
+    const by = y + h - 26;
     if (!this.fb) {
-      drawText(g, '¿Qué tan seguro estás?', x + 10, H - 56, { font: 'tiny', color: '#cfd6f0' });
-      ['poco', 'medio', 'mucho'].forEach((c, k) => { if (Gui.button(g, 'cf' + c, x + 110 + k * 56, H - 60, 52, 14, c.toUpperCase(), { style: this.conf === c ? 'gold' : 'ghost' })) this.conf = c; });
-      if (Gui.button(g, 'ok', x + w - 130, H - 62, 120, 20, 'Explicar', { style: 'good', icon: 'check', disabled: this.sel < 0 || !this.conf })) {
+      drawText(g, '¿Qué tan seguro estás?', r.x, by + 5, { color: UI_INK.dim });
+      ['poco', 'medio', 'mucho'].forEach((c, k) => { if (Gui.button(g, 'cf' + c, r.x + 130 + k * 58, by + 1, 54, 16, c.toUpperCase(), { style: this.conf === c ? 'gold' : 'ghost', selected: this.conf === c })) this.conf = c; });
+      if (Gui.button(g, 'ok', r.x + r.w - 120, by, 120, 20, 'Explicar', { style: 'good', icon: 'check', disabled: this.sel < 0 || !this.conf })) {
         const ok = this.sel === p.key;
         this.fb = { c: this.sel, ok };
         LearningModel.record({ kind: 'challenge', id: p.id, ra: p.ra, concepts: p.concepts, solo: 4, correct: ok, confidence: this.conf, time: (nowMs() - this.t0) / 1000, misconception: ok ? null : p.mis, explanation: p.options[this.sel] });
@@ -13619,12 +13754,11 @@ const ExplainScene = {
         Audio2.sfx(ok ? 'success' : 'error');
       }
     } else {
-      const txt = this.fb.ok ? '{g}Relación bien explicada.{/} ' + p.why : '{o}Revisa:{/} ' + (p.whyNot ? p.whyNot[this.fb.c] || p.why : p.why) + (this.conf === 'mucho' ? ' {p}(Respondiste con mucha confianza: es una buena oportunidad para revisar la concepción.){/}' : '');
-      const hh = textHeight(txt, w - 40) + 10;
-      UIK.panel(g, x + 10, H - 70 - hh, w - 20, hh, this.fb.ok ? 'green' : 'alert');
-      drawTextBlock(g, txt, x + 16, H - 65 - hh, w - 32, { color: '#fffaf0' });
-      if (!this.fb.ok && Gui.button(g, 'retry', x + 10, H - 62, 120, 20, 'Reintentar', { style: 'gold', icon: 'reset' })) { this.fb = null; this.sel = -1; this.conf = null; }
-      if (Gui.button(g, 'cont', x + w - 130, H - 62, 120, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(this.fb.ok); }
+      UIK.panel(g, r.x, yy + 1, r.w, fbh, this.fb.ok ? 'green' : 'alert', null, { chamfer: 2, key: false, spark: false });
+      Icons.draw(g, this.fb.ok ? 'check' : 'warn', r.x + 5, yy + 4);
+      drawTextBlock(g, fbTxt, r.x + 22, yy + 7, w - 46, { color: this.fb.ok ? '#eafff6' : '#ffe8e4', lineH: 11 });
+      if (!this.fb.ok && Gui.button(g, 'retry', r.x, by, 120, 20, 'Reintentar', { style: 'gold', icon: 'reset' })) { this.fb = null; this.sel = -1; this.conf = null; }
+      if (Gui.button(g, 'cont', r.x + r.w - 120, by, 120, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(this.fb.ok); }
     }
     Gui.end();
   },
@@ -21140,7 +21274,7 @@ const TitleScene = {
     drawTitleText(g, 'LA CIUDAD QUE BEBÍA EL MAR', W / 2, ly + 50, 2, ['#c4fbff', '#56e5ff', '#20d6c7'], { align: 'center', shadow: '#140d26', depth: 1 });
     for (let i = 0; i < 5; i++) { const sx = W / 2 - 150 + ((t * 40 + i * 70) % 300); fpx(g, sx, ly + 4 + (i * 7) % 26, '#ffffff'); }
     this.renderMenu(g);
-    drawText(g, 'Videojuego educativo STEAM · agua · energía · hidrógeno · agroecología', W / 2, 98, { font: 'tiny', align: 'center', color: '#ffd8ec', shadow: '#2a1040' });
+    UIK.pill(g, W / 2, 96, 'Videojuego educativo STEAM · agua · energía · hidrógeno · agroecología', { align: 'center', rim: '#c244a2', fill: '#1d0b3a', color: '#ffd8ec' });
   },
   renderMenu(g) {
     Gui.begin();
@@ -21151,17 +21285,20 @@ const TitleScene = {
       items.push(['teach', 'Modo docente', 'chart', () => Game.push(TeacherScene, {}), 'primary']);
       items.push(['sett', 'Ajustes', 'gear', () => Game.push(SettingsScene, {}), 'primary']);
       items.push(['cred', 'Créditos', 'book', () => Game.push(CreditsScene, {}), 'primary']);
-      const bw = 112, gap = 6, tw = items.length * (bw + gap) - gap;
-      let x = Math.round(W / 2 - tw / 2);
-      const y = H - 44;
-      UIK.panel(g, x - 8, y - 6, tw + 16, 32, 'glass');
-      for (const [id, l, ic, fn, st] of items) { if (Gui.button(g, id, x, y, bw, 20, l, { icon: ic, style: st })) fn(); x += bw + gap; }
+      // lista vertical en panel navy a la derecha (deja libres el sol, el mar y a Amaya)
+      const w = 158, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
+      const x = W - w - 14, y = 128;
+      UIK.panel(g, x, y, w, h, 'tech');
+      UIK.header(g, x, y, w, 'MENÚ', 'tech', 'map');
+      let yy = y + 26;
+      for (const [id, l, ic, fn, st] of items) { if (Gui.button(g, id, x + 10, yy, w - 20, bh, l, { icon: ic, style: st, align: 'left' })) fn(); yy += bh + gap; }
     } else if (this.menu === 'confirmNew') {
-      const x = W / 2 - 130, y = H - 104, w = 260;
-      UIK.panel(g, x, y, w, 90, 'alert');
-      drawTextBlock(g, 'Ya existe una partida guardada. ¿Empezar de nuevo? Se perderá el progreso local.', x + 10, y + 8, w - 20, { color: '#fffaf0' });
-      if (Gui.button(g, 'yes', x + 10, y + 62, 140, 20, 'Sí, empezar', { icon: 'reset', style: 'danger' })) { SaveManager.wipe(); this.newGame(); }
-      if (Gui.button(g, 'no', x + 156, y + 62, 94, 20, 'Volver', { style: 'ghost' })) this.menu = 'main';
+      const w = 260, x = W - w - 14, y = 140;
+      UIK.panel(g, x, y, w, 96, 'alert');
+      UIK.header(g, x, y, w, 'NUEVA PARTIDA', 'alert', 'warn');
+      drawTextBlock(g, 'Ya existe una partida guardada. ¿Empezar de nuevo? Se perderá el progreso local.', x + 10, y + 26, w - 20, { color: '#ffe8e4' });
+      if (Gui.button(g, 'yes', x + 10, y + 68, 140, 20, 'Sí, empezar', { icon: 'reset', style: 'danger' })) { SaveManager.wipe(); this.newGame(); }
+      if (Gui.button(g, 'no', x + 156, y + 68, 94, 20, 'Volver', { style: 'ghost' })) this.menu = 'main';
     }
     Gui.end();
   },
@@ -21205,7 +21342,7 @@ const IntroScene = {
     for (let i = 0; i < 80; i++) fpx(g, hash1(i, 1) * W, hash1(i, 2) * H * 0.7, (Game.frame + i * 7) % 60 < 4 ? '#ffffff' : '#5a6fb0');
     const ln = this.lines[Math.min(this.i, this.lines.length - 1)];
     drawTextBlock(g, ln, 80, 150, W - 160, { color: '#fffaf0', align: 'center', max: Math.floor(this.t * 45), shadow: '#140d26' });
-    drawText(g, 'ENTER / clic: continuar · X: saltar', W / 2, H - 20, { font: 'tiny', align: 'center', color: '#5a5e80' });
+    UIK.pill(g, W / 2, H - 22, 'ENTER / clic: continuar · X: saltar', { align: 'center', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' });
   },
 };
 
@@ -21232,6 +21369,8 @@ const MAP_BIOMES = [
   [430, 108, RAMP.mesa, 0.5, 0.9], [520, 120, RAMP.mesa, 0.45, 0.9],
   [352, 214, RAMP.dune, 0.55, 0.8], [300, 140, RAMP.dune, 0.6, 0.8], [500, 210, RAMP.dune, 0.5, 0.8], [270, 240, RAMP.dune, 0.6, 0.7],
 ];
+// el mapa se dibuja desplazado hacia arriba para dejar sitio a la tira de capítulos
+const MAP_OY = -36, MAP_STRIP_Y = 292;
 const MAP_LINKS = [[0, 1], [1, 2], [2, 3], [0, 6], [6, 4], [4, 7], [6, 5], [4, 8], [3, 8], [0, 9], [9, 5], [6, 10], [10, 4], [10, 8], [10, 7]];
 const WorldMapScene = {
   touchControls: false,
@@ -21258,7 +21397,7 @@ const WorldMapScene = {
       let c;
       if (d > 0) {
         const t = clamp(d * 3, 0, 1);
-        c = rampDither(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0f4888', '#0d3168'], t, x, y);
+        c = smoothBand(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0f4888', '#0d3168'], t, x, y);
         if (d < 0.025) c = '#c6fff2';
         else if (d < 0.05 && ((x + y + Math.floor(fbm(x * 0.1, y * 0.1, 2, 9) * 6)) % 5 === 0)) c = '#6cf0db';
       } else {
@@ -21268,8 +21407,8 @@ const WorldMapScene = {
         let b1 = null, d1 = 1e9, d2 = 1e9;
         for (const A of MAP_BIOMES) { const dd = Math.hypot(wx - A[0], (wy - A[1]) * 1.1); if (dd < d1) { d2 = d1; d1 = dd; b1 = A; } else if (dd < d2) d2 = dd; }
         let ramp = b1[2], t = b1[3] + (n - 0.5) * b1[4];
-        if (d2 - d1 < 5 && bayer4(x, y) < 0.5 - (d2 - d1) / 10) t -= 0.12;
-        c = rampDither(ramp, t, x, y);
+        if (d2 - d1 < 3) t -= 0.1; // frontera de bioma: banda sólida más oscura
+        c = smoothBand(ramp, t, x, y);
         if (d > -0.02) c = '#fff6d8';
         // relieve sombreado
         const dd = landF(x + 1, y + 1) - d;
@@ -21311,13 +21450,13 @@ const WorldMapScene = {
       if (best) { this.sel = best.id; Audio2.sfx('uiMove'); }
     }
     if (Input.pressed('next')) { const i = avail.findIndex(n => n.id === this.sel); this.sel = avail[(i + 1) % avail.length].id; Audio2.sfx('uiMove'); }
-    if (Input.pointer.pressed) for (const n of avail) if (dist(Input.pointer.x, Input.pointer.y, n.x, n.y) < 12) { if (this.sel === n.id) this.enterLevel(); else { this.sel = n.id; Audio2.sfx('uiMove'); } Input.consumePointer(); }
+    if (Input.pointer.pressed && Input.pointer.y < MAP_STRIP_Y) for (const n of avail) if (dist(Input.pointer.x, Input.pointer.y, n.x, n.y + MAP_OY) < 12) { if (this.sel === n.id) this.enterLevel(); else { this.sel = n.id; Audio2.sfx('uiMove'); } Input.consumePointer(); }
     if (Input.pressed('confirm') && !Gui.focus) this.enterLevel();
     if (Input.pressed('codex')) Game.push(CodexScene, {});
     if (Input.pressed('data')) Game.push(EvidenceScene, {});
     if (Input.pressed('pause')) Game.push(MapMenuScene, {});
     if (Input.keyPressed('F9')) Game.push(TeacherScene, {});
-    if (Math.random() < 0.1) this.ps.emit('spark', MAP_NODES[this.sel].x + (Math.random() - 0.5) * 16, MAP_NODES[this.sel].y + (Math.random() - 0.5) * 16, 0, -10, 1);
+    if (Math.random() < 0.1) this.ps.emit('spark', MAP_NODES[this.sel].x + (Math.random() - 0.5) * 16, MAP_NODES[this.sel].y + MAP_OY + (Math.random() - 0.5) * 16, 0, -10, 1);
   },
   enterLevel() {
     const id = this.sel;
@@ -21327,53 +21466,73 @@ const WorldMapScene = {
     Game.transition(() => Game.setScene(GameplayScene, { level: id }));
   },
   render(g) {
-    const t = this.t;
-    g.drawImage(this.mapC, 0, 0);
-    drawSeaSparkles(g, 0, 0, W, H, t, 0.5, ['#c6fff2', '#ffffff']);
-    // sombras de nubes cruzando el mapa
-    for (let i = 0; i < 4; i++) { const x = ((t * (6 + i * 2) + i * 190) % (W + 160)) - 80, y = 60 + i * 70; fshadow(g, x, y, 40 + i * 6, 12 + i * 2, '#0a1a3a', 0.28); }
+    const t = this.t, OY = MAP_OY;
+    g.drawImage(this.mapC, 0, OY);
+    drawSeaSparkles(g, 0, 0, W, MAP_STRIP_Y, t, 0.5, ['#c6fff2', '#ffffff']);
+    // sombras de nubes cruzando el mapa (elipses translúcidas sólidas)
+    g.globalAlpha = 0.16; for (let i = 0; i < 4; i++) { const x = ((t * (6 + i * 2) + i * 190) % (W + 160)) - 80, y = 40 + i * 64; fdisc(g, x, y, 34 + i * 5, '#0a1a3a'); } g.globalAlpha = 1;
     // enlaces SYNARA animados
     MAP_LINKS.forEach(([a, b], i) => {
       const A = MAP_NODES[a], B = MAP_NODES[b];
       const on = GS.s.unlocked.includes(a) && GS.s.unlocked.includes(b);
       const n = Math.ceil(dist(A.x, A.y, B.x, B.y) / 3);
-      for (let k = 0; k < n; k++) { const ph = (k / n + t * 0.4 + i * 0.13) % 1; const x = lerp(A.x, B.x, k / n), y = lerp(A.y, B.y, k / n); if (on && ph < 0.08) fpx(g, x, y - 1, i % 2 ? '#56e5ff' : '#ffe14d'); }
+      for (let k = 0; k < n; k++) { const ph = (k / n + t * 0.4 + i * 0.13) % 1; const x = lerp(A.x, B.x, k / n), y = lerp(A.y, B.y, k / n) + OY; if (on && ph < 0.08) fpx(g, x, y - 1, i % 2 ? '#56e5ff' : '#ffe14d'); }
     });
-    // aerogeneradores diminutos en el corredor
-    for (let i = 0; i < 5; i++) ART.turbine(g, 400 + i * 14, 92 + (i % 2) * 8, 10, t * 2 + i, { col: '#fffaf0', shade: '#cfe8ee' });
-    // nodos
+    for (let i = 0; i < 5; i++) ART.turbine(g, 400 + i * 14, 92 + (i % 2) * 8 + OY, 10, t * 2 + i, { col: '#fffaf0', shade: '#cfe8ee' });
+    // nodos: islas-nodo con anillo del color del capítulo
     for (const n of MAP_NODES) {
       const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id), sel = this.sel === n.id;
-      const pulse = sel ? Math.sin(t * 6) * 1.5 : 0;
-      fdisc(g, n.x, n.y + 2, 10, 'rgba(5,3,15,0.5)');
-      fdisc(g, n.x, n.y, 9 + pulse, done ? '#eab02a' : un ? '#fffaf0' : '#3a3a5a');
-      fdisc(g, n.x, n.y, 7 + pulse, done ? '#ffd84a' : un ? '#20d6c7' : '#1c1f34');
-      if (un) Icons.draw(g, n.icon, n.x - 7, n.y - 7); else Icons.draw(g, 'lock', n.x - 7, n.y - 7);
-      if (sel) { for (let a = 0; a < 12; a++) { const an = a / 12 * TAU + t * 2; fpx(g, n.x + Math.cos(an) * 14, n.y + Math.sin(an) * 14, '#ffe14d'); } }
-      drawText(g, String(n.id).padStart(2, '0'), n.x, n.y + 11, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#140d26' });
+      const nx = n.x, ny = n.y + OY, acc = LEVEL_CARD_ACCENT[n.id] || '#56e5ff';
+      g.globalAlpha = un ? 0.4 : 0.18; fdisc(g, nx, ny + 3, 12, acc); g.globalAlpha = 1;
+      fdisc(g, nx, ny, 10, '#000633'); fdisc(g, nx, ny, 9, done ? '#ffd23a' : un ? acc : '#3a4a6a'); fdisc(g, nx, ny, 7, done ? '#553a08' : un ? '#06183a' : '#0a1222');
+      if (un) Icons.draw(g, n.icon, nx - 7, ny - 7); else { g.globalAlpha = 0.5; Icons.draw(g, n.icon, nx - 7, ny - 7); g.globalAlpha = 1; Icons.draw(g, 'lock', nx + 1, ny - 1); }
+      if (sel) { for (let a = 0; a < 16; a++) { const an = a / 16 * TAU + t * 2; fpx(g, nx + Math.cos(an) * (14 + Math.sin(t * 6)), ny + Math.sin(an) * (14 + Math.sin(t * 6)), a % 2 ? '#fff2a0' : '#ffd23a'); } }
+      UIK.pill(g, nx, ny + 11, String(n.id).padStart(2, '0'), { align: 'center', rim: un ? acc : '#3a4a6a', fill: '#031128', color: '#e8fcff' });
     }
     this.ps.render(g);
-    // panel de información
-    const n = MAP_NODES[this.sel], M = LEVEL_META[n.id];
-    const px = n.x > W / 2 ? 10 : W - 230, pw = 220;
-    UIK.panel(g, px, 10, pw, 196, 'dialog');
-    drawText(g, M.chapter, px + 10, 16, { font: 'tiny', color: '#ffe14d' });
-    drawText(g, M.title, px + 10, 25, { color: '#fffaf0', shadow: '#0a0718' });
-    drawText(g, n.name, px + 10, 37, { font: 'tiny', color: '#a6f4ff' });
-    const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id);
-    drawText(g, done ? '★ COMPLETADO · ' + M.badge : un ? (LEVELS[n.id] ? 'DISPONIBLE' : 'EN CONSTRUCCIÓN') : 'BLOQUEADO', px + 10, 48, { font: 'tiny', color: done ? '#ffd84a' : un ? '#86e36f' : '#8a8fb8' });
-    drawTextBlock(g, '{y}' + M.ra + '{/} ' + RA[M.ra], px + 10, 60, pw - 20, { color: '#cfd6f0', font: 'main' });
-    const cs = RA_CONCEPTS[M.ra] || [];
-    let yy = 140;
-    for (const c of cs.slice(0, 3)) { drawText(g, MASTERY_LABELS[c], px + 10, yy, { font: 'tiny', color: '#cfd6f0' }); UIK.bar(g, px + 136, yy, 70, 5, (GS.s.mastery ? GS.s.mastery[c] : 0) / 100, '#86e36f'); yy += 9; }
     Gui.begin();
-    if (Gui.button(g, 'enter', px + 10, 172, pw - 20, 22, done ? 'Volver a jugar' : 'Entrar al capítulo', { style: un && LEVELS[n.id] ? 'good' : 'ghost', icon: 'play', disabled: !un || !LEVELS[n.id] })) this.enterLevel();
-    // barra inferior
-    const items = [['Atlas', 'book', () => Game.push(CodexScene, {})], ['Evidencias', 'eye', () => Game.push(EvidenceScene, {})], ['Aprendizaje', 'chart', () => Game.push(AnalyticsScene, {})], ['Práctica', 'flask', () => Game.push(PracticeScene, {})], ['Menú', 'gear', () => Game.push(MapMenuScene, {})]];
-    items.forEach(([l, ic, fn], i) => { if (Gui.button(g, 'mb' + i, 10 + i * 92, H - 26, 88, 18, l, { icon: ic, style: 'primary', align: 'left' })) fn(); });
+    // título del mapa (arriba a la izquierda) y atajos con icono (arriba a la derecha)
+    UIK.panel(g, 6, 6, 150, 22, 'hud', null, { chamfer: 2, key: false });
+    UIK.badge(g, 'map', 3, 3, 22, 'hud');
+    drawText(g, 'MAPA DEL NEXO', 30, 13, { font: 'bold', color: '#edfcfe' });
+    const items = [['Atlas del Nexo', 'book', () => Game.push(CodexScene, {})], ['Tablero de Evidencias', 'eye', () => Game.push(EvidenceScene, {})], ['Mi aprendizaje', 'chart', () => Game.push(AnalyticsScene, {})], ['Sala de práctica', 'flask', () => Game.push(PracticeScene, {})], ['Menú', 'gear', () => Game.push(MapMenuScene, {})]];
+    items.forEach(([l, ic, fn], i) => { if (Gui.button(g, 'mb' + i, W - 6 - (items.length - i) * 25, 6, 23, 22, '', { icon: ic, style: 'primary', tip: l })) fn(); });
+    // panel de información del capítulo
+    const n = MAP_NODES[this.sel], M = LEVEL_META[n.id];
+    const px = n.x > W / 2 ? 10 : W - 230, pw = 220, py = 38, ph = 248;
+    const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id);
+    UIK.panel(g, px, py, pw, ph, 'tech');
+    UIK.badge(g, n.icon, px - 3, py - 3, 22, 'tech');
+    drawText(g, M.chapter, px + 26, py + 5, { font: 'tiny', color: '#ffd23a' });
+    drawText(g, fitText(M.title, pw - 34, 'bold'), px + 26, py + 12, { font: 'bold', color: '#e6f8fe' });
+    frect(g, px + 22, py + 22, pw - 28, 1, '#12305a'); frect(g, px + 22, py + 23, pw - 28, 1, '#0b2a58');
+    const thumb = LevelThumbs.get(n.id);
+    frect(g, px + 8, py + 28, 72, 43, '#000633'); if (thumb) g.drawImage(thumb, px + 9, py + 29); else frect(g, px + 9, py + 29, 70, 41, '#0a2450');
+    if (!un) { g.globalAlpha = 0.6; frect(g, px + 9, py + 29, 70, 41, '#000633'); g.globalAlpha = 1; Icons.draw(g, 'lock', px + 37, py + 43); }
+    drawTextBlock(g, n.name, px + 86, py + 30, pw - 94, { color: '#8fdfff' });
+    UIK.pill(g, px + 86, py + 56, done ? 'COMPLETADO' : un ? (LEVELS[n.id] ? 'DISPONIBLE' : 'EN CONSTRUCCIÓN') : 'BLOQUEADO', { rim: done ? '#ffd23a' : un ? '#3fe0a0' : '#3a5a8a', fill: done ? '#1a1404' : un ? '#073d2e' : '#061a38', color: done ? '#fff2c0' : un ? '#c2f5de' : '#93a6c8', icon: done ? 'star' : un ? 'check' : 'lock' });
+    if (done) drawText(g, fitText(M.badge, pw - 20, 'tiny'), px + 10, py + 76, { font: 'tiny', color: '#ffd23a' });
+    let yy = py + 86;
+    yy += drawTextBlock(g, '{y}' + M.ra + '{/} ' + RA[M.ra], px + 10, yy, pw - 20, { color: UI_INK.body, font: 'main' }) + 6;
+    const cs = RA_CONCEPTS[M.ra] || [];
+    yy = Math.min(yy, py + ph - 70);
+    for (const c of cs.slice(0, 3)) { drawText(g, fitText(MASTERY_LABELS[c], 120, 'tiny'), px + 10, yy, { font: 'tiny', color: '#b8c8e8' }); UIK.bar(g, px + 134, yy - 1, 76, 6, (GS.s.mastery ? GS.s.mastery[c] : 0) / 100, '#3fe0a0'); yy += 10; }
+    if (Gui.button(g, 'enter', px + 10, py + ph - 30, pw - 20, 22, done ? 'Volver a jugar' : 'Entrar al capítulo', { style: un && LEVELS[n.id] ? 'good' : 'ghost', icon: 'play', disabled: !un || !LEVELS[n.id] })) this.enterLevel();
+    // tira inferior de tarjetas de capítulo (como en la referencia)
+    frect(g, 0, MAP_STRIP_Y, W, H - MAP_STRIP_Y, '#00152c'); frect(g, 0, MAP_STRIP_Y, W, 1, '#101220'); frect(g, 0, MAP_STRIP_Y + 1, W, 1, '#1e5a8a'); frect(g, 0, MAP_STRIP_Y + 2, W, 1, '#0a2444');
+    const ids = MAP_NODES.map(m => m.id).sort((a, b) => a - b);
+    const vis = 8, first = clamp(ids.indexOf(this.sel) - 3, 0, Math.max(0, ids.length - vis));
+    if (first > 0) { frect(g, 1, MAP_STRIP_Y + 30, 3, 7, '#8fdfff'); fpx(g, 0, MAP_STRIP_Y + 33, '#8fdfff'); }
+    if (first + vis < ids.length) { frect(g, W - 4, MAP_STRIP_Y + 30, 3, 7, '#8fdfff'); fpx(g, W - 1, MAP_STRIP_Y + 33, '#8fdfff'); }
+    const cur = GS.s.unlocked.filter(i => LEVELS[i] && !GS.s.completed.includes(i)).sort((a, b) => a - b)[0];
+    for (let k = 0; k < vis && first + k < ids.length; k++) {
+      const id = ids[first + k], cx = 6 + k * 79, cy = MAP_STRIP_Y + 5;
+      const st = GS.s.completed.includes(id) ? 'done' : !GS.s.unlocked.includes(id) ? 'locked' : id === cur ? 'current' : 'open';
+      UIK.levelCard(g, cx, cy, 74, 57, { id, label: LEVEL_CARD_NAME[id], state: st, selected: this.sel === id });
+      if (Gui.button(g, 'card' + id, cx, cy, 74, 57, '', { noDraw: true, noKey: true, tip: LEVEL_META[id].chapter + ' · ' + LEVEL_META[id].title })) { if (this.sel === id) this.enterLevel(); else { this.sel = id; Audio2.sfx('uiMove'); } }
+    }
     Gui.end();
     Gui.renderTooltip(g);
-    drawTitleText(g, 'MAPA DEL NEXO', W - 12 - (px === 10 ? 0 : 230) + (px === 10 ? -130 : 0), H - 46, 1, ['#fff6d8', '#ffe14d'], { shadow: '#140d26' });
   },
 };
 const MapMenuScene = {
@@ -21381,10 +21540,10 @@ const MapMenuScene = {
   enter() { },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.7);
+    UIK.scrim(g, 0.6);
     const x = W / 2 - 100, w = 200;
-    UIK.panel(g, x, 70, w, 200, 'dialog');
-    UIK.header(g, x, 70, w, 'MENÚ', 'dialog', 'gear');
+    UIK.panel(g, x, 70, w, 152, 'tech');
+    UIK.header(g, x, 70, w, 'MENÚ', 'tech', 'gear');
     Gui.begin();
     let y = 96;
     const B = (id, l, ic, fn) => { if (Gui.button(g, id, x + 16, y, w - 32, 20, l, { icon: ic, align: 'left' })) fn(); y += 24; };
@@ -21413,11 +21572,11 @@ const SettingsScene = {
   },
   render(g) {
     const S = Game.settings;
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.72);
     UIK.panel(g, 30, 14, W - 60, H - 28, 'tech');
     UIK.header(g, 30, 14, W - 60, 'AJUSTES Y ACCESIBILIDAD', 'tech', 'gear');
     Gui.begin();
-    ['general', 'accesibilidad', 'controles'].forEach((t, i) => { if (Gui.button(g, 'tab' + t, 40 + i * 120, 36, 112, 16, t.toUpperCase(), { style: this.tab === t ? 'gold' : 'tab', selected: this.tab === t })) this.tab = t; });
+    ['general', 'accesibilidad', 'controles'].forEach((t, i) => { if (Gui.button(g, 'tab' + t, 40 + i * 120, 36, 112, 16, t.toUpperCase(), { style: 'tab', selected: this.tab === t })) this.tab = t; });
     let y = 60;
     const x = 44, w = 260;
     if (this.tab === 'general') {
@@ -21428,7 +21587,8 @@ const SettingsScene = {
       S.autoAdvance = Gui.toggle(g, 'auto', x, y, 'Avance automático de diálogos', S.autoAdvance); y += 18;
       S.showFps = Gui.toggle(g, 'fps', x, y, 'Mostrar FPS', S.showFps); y += 18;
       Audio2.applyVolumes();
-      drawTextBlock(g, 'El audio solo se activa después de tu primera interacción. Todo el progreso se guarda localmente (localStorage) y nunca se envía a ningún servidor.', 330, 64, 260, { color: '#cfd6f0' });
+      UIK.panel(g, 326, 58, 270, 66, 'sheet', null, { chamfer: 2, key: false });
+      drawTextBlock(g, 'El audio solo se activa después de tu primera interacción. Todo el progreso se guarda localmente (localStorage) y nunca se envía a ningún servidor.', 334, 64, 256, { color: UI_INK.body });
     } else if (this.tab === 'accesibilidad') {
       S.textScale = Gui.toggle(g, 'txt', x, y, 'Texto de diálogo amplio', S.textScale > 1) ? 2 : 1; y += 18;
       S.reduceFlash = Gui.toggle(g, 'rf', x, y, 'Reducir destellos', S.reduceFlash); y += 18;
@@ -21437,21 +21597,22 @@ const SettingsScene = {
       S.cbPalette = Gui.toggle(g, 'cb', x, y, 'Paleta para daltonismo (patrones en flujos)', S.cbPalette); y += 18;
       S.noTimeLimit = Gui.toggle(g, 'nt', x, y, 'Modo sin tiempo (retos sin límite)', S.noTimeLimit); y += 18;
       S.subtitles = Gui.toggle(g, 'sub', x, y, 'Subtítulos y anuncios para lector de pantalla', S.subtitles); y += 22;
-      drawText(g, 'Controles táctiles:', x, y + 2, { color: '#cfd6f0' });
+      drawText(g, 'Controles táctiles:', x, y + 2, { color: UI_INK.dim });
       ['auto', 'on', 'off'].forEach((m, i) => { if (Gui.button(g, 'tc' + m, x + 120 + i * 50, y, 46, 14, m === 'auto' ? 'AUTO' : m === 'on' ? 'SÍ' : 'NO', { style: S.touch === m ? 'gold' : 'ghost' })) { S.touch = m; Input.touchMode = m === 'on' || (m === 'auto' && Input.lastDevice === 'touch'); } }); y += 20;
       S.touchScale = Gui.slider(g, 'tsc', x, y, w, S.touchScale || 1, 0.8, 1.6, 0.1, { label: 'Tamaño de botones táctiles', fmt: v => '×' + fmt(v, 1) }); y += 26;
-      drawTextBlock(g, 'Todos los indicadores usan iconos y texto además de color. La pausa (ESC) está disponible en cualquier reto no crítico. El tutorial de cada capítulo puede repetirse desde el mapa.', 330, 64, 260, { color: '#cfd6f0' });
+      UIK.panel(g, 326, 58, 270, 78, 'sheet', null, { chamfer: 2, key: false });
+      drawTextBlock(g, 'Todos los indicadores usan iconos y texto además de color. La pausa (ESC) está disponible en cualquier reto no crítico. El tutorial de cada capítulo puede repetirse desde el mapa.', 334, 64, 256, { color: UI_INK.body });
     } else {
       const acts = Object.keys(ACTION_LABELS);
       acts.forEach((a, i) => {
         const col = i % 2, row = Math.floor(i / 2);
         const bx = x + col * 280, by = y + row * 18;
-        drawText(g, ACTION_LABELS[a], bx, by + 3, { color: '#cfd6f0' });
+        drawText(g, ACTION_LABELS[a], bx, by + 3, { color: UI_INK.body });
         const lbl = this.rebind === a ? 'Pulsa una tecla…' : (Input.bindings[a] || []).map(keyName).join(' / ');
         if (Gui.button(g, 'rb' + a, bx + 130, by, 130, 15, lbl, { style: this.rebind === a ? 'gold' : 'ghost' })) this.rebind = a;
       });
       if (Gui.button(g, 'rbreset', x, H - 64, 180, 16, 'Restaurar teclas por defecto', { style: 'danger', icon: 'reset' })) { Input.bindings = deepClone(DEFAULT_BINDINGS); Game.saveSettings(); }
-      drawText(g, 'Gamepad: A saltar · X interactuar · B herramienta · Y lente · START pausa', x, H - 40, { font: 'tiny', color: '#8a8fb8' });
+      drawText(g, 'Gamepad: A saltar · X interactuar · B herramienta · Y lente · START pausa', x, H - 40, { font: 'tiny', color: UI_INK.dim });
     }
     if (Gui.button(g, 'close', W - 140, H - 40, 100, 18, 'Guardar', { style: 'good', icon: 'save' })) { Game.saveSettings(); Game.pop(); }
     Gui.end();
@@ -21468,12 +21629,12 @@ const TeacherScene = {
   enter() { this.tab = 'resumen'; this.ra = 'RA-01'; this.lv = GS.s.level || 0; this.val = null; this.confirmReset = false; Audio2.sfx('page'); },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.85);
+    UIK.scrim(g, 0.82);
     UIK.panel(g, 6, 6, W - 12, H - 12, 'tech');
     UIK.header(g, 6, 6, W - 12, 'MODO DOCENTE · panel local (no envía datos)', 'tech', 'chart');
     Gui.begin();
     const tabs = ['resumen', 'retos', 'errores', 'fuentes', 'validación'];
-    tabs.forEach((t, i) => { if (Gui.button(g, 'tt' + t, 12 + i * 92, 26, 88, 15, t.toUpperCase(), { style: this.tab === t ? 'gold' : 'tab', selected: this.tab === t })) this.tab = t; });
+    tabs.forEach((t, i) => { if (Gui.button(g, 'tt' + t, 12 + i * 92, 26, 88, 15, t.toUpperCase(), { style: 'tab', selected: this.tab === t })) this.tab = t; });
     const x = 14, y0 = 48;
     if (this.tab === 'resumen') this.renderSummary(g, x, y0);
     if (this.tab === 'retos') this.renderLaunch(g, x, y0);
@@ -21507,8 +21668,8 @@ const TeacherScene = {
   renderLaunch(g, x, y) {
     drawText(g, 'LANZAR SUPERCONTEXTO SOLO (5 tareas en progresión)', x, y, { font: 'tiny', color: '#ffe14d' });
     Object.keys(RA).forEach((ra, i) => { if (Gui.button(g, 'ra' + ra, x + (i % 9) * 68, y + 10, 64, 15, ra, { style: this.ra === ra ? 'gold' : 'ghost' })) this.ra = ra; });
-    drawTextBlock(g, RA[this.ra], x, y + 30, W - 40, { color: '#cfd6f0', font: 'tiny' });
-    let yy = y + 50;
+    const rh = drawTextBlock(g, RA[this.ra], x, y + 30, W - 40, { color: UI_INK.body });
+    let yy = y + 34 + rh;
     for (let c = 1; c <= 3; c++) {
       const id = this.ra + '-C' + c, C = CONTEXTS[id];
       if (!C) continue;
@@ -21562,11 +21723,11 @@ const PracticeScene = {
   enter() { Audio2.sfx('page'); },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
+    UIK.scrim(g, 0.78);
     UIK.panel(g, 20, 14, W - 40, H - 28, 'green');
     UIK.header(g, 20, 14, W - 40, 'SALA DE PRÁCTICA · recuperación espaciada', 'green', 'flask');
     Gui.begin();
-    drawTextBlock(g, 'Repasa con supercontextos de capítulos ya visitados, diagnósticos, cálculos y debates. Se priorizan los conceptos con menor dominio estimado.', 30, 38, W - 60, { color: '#fffaf0' });
+    drawTextBlock(g, 'Repasa con supercontextos de capítulos ya visitados, diagnósticos, cálculos y debates. Se priorizan los conceptos con menor dominio estimado.', 30, 38, W - 60, { color: '#eafff6' });
     const weak = LearningModel.weakest(3);
     drawText(g, 'Sugerido para ti: ' + weak.map(k => MASTERY_LABELS[k]).join(' · '), 30, 62, { font: 'tiny', color: '#ffe14d' });
     let y = 76;
@@ -21613,10 +21774,10 @@ const CreditsScene = {
       if (k === 't') { if (y > -40 && y < H) drawTitleText(g, txt, W / 2, y, 3, ['#fff6d8', '#ffe14d', '#ff7656'], { align: 'center', shadow: '#2a1040' }); y += 38; continue; }
       if (k === 's') { if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#56e5ff' }); y += 20; continue; }
       if (k === 'h') { if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#ffe14d' }); y += 14; continue; }
-      if (k === 'f') { const hh = textHeight(txt, 520, { font: 'tiny', lineH: 8 }); if (y > -40 && y < H) drawTextBlock(g, txt, 60, y, 520, { font: 'tiny', color: '#cfd6f0', align: 'center', lineH: 8 }); y += hh + 4; continue; }
+      if (k === 'f') { const hh = textHeight(txt, 520, { lineH: 11 }); if (y > -60 && y < H) drawTextBlock(g, txt, 60, y, 520, { color: '#b8c8e8', align: 'center', lineH: 11 }); y += hh + 4; continue; }
       if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#fffaf0' }); y += 12;
     }
-    drawText(g, 'ESC: cerrar · mantén ENTER: acelerar', W - 8, H - 10, { font: 'tiny', color: '#5a5e80', align: 'right' });
+    UIK.pill(g, W - 6, H - 14, 'ESC: cerrar · mantén ENTER: acelerar', { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' });
   },
 };
 

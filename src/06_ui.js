@@ -132,7 +132,7 @@ const UIK = {
   bar(g, x, y, w, h, frac, col, bg = null, segs = 0) {
     x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
     const ink = '#000633';
-    const track = (!bg || bg === '#0a0c22') ? mixHex(shade(col, -0.62), '#041533', 0.45) : bg;
+    const track = (!bg || bg === '#0a0c22') ? mixHex('#0b2444', col, 0.12) : bg;
     frect(g, x + 1, y, w - 2, h, ink); frect(g, x, y + 1, w, h - 2, ink);
     frect(g, x + 1, y + 1, w - 2, h - 2, track);
     const fw = Math.round((w - 2) * clamp(frac, 0, 1));

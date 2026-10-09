@@ -320,7 +320,7 @@ const PauseScene = {
   render(g) {
     UIK.scrim(g, 0.6);
     const x = W / 2 - 120, y = 40, w = 240;
-    UIK.panel(g, x, y, w, 270, 'tech');
+    UIK.panel(g, x, y, w, this.tab === 'map' ? 140 : 246, 'tech');
     UIK.header(g, x, y, w, 'PAUSA · ' + (LEVELS[this.gp.levelId].title || ''), 'tech', 'pause');
     Gui.begin();
     const B = (id, label, icon, fn, st) => { if (Gui.button(g, id, x + 20, this._y, w - 40, 22, label, { icon, align: 'left', style: st })) fn(); this._y += 26; };

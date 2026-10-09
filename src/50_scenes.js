@@ -111,7 +111,7 @@ const TitleScene = {
     drawTitleText(g, 'LA CIUDAD QUE BEBÍA EL MAR', W / 2, ly + 50, 2, ['#c4fbff', '#56e5ff', '#20d6c7'], { align: 'center', shadow: '#140d26', depth: 1 });
     for (let i = 0; i < 5; i++) { const sx = W / 2 - 150 + ((t * 40 + i * 70) % 300); fpx(g, sx, ly + 4 + (i * 7) % 26, '#ffffff'); }
     this.renderMenu(g);
-    drawText(g, 'Videojuego educativo STEAM · agua · energía · hidrógeno · agroecología', W / 2, 98, { font: 'tiny', align: 'center', color: '#ffd8ec', shadow: '#2a1040' });
+    UIK.pill(g, W / 2, 96, 'Videojuego educativo STEAM · agua · energía · hidrógeno · agroecología', { align: 'center', rim: '#c244a2', fill: '#1d0b3a', color: '#ffd8ec' });
   },
   renderMenu(g) {
     Gui.begin();
@@ -122,17 +122,20 @@ const TitleScene = {
       items.push(['teach', 'Modo docente', 'chart', () => Game.push(TeacherScene, {}), 'primary']);
       items.push(['sett', 'Ajustes', 'gear', () => Game.push(SettingsScene, {}), 'primary']);
       items.push(['cred', 'Créditos', 'book', () => Game.push(CreditsScene, {}), 'primary']);
-      const bw = 112, gap = 6, tw = items.length * (bw + gap) - gap;
-      let x = Math.round(W / 2 - tw / 2);
-      const y = H - 44;
-      UIK.panel(g, x - 8, y - 6, tw + 16, 32, 'glass');
-      for (const [id, l, ic, fn, st] of items) { if (Gui.button(g, id, x, y, bw, 20, l, { icon: ic, style: st })) fn(); x += bw + gap; }
+      // lista vertical en panel navy a la derecha (deja libres el sol, el mar y a Amaya)
+      const w = 158, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
+      const x = W - w - 14, y = 128;
+      UIK.panel(g, x, y, w, h, 'tech');
+      UIK.header(g, x, y, w, 'MENÚ', 'tech', 'map');
+      let yy = y + 26;
+      for (const [id, l, ic, fn, st] of items) { if (Gui.button(g, id, x + 10, yy, w - 20, bh, l, { icon: ic, style: st, align: 'left' })) fn(); yy += bh + gap; }
     } else if (this.menu === 'confirmNew') {
-      const x = W / 2 - 130, y = H - 104, w = 260;
-      UIK.panel(g, x, y, w, 90, 'alert');
-      drawTextBlock(g, 'Ya existe una partida guardada. ¿Empezar de nuevo? Se perderá el progreso local.', x + 10, y + 8, w - 20, { color: '#fffaf0' });
-      if (Gui.button(g, 'yes', x + 10, y + 62, 140, 20, 'Sí, empezar', { icon: 'reset', style: 'danger' })) { SaveManager.wipe(); this.newGame(); }
-      if (Gui.button(g, 'no', x + 156, y + 62, 94, 20, 'Volver', { style: 'ghost' })) this.menu = 'main';
+      const w = 260, x = W - w - 14, y = 140;
+      UIK.panel(g, x, y, w, 96, 'alert');
+      UIK.header(g, x, y, w, 'NUEVA PARTIDA', 'alert', 'warn');
+      drawTextBlock(g, 'Ya existe una partida guardada. ¿Empezar de nuevo? Se perderá el progreso local.', x + 10, y + 26, w - 20, { color: '#ffe8e4' });
+      if (Gui.button(g, 'yes', x + 10, y + 68, 140, 20, 'Sí, empezar', { icon: 'reset', style: 'danger' })) { SaveManager.wipe(); this.newGame(); }
+      if (Gui.button(g, 'no', x + 156, y + 68, 94, 20, 'Volver', { style: 'ghost' })) this.menu = 'main';
     }
     Gui.end();
   },
@@ -176,7 +179,7 @@ const IntroScene = {
     for (let i = 0; i < 80; i++) fpx(g, hash1(i, 1) * W, hash1(i, 2) * H * 0.7, (Game.frame + i * 7) % 60 < 4 ? '#ffffff' : '#5a6fb0');
     const ln = this.lines[Math.min(this.i, this.lines.length - 1)];
     drawTextBlock(g, ln, 80, 150, W - 160, { color: '#fffaf0', align: 'center', max: Math.floor(this.t * 45), shadow: '#140d26' });
-    drawText(g, 'ENTER / clic: continuar · X: saltar', W / 2, H - 20, { font: 'tiny', align: 'center', color: '#5a5e80' });
+    UIK.pill(g, W / 2, H - 22, 'ENTER / clic: continuar · X: saltar', { align: 'center', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' });
   },
 };
 
@@ -203,6 +206,8 @@ const MAP_BIOMES = [
   [430, 108, RAMP.mesa, 0.5, 0.9], [520, 120, RAMP.mesa, 0.45, 0.9],
   [352, 214, RAMP.dune, 0.55, 0.8], [300, 140, RAMP.dune, 0.6, 0.8], [500, 210, RAMP.dune, 0.5, 0.8], [270, 240, RAMP.dune, 0.6, 0.7],
 ];
+// el mapa se dibuja desplazado hacia arriba para dejar sitio a la tira de capítulos
+const MAP_OY = -36, MAP_STRIP_Y = 292;
 const MAP_LINKS = [[0, 1], [1, 2], [2, 3], [0, 6], [6, 4], [4, 7], [6, 5], [4, 8], [3, 8], [0, 9], [9, 5], [6, 10], [10, 4], [10, 8], [10, 7]];
 const WorldMapScene = {
   touchControls: false,
@@ -229,7 +234,7 @@ const WorldMapScene = {
       let c;
       if (d > 0) {
         const t = clamp(d * 3, 0, 1);
-        c = rampDither(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0f4888', '#0d3168'], t, x, y);
+        c = smoothBand(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0f4888', '#0d3168'], t, x, y);
         if (d < 0.025) c = '#c6fff2';
         else if (d < 0.05 && ((x + y + Math.floor(fbm(x * 0.1, y * 0.1, 2, 9) * 6)) % 5 === 0)) c = '#6cf0db';
       } else {
@@ -239,8 +244,8 @@ const WorldMapScene = {
         let b1 = null, d1 = 1e9, d2 = 1e9;
         for (const A of MAP_BIOMES) { const dd = Math.hypot(wx - A[0], (wy - A[1]) * 1.1); if (dd < d1) { d2 = d1; d1 = dd; b1 = A; } else if (dd < d2) d2 = dd; }
         let ramp = b1[2], t = b1[3] + (n - 0.5) * b1[4];
-        if (d2 - d1 < 5 && bayer4(x, y) < 0.5 - (d2 - d1) / 10) t -= 0.12;
-        c = rampDither(ramp, t, x, y);
+        if (d2 - d1 < 3) t -= 0.1; // frontera de bioma: banda sólida más oscura
+        c = smoothBand(ramp, t, x, y);
         if (d > -0.02) c = '#fff6d8';
         // relieve sombreado
         const dd = landF(x + 1, y + 1) - d;
@@ -282,13 +287,13 @@ const WorldMapScene = {
       if (best) { this.sel = best.id; Audio2.sfx('uiMove'); }
     }
     if (Input.pressed('next')) { const i = avail.findIndex(n => n.id === this.sel); this.sel = avail[(i + 1) % avail.length].id; Audio2.sfx('uiMove'); }
-    if (Input.pointer.pressed) for (const n of avail) if (dist(Input.pointer.x, Input.pointer.y, n.x, n.y) < 12) { if (this.sel === n.id) this.enterLevel(); else { this.sel = n.id; Audio2.sfx('uiMove'); } Input.consumePointer(); }
+    if (Input.pointer.pressed && Input.pointer.y < MAP_STRIP_Y) for (const n of avail) if (dist(Input.pointer.x, Input.pointer.y, n.x, n.y + MAP_OY) < 12) { if (this.sel === n.id) this.enterLevel(); else { this.sel = n.id; Audio2.sfx('uiMove'); } Input.consumePointer(); }
     if (Input.pressed('confirm') && !Gui.focus) this.enterLevel();
     if (Input.pressed('codex')) Game.push(CodexScene, {});
     if (Input.pressed('data')) Game.push(EvidenceScene, {});
     if (Input.pressed('pause')) Game.push(MapMenuScene, {});
     if (Input.keyPressed('F9')) Game.push(TeacherScene, {});
-    if (Math.random() < 0.1) this.ps.emit('spark', MAP_NODES[this.sel].x + (Math.random() - 0.5) * 16, MAP_NODES[this.sel].y + (Math.random() - 0.5) * 16, 0, -10, 1);
+    if (Math.random() < 0.1) this.ps.emit('spark', MAP_NODES[this.sel].x + (Math.random() - 0.5) * 16, MAP_NODES[this.sel].y + MAP_OY + (Math.random() - 0.5) * 16, 0, -10, 1);
   },
   enterLevel() {
     const id = this.sel;
@@ -298,53 +303,73 @@ const WorldMapScene = {
     Game.transition(() => Game.setScene(GameplayScene, { level: id }));
   },
   render(g) {
-    const t = this.t;
-    g.drawImage(this.mapC, 0, 0);
-    drawSeaSparkles(g, 0, 0, W, H, t, 0.5, ['#c6fff2', '#ffffff']);
-    // sombras de nubes cruzando el mapa
-    for (let i = 0; i < 4; i++) { const x = ((t * (6 + i * 2) + i * 190) % (W + 160)) - 80, y = 60 + i * 70; fshadow(g, x, y, 40 + i * 6, 12 + i * 2, '#0a1a3a', 0.28); }
+    const t = this.t, OY = MAP_OY;
+    g.drawImage(this.mapC, 0, OY);
+    drawSeaSparkles(g, 0, 0, W, MAP_STRIP_Y, t, 0.5, ['#c6fff2', '#ffffff']);
+    // sombras de nubes cruzando el mapa (elipses translúcidas sólidas)
+    g.globalAlpha = 0.16; for (let i = 0; i < 4; i++) { const x = ((t * (6 + i * 2) + i * 190) % (W + 160)) - 80, y = 40 + i * 64; fdisc(g, x, y, 34 + i * 5, '#0a1a3a'); } g.globalAlpha = 1;
     // enlaces SYNARA animados
     MAP_LINKS.forEach(([a, b], i) => {
       const A = MAP_NODES[a], B = MAP_NODES[b];
       const on = GS.s.unlocked.includes(a) && GS.s.unlocked.includes(b);
       const n = Math.ceil(dist(A.x, A.y, B.x, B.y) / 3);
-      for (let k = 0; k < n; k++) { const ph = (k / n + t * 0.4 + i * 0.13) % 1; const x = lerp(A.x, B.x, k / n), y = lerp(A.y, B.y, k / n); if (on && ph < 0.08) fpx(g, x, y - 1, i % 2 ? '#56e5ff' : '#ffe14d'); }
+      for (let k = 0; k < n; k++) { const ph = (k / n + t * 0.4 + i * 0.13) % 1; const x = lerp(A.x, B.x, k / n), y = lerp(A.y, B.y, k / n) + OY; if (on && ph < 0.08) fpx(g, x, y - 1, i % 2 ? '#56e5ff' : '#ffe14d'); }
     });
-    // aerogeneradores diminutos en el corredor
-    for (let i = 0; i < 5; i++) ART.turbine(g, 400 + i * 14, 92 + (i % 2) * 8, 10, t * 2 + i, { col: '#fffaf0', shade: '#cfe8ee' });
-    // nodos
+    for (let i = 0; i < 5; i++) ART.turbine(g, 400 + i * 14, 92 + (i % 2) * 8 + OY, 10, t * 2 + i, { col: '#fffaf0', shade: '#cfe8ee' });
+    // nodos: islas-nodo con anillo del color del capítulo
     for (const n of MAP_NODES) {
       const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id), sel = this.sel === n.id;
-      const pulse = sel ? Math.sin(t * 6) * 1.5 : 0;
-      fdisc(g, n.x, n.y + 2, 10, 'rgba(5,3,15,0.5)');
-      fdisc(g, n.x, n.y, 9 + pulse, done ? '#eab02a' : un ? '#fffaf0' : '#3a3a5a');
-      fdisc(g, n.x, n.y, 7 + pulse, done ? '#ffd84a' : un ? '#20d6c7' : '#1c1f34');
-      if (un) Icons.draw(g, n.icon, n.x - 7, n.y - 7); else Icons.draw(g, 'lock', n.x - 7, n.y - 7);
-      if (sel) { for (let a = 0; a < 12; a++) { const an = a / 12 * TAU + t * 2; fpx(g, n.x + Math.cos(an) * 14, n.y + Math.sin(an) * 14, '#ffe14d'); } }
-      drawText(g, String(n.id).padStart(2, '0'), n.x, n.y + 11, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#140d26' });
+      const nx = n.x, ny = n.y + OY, acc = LEVEL_CARD_ACCENT[n.id] || '#56e5ff';
+      g.globalAlpha = un ? 0.4 : 0.18; fdisc(g, nx, ny + 3, 12, acc); g.globalAlpha = 1;
+      fdisc(g, nx, ny, 10, '#000633'); fdisc(g, nx, ny, 9, done ? '#ffd23a' : un ? acc : '#3a4a6a'); fdisc(g, nx, ny, 7, done ? '#553a08' : un ? '#06183a' : '#0a1222');
+      if (un) Icons.draw(g, n.icon, nx - 7, ny - 7); else { g.globalAlpha = 0.5; Icons.draw(g, n.icon, nx - 7, ny - 7); g.globalAlpha = 1; Icons.draw(g, 'lock', nx + 1, ny - 1); }
+      if (sel) { for (let a = 0; a < 16; a++) { const an = a / 16 * TAU + t * 2; fpx(g, nx + Math.cos(an) * (14 + Math.sin(t * 6)), ny + Math.sin(an) * (14 + Math.sin(t * 6)), a % 2 ? '#fff2a0' : '#ffd23a'); } }
+      UIK.pill(g, nx, ny + 11, String(n.id).padStart(2, '0'), { align: 'center', rim: un ? acc : '#3a4a6a', fill: '#031128', color: '#e8fcff' });
     }
     this.ps.render(g);
-    // panel de información
-    const n = MAP_NODES[this.sel], M = LEVEL_META[n.id];
-    const px = n.x > W / 2 ? 10 : W - 230, pw = 220;
-    UIK.panel(g, px, 10, pw, 196, 'dialog');
-    drawText(g, M.chapter, px + 10, 16, { font: 'tiny', color: '#ffe14d' });
-    drawText(g, M.title, px + 10, 25, { color: '#fffaf0', shadow: '#0a0718' });
-    drawText(g, n.name, px + 10, 37, { font: 'tiny', color: '#a6f4ff' });
-    const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id);
-    drawText(g, done ? '★ COMPLETADO · ' + M.badge : un ? (LEVELS[n.id] ? 'DISPONIBLE' : 'EN CONSTRUCCIÓN') : 'BLOQUEADO', px + 10, 48, { font: 'tiny', color: done ? '#ffd84a' : un ? '#86e36f' : '#8a8fb8' });
-    drawTextBlock(g, '{y}' + M.ra + '{/} ' + RA[M.ra], px + 10, 60, pw - 20, { color: '#cfd6f0', font: 'main' });
-    const cs = RA_CONCEPTS[M.ra] || [];
-    let yy = 140;
-    for (const c of cs.slice(0, 3)) { drawText(g, MASTERY_LABELS[c], px + 10, yy, { font: 'tiny', color: '#cfd6f0' }); UIK.bar(g, px + 136, yy, 70, 5, (GS.s.mastery ? GS.s.mastery[c] : 0) / 100, '#86e36f'); yy += 9; }
     Gui.begin();
-    if (Gui.button(g, 'enter', px + 10, 172, pw - 20, 22, done ? 'Volver a jugar' : 'Entrar al capítulo', { style: un && LEVELS[n.id] ? 'good' : 'ghost', icon: 'play', disabled: !un || !LEVELS[n.id] })) this.enterLevel();
-    // barra inferior
-    const items = [['Atlas', 'book', () => Game.push(CodexScene, {})], ['Evidencias', 'eye', () => Game.push(EvidenceScene, {})], ['Aprendizaje', 'chart', () => Game.push(AnalyticsScene, {})], ['Práctica', 'flask', () => Game.push(PracticeScene, {})], ['Menú', 'gear', () => Game.push(MapMenuScene, {})]];
-    items.forEach(([l, ic, fn], i) => { if (Gui.button(g, 'mb' + i, 10 + i * 92, H - 26, 88, 18, l, { icon: ic, style: 'primary', align: 'left' })) fn(); });
+    // título del mapa (arriba a la izquierda) y atajos con icono (arriba a la derecha)
+    UIK.panel(g, 6, 6, 150, 22, 'hud', null, { chamfer: 2, key: false });
+    UIK.badge(g, 'map', 3, 3, 22, 'hud');
+    drawText(g, 'MAPA DEL NEXO', 30, 13, { font: 'bold', color: '#edfcfe' });
+    const items = [['Atlas del Nexo', 'book', () => Game.push(CodexScene, {})], ['Tablero de Evidencias', 'eye', () => Game.push(EvidenceScene, {})], ['Mi aprendizaje', 'chart', () => Game.push(AnalyticsScene, {})], ['Sala de práctica', 'flask', () => Game.push(PracticeScene, {})], ['Menú', 'gear', () => Game.push(MapMenuScene, {})]];
+    items.forEach(([l, ic, fn], i) => { if (Gui.button(g, 'mb' + i, W - 6 - (items.length - i) * 25, 6, 23, 22, '', { icon: ic, style: 'primary', tip: l })) fn(); });
+    // panel de información del capítulo
+    const n = MAP_NODES[this.sel], M = LEVEL_META[n.id];
+    const px = n.x > W / 2 ? 10 : W - 230, pw = 220, py = 38, ph = 248;
+    const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id);
+    UIK.panel(g, px, py, pw, ph, 'tech');
+    UIK.badge(g, n.icon, px - 3, py - 3, 22, 'tech');
+    drawText(g, M.chapter, px + 26, py + 5, { font: 'tiny', color: '#ffd23a' });
+    drawText(g, fitText(M.title, pw - 34, 'bold'), px + 26, py + 12, { font: 'bold', color: '#e6f8fe' });
+    frect(g, px + 22, py + 22, pw - 28, 1, '#12305a'); frect(g, px + 22, py + 23, pw - 28, 1, '#0b2a58');
+    const thumb = LevelThumbs.get(n.id);
+    frect(g, px + 8, py + 28, 72, 43, '#000633'); if (thumb) g.drawImage(thumb, px + 9, py + 29); else frect(g, px + 9, py + 29, 70, 41, '#0a2450');
+    if (!un) { g.globalAlpha = 0.6; frect(g, px + 9, py + 29, 70, 41, '#000633'); g.globalAlpha = 1; Icons.draw(g, 'lock', px + 37, py + 43); }
+    drawTextBlock(g, n.name, px + 86, py + 30, pw - 94, { color: '#8fdfff' });
+    UIK.pill(g, px + 86, py + 56, done ? 'COMPLETADO' : un ? (LEVELS[n.id] ? 'DISPONIBLE' : 'EN CONSTRUCCIÓN') : 'BLOQUEADO', { rim: done ? '#ffd23a' : un ? '#3fe0a0' : '#3a5a8a', fill: done ? '#1a1404' : un ? '#073d2e' : '#061a38', color: done ? '#fff2c0' : un ? '#c2f5de' : '#93a6c8', icon: done ? 'star' : un ? 'check' : 'lock' });
+    if (done) drawText(g, fitText(M.badge, pw - 20, 'tiny'), px + 10, py + 76, { font: 'tiny', color: '#ffd23a' });
+    let yy = py + 86;
+    yy += drawTextBlock(g, '{y}' + M.ra + '{/} ' + RA[M.ra], px + 10, yy, pw - 20, { color: UI_INK.body, font: 'main' }) + 6;
+    const cs = RA_CONCEPTS[M.ra] || [];
+    yy = Math.min(yy, py + ph - 70);
+    for (const c of cs.slice(0, 3)) { drawText(g, fitText(MASTERY_LABELS[c], 120, 'tiny'), px + 10, yy, { font: 'tiny', color: '#b8c8e8' }); UIK.bar(g, px + 134, yy - 1, 76, 6, (GS.s.mastery ? GS.s.mastery[c] : 0) / 100, '#3fe0a0'); yy += 10; }
+    if (Gui.button(g, 'enter', px + 10, py + ph - 30, pw - 20, 22, done ? 'Volver a jugar' : 'Entrar al capítulo', { style: un && LEVELS[n.id] ? 'good' : 'ghost', icon: 'play', disabled: !un || !LEVELS[n.id] })) this.enterLevel();
+    // tira inferior de tarjetas de capítulo (como en la referencia)
+    frect(g, 0, MAP_STRIP_Y, W, H - MAP_STRIP_Y, '#00152c'); frect(g, 0, MAP_STRIP_Y, W, 1, '#101220'); frect(g, 0, MAP_STRIP_Y + 1, W, 1, '#1e5a8a'); frect(g, 0, MAP_STRIP_Y + 2, W, 1, '#0a2444');
+    const ids = MAP_NODES.map(m => m.id).sort((a, b) => a - b);
+    const vis = 8, first = clamp(ids.indexOf(this.sel) - 3, 0, Math.max(0, ids.length - vis));
+    if (first > 0) { frect(g, 1, MAP_STRIP_Y + 30, 3, 7, '#8fdfff'); fpx(g, 0, MAP_STRIP_Y + 33, '#8fdfff'); }
+    if (first + vis < ids.length) { frect(g, W - 4, MAP_STRIP_Y + 30, 3, 7, '#8fdfff'); fpx(g, W - 1, MAP_STRIP_Y + 33, '#8fdfff'); }
+    const cur = GS.s.unlocked.filter(i => LEVELS[i] && !GS.s.completed.includes(i)).sort((a, b) => a - b)[0];
+    for (let k = 0; k < vis && first + k < ids.length; k++) {
+      const id = ids[first + k], cx = 6 + k * 79, cy = MAP_STRIP_Y + 5;
+      const st = GS.s.completed.includes(id) ? 'done' : !GS.s.unlocked.includes(id) ? 'locked' : id === cur ? 'current' : 'open';
+      UIK.levelCard(g, cx, cy, 74, 57, { id, label: LEVEL_CARD_NAME[id], state: st, selected: this.sel === id });
+      if (Gui.button(g, 'card' + id, cx, cy, 74, 57, '', { noDraw: true, noKey: true, tip: LEVEL_META[id].chapter + ' · ' + LEVEL_META[id].title })) { if (this.sel === id) this.enterLevel(); else { this.sel = id; Audio2.sfx('uiMove'); } }
+    }
     Gui.end();
     Gui.renderTooltip(g);
-    drawTitleText(g, 'MAPA DEL NEXO', W - 12 - (px === 10 ? 0 : 230) + (px === 10 ? -130 : 0), H - 46, 1, ['#fff6d8', '#ffe14d'], { shadow: '#140d26' });
   },
 };
 const MapMenuScene = {
@@ -352,10 +377,10 @@ const MapMenuScene = {
   enter() { },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.7);
+    UIK.scrim(g, 0.6);
     const x = W / 2 - 100, w = 200;
-    UIK.panel(g, x, 70, w, 200, 'dialog');
-    UIK.header(g, x, 70, w, 'MENÚ', 'dialog', 'gear');
+    UIK.panel(g, x, 70, w, 152, 'tech');
+    UIK.header(g, x, 70, w, 'MENÚ', 'tech', 'gear');
     Gui.begin();
     let y = 96;
     const B = (id, l, ic, fn) => { if (Gui.button(g, id, x + 16, y, w - 32, 20, l, { icon: ic, align: 'left' })) fn(); y += 24; };
@@ -384,11 +409,11 @@ const SettingsScene = {
   },
   render(g) {
     const S = Game.settings;
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.72);
     UIK.panel(g, 30, 14, W - 60, H - 28, 'tech');
     UIK.header(g, 30, 14, W - 60, 'AJUSTES Y ACCESIBILIDAD', 'tech', 'gear');
     Gui.begin();
-    ['general', 'accesibilidad', 'controles'].forEach((t, i) => { if (Gui.button(g, 'tab' + t, 40 + i * 120, 36, 112, 16, t.toUpperCase(), { style: this.tab === t ? 'gold' : 'tab', selected: this.tab === t })) this.tab = t; });
+    ['general', 'accesibilidad', 'controles'].forEach((t, i) => { if (Gui.button(g, 'tab' + t, 40 + i * 120, 36, 112, 16, t.toUpperCase(), { style: 'tab', selected: this.tab === t })) this.tab = t; });
     let y = 60;
     const x = 44, w = 260;
     if (this.tab === 'general') {
@@ -399,7 +424,8 @@ const SettingsScene = {
       S.autoAdvance = Gui.toggle(g, 'auto', x, y, 'Avance automático de diálogos', S.autoAdvance); y += 18;
       S.showFps = Gui.toggle(g, 'fps', x, y, 'Mostrar FPS', S.showFps); y += 18;
       Audio2.applyVolumes();
-      drawTextBlock(g, 'El audio solo se activa después de tu primera interacción. Todo el progreso se guarda localmente (localStorage) y nunca se envía a ningún servidor.', 330, 64, 260, { color: '#cfd6f0' });
+      UIK.panel(g, 326, 58, 270, 66, 'sheet', null, { chamfer: 2, key: false });
+      drawTextBlock(g, 'El audio solo se activa después de tu primera interacción. Todo el progreso se guarda localmente (localStorage) y nunca se envía a ningún servidor.', 334, 64, 256, { color: UI_INK.body });
     } else if (this.tab === 'accesibilidad') {
       S.textScale = Gui.toggle(g, 'txt', x, y, 'Texto de diálogo amplio', S.textScale > 1) ? 2 : 1; y += 18;
       S.reduceFlash = Gui.toggle(g, 'rf', x, y, 'Reducir destellos', S.reduceFlash); y += 18;
@@ -408,21 +434,22 @@ const SettingsScene = {
       S.cbPalette = Gui.toggle(g, 'cb', x, y, 'Paleta para daltonismo (patrones en flujos)', S.cbPalette); y += 18;
       S.noTimeLimit = Gui.toggle(g, 'nt', x, y, 'Modo sin tiempo (retos sin límite)', S.noTimeLimit); y += 18;
       S.subtitles = Gui.toggle(g, 'sub', x, y, 'Subtítulos y anuncios para lector de pantalla', S.subtitles); y += 22;
-      drawText(g, 'Controles táctiles:', x, y + 2, { color: '#cfd6f0' });
+      drawText(g, 'Controles táctiles:', x, y + 2, { color: UI_INK.dim });
       ['auto', 'on', 'off'].forEach((m, i) => { if (Gui.button(g, 'tc' + m, x + 120 + i * 50, y, 46, 14, m === 'auto' ? 'AUTO' : m === 'on' ? 'SÍ' : 'NO', { style: S.touch === m ? 'gold' : 'ghost' })) { S.touch = m; Input.touchMode = m === 'on' || (m === 'auto' && Input.lastDevice === 'touch'); } }); y += 20;
       S.touchScale = Gui.slider(g, 'tsc', x, y, w, S.touchScale || 1, 0.8, 1.6, 0.1, { label: 'Tamaño de botones táctiles', fmt: v => '×' + fmt(v, 1) }); y += 26;
-      drawTextBlock(g, 'Todos los indicadores usan iconos y texto además de color. La pausa (ESC) está disponible en cualquier reto no crítico. El tutorial de cada capítulo puede repetirse desde el mapa.', 330, 64, 260, { color: '#cfd6f0' });
+      UIK.panel(g, 326, 58, 270, 78, 'sheet', null, { chamfer: 2, key: false });
+      drawTextBlock(g, 'Todos los indicadores usan iconos y texto además de color. La pausa (ESC) está disponible en cualquier reto no crítico. El tutorial de cada capítulo puede repetirse desde el mapa.', 334, 64, 256, { color: UI_INK.body });
     } else {
       const acts = Object.keys(ACTION_LABELS);
       acts.forEach((a, i) => {
         const col = i % 2, row = Math.floor(i / 2);
         const bx = x + col * 280, by = y + row * 18;
-        drawText(g, ACTION_LABELS[a], bx, by + 3, { color: '#cfd6f0' });
+        drawText(g, ACTION_LABELS[a], bx, by + 3, { color: UI_INK.body });
         const lbl = this.rebind === a ? 'Pulsa una tecla…' : (Input.bindings[a] || []).map(keyName).join(' / ');
         if (Gui.button(g, 'rb' + a, bx + 130, by, 130, 15, lbl, { style: this.rebind === a ? 'gold' : 'ghost' })) this.rebind = a;
       });
       if (Gui.button(g, 'rbreset', x, H - 64, 180, 16, 'Restaurar teclas por defecto', { style: 'danger', icon: 'reset' })) { Input.bindings = deepClone(DEFAULT_BINDINGS); Game.saveSettings(); }
-      drawText(g, 'Gamepad: A saltar · X interactuar · B herramienta · Y lente · START pausa', x, H - 40, { font: 'tiny', color: '#8a8fb8' });
+      drawText(g, 'Gamepad: A saltar · X interactuar · B herramienta · Y lente · START pausa', x, H - 40, { font: 'tiny', color: UI_INK.dim });
     }
     if (Gui.button(g, 'close', W - 140, H - 40, 100, 18, 'Guardar', { style: 'good', icon: 'save' })) { Game.saveSettings(); Game.pop(); }
     Gui.end();

@@ -143,13 +143,13 @@ const NumericScene = {
   },
   close() { Game.pop(); this.onDone && this.onDone(this.fb && this.fb.ok); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.68);
     const x = 120, w = W - 240;
     UIK.panel(g, x, 40, w, H - 80, 'tech');
     UIK.header(g, x, 40, w, 'CÁLCULO · ' + this.C.title, 'tech', 'chart');
-    drawTextBlock(g, this.prob.text, x + 12, 66, w - 24, { color: '#fffaf0' });
-    drawText(g, 'Datos simulados para fines educativos', x + 12, 96, { font: 'tiny', color: '#ff9a8a' });
-    frect(g, x + 12, 110, w - 24, 22, '#05030f'); frect(g, x + 13, 111, w - 26, 20, '#0a1030');
+    const th = drawTextBlock(g, this.prob.text, x + 12, 66, w - 24, { color: UI_INK.body });
+    UIK.pill(g, x + 12, Math.max(94, 68 + th), 'DATOS SIMULADOS PARA FINES EDUCATIVOS', { rim: '#ff8a7a', fill: '#3a0c1c', color: '#ffd8d0' });
+    Charts.frame(g, x + 12, 110, w - 24, 22);
     drawText(g, (this.input || '_') + ((Game.frame >> 4) & 1 ? '|' : '') + '  ' + this.prob.unit, x + 20, 117, { color: '#56e5ff' });
     Gui.begin();
     const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', ',', '0', '←'];
@@ -157,7 +157,8 @@ const NumericScene = {
     if (Gui.button(g, 'chk', x + 140, 140, 110, 20, 'Comprobar', { style: 'good', icon: 'check', disabled: !this.input || (this.fb && this.fb.ok) })) this.check();
     if (this.fb) {
       const t = this.fb.ok ? '{g}Correcto.{/} ' + this.prob.steps + ' ≈ ' + fmt(this.prob.ans, 2) + ' ' + this.prob.unit : '{o}Revisa:{/} tu valor ' + fmt(this.fb.v, 2) + ' no coincide. Pista: ' + this.prob.steps.split('=')[0] + '… revisa unidades.';
-      drawTextBlock(g, t, x + 140, 166, w - 152, { color: '#fffaf0' });
+      UIK.panel(g, x + 136, 164, w - 148, Math.min(H - 110 - 164, textHeight(t, w - 164) + 12), this.fb.ok ? 'green' : 'alert', null, { chamfer: 2, key: false, spark: false });
+      drawTextBlock(g, t, x + 142, 170, w - 160, { color: this.fb.ok ? '#eafff6' : '#ffe8e4' });
     }
     if (Gui.button(g, 'cls', x + w - 92, H - 66, 80, 18, this.fb && this.fb.ok ? 'Continuar' : 'Cerrar', { style: this.fb && this.fb.ok ? 'good' : 'ghost' })) this.close();
     Gui.end();
@@ -173,27 +174,29 @@ const DebateScene = {
   update() { },
   render(g) {
     const D = this.D;
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.7);
     const x = 40, w = W - 80;
-    UIK.panel(g, x, 20, w, H - 40, 'dialog');
-    UIK.header(g, x, 20, w, 'DEBATE ARGUMENTADO · ' + D.title, 'dialog', 'scale');
-    let y = 42;
-    y += drawTextBlock(g, D.prompt, x + 12, y, w - 24, { color: '#fffaf0' }) + 6;
+    UIK.panel(g, x, 20, w, H - 40, 'tech');
+    UIK.header(g, x, 20, w, 'DEBATE ARGUMENTADO · ' + D.title, 'tech', 'scale');
+    let y = 44;
+    y += drawTextBlock(g, D.prompt, x + 12, y, w - 24, { color: '#d5dcf5' }) + 6;
     Gui.begin();
     if (this.step === 0) {
-      drawText(g, '1. Elige tu posición (no hay una única correcta; se evalúa tu argumentación):', x + 12, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
-      D.positions.forEach((ps, i) => { if (Gui.button(g, 'p' + i, x + 12, y, w - 24, 18, ps, { style: 'choice', align: 'left' })) { this.pos = i; this.step = 1; } y += 22; });
+      drawText(g, '1. Elige tu posición (no hay una única correcta; se evalúa tu argumentación):', x + 12, y, { color: '#ffd23a' }); y += 14;
+      D.positions.forEach((ps, i) => { const r = Gui.choice(g, 'p' + i, x + 12, y, w - 24, ps, 'ABCDEF'[i], {}); if (r.clicked) { this.pos = i; this.step = 1; } y += r.h + 3; });
     } else if (this.step === 1) {
-      drawText(g, 'Posición: ' + D.positions[this.pos] + '. 2. ¿Qué argumento la sostiene MEJOR con evidencia?', x + 12, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
+      y += drawTextBlock(g, '{c}Posición:{/} ' + D.positions[this.pos] + '. {y}2. ¿Qué argumento la sostiene MEJOR con evidencia?{/}', x + 12, y, w - 24, { color: UI_INK.body }) + 3;
       this.order.forEach((k, i) => { const r = Gui.choice(g, 'a' + i, x + 12, y, w - 24, D.args[k][0], 'ABCD'[i], {}); if (r.clicked) { this.arg = k; this.step = 2; } y += r.h + 2; });
     } else if (this.step === 2) {
-      drawText(g, '3. ¿Qué costo o compromiso reconoces de tu posición?', x + 12, y, { font: 'tiny', color: '#ffe14d' }); y += 10;
-      D.tradeoffs.forEach((t, i) => { if (Gui.button(g, 't' + i, x + 12, y, w - 24, 18, t, { style: 'choice', align: 'left' })) { this.trade = i; this.step = 3; this.evaluate(); } y += 22; });
-      if (Gui.button(g, 'tn', x + 12, y, w - 24, 18, 'Mi posición no tiene costos', { style: 'danger', align: 'left' })) { this.trade = -1; this.step = 3; this.evaluate(); }
+      drawText(g, '3. ¿Qué costo o compromiso reconoces de tu posición?', x + 12, y, { color: '#ffd23a' }); y += 14;
+      D.tradeoffs.forEach((t, i) => { const r = Gui.choice(g, 't' + i, x + 12, y, w - 24, t, 'ABCDEF'[i], {}); if (r.clicked) { this.trade = i; this.step = 3; this.evaluate(); } y += r.h + 3; });
+      if (Gui.button(g, 'tn', x + 12, y + 2, w - 24, 18, 'Mi posición no tiene costos', { style: 'danger', align: 'left' })) { this.trade = -1; this.step = 3; this.evaluate(); }
     } else {
       const q = D.args[this.arg][1];
       const t = (q === 2 ? '{g}Argumento basado en evidencia y relaciones del sistema.{/} ' : q === 0 ? '{y}Argumento débil:{/} apela a un valor o a una generalización sin datos. ' : '{o}Argumento con un error conceptual.{/} ') + (this.trade >= 0 ? '{g}Reconociste un compromiso:{/} eso hace tu posición discutible y honesta.' : '{o}Toda decisión en el Nexo tiene costos:{/} nombrarlos permite negociarlos.');
-      y += drawTextBlock(g, t, x + 12, y, w - 24, { color: '#fffaf0' }) + 8;
+      const fh = textHeight(t, w - 48) + 12;
+      UIK.panel(g, x + 12, y, w - 24, fh, q === 2 && this.trade >= 0 ? 'green' : q < 0 ? 'alert' : 'sheet', null, { chamfer: 2, key: false, spark: false });
+      drawTextBlock(g, t, x + 20, y + 6, w - 40, { color: UI_INK.body }); y += fh + 8;
       if (Gui.button(g, 'ok', x + w / 2 - 60, H - 52, 120, 20, 'Continuar', { style: 'good' })) { Game.pop(); this.onDone && this.onDone(this.score >= 2); }
     }
     Gui.end();
