@@ -21,7 +21,7 @@ TESTS.sprites = {
     const ch = q.get('char') || 'amaya';
     const fr = parseInt(q.get('frame') || '0');
     anims.forEach((a, i) => {
-      const x = 40 + (i % 8) * 76, y = 90 + Math.floor(i / 8) * 100;
+      const x = 40 + (i % 8) * 76, y = 112 + Math.floor(i / 8) * 118;
       drawChar(g, ch, a, fr / (ANIMS[a].fps), x, y, 1);
       drawText(g, a, x, y + 4, { font: 'tiny', color: '#140d26', align: 'center' });
     });
@@ -29,6 +29,44 @@ TESTS.sprites = {
     drawText(g, 'TINY 0123456789 KWH/M³ 35 G/L ÁREA Ñ', 8, 316, { font: 'tiny', color: '#140d26' });
     drawText(g, 'Agua · energía · hidrógeno · agroecología {y}amarillo{/} {c}cian{/} {p}rosa{/}', 8, 328, { color: '#140d26' });
     for (let i = 0; i < 12; i++) Icons.draw(g, Object.keys(Icons.defs)[i + (parseInt(q.get('ic') || '0'))], 8 + i * 18, 340);
+  },
+};
+/* Hoja de personaje: ?test=charsheet&char=amaya&page=0&bg=grey|ref&z=1&anims=idle,run&expr=happy
+   Cada fila = una animación con todos sus cuadros (capturar con escala 2 → 2×). */
+const CHARSHEET_ANIMS = ['idle', 'walk', 'run', 'jump', 'fall', 'land', 'talk', 'scan', 'sample', 'repair', 'program', 'tool', 'help', 'point', 'think', 'sad', 'celebrate', 'frustrate', 'hit', 'climb', 'sit', 'wade', 'observe', 'surprise', 'worry', 'fear', 'determined', 'victory'];
+function charsheetBg(g, kind, y0 = 0, h = H) {
+  if (kind !== 'ref') { frect(g, 0, y0, W, h, '#7a7a86'); return; }
+  // fondo tipo referencia en bandas sólidas (cielo → bruma → mar → arena), sin tramado
+  const sky = RAMP.skyR || ['#2186eb'], bands = [[0, sky[2]], [0.18, sky[3]], [0.34, sky[4]], [0.48, sky[5]], [0.58, '#c5a9b9'], [0.64, '#9884ab'], [0.70, '#0189d4'], [0.78, '#0692d5'], [0.86, '#edaf5f'], [0.93, '#c58440']];
+  bands.forEach(([t, c], i) => { const ya = y0 + Math.round(t * h), yb = y0 + Math.round((bands[i + 1] ? bands[i + 1][0] : 1) * h); frect(g, 0, ya, W, yb - ya, c); });
+}
+TESTS.charsheet = {
+  enter() { this.t = 0; },
+  update(dt) { this.t += dt; },
+  render(g) {
+    const q = new URLSearchParams(location.search);
+    const ch = q.get('char') || 'amaya', def = CHARS[ch];
+    const bg = q.get('bg') || 'grey', z = parseInt(q.get('z') || '1'), page = parseInt(q.get('page') || '0');
+    const list = (q.get('anims') || CHARSHEET_ANIMS.join(',')).split(',').filter(a => ANIMS[a]);
+    const c0 = SpriteCache.get(ch, 'idle', 0, {});
+    const cw = Math.round((q.get('cw') ? parseInt(q.get('cw')) : Math.min(c0.width, ch === 'kiru' ? 56 : c0.width > 100 ? 100 : 72)) * z);
+    const top = parseInt(q.get('crop') || (c0.height === 104 ? '18' : '0'));
+    const rh = (c0.height - top) * z + 4;
+    const rows = Math.max(1, Math.floor((H - 8) / rh));
+    const sel = list.slice(page * rows, page * rows + rows);
+    charsheetBg(g, bg);
+    sel.forEach((a, r) => {
+      const A = ANIMS[a], y = 4 + r * rh;
+      drawText(g, a + ' ' + A.frames + '@' + A.fps, 2, y + 1, { font: 'tiny', color: bg === 'ref' ? '#fffaf0' : '#140d26', shadow: bg === 'ref' ? '#140d26' : null });
+      for (let f = 0; f < A.frames; f++) {
+        const c = SpriteCache.get(ch, a, f, { expr: q.get('expr') || undefined });
+        const x = 44 + f * (cw + 2);
+        if (x + cw > W) break;
+        const sx = Math.max(0, Math.round((def.ox ?? 30) - cw / z / 2));
+        g.drawImage(c, sx, top, cw / z, c.height - top, x, y, cw, (c.height - top) * z);
+      }
+    });
+    drawText(g, ch + ' p' + page + '/' + Math.ceil(list.length / rows - 1), W - 4, H - 10, { font: 'tiny', color: '#fffaf0', shadow: '#140d26', align: 'right' });
   },
 };
 window.addEventListener('load', boot);
