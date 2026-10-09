@@ -201,6 +201,8 @@ class Player extends Entity {
     this.climbing = null; this.wading = false; this.gliding = false; this.inv = 0; this.lock = 0; this.forcedAnim = null;
     this.lastSafe = { x: this.x, y: this.y }; this.stepT = 0; this.expr = null;
     this.w = 12; this.h = 56;
+    // integridad (7 corazones, no letal) y carga del traje/KIRU (0..1, no bloquea acciones)
+    this.maxHp = 7; this.hp = 7; this.regenT = 0; this.hurtT = 0; this.lostIdx = -1; this.energy = 1; this.lowWarned = false;
   }
   setAnim(a) { if (this.anim !== a) { this.anim = a; this.animT = 0; } }
   hurt(dir, power = 160) {
@@ -208,12 +210,26 @@ class Player extends Entity {
     this.inv = 1.1; this.vx = dir * power; this.vy = -180; this.onGround = false; this.lock = 0.35;
     this.setAnim('hit'); Audio2.sfx('hit'); this.world.scene.cam.shake(3, 0.25);
     this.world.ps.emit('spark', this.x, this.y - 30, 0, -40, 8, 6);
+    this.hp = Math.max(0, (this.hp ?? 7) - 1); this.lostIdx = this.hp; this.hurtT = 1.5; this.regenT = 0;
+    if (this.hp <= 0) { // sin muerte: vuelve al último punto seguro con la integridad restaurada
+      this.x = this.lastSafe.x; this.y = this.lastSafe.y; this.vx = 0; this.vy = 0; this.hp = this.maxHp; this.lostIdx = -1;
+      Game.toast('Ruta recuperada · integridad restaurada', 'reset', '#ffe14d', 2);
+    }
   }
   update(dt) {
     const W_ = this.world, inp = W_.scene.inputEnabled() ? Input : null;
     this.t += dt; this.animT += dt;
     if (this.inv > 0) this.inv -= dt;
     if (this.lock > 0) this.lock -= dt;
+    // integridad: un corazón cada 6 s sin daño · carga: gasto por Lente, Barrido y planeo; recarga en suelo
+    if (this.hurtT > 0) this.hurtT -= dt;
+    if (this.hp < this.maxHp && this.inv <= 0) { this.regenT += dt; if (this.regenT > 6) { this.regenT = 0; this.hp++; } }
+    { const sc = W_.scene, lensOn = !!(sc && sc.lens), scanning = this.forcedAnim === 'scan';
+      const drain = (lensOn ? 0.02 : 0) + (scanning ? 0.14 : 0) + (this.gliding ? 0.10 : 0);
+      if (drain > 0) this.energy = Math.max(0, this.energy - drain * dt);
+      else if (this.onGround) this.energy = Math.min(1, this.energy + 0.15 * dt);
+      if (this.energy < 0.12 && !this.lowWarned) { this.lowWarned = true; if (sc && sc.kiru && sc.kiru.say) sc.kiru.say('Carga baja: descansa un momento en suelo firme para recargar.', 'alarmado', 3); }
+      if (this.energy > 0.4) this.lowWarned = false; }
     const left = inp && this.lock <= 0 && inp.down('left'), right = inp && this.lock <= 0 && inp.down('right');
     const up = inp && inp.down('up'), down = inp && inp.down('down');
     const jumpP = inp && inp.pressed('jump'), jumpD = inp && inp.down('jump');
@@ -362,20 +378,24 @@ class Kiru extends Entity {
   renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - 36, this.bubble.text, '#20d6c7', this.bubble.t); }
 }
 
-/** Globo de diálogo ligero sobre personajes */
-function drawBubble(g, x, y, text, edge = '#fffaf0', t = 1, maxW = 150) {
-  const lines = wrapText(text, maxW);
-  const w = Math.max(...lines.map(l => FONTS.main.measure(l))) + 10, h = lines.length * 11 + 7;
-  const bx = Math.round(clamp(x - w / 2, 4, W - w - 4)), by = Math.round(clamp(y - h - 6, 4, H - h - 30));
-  const shown = Math.floor(t * 50);
-  frect(g, bx + 1, by, w - 2, h, '#140d26'); frect(g, bx, by + 1, w, h - 2, '#140d26');
-  frect(g, bx + 1, by + 1, w - 2, h - 2, '#fffaf0'); frect(g, bx + 1, by + h - 3, w - 2, 1, '#e0d8f0');
-  frect(g, bx + 1, by + 1, w - 2, 1, edge);
-  const tx = Math.round(clamp(x, bx + 6, bx + w - 8));
-  frect(g, tx - 2, by + h - 1, 5, 1, '#fffaf0'); frect(g, tx - 1, by + h, 3, 1, '#fffaf0'); fpx(g, tx, by + h + 1, '#fffaf0');
-  fpx(g, tx - 3, by + h - 1, '#140d26'); fpx(g, tx + 3, by + h - 1, '#140d26'); fpx(g, tx - 2, by + h, '#140d26'); fpx(g, tx + 2, by + h, '#140d26'); fpx(g, tx - 1, by + h + 1, '#140d26'); fpx(g, tx + 1, by + h + 1, '#140d26'); fpx(g, tx, by + h + 2, '#140d26');
-  let rem = shown;
-  lines.forEach((l, i) => { if (rem > 0) drawText(g, l, bx + 5, by + 4 + i * 11, { color: '#1f1638', max: rem }); rem -= stripMarkup(l).length + 1; });
+/** Globo de diálogo ambiental (navy de la referencia, con nombre y cola hacia la cabeza del hablante).
+    (x,y) = punto sobre el personaje en pantalla; si coincide con un KIRU/actor del nivel se ancla a su cabeza real. */
+function drawBubble(g, x, y, text, edge = '#e2ebfc', t = 1, maxW = 150) {
+  let ax = x, ay = y, name = null;
+  const gp = (typeof GameplayScene !== 'undefined' && GameplayScene.world && GameplayScene.cam) ? GameplayScene : null;
+  if (gp) {
+    const cam = gp.cam;
+    for (const e of gp.world.entities) {
+      if (!(e instanceof Kiru) && !(e instanceof Actor)) continue;
+      if (Math.abs((e.x - cam.ox) - x) > 0.6) continue;
+      const cid = e instanceof Kiru ? 'kiru' : e.charId;
+      ay = Math.round(e.y - cam.oy - Math.max(e.bubbleH || 0, UIK.headTop(cid)) - 3);
+      const sp = e instanceof Kiru ? SPEAKERS.kiru : (SPEAKERS[e.id] || (SPEAKERS[e.charId] && SPEAKERS[e.charId].portrait === e.charId ? SPEAKERS[e.charId] : null));
+      name = e.name || (sp && sp.name) || null;
+      break;
+    }
+  }
+  UIK.speechBubble(g, ax, ay, { name: name ? String(name).toUpperCase() : null, nameCol: edge, text, max: Math.floor(t * 50), w: Math.min(220, maxW + 22), avoid: UIK._hudRects || [], minY: 4 });
 }
 
 /** NPC / actor de escena */

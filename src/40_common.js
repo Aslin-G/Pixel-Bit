@@ -234,25 +234,18 @@ function drawLampPost(g, x, y, on = true, col = '#ffe14d') {
   frect(g, x, y - 34, 2, 34, '#263442'); frect(g, x - 3, y - 36, 8, 3, '#345a78'); frect(g, x - 2, y - 33, 6, 3, on ? col : '#3a4a6e');
   if (on) { fdither(g, x - 12, y - 40, 26, 20, col, 0.18); fdither(g, x - 6, y - 36, 14, 12, col, 0.3); }
 }
-/** Panel de HUD de nivel con varias medidas */
+/** Panel de HUD de nivel con varias medidas: placas de instrumento (insignia + etiqueta + valor + barra) */
 function hudGauges(g, items, x = 6, y = H - 34) {
-  const w = items.length * 92 + 8;
-  UIK.panel(g, x, y, w, 28, 'glass');
-  items.forEach((it, i) => {
-    const xx = x + 6 + i * 92;
-    Icons.draw(g, it.icon, xx, y + 3);
-    drawText(g, it.label, xx + 16, y + 4, { font: 'tiny', color: '#cfd6f0' });
-    drawText(g, it.value, xx + 16, y + 12, { color: it.color || '#fffaf0', shadow: '#070a1c' });
-    if (it.frac != null) UIK.bar(g, xx, y + 22, 84, 4, it.frac, it.color || '#56e5ff');
-  });
+  UIK.instrumentPlates(g, items, x - 2, y - 2);
 }
-/** Etiqueta flotante para la Lente Nexo */
+/** Etiqueta flotante para la Lente Nexo: píldora navy con borde del color del sistema */
 function lensTag(g, x, y, text, col = '#56e5ff', icon = null) {
   const w = FONTS.tiny.measure(stripMarkup(text)) + (icon ? 18 : 8);
   x = Math.round(x); y = Math.round(y);
-  frect(g, x - 1, y - 1, w + 2, 11, '#05031a'); frect(g, x, y, w, 9, '#0a1030'); frect(g, x, y, 2, 9, col);
+  frect(g, x, y - 1, w, 11, '#000633'); frect(g, x - 1, y, w + 2, 9, '#000633');
+  frect(g, x, y, w, 9, col); frect(g, x + 1, y + 1, w - 2, 7, '#031128'); frect(g, x + 1, y + 1, w - 2, 1, mixHex('#031128', col, 0.25));
   if (icon) Icons.draw(g, icon, x + 2, y - 3);
-  drawText(g, text, x + (icon ? 16 : 5), y + 2, { font: 'tiny', color: col });
+  drawText(g, text, x + (icon ? 16 : 4), y + 2, { font: 'tiny', color: mixHex(col, '#ffffff', 0.6) });
 }
 function lensBoundary(g, x, y, w, h, col = '#ffe14d', label = null) {
   const t = Math.floor(Game.time * 12);
