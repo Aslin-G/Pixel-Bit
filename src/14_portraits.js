@@ -561,8 +561,13 @@ PDEFS.amaya = () => {
       const teeth = (x, y) => { const k = (x - 46) / 6.2; const ph = k - Math.floor(k); const tip = 35 + Math.abs(ph - 0.5) * -7 + (x > 70 ? (x - 70) * 0.35 : 0); return y - tip; };
       const capS = SDF.sub(mass, SDF.inter(win, (x, y) => (x > 44 && x < 86 ? -teeth(x, y) : -1)));
       P.custom(capS, [26, 5, 92, 70], { mat: M.hair, z: 32, group: 'hair', base: 3, bevel: 8, shiny: true, hiT: 0.6, tex: tx, cast: { on: ['face', 'ear', 'neck'], dx: -1, dy: 3, k: 1 } });
-      // lazo amarillo de la coleta
+      // lazo amarillo de la coleta (con cuentas)
       P.ellipse(31, 17, 2.6, 6, { mat: M.tie, z: 34, group: 'tie', base: 4, bevel: 1.5, shiny: true }, 0.7);
+      P.stamp((pb, c) => { if (c.S < 1) return; const X = c.X, Y = c.Y; for (const [x, y] of [[29, 20], [31, 17], [33, 14]]) pb.set(X(x), Y(y), C.tieAm[1]); }, 4);
+      // mechones sueltos (pelo vivo, no casco)
+      if (!sm) PHAIR.clumps(P, M, [
+        [[27, 10], [20, 3], [12, 1], 1.6], [[24, 24], [12, 30], [5, 40], 1.5], [[86, 30], [93, 38], [95, 46], 1.3],
+      ], { z: 9.5, group: 'fly', base: 4, tex: null, cast: false, taper: 1, tip: 0.3 });
       // mechones que cruzan la frente (barrido hacia la izquierda) + mechones laterales largos
       const btx = PHAIR.tex(M, { whorl: [66, 8], step: sm ? 0.32 : 0.22, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: 0.06, ringMin: 3, streak: !sm });
       PHAIR.clumps(P, M, sm ? [
@@ -1190,7 +1195,7 @@ PDEFS.consejal = phMake({
 PDEFS.operador = phMake({
   sprite: 'operador', male: true, outfit: 'hivis', hair: 'short', hat: 'cap',
   mats: () => ({ skin: PK.mat(RAMP.skinM, '#1e0e0a', RAMP.skinM[2]), hair: PK.mat(RAMP_CH.blackHair.concat(['#7a7a94']), '#04040a', RAMP_CH.blackHair[1]), top: NPC_CLOTH[6], vest: RAMP_CH.hivisO, hat: NPC_CLOTH[1].concat(['#b0e4f4']) }),
-  lash: '#0c0606', brow: '#101018', head: { jawW: 1.5, cheek: 0.6 }, neck: { w: 8.5 }, beard: '#3a2a26',
+  lash: '#0c0606', brow: '#101018', head: { jawW: 1.5, cheek: 0.6 }, neck: { w: 8.5 },
   acc(P) { P.ellipse(34, 52, 3, 4, { mat: RAMP_CH.charcoal, z: 34, group: 'earpiece', base: 3, bevel: 1.2 }); P.capsule(35, 56, 46, 64, 0.9, 0.9, { mat: RAMP_CH.charcoal, z: 34.5, group: 'mic', base: 4, bevel: 0.5 }); },
 });
 /* ---------- Doña Celia — pastora ---------- */
