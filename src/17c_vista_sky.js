@@ -116,7 +116,7 @@
       const nx = (x + 0.5 - cx) / rr, ny = (y + 0.5 - cy) / rr, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
       const I = nx * L[0] + ny * L[1] + nz * L[2];
       const hf = clamp((base - y) / (h * 0.9), 0, 1);
-      let t = 0.02 + 0.6 * (I * 0.5 + 0.5) + 0.44 * Math.pow(hf, 0.75);
+      let t = -0.08 + 0.8 * (I * 0.5 + 0.5) + 0.34 * Math.pow(hf, 0.8);
       if (base - y < 5) t -= (5 - (base - y)) * 0.06; // vientre
       const i = y * w + x; Z[i] = bz; ID[i] = best; T[i] = t;
     }

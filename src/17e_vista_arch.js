@@ -141,12 +141,18 @@
     }
     // armadura exterior (media corona translúcida detrás de la cúpula)
     const yD = y - H1 - H2 - Math.round(2 * s);
-    const AR = Math.round(RD * 1.32), arm = U(V.hzc('#c9a77e', k)), armD = U(V.hzc('#8a6a50', k));
-    for (let a = 0; a <= 180; a += 0.6) {
-      const t = a * Math.PI / 180, px = Math.round(cx - Math.cos(t) * AR), py = Math.round(yD - Math.sin(t) * AR * 0.92);
-      V.put(pb, px, py, a < 100 ? arm : armD); V.put(pb, px, py + 1, armD);
+    const AR = Math.round(RD * 1.3), arm = U(V.hzc('#e8c890', k)), armM = U(V.hzc('#c9a77e', k)), armD = U(V.hzc('#8a6a50', k));
+    // cáscara exterior translúcida (velo cálido) con celosía de meridianos
+    for (let yy = -Math.round(AR * 0.92); yy <= 0; yy++) for (let xx = -AR; xx <= AR; xx++) {
+      const nx = xx / (AR + 0.5), ny = yy / (AR * 0.92 + 0.5), d = nx * nx + ny * ny;
+      if (d > 1) continue;
+      const lon = Math.asin(clamp(nx / Math.max(0.01, Math.sqrt(1 - ny * ny)), -1, 1));
+      const merid = Math.abs(((lon / Math.PI * 10) % 1 + 1) % 1 - 0.5) < 0.06;
+      const par = Math.abs(((Math.asin(-ny) / Math.PI * 9) % 1 + 1) % 1 - 0.5) < 0.05;
+      if (d > 0.88) V.blend(pb, cx + xx, yD + yy, nx < 0.2 ? arm : armM, 0.95);
+      else if (merid || par) V.blend(pb, cx + xx, yD + yy, nx < 0 ? arm : armD, 0.55);
+      else V.blend(pb, cx + xx, yD + yy, U(V.hzc('#f4dcb0', k)), 0.16);
     }
-    for (let i = 1; i < 6; i++) { const t = i / 6 * Math.PI; V.line(pb, cx - Math.cos(t) * AR, yD - Math.sin(t) * AR * 0.92, cx - Math.cos(t) * RD * 0.9, yD - Math.sin(t) * HD * 0.9, (tt) => tt > 0.15 ? 0 : armD); }
     // cúpula de cristal: hemisferio con meridianos/paralelos y reflejo
     const nG = G.length;
     for (let yy = -HD; yy <= 0; yy++) for (let xx = -RD; xx <= RD; xx++) {
@@ -160,7 +166,8 @@
       const merid = Math.abs(((lon / Math.PI * 8) % 1 + 1) % 1 - 0.5) < 0.09;
       const par = Math.abs(((Math.asin(-ny) / Math.PI * 7) % 1 + 1) % 1 - 0.5) < 0.07;
       if (merid || par) i = Math.min(nG - 2, i + 2);
-      if (nx < -0.25 && nx > -0.55 && ny < -0.35 && ny > -0.7) i = nG - 1; // reflejo
+      if (d > 0.4 && d < 0.6 && nx < -0.12 && ny < -0.25) i = nG - 1; // reflejo en arco
+      else if (d > 0.3 && d < 0.4 && nx < -0.2 && ny < -0.3) i = nG - 2;
       if (d > 0.9) i = Math.max(0, i - 2);
       V.put(pb, cx + xx, yD + yy, G[clamp(i, 0, nG - 1)]);
     }

@@ -196,32 +196,39 @@
         const inside = x < o.x1 && ok(x, s.topY + 1);
         if (inside && a < 0) a = x; else if (!inside && a >= 0) { if (x - a > 8) s.spans.push([a, x - 1]); a = -1; }
       }
+      const FLW = [U(V.hzc('#f060b8', k)), U(V.hzc('#ffd84a', k)), U(V.hzc('#fff4f0', k)), U(V.hzc('#ff7a5a', k))];
       for (const [xa, xb] of s.spans) {
-        // cara superior con hileras (se ven en 3/4)
-        for (let y = s.topY; y < s.wallTop; y++) for (let x = xa; x <= xb; x++) {
-          const v = (y - s.topY) / Math.max(1, s.wallTop - s.topY);
-          let u;
-          if (s.kind === 'rows') { const row = (y - s.topY) % 2; u = row ? So[2 + (hash2(x, y, 3) < 0.3 ? 1 : 0)] : Cr[clamp(Math.round(nC * 0.45 + (1 - v) * 2.5 + (hash2(x >> 1, y, 9) < 0.3 ? -1 : 0) + (((x + si * 5) >> 4) % 2)), 0, nC - 1)]; }
-          else if (s.kind === 'vine') u = (x % 3 === 0) ? So[3] : Cr[clamp(Math.round(nC * 0.35 + (1 - v) * 3 + (hash2(x, y, 4) < 0.3 ? 1 : 0)), 0, nC - 1)];
-          else if (s.kind === 'flowers') { const h_ = hash2(x, y, 6); u = h_ < 0.18 ? U(V.hzc(h_ < 0.09 ? '#f060b8' : '#ffd84a', k)) : Cr[clamp(Math.round(nC * 0.4 + (1 - v) * 2), 0, nC - 1)]; }
-          else u = So[1 + (hash2(x, y, 5) < 0.4 ? 1 : 0)];
-          if (x === xa || x === xb) u = V.shU(u, -0.2, 20);
-          V.put(pb, x, y, u);
+        // suelo de la cara superior
+        for (let y = s.topY; y < s.wallTop; y++) for (let x = xa; x <= xb; x++) V.put(pb, x, y, So[1 + ((y - s.topY) & 1) + (hash2(x, y, 5) < 0.25 ? 1 : 0)]);
+        // hileras de plantas en mata (bolitas 2–3 px, luz arriba-izquierda), en 3/4: hileras paralelas al muro
+        const rowsN = Math.max(1, Math.floor((s.wallTop - s.topY) / 2));
+        for (let ri = 0; ri < rowsN; ri++) {
+          const ry = s.topY + ri * 2 + 1, v = ri / Math.max(1, rowsN - 1);
+          const per = s.kind === 'vine' ? 2 : 3;
+          for (let x = xa + 1 + ((ri * 2) % per); x < xb; x += per) {
+            const hb = hash2(x, ry, 13 + si);
+            const base = clamp(Math.round(nC * 0.32 + v * 1.5 + (hb - 0.5) * 2), 1, nC - 3);
+            if (s.kind === 'flowers' && hb < 0.35) { V.put(pb, x, ry - 1, FLW[(x + ri) & 3]); V.put(pb, x + 1, ry - 1, FLW[(x + ri + 1) & 3]); V.put(pb, x, ry, Cr[base]); continue; }
+            if (s.kind === 'vine') { V.put(pb, x, ry - 2, Cr[base + 2]); V.put(pb, x, ry - 1, Cr[base + 1]); V.put(pb, x, ry, Cr[base]); continue; }
+            V.put(pb, x, ry - 1, Cr[base + 2]); V.put(pb, x + 1, ry - 1, Cr[base + 1]); V.put(pb, x, ry, Cr[base + 1]); V.put(pb, x + 1, ry, Cr[base - 1]);
+          }
         }
-        if (s.kind === 'orchard') for (let x = xa + 3; x < xb - 2; x += r.int(5, 7)) V.tree(pb, x, s.wallTop - 1, r.int(2, 3), x * 7 + si, { k, ramp: o.crop || CROP });
+        // borde delantero desbordado de matas
+        for (let x = xa; x <= xb; x++) if (hash2(x, s.wallTop, 23) < 0.55) V.put(pb, x, s.wallTop - 1, Cr[clamp(Math.round(nC * 0.55 + (hash2(x, 1, 24) - 0.5) * 3), 1, nC - 1)]);
+        if (s.kind === 'orchard') for (let x = xa + 3; x < xb - 2; x += r.int(5, 7)) V.tree(pb, x, s.wallTop - 1, r.int(2, 4), x * 7 + si, { k, ramp: o.crop || CROP });
         // muro de roca
         const bw = r.int(5, 8);
         for (let y = s.wallTop; y < s.foot; y++) for (let x = xa; x <= xb; x++) {
           const v = (y - s.wallTop) / Math.max(1, s.foot - s.wallTop);
-          const by = Math.floor((y - s.wallTop) / 3), bx = Math.floor((x + (by % 2) * 3) / bw);
-          const crackV = (x + (by % 2) * 3) % bw === 0, crackH = (y - s.wallTop) % 3 === 2;
-          const blk = hash2(bx, by + si * 17, 11);
-          let i = Math.round(nW * 0.62 - v * 2.4 + (blk - 0.5) * 2);
-          if (crackV || crackH) i = 1 + (blk < 0.5 ? 0 : 1);
-          if (x <= xa + 1) i = Math.min(i, 3);
+          const bx = Math.floor(x / bw);
+          const crackV = x % bw === 0 && y > s.wallTop;
+          const blk = hash2(bx, si * 17, 11);
+          let i = Math.round(nW * 0.7 - v * 2 + (blk - 0.5) * 2);
+          if (crackV) i = 2 + (blk < 0.5 ? 0 : 1);
+          if (x <= xa + 1) i = Math.min(i, 4);
           if (x >= xb - 1) i = Math.max(0, i - 2);
           if (y === s.wallTop) i = nW - 1;
-          if (y >= s.foot - 1) i = 0;
+          if (y >= s.foot - 1) i = 1;
           V.put(pb, x, y, Wl[clamp(i, 0, nW - 1)]);
         }
         // canal turquesa al borde y plantas colgantes
@@ -250,13 +257,21 @@
     const R = ramp(FALL, o.k), n = R.length;
     for (let y = y0; y < y1; y++) for (let xx = 0; xx < w; xx++) {
       const streak = hash2(x + xx, (y + (x + xx) * 7) >> 2, 3);
-      let i = xx === 0 ? n - 2 : xx === w - 1 ? 1 : streak < 0.35 ? 2 : streak < 0.75 ? 3 : 4;
+      const edge = xx === 0 || xx === w - 1;
+      let i = edge ? (xx === 0 ? n - 2 : 1) : streak < 0.25 ? 1 : streak < 0.55 ? 2 : streak < 0.85 ? 3 : 5;
+      if (w > 6 && !edge && hash2(x + xx, 0, 8) < 0.3) i = Math.min(n - 1, i + 1); // vetas claras continuas
       if (y < y0 + 2) i = n - 1;
       V.put(pb, x + xx, y, R[i]);
     }
-    // espuma y niebla
-    for (let xx = -2; xx < w + 2; xx++) for (let q = 0; q < 3; q++) if (hash2(x + xx, q, 9) < 0.75 - q * 0.2) V.blend(pb, x + xx, y1 - 1 - q + (q === 0 ? 0 : 0), R[n - 1 - (q > 1 ? 1 : 0)], 0.9 - q * 0.25);
-    for (let xx = -3; xx < w + 3; xx++) V.blend(pb, x + xx, y1 - 4, R[n - 2], 0.25);
+    // rocío en los bordes
+    for (let y = y0 + 3; y < y1; y += 2) { if (hash2(x, y, 4) < 0.4) V.blend(pb, x - 1, y, R[n - 1], 0.5); if (hash2(x + w, y, 4) < 0.4) V.blend(pb, x + w, y, R[n - 1], 0.45); }
+    // espuma (nube blanca en la base) y niebla
+    const fw = w + 4;
+    for (let xx = -2; xx < fw - 2; xx++) for (let q = 0; q < 4; q++) {
+      const c = Math.abs(xx - (w / 2 - 0.5)) / (fw / 2);
+      if (hash2(x + xx, q, 9) < 0.95 - q * 0.22 - c * 0.3) V.blend(pb, x + xx, y1 - q, R[n - 1 - (q > 1 ? 1 : 0)], 0.95 - q * 0.2);
+    }
+    for (let xx = -4; xx < w + 4; xx++) V.blend(pb, x + xx, y1 - 5, R[n - 2], 0.22);
   };
   let _fallTex = null;
   /** Lienzo de vetas que caen (se recorre con desplazamiento: 1 drawImage por tramo) */

@@ -7209,7 +7209,7 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
       const nx = (x + 0.5 - cx) / rr, ny = (y + 0.5 - cy) / rr, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
       const I = nx * L[0] + ny * L[1] + nz * L[2];
       const hf = clamp((base - y) / (h * 0.9), 0, 1);
-      let t = 0.02 + 0.6 * (I * 0.5 + 0.5) + 0.44 * Math.pow(hf, 0.75);
+      let t = -0.08 + 0.8 * (I * 0.5 + 0.5) + 0.34 * Math.pow(hf, 0.8);
       if (base - y < 5) t -= (5 - (base - y)) * 0.06; // vientre
       const i = y * w + x; Z[i] = bz; ID[i] = best; T[i] = t;
     }
@@ -7630,12 +7630,18 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
     }
     // armadura exterior (media corona translúcida detrás de la cúpula)
     const yD = y - H1 - H2 - Math.round(2 * s);
-    const AR = Math.round(RD * 1.32), arm = U(V.hzc('#c9a77e', k)), armD = U(V.hzc('#8a6a50', k));
-    for (let a = 0; a <= 180; a += 0.6) {
-      const t = a * Math.PI / 180, px = Math.round(cx - Math.cos(t) * AR), py = Math.round(yD - Math.sin(t) * AR * 0.92);
-      V.put(pb, px, py, a < 100 ? arm : armD); V.put(pb, px, py + 1, armD);
+    const AR = Math.round(RD * 1.3), arm = U(V.hzc('#e8c890', k)), armM = U(V.hzc('#c9a77e', k)), armD = U(V.hzc('#8a6a50', k));
+    // cáscara exterior translúcida (velo cálido) con celosía de meridianos
+    for (let yy = -Math.round(AR * 0.92); yy <= 0; yy++) for (let xx = -AR; xx <= AR; xx++) {
+      const nx = xx / (AR + 0.5), ny = yy / (AR * 0.92 + 0.5), d = nx * nx + ny * ny;
+      if (d > 1) continue;
+      const lon = Math.asin(clamp(nx / Math.max(0.01, Math.sqrt(1 - ny * ny)), -1, 1));
+      const merid = Math.abs(((lon / Math.PI * 10) % 1 + 1) % 1 - 0.5) < 0.06;
+      const par = Math.abs(((Math.asin(-ny) / Math.PI * 9) % 1 + 1) % 1 - 0.5) < 0.05;
+      if (d > 0.88) V.blend(pb, cx + xx, yD + yy, nx < 0.2 ? arm : armM, 0.95);
+      else if (merid || par) V.blend(pb, cx + xx, yD + yy, nx < 0 ? arm : armD, 0.55);
+      else V.blend(pb, cx + xx, yD + yy, U(V.hzc('#f4dcb0', k)), 0.16);
     }
-    for (let i = 1; i < 6; i++) { const t = i / 6 * Math.PI; V.line(pb, cx - Math.cos(t) * AR, yD - Math.sin(t) * AR * 0.92, cx - Math.cos(t) * RD * 0.9, yD - Math.sin(t) * HD * 0.9, (tt) => tt > 0.15 ? 0 : armD); }
     // cúpula de cristal: hemisferio con meridianos/paralelos y reflejo
     const nG = G.length;
     for (let yy = -HD; yy <= 0; yy++) for (let xx = -RD; xx <= RD; xx++) {
@@ -7649,7 +7655,8 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
       const merid = Math.abs(((lon / Math.PI * 8) % 1 + 1) % 1 - 0.5) < 0.09;
       const par = Math.abs(((Math.asin(-ny) / Math.PI * 7) % 1 + 1) % 1 - 0.5) < 0.07;
       if (merid || par) i = Math.min(nG - 2, i + 2);
-      if (nx < -0.25 && nx > -0.55 && ny < -0.35 && ny > -0.7) i = nG - 1; // reflejo
+      if (d > 0.4 && d < 0.6 && nx < -0.12 && ny < -0.25) i = nG - 1; // reflejo en arco
+      else if (d > 0.3 && d < 0.4 && nx < -0.2 && ny < -0.3) i = nG - 2;
       if (d > 0.9) i = Math.max(0, i - 2);
       V.put(pb, cx + xx, yD + yy, G[clamp(i, 0, nG - 1)]);
     }
@@ -8172,32 +8179,39 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
         const inside = x < o.x1 && ok(x, s.topY + 1);
         if (inside && a < 0) a = x; else if (!inside && a >= 0) { if (x - a > 8) s.spans.push([a, x - 1]); a = -1; }
       }
+      const FLW = [U(V.hzc('#f060b8', k)), U(V.hzc('#ffd84a', k)), U(V.hzc('#fff4f0', k)), U(V.hzc('#ff7a5a', k))];
       for (const [xa, xb] of s.spans) {
-        // cara superior con hileras (se ven en 3/4)
-        for (let y = s.topY; y < s.wallTop; y++) for (let x = xa; x <= xb; x++) {
-          const v = (y - s.topY) / Math.max(1, s.wallTop - s.topY);
-          let u;
-          if (s.kind === 'rows') { const row = (y - s.topY) % 2; u = row ? So[2 + (hash2(x, y, 3) < 0.3 ? 1 : 0)] : Cr[clamp(Math.round(nC * 0.45 + (1 - v) * 2.5 + (hash2(x >> 1, y, 9) < 0.3 ? -1 : 0) + (((x + si * 5) >> 4) % 2)), 0, nC - 1)]; }
-          else if (s.kind === 'vine') u = (x % 3 === 0) ? So[3] : Cr[clamp(Math.round(nC * 0.35 + (1 - v) * 3 + (hash2(x, y, 4) < 0.3 ? 1 : 0)), 0, nC - 1)];
-          else if (s.kind === 'flowers') { const h_ = hash2(x, y, 6); u = h_ < 0.18 ? U(V.hzc(h_ < 0.09 ? '#f060b8' : '#ffd84a', k)) : Cr[clamp(Math.round(nC * 0.4 + (1 - v) * 2), 0, nC - 1)]; }
-          else u = So[1 + (hash2(x, y, 5) < 0.4 ? 1 : 0)];
-          if (x === xa || x === xb) u = V.shU(u, -0.2, 20);
-          V.put(pb, x, y, u);
+        // suelo de la cara superior
+        for (let y = s.topY; y < s.wallTop; y++) for (let x = xa; x <= xb; x++) V.put(pb, x, y, So[1 + ((y - s.topY) & 1) + (hash2(x, y, 5) < 0.25 ? 1 : 0)]);
+        // hileras de plantas en mata (bolitas 2–3 px, luz arriba-izquierda), en 3/4: hileras paralelas al muro
+        const rowsN = Math.max(1, Math.floor((s.wallTop - s.topY) / 2));
+        for (let ri = 0; ri < rowsN; ri++) {
+          const ry = s.topY + ri * 2 + 1, v = ri / Math.max(1, rowsN - 1);
+          const per = s.kind === 'vine' ? 2 : 3;
+          for (let x = xa + 1 + ((ri * 2) % per); x < xb; x += per) {
+            const hb = hash2(x, ry, 13 + si);
+            const base = clamp(Math.round(nC * 0.32 + v * 1.5 + (hb - 0.5) * 2), 1, nC - 3);
+            if (s.kind === 'flowers' && hb < 0.35) { V.put(pb, x, ry - 1, FLW[(x + ri) & 3]); V.put(pb, x + 1, ry - 1, FLW[(x + ri + 1) & 3]); V.put(pb, x, ry, Cr[base]); continue; }
+            if (s.kind === 'vine') { V.put(pb, x, ry - 2, Cr[base + 2]); V.put(pb, x, ry - 1, Cr[base + 1]); V.put(pb, x, ry, Cr[base]); continue; }
+            V.put(pb, x, ry - 1, Cr[base + 2]); V.put(pb, x + 1, ry - 1, Cr[base + 1]); V.put(pb, x, ry, Cr[base + 1]); V.put(pb, x + 1, ry, Cr[base - 1]);
+          }
         }
-        if (s.kind === 'orchard') for (let x = xa + 3; x < xb - 2; x += r.int(5, 7)) V.tree(pb, x, s.wallTop - 1, r.int(2, 3), x * 7 + si, { k, ramp: o.crop || CROP });
+        // borde delantero desbordado de matas
+        for (let x = xa; x <= xb; x++) if (hash2(x, s.wallTop, 23) < 0.55) V.put(pb, x, s.wallTop - 1, Cr[clamp(Math.round(nC * 0.55 + (hash2(x, 1, 24) - 0.5) * 3), 1, nC - 1)]);
+        if (s.kind === 'orchard') for (let x = xa + 3; x < xb - 2; x += r.int(5, 7)) V.tree(pb, x, s.wallTop - 1, r.int(2, 4), x * 7 + si, { k, ramp: o.crop || CROP });
         // muro de roca
         const bw = r.int(5, 8);
         for (let y = s.wallTop; y < s.foot; y++) for (let x = xa; x <= xb; x++) {
           const v = (y - s.wallTop) / Math.max(1, s.foot - s.wallTop);
-          const by = Math.floor((y - s.wallTop) / 3), bx = Math.floor((x + (by % 2) * 3) / bw);
-          const crackV = (x + (by % 2) * 3) % bw === 0, crackH = (y - s.wallTop) % 3 === 2;
-          const blk = hash2(bx, by + si * 17, 11);
-          let i = Math.round(nW * 0.62 - v * 2.4 + (blk - 0.5) * 2);
-          if (crackV || crackH) i = 1 + (blk < 0.5 ? 0 : 1);
-          if (x <= xa + 1) i = Math.min(i, 3);
+          const bx = Math.floor(x / bw);
+          const crackV = x % bw === 0 && y > s.wallTop;
+          const blk = hash2(bx, si * 17, 11);
+          let i = Math.round(nW * 0.7 - v * 2 + (blk - 0.5) * 2);
+          if (crackV) i = 2 + (blk < 0.5 ? 0 : 1);
+          if (x <= xa + 1) i = Math.min(i, 4);
           if (x >= xb - 1) i = Math.max(0, i - 2);
           if (y === s.wallTop) i = nW - 1;
-          if (y >= s.foot - 1) i = 0;
+          if (y >= s.foot - 1) i = 1;
           V.put(pb, x, y, Wl[clamp(i, 0, nW - 1)]);
         }
         // canal turquesa al borde y plantas colgantes
@@ -8226,13 +8240,21 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
     const R = ramp(FALL, o.k), n = R.length;
     for (let y = y0; y < y1; y++) for (let xx = 0; xx < w; xx++) {
       const streak = hash2(x + xx, (y + (x + xx) * 7) >> 2, 3);
-      let i = xx === 0 ? n - 2 : xx === w - 1 ? 1 : streak < 0.35 ? 2 : streak < 0.75 ? 3 : 4;
+      const edge = xx === 0 || xx === w - 1;
+      let i = edge ? (xx === 0 ? n - 2 : 1) : streak < 0.25 ? 1 : streak < 0.55 ? 2 : streak < 0.85 ? 3 : 5;
+      if (w > 6 && !edge && hash2(x + xx, 0, 8) < 0.3) i = Math.min(n - 1, i + 1); // vetas claras continuas
       if (y < y0 + 2) i = n - 1;
       V.put(pb, x + xx, y, R[i]);
     }
-    // espuma y niebla
-    for (let xx = -2; xx < w + 2; xx++) for (let q = 0; q < 3; q++) if (hash2(x + xx, q, 9) < 0.75 - q * 0.2) V.blend(pb, x + xx, y1 - 1 - q + (q === 0 ? 0 : 0), R[n - 1 - (q > 1 ? 1 : 0)], 0.9 - q * 0.25);
-    for (let xx = -3; xx < w + 3; xx++) V.blend(pb, x + xx, y1 - 4, R[n - 2], 0.25);
+    // rocío en los bordes
+    for (let y = y0 + 3; y < y1; y += 2) { if (hash2(x, y, 4) < 0.4) V.blend(pb, x - 1, y, R[n - 1], 0.5); if (hash2(x + w, y, 4) < 0.4) V.blend(pb, x + w, y, R[n - 1], 0.45); }
+    // espuma (nube blanca en la base) y niebla
+    const fw = w + 4;
+    for (let xx = -2; xx < fw - 2; xx++) for (let q = 0; q < 4; q++) {
+      const c = Math.abs(xx - (w / 2 - 0.5)) / (fw / 2);
+      if (hash2(x + xx, q, 9) < 0.95 - q * 0.22 - c * 0.3) V.blend(pb, x + xx, y1 - q, R[n - 1 - (q > 1 ? 1 : 0)], 0.95 - q * 0.2);
+    }
+    for (let xx = -4; xx < w + 4; xx++) V.blend(pb, x + xx, y1 - 5, R[n - 2], 0.22);
   };
   let _fallTex = null;
   /** Lienzo de vetas que caen (se recorre con desplazamiento: 1 drawImage por tramo) */
@@ -10694,14 +10716,14 @@ BIOMES.coast = function (L) {
     const info = V.relief(pb, {
       yBase: h - 1, nv: 34, dvy: 0.3, seed: 63, hMax: 112,
       H: V.massif([
-        { x: 730, v: 16, h: 112, w: 190, d: 24, k: 0.8 }, { x: 600, v: 10, h: 62, w: 100, d: 16 }, { x: 905, v: 10, h: 56, w: 90, d: 16 },
+        { x: 770, v: 18, h: 116, w: 150, d: 26, k: 0.95 }, { x: 650, v: 12, h: 84, w: 130, d: 20, k: 0.8 }, { x: 560, v: 10, h: 56, w: 90, d: 16 }, { x: 905, v: 10, h: 56, w: 90, d: 16 },
         { x: 1190, v: 14, h: 96, w: 160, d: 22, k: 0.85 }, { x: 1320, v: 10, h: 54, w: 80, d: 16 }, { x: 1010, v: 8, h: 26, w: 60, d: 14 }, { x: 470, v: 8, h: 28, w: 70, d: 14 },
       ], { seed: 63, rough: 0.42, scale: 0.05, apron: 4 }),
       ramp: V.RAMPS.low, contrast: 1.8, haze: { col: '#c0a8c0', k0: 0.04, k: 0.06 }, rim: '#fde0a8', tex: 0.06,
       veg: { ramp: V.RAMPS.vegLow, density: 0.12, maxSlope: 1.2, minY: 40, size: 3 },
     });
-    const TA = V.carveTerraces(pb, info, { x0: 560, x1: 920, yTop: 58, yBot: h - 16, stepH: [10, 13], k, seed: 61, kinds: ['rows', 'vine', 'flowers', 'rows', 'orchard', 'rows', 'vine'], falls: [{ x: 704, w: 6, from: 0 }, { x: 788, w: 3, from: 2 }] });
-    const TB = V.carveTerraces(pb, info, { x0: 1060, x1: 1340, yTop: 76, yBot: h - 16, stepH: [10, 12], k, seed: 67, kinds: ['rows', 'orchard', 'rows', 'vine', 'flowers'], falls: [{ x: 1166, w: 4, from: 0 }] });
+    const TA = V.carveTerraces(pb, info, { x0: 560, x1: 930, yTop: 74, yBot: h - 16, stepH: [8, 12], wallK: 0.4, k, seed: 61, kinds: ['rows', 'vine', 'flowers', 'rows', 'orchard', 'rows', 'vine'], falls: [{ x: 704, w: 6, from: 0 }, { x: 788, w: 3, from: 2 }] });
+    const TB = V.carveTerraces(pb, info, { x0: 1060, x1: 1340, yTop: 76, yBot: h - 16, stepH: [9, 11], wallK: 0.4, k, seed: 67, kinds: ['rows', 'orchard', 'rows', 'vine', 'flowers'], falls: [{ x: 1166, w: 4, from: 0 }] });
     terrFalls.push(...TA.falls, ...TB.falls);
     // invernaderos, casas de labor, palmeras y huertos
     V.greenhouse(pb, 952, h - 16, 30, 12, { k });
@@ -10727,13 +10749,13 @@ BIOMES.coast = function (L) {
     const k = 0.03, r = RNG(81);
     const yB = h - 16; // línea de costa (pantalla ≈ 192)
     const peaks = [
-      { x: 370, v: 14, h: 46, w: 80, d: 18 }, { x: 460, v: 12, h: 38, w: 70, d: 16 }, { x: 850, v: 14, h: 44, w: 70, d: 18 },
+      { x: 384, v: 16, h: 54, w: 90, d: 18 }, { x: 470, v: 12, h: 40, w: 70, d: 16 }, { x: 566, v: 12, h: 46, w: 56, d: 16 }, { x: 680, v: 12, h: 34, w: 70, d: 16 }, { x: 850, v: 14, h: 44, w: 70, d: 18 },
       { x: 950, v: 16, h: 58, w: 100, d: 20, k: 0.9 }, { x: 1060, v: 12, h: 46, w: 80, d: 18 }, { x: 1180, v: 10, h: 30, w: 70, d: 16 },
       { x: 1330, v: 14, h: 40, w: 100, d: 18 }, { x: 1480, v: 16, h: 62, w: 100, d: 20 }, { x: 1600, v: 12, h: 44, w: 70, d: 16 },
     ];
     const info = V.relief(pb, {
       yBase: yB, nv: 30, dvy: 0.32, seed: 83, hMax: 60,
-      H: V.massif(peaks, { seed: 83, rough: 0.45, scale: 0.055, apron: 3, plateaus: [{ x: 422, w: 52, h: 22 }, { x: 944, w: 50, h: 32 }, { x: 1306, w: 64, h: 22 }] }),
+      H: V.massif(peaks, { seed: 83, rough: 0.45, scale: 0.055, apron: 3, plateaus: [{ x: 402, w: 50, h: 34 }, { x: 944, w: 50, h: 32 }, { x: 1306, w: 64, h: 22 }] }),
       ramp: V.RAMPS.low, contrast: 1.7, haze: { col: '#c8b0c0', k0: 0.0, k: 0.05 }, rim: '#fde6b0', tex: 0.07,
       veg: { ramp: V.RAMPS.vegLow, density: 0.1, maxSlope: 1.1, minY: 20, size: 3 },
     });
@@ -10745,11 +10767,11 @@ BIOMES.coast = function (L) {
       V.put(pb, x, yB + 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); if (hash2(x >> 1, 2, 5) < 0.6) V.put(pb, x, yB + 2, FOAM[0]);
     }
     // FV en la meseta izquierda (3 mesas) y campo FV a la derecha
-    const pvA = V.pvArray(pb, 380, info.yAt(420, 6) - 1, { tables: 3, cols: 11, rows: 2, cw: 5, ch: 3, gap: 3, skew: 3, k, shift: 2 });
+    const pvA = V.pvArray(pb, 364, info.yAt(402, 12) - 1, { tables: 3, cols: 11, rows: 2, cw: 5, ch: 3, gap: 3, skew: 3, k, shift: 2 });
     const pvB = V.pvArray(pb, 1256, info.yAt(1300, 6) - 1, { tables: 3, cols: 14, rows: 2, cw: 5, ch: 3, gap: 3, skew: 3, k, shift: 2 });
     for (const P of [pvA, pvB]) coastFx.pv.push(V.shadowCopy(pb, P.x0 - 2, P.y0 - 1, P.x1 - P.x0 + 6, P.y1 - P.y0 + 4));
     // casas, palmeras y vegetación
-    for (const [x, ww, hh, s] of [[332, 8, 5, 1], [486, 9, 6, 2], [512, 7, 5, 3], [1090, 9, 6, 4], [1124, 7, 5, 5], [1380, 8, 6, 6], [1540, 9, 6, 7], [1572, 7, 5, 8]]) {
+    for (const [x, ww, hh, s] of [[612, 8, 5, 1], [650, 9, 6, 2], [700, 7, 5, 3], [1090, 9, 6, 4], [1124, 7, 5, 5], [1380, 8, 6, 6], [1540, 9, 6, 7], [1572, 7, 5, 8]]) {
       const y = info.onSurf(x, 8); if (y != null) V.house(pb, x, y + 1, ww, hh, 8100 + s, { k, roof: s % 3 === 0 ? 'solar' : null });
     }
     V.scatterVeg(pb, (x) => info.top[x] < yB - 1 ? info.top[x] + 1 : null, 300, w, 8200, { k, gap: 8, mix: { tree: 3, shrub: 4, palm: 2, flower: 1 } });
@@ -10760,8 +10782,8 @@ BIOMES.coast = function (L) {
     labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Hidrógeno', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
     // cadena desaladora SYNARA en su plataforma sobre la orilla
     // depósito de agua potable en la ladera (fin de la tubería de permeado, sube hacia el pueblo)
-    const tkX = 846, tkY = (info.onSurf(tkX, 10) ?? 60) + 1;
-    const dc = V.desalChain(pb, 560, yB + 4, { k, s: 1, climb: 0, permTo: [[tkX - 8, yB - 20], [tkX - 8, tkY - 4], [tkX - 6, tkY - 4]] });
+    const tkX = 568, tkY = (info.onSurf(tkX, 10) ?? 60) + 1;
+    const dc = V.desalChain(pb, 330, yB + 4, { k, s: 1, climb: 0, permTo: [[tkX - 8, yB - 20], [tkX - 8, tkY - 4], [tkX - 6, tkY - 4]] });
     V.cylV(pb, tkX, tkY, 6, 11, V.ARCH.WHITE, { k, dome: 0.5, bands: [[3, 3, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
     coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
     const A = dc.anchors;
@@ -10772,7 +10794,7 @@ BIOMES.coast = function (L) {
     );
     // rocas en la orilla con espuma
     for (let x = 300; x < w; x += r.int(30, 90)) {
-      if (x > 556 && x < 800) continue;
+      if (x > 326 && x < 566) continue;
       const rw = r.int(4, 9);
       V.ellipse(pb, x, yB + 1, rw, 3, (nx, ny) => V.P32(V.RAMPS.low)[clamp(Math.round(5 - nx * 2 - ny * 3), 0, 9)]);
       for (let q = -rw - 1; q <= rw + 1; q++) V.put(pb, x + q, yB + 3, FOAM[2]);
