@@ -9807,9 +9807,10 @@ const PFFlora = (() => {
     for (let k = 0; k < h; k++) PFK.put(pb, x + Math.round(Math.sin(k * 0.15 + seed) * 0.6), y - 2 - k, G[2]);
     // flores
     const fl0 = Math.round(h * 0.35);
+    const wk = opts.wide ? 3.4 : 2.2;
     for (let k = fl0; k < h + 2; k++) {
       const t = (k - fl0) / (h + 2 - fl0);
-      const hw = Math.max(0, Math.round((1 - t) * 2.2 + (k % 2 ? 0.4 : 0)));
+      const hw = Math.max(0, Math.round((1 - t) * wk + (k % 2 ? 0.4 : 0) + (opts.wide && k % 3 === 0 ? 0.8 : 0)));
       const yy = y - 2 - k, xc = x + Math.round(Math.sin(k * 0.15 + seed) * 0.6);
       for (let dx = -hw; dx <= hw; dx++) {
         let ki = 2 + (dx < 0 ? 1 : 0) + (t > 0.55 ? 1 : 0) - (Math.abs(dx) === hw && hw > 0 ? 1 : 0);
@@ -9909,20 +9910,44 @@ const PFFlora = (() => {
     const P = PFK.P32(ramp);
     leaf(pb, x, y, a, L, Wd, P, k, { rib: true, tipUp: 0 });
   }
+  /** Hoja frontal grande: degradado base→punta, borde iluminado de 1 px, nervio central y nervios laterales */
+  function fgLeaf(pb, x, y, a, L, Wd, P, k) {
+    const ca = Math.cos(a), sa = Math.sin(a), n = P.length;
+    const lit = (-sa * LX + ca * LY) > 0 ? 1 : -1;
+    const r = Math.ceil(L + Wd);
+    for (let yy = -r; yy <= r; yy++) for (let xx = -r; xx <= r; xx++) {
+      const s = xx * ca + yy * sa, q = -xx * sa + yy * ca;
+      if (s < 0 || s > L) continue;
+      const u = s / L, hw = Wd * 0.5 * Math.pow(Math.sin(Math.PI * clamp(u, 0, 1)), 0.7) + 0.35;
+      if (Math.abs(q) > hw) continue;
+      let ki = k + (u > 0.55 ? 1 : 0) - (u < 0.22 ? 1 : 0);
+      if (q * lit > 0.4) ki += 1; else if (q * lit < -hw * 0.45) ki -= 1;
+      if (q * lit > hw - 1.1 && u > 0.2 && u < 0.88) ki += 2;                      // canto iluminado
+      if (Math.abs(q) < 0.55 && u > 0.06 && u < 0.9) ki = k - 1;                    // nervio
+      else if (Math.abs(((s * 0.55 + Math.abs(q)) % 7) - 3.5) < 0.5 && Math.abs(q) > 1.2 && Math.abs(q) < hw - 1.5 && q * lit > 0) ki -= 1; // nervios laterales (lado iluminado)
+      PFK.put(pb, x + xx, y + yy, P[clamp(ki, 0, n - 1)]);
+    }
+  }
   /** Mata frontal: hojas anchas fgLeaf + espigas lavanda fgVio. side: -1 izquierda, 1 derecha */
   function fgClump(w, h, seed, opts = {}) {
     const pb = new PixelBuffer(w, h), r = RNG(seed);
-    const leafR = opts.leaf || ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88'];
+    const leafR = opts.leaf || ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88', '#7ab09a'];
     const vio = opts.vio || RAMP.fgVioR;
-    // espigas lavanda (detrás)
+    // follaje redondo de fondo (hojas en disco azul-verdosas, como la referencia)
+    const P7 = PFK.P32(leafR);
+    for (let i = 0; i < Math.round(w / 22); i++) {
+      const cx = w * (0.08 + r() * 0.84), cy = h - 6 - r() * h * 0.35, rr = 6 + r() * 7;
+      PFK.ellipseFn(pb, cx, cy, rr, rr * 0.8, (nx, ny, d) => P7[clamp(Math.round(2.6 - nx * 0.9 - ny * 1.4 + (d > 0.8 ? -1 : 0) + (d < 0.3 && ny < 0 ? 1 : 0)), 0, 5)]);
+    }
+    // espigas de lupino (detrás): altas, con flores en racimo
     const nsp = opts.spikes ?? 4;
-    for (let i = 0; i < nsp; i++) lupine(pb, Math.round(w * (0.15 + r() * 0.7)), h - Math.round(r() * 8), Math.round(h * (0.45 + r() * 0.4)), seed + i * 7, { ramp: vio, leaf: leafR });
+    for (let i = 0; i < nsp; i++) lupine(pb, Math.round(w * (0.12 + r() * 0.76)), h - Math.round(r() * 8), Math.round(h * (0.5 + r() * 0.4)), seed + i * 7, { ramp: vio, leaf: leafR, wide: 1 });
     // hojas anchas
     const nl = opts.leaves ?? 9;
     for (let i = 0; i < nl; i++) {
       const bx = w * (0.1 + r() * 0.8), a = -Math.PI / 2 + (r() - 0.5) * 2.2;
       const L = h * (0.35 + r() * 0.35), Wd = L * (0.38 + r() * 0.15);
-      bigLeaf(pb, Math.round(bx), h + 2, a, L, Wd, leafR, 2 + (i % 2));
+      fgLeaf(pb, Math.round(bx), h + 2, a, L, Wd, P7, 1 + (i % 3 === 0 ? 1 : 0));
     }
     // macizo inferior
     for (let x = 0; x < w; x++) { const hh = 5 + Math.round(PFK.vn(x * 0.15, 0, seed) * 8); for (let y = h - hh; y < h; y++) if (!(PFK.get(pb, x, y) >>> 24)) PFK.put(pb, x, y, U(leafR[y > h - 3 ? 0 : 1])); }
@@ -10005,9 +10030,9 @@ const PFTerrain = (() => {
     const r = RNG(seed), cols = [];
     let x = x0 - r.int(4, 14);
     while (x < x1 + 30) {
-      const w = r.int(14, 34);
+      const w = r.int(16, 40);
       const blocks = []; let y = 136 + r.int(0, 30);
-      while (y < 720) { const bh = r.int(20, 60); blocks.push({ y, h: bh, tilt: (r() - 0.5) * 0.45, cap: r.int(4, 10), pro: r() < 0.45, alb: (r() - 0.5) * 0.14 }); y += bh; }
+      while (y < 720) { const bh = r.int(24, 62); blocks.push({ y, h: bh, tilt: (r() - 0.5) * 0.45, cap: r.int(4, 10), pro: r() < 0.45, alb: (r() - 0.5) * 0.14 }); y += bh; }
       cols.push({ x0: x, x1: x + w, seed: r.int(1, 1e6), blocks, p: r() });
       x += w;
     }
@@ -10053,21 +10078,33 @@ const PFTerrain = (() => {
     if (rawTop > gy + 2 && dt <= 0) return P[0];
     if (rawTop > gy + 2 && dt === 1 && PFK.cl(x, y, 2, c.seed + 3) < 0.55) return P[1];
     // normal de caja redondeada: tapa ancha si el bloque sobresale
-    const rcx = Math.min(5, w * 0.3), rTop = bl.pro ? bl.cap + 2 : Math.max(3, bl.cap - 2), rBot = 4;
+    // cara superior en 3/4 de cada bloque (banda clara de 3–5 px como la referencia) y panza en sombra
+    const topH = bl.pro ? 5 : 3, deep = d > 110 ? 1 : 0;
+    if (rawTop > gy + 2 && dt >= 1 && dt <= topH && dl > gap && dr > 0) {
+      let k = dt === 1 ? 8 : 7;
+      if (PFK.cl(x, y, 2, c.seed + 5) < 0.28) k--;
+      if (dr < 3 || dl <= gap + 1) k -= 2;
+      if (hash2(x, y, c.seed + 6) < 0.04) k -= 2;
+      return P[clamp(k - deep - (d > 150 ? 1 : 0), 2, 8)];
+    }
+    if (db <= 1 && B[bi + 1]) return P[db === 0 ? 1 : 2];
+    const rcx = Math.min(9, w * 0.42), rTop = bl.pro ? bl.cap + 2 : Math.max(3, bl.cap - 2), rBot = 7;
     let nx = 0, ny = 0;
     if (dl < rcx) nx = -(1 - dl / rcx); else if (dr < rcx + 1) nx = 1 - dr / (rcx + 1);
     if (dt < rTop) ny = -(1 - dt / rTop) * 0.95; else if (db < rBot) ny = (1 - db / rBot) * 0.9;
     const nz = Math.sqrt(Math.max(0.02, 1 - nx * nx - ny * ny));
     let lam = (nx * LV[0] + ny * LV[1] + nz * LV[2]);
-    let t = 0.2 + Math.max(-0.2, lam) * 0.78 + bl.alb + (c.p - 0.5) * 0.16;
+    let t = 0.27 + Math.max(-0.2, lam) * 0.8 + bl.alb + (c.p - 0.5) * 0.16;
     if (c.p < 0.3) t -= 0.1;                         // columnas que se retraen: más oscuras
     if (dl <= gap + 2) t -= (gap + 3 - dl) * 0.05;   // oclusión junto a la grieta
+    if (dl === gap + 1 && dt > topH + 1) t += 0.12;    // canto izquierdo iluminado
+    if (dr < 3) t -= (3 - dr) * 0.07;                 // canto derecho en sombra
     // sombra proyectada por la columna izquierda saliente y por la cornisa superior (bloques que se retraen)
     if (prev.p > c.p + 0.2 && dl < 3 + Math.round((prev.p - c.p) * 8)) t -= 0.22;
     if (!bl.pro && dt < 4 && bi > 0 && rawTop > gy + 3) t -= 0.25 - dt * 0.05;
     // textura pictórica: manchas en clusters, vetas verticales, motas
-    t += (PFK.vn(x * 0.13, y * 0.05, c.seed & 255) - 0.5) * 0.26 + (PFK.cl(x, y, 2, c.seed + 9) - 0.5) * 0.12;
-    if (PFK.vn(x * 0.7, y * 0.04, c.seed & 127) > 0.85 && dt > rTop) t -= 0.18;
+    t += (PFK.vn(x * 0.11, y * 0.09, c.seed & 255) - 0.5) * 0.24 + (PFK.cl(x, y, 2, c.seed + 9) - 0.5) * 0.12;
+    if (PFK.vn(x * 0.16, y * 0.12, c.seed & 127) > 0.8 && dt > rTop) t -= 0.14; // picaduras y manchas
     const h = hash2(x, y, c.seed); if (h < 0.025) t += 0.12; else if (h > 0.975) t -= 0.2;
     // primer plano más oscuro hacia abajo
     t -= clamp((d - 70) / 160, 0, 0.32);
@@ -11596,7 +11633,8 @@ const PFStage = (() => {
       if (sx > W || sx + o.w < 0) continue;
       const sway = Math.round(Math.sin(t * 2.2 + o.ph) * o.sway);
       // abajo: anclado al borde inferior con leve parallax vertical; arriba: colgando del borde superior
-      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + (o.y || 0) + (cam.y - 60) * 0.3);
+      // (abajo nunca sube por encima del borde: no deja ver la base recortada de la mata)
+      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + Math.max(0, (o.y || 0) + (cam.y - 60) * 0.3));
       g.drawImage(o.c, sx + sway, sy);
     }
   }

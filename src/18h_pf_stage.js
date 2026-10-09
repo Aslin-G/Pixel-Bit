@@ -33,7 +33,8 @@ const PFStage = (() => {
       if (sx > W || sx + o.w < 0) continue;
       const sway = Math.round(Math.sin(t * 2.2 + o.ph) * o.sway);
       // abajo: anclado al borde inferior con leve parallax vertical; arriba: colgando del borde superior
-      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + (o.y || 0) + (cam.y - 60) * 0.3);
+      // (abajo nunca sube por encima del borde: no deja ver la base recortada de la mata)
+      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + Math.max(0, (o.y || 0) + (cam.y - 60) * 0.3));
       g.drawImage(o.c, sx + sway, sy);
     }
   }
