@@ -44,6 +44,11 @@ function Mat(o) {
   m.outlineU = U(m.outline); m.rampU = ramp.map(c => U(c));
   return m;
 }
+/** Mezcla de dos colores u32 (ABGR) con t∈[0,1]; alfa opaco */
+function _mixU(a, b, t) {
+  const ar = a & 255, ag = (a >>> 8) & 255, ab = (a >>> 16) & 255;
+  return ((255 << 24) | (Math.round(ab + (((b >>> 16) & 255) - ab) * t) << 16) | (Math.round(ag + (((b >>> 8) & 255) - ag) * t) << 8) | Math.round(ar + ((b & 255) - ar) * t)) >>> 0;
+}
 const _matCache = new Map();
 /** Material por defecto de una rampa (cacheado por identidad del array) */
 function matOf(ramp) { let m = _matCache.get(ramp); if (!m) { m = Mat({ ramp }); _matCache.set(ramp, m); } return m; }
@@ -357,11 +362,20 @@ class Rig {
     // 7. luz de borde 1 px en espalda y coronilla
     const env = opt.env || 'coast', rimHex = opt.rimColor || RIM_ENV[env];
     if (rimHex && opt.rim !== 0) {
-      pb.rimPass(rimHex, opt.rim ?? 0.38, (i) => {
-        const p = zb[i]; if (p < 0) return false;
+      // Luz de borde que conserva el tono del material: el píxel de borde sube 2 tonos de SU rampa
+      // y solo se tiñe un poco del color del ambiente (un cian puro sobre pelo/piel daba grises sucios).
+      const kk = opt.rim ?? 0.38, rimU = U(rimHex), tint = opt.rimTint ?? 0.22, src = new Uint32Array(D);
+      for (let y = 1; y < H2; y++) for (let x = 1; x < W2 - 1; x++) {
+        const i = y * W2 + x, p = zb[i];
+        if (p < 0 || !(src[i] >>> 24)) continue;
+        const side = !(src[i - 1] >>> 24), top = !(src[i - W2] >>> 24);
+        if (!side && !top) continue;
         const P = parts[p];
-        return P.rim !== false && P.mat.rim !== false && ib[i] <= P.base + (P.rimHi ?? 0);
-      });
+        if (P.rim === false || P.mat.rim === false || ib[i] > P.base + (P.rimHi ?? 0)) continue;
+        const RU = P.mat.rampU, ti = Math.min(RU.length - 1, ib[i] + 2);
+        const tgt = _mixU(RU[ti], rimU, tint);
+        D[i] = _mixU(src[i], tgt, Math.min(1, (side && top ? 1.3 : 1) * (0.3 + kk)));
+      }
     }
     // 8. contorno por material (+ limpieza de escalera)
     if (opt.outline !== false) {
@@ -497,8 +511,8 @@ const MOUTH2 = {
 };
 const FACE2 = {
   /** pb, o = {x, y, flip}, plantilla, tokens de color */
-  eyeNear(pb, x, y, kind, pal) { const T = EYE2[kind] || EYE2.open; pb.stampMap(x, y + T.oy, T.rows, pal); },
-  eyeFar(pb, x, y, kind, pal) { const T = EYE2_FAR[kind] || EYE2_FAR.open; pb.stampMap(x, y - 1, T, pal); },
+  eyeNear(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2[kind] || EYE2.open; pb.stampMap(x, y + T.oy, T.rows, pal); },
+  eyeFar(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2_FAR[kind] || EYE2_FAR.open; pb.stampMap(x, y - 1, T, pal); },
   brow(pb, x, y, kind, col) {
     // ceja cercana sobre el flequillo solo en estados intensos (x = inicio, y = fila de la pestaña)
     const c = U(col);
@@ -525,8 +539,8 @@ const FACE2 = {
     let k = pose.blink ? 'blink' : (E.eye2 || EYE_V1_TO_V2[E.eyes] || 'open');
     let kf = pose.blink ? 'blink' : k;
     // ojo lejano primero (queda parcialmente tapado por el perfil)
-    if (!F.noFar) FACE2.eyeFar(pb, fx, ey, kf, palFar);
-    FACE2.eyeNear(pb, ex, ey, k, pal);
+    if (!F.noFar) FACE2.eyeFar(pb, fx, ey, kf, palFar, F.eyesFar);
+    FACE2.eyeNear(pb, ex, ey, k, pal, F.eyes);
     if (E.tear || pose.tear) { pb.set(ex - 1, ey + 4, pal.t); pb.set(ex - 1, ey + 5, pal.t); pb.set(ex, ey + 6, '#e6fdff'); }
     // cejas visibles solo cuando la emoción las levanta o frunce
     const bk = E.brow2 || E.brows;
@@ -577,6 +591,7 @@ const ANIMS = {
   fear: { frames: 4, fps: 10, loop: true },
   determined: { frames: 4, fps: 6, loop: true },
   victory: { frames: 4, fps: 6, loop: true },
+  glide: { frames: 4, fps: 6, loop: true },
 };
 /** Alias de animación (nombres del prompt §13) */
 const ANIM_ALIAS = { interact: 'help', analyze: 'scan', operate: 'program', anger: 'frustrate', sadness: 'sad', celebration: 'celebrate', worried: 'worry', scared: 'fear' };
@@ -770,6 +785,16 @@ function poseFor(anim, t, ch) {
       p.expr = 'determined'; p.hair = { base: -0.15, amp: 0.12, P, lag: 0.5 };
       break;
     }
+    case 'glide': {
+      // colgada de la Vela de Brisa: brazos en alto sujetando las cuerdas, piernas recogidas que se balancean, pelo hacia atrás
+      const sw = S(P);
+      p.shF = 3.0 + sw * 0.04; p.elF = -0.1; p.shB = 2.95 - sw * 0.04; p.elB = 0.12; p.handF = 'fist'; p.handB = 'fist';
+      p.armStretchF = 1.32; p.armStretchB = 1.32; p.shLiftF = 4; p.shLiftB = 4; p.backHandZ = 49.5; p.frontArmZ = 49;
+      p.hipF = 0.45 + sw * 0.12; p.kneeF = -0.7 - sw * 0.1; p.hipB = -0.1 - sw * 0.12; p.kneeB = -0.85; p.footF = 0.2; p.footB = 0.3;
+      p.lean = 0.04; p.headTilt = -0.05; p.bob = 0;
+      p.hair = { base: -0.55, amp: 0.25, P: P * 2, lag: 0.5 }; p.pack = -1; p.expr = ch.glideExpr || null;
+      break;
+    }
     case 'victory': {
       // brazo en alto sostenido (distinto de celebrate), otro en la cadera
       const b = S(P);
@@ -877,8 +902,9 @@ function buildHumanoid(R, D, pose, opts = {}) {
   const nose = D.noseSize ?? 1;
   if (nose > 0) R.capsule(hx + hrx - 1.2, hy + 1.5, hx + hrx + 0.2 + nose * 0.4, hy + 3.2 + nose * 0.3, 0.7 + nose * 0.15, 0.55, { mat: headM, base: 4, z: 51.5, group: 'head', bevel: 0.6 });
   // oreja
-  R.ellipse(hx - hrx * 0.22, hy + 2, 2.1, 3, { mat: headM, base: 3, z: D.earZ ?? 52, group: 'ear', bevel: 1.2 });
-  R.stamp((pb) => { const ex = Math.round(hx - hrx * 0.22), ey = Math.round(hy + 2); pb.set(ex, ey, headM.ramp[2]); pb.set(ex, ey + 1, headM.ramp[2]); pb.set(ex - 1, ey - 1, headM.ramp[3]); }, 60);
+  const earX = hx + (D.earDX ?? -hrx * 0.22), earY = hy + (D.earDY ?? 2);
+  R.ellipse(earX, earY, 2.1, 3, { mat: headM, base: 3, z: D.earZ ?? 52, group: 'ear', bevel: 1.2 });
+  R.stamp((pb) => { const ex = Math.round(earX), ey = Math.round(earY); pb.set(ex, ey, headM.ramp[2]); pb.set(ex, ey + 1, headM.ramp[2]); pb.set(ex - 1, ey - 1, headM.ramp[3]); }, 60);
   // ---- pelo y accesorios de cabeza
   const ho = { hx, hy, rx: hrx, ry: hry, pose, M, tilt, D };
   if (D.hair) D.hair(R, ho);
@@ -888,6 +914,8 @@ function buildHumanoid(R, D, pose, opts = {}) {
   if (D.extra) D.extra(R, Object.assign({ hx, hy }, A));
   // ---- brazo delantero (encima del torso y del pelo largo)
   arm(af, 80, 'armF', 0, pose.handF);
+  // brazo cercano por detrás de la cabeza (brazos en alto: planeo, colgarse)
+  if (pose.frontArmZ) for (let k = R.parts.length - 1; k >= 0 && R.parts[k].group.startsWith('armF'); k--) R.parts[k].z = pose.frontArmZ + (R.parts[k].z - 80) * 0.01;
   // ---- cara (plantillas v2)
   R.stamp((pb) => {
     const exprName = pose.expr || opts.expr || D.defaultExpr || 'neutral';

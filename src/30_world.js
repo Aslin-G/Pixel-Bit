@@ -306,7 +306,7 @@ class Player extends Entity {
     if (this.landT > 0) this.landT -= dt;
     if (this.forcedAnim) this.setAnim(this.forcedAnim);
     else if (this.lock > 0 && this.anim === 'hit') { }
-    else if (!this.onGround) this.setAnim(this.vy < 0 ? 'jump' : 'fall');
+    else if (!this.onGround) this.setAnim(this.gliding ? 'glide' : this.vy < 0 ? 'jump' : 'fall');
     else if (this.landT > 0) this.setAnim('land');
     else if (Math.abs(this.vx) > 8) this.setAnim(this.wading ? 'wade' : Math.abs(this.vx) > PHYS.walk + 10 ? 'run' : 'walk');
     else this.setAnim('idle');
@@ -320,17 +320,38 @@ class Player extends Entity {
   render(g, cam) {
     if (this.inv > 0 && (Math.floor(this.inv * 20) % 2) && this.anim !== 'hit') return;
     const x = this.x - cam.ox, y = this.y - cam.oy;
-    if (this.gliding) drawGlider(g, x, y - 70, this.facing);
+    if (this.gliding) drawGlider(g, x + this.facing * 2, y - 102, this.facing); // vela sobre la cabeza (sprite de 74 px, puños en alto ≈ y−76)
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
-    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 9, wy, 18, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 8, wy + 1, 16, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 8, wy + 3, 16, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 9 + ((Game.frame >> 3) % 18), wy, '#ffffff'); }
+    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
   }
 }
+/** Vela de Brisa: lona curva prerenderizada (3 cuadros de flameo) con franjas cian, luz arriba,
+    sombra en la panza y contorno navy; cuerdas hasta las manos en alto (y + 26). */
+const _gliderStrip = { c: null };
 function drawGlider(g, x, y, f) {
   const t = Game.time;
-  g.fillStyle = '#fffaf0';
-  for (let i = -14; i <= 14; i++) { const yy = Math.round(y + Math.abs(i) * 0.35 + Math.sin(t * 8 + i * 0.3) * 0.6); g.fillRect(Math.round(x + i), yy, 1, 2); }
-  g.fillStyle = '#56e5ff'; for (let i = -14; i <= 14; i += 4) g.fillRect(Math.round(x + i), Math.round(y + Math.abs(i) * 0.35 + 2), 2, 1);
-  fline(g, x - 13, y + 5, x - 3, y + 26, '#cfe8ee'); fline(g, x + 13, y + 5, x + 3, y + 26, '#cfe8ee');
+  if (!_gliderStrip.c) {
+    const fw = 46, fh = 16;
+    _gliderStrip.c = PFK.strip(3, fw, fh, (pb, i) => {
+      const cx = fw / 2, P = PFK.P32(['#1d2a48', '#7a8aa8', '#b8c8d8', '#e8f0f4', '#fffaf0', '#ffffff']), C = PFK.P32(['#0c4560', '#1491aa', '#22bdd0', '#56e5ff', '#a6f4ff']);
+      for (let xx = 1; xx < fw - 1; xx++) {
+        const u = (xx - cx) / (cx - 1), arc = Math.round(Math.abs(u) * Math.abs(u) * 7 + Math.sin(u * 5 + i * 2.1) * 0.7);
+        const th = Math.round(4 - Math.abs(u) * 2.2);
+        for (let k = 0; k < th; k++) {
+          const stripe = Math.floor((xx + 2) / 6) % 2 === 0;
+          let col = k === 0 ? (stripe ? C[4] : P[5]) : k === th - 1 ? (stripe ? C[1] : P[2]) : (stripe ? C[3] : P[4]);
+          if (u > 0.55 && k > 0) col = stripe ? C[2] : P[3];
+          PFK.put(pb, xx, 2 + arc + k, col);
+        }
+        PFK.put(pb, xx, 1 + arc, P[0]); PFK.put(pb, xx, 2 + arc + th, P[0]);
+      }
+      PFK.put(pb, 0, 9, P[0]); PFK.put(pb, fw - 1, 9, P[0]);
+    });
+  }
+  const S = _gliderStrip.c, sway = Math.round(Math.sin(t * 3) * 1);
+  PFK.drawStrip(g, S, Math.floor(t * 7) % 3, x - (S.w >> 1), y - 3 + sway);
+  fline(g, x - 21, y + 5 + sway, x - 4, y + 26, '#cfe8ee'); fline(g, x + 21, y + 5 + sway, x + 4, y + 26, '#cfe8ee');
+  fline(g, x - 10, y + 2 + sway, x - 3, y + 26, '#8aa8c0'); fline(g, x + 10, y + 2 + sway, x + 3, y + 26, '#8aa8c0');
 }
 
 /** KIRU: compañero que sigue, comenta y reacciona */
@@ -347,7 +368,7 @@ class Kiru extends Entity {
       this.vx = Math.abs(d) > 2 ? sign(d) * (this.target.speed || 80) : 0;
       if (Math.abs(d) <= 2) { this.target.done = true; this.target = null; }
     } else if (this.follow && P) {
-      const tx = P.x - P.facing * 30;
+      const tx = P.x - P.facing * KIRU_FOLLOW;
       const d = tx - this.x;
       if (Math.abs(P.x - this.x) > 340 || Math.abs(P.y - this.y) > 220) { this.x = P.x - P.facing * 24; this.y = P.y - 10; W_.ps.emit('energy', this.x, this.y - 10, 0, 0, 10, 8); }
       const sp = Math.abs(d) > 70 ? 170 : Math.abs(d) > 20 ? 95 : 0;
@@ -369,14 +390,27 @@ class Kiru extends Entity {
     if (this.scanT > 0) a = 'scan';
     if (this.forced) a = this.forced;
     if (a !== this.anim) { this.anim = a; this.animT = 0; }
+    // altura de vuelo: reposa a la altura de la cabeza de Amaya y baja un poco al desplazarse (solo visual)
+    const moving = Math.abs(this.vx) > 6 || this.air;
+    this.lift = approach(this.lift ?? KIRU_LIFT, moving ? KIRU_LIFT_MOVE : KIRU_LIFT, (moving ? 60 : 24) * dt);
   }
+  /** Desplazamiento vertical de dibujo respecto al ancla del sprite (que ya incluye KIRU_LIFT) */
+  get dropY() { return Math.round(KIRU_LIFT - (this.lift ?? KIRU_LIFT)); }
   render(g, cam) {
-    const x = this.x - cam.ox, y = this.y - cam.oy;
-    drawChar(g, 'kiru', this.anim, this.animT, x, y, this.facing, { expr: this.mood });
-    if (this.scanT > 0) { for (let i = 0; i < 3; i++) { const r = ((Game.time * 30 + i * 8) % 24); g.globalAlpha = 1 - r / 24; for (let a = 0; a < 16; a++) fpx(g, x + Math.cos(a / 16 * TAU) * r, y - 22 + Math.sin(a / 16 * TAU) * r * 0.5, '#56e5ff'); g.globalAlpha = 1; } }
+    const x = this.x - cam.ox, y = this.y - cam.oy, dy = this.dropY;
+    drawChar(g, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false });
+    // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
+    const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+    if (this.scanT > 0) {
+      // anillos de escaneo centrados en el visor (ancla del ojo del sprite)
+      const ey = Math.round(y + dy - (CHARS.kiru.oy - 38));
+      for (let i = 0; i < 3; i++) { const r = ((Game.time * 30 + i * 8) % 24); g.globalAlpha = 1 - r / 24; for (let a = 0; a < 16; a++) fpx(g, x + this.facing * 6 + Math.cos(a / 16 * TAU) * r, ey + Math.sin(a / 16 * TAU) * r * 0.5, '#56e5ff'); g.globalAlpha = 1; }
+    }
   }
   renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - 36, this.bubble.text, '#20d6c7', this.bubble.t); }
 }
+/** Distancia de seguimiento de KIRU detrás de Amaya (px): deja libre la coleta y la mochila */
+const KIRU_FOLLOW = 36;
 
 /** Globo de diálogo ambiental (navy de la referencia, con nombre y cola hacia la cabeza del hablante).
     (x,y) = punto sobre el personaje en pantalla; si coincide con un KIRU/actor del nivel se ancla a su cabeza real. */
@@ -430,7 +464,7 @@ class Actor extends Entity {
     if (this.preDraw) this.preDraw(g, x, y);
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant });
   }
-  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 74), this.bubble.text, '#ffe14d', this.bubble.t); }
+  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 92), this.bubble.text, '#ffe14d', this.bubble.t); }
 }
 
 /** Estación interactiva (terminal, sensor, válvula, simulador, evidencia) */

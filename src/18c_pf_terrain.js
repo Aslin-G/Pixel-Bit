@@ -29,9 +29,9 @@ const PFTerrain = (() => {
     const r = RNG(seed), cols = [];
     let x = x0 - r.int(4, 14);
     while (x < x1 + 30) {
-      const w = r.int(14, 34);
+      const w = r.int(16, 40);
       const blocks = []; let y = 136 + r.int(0, 30);
-      while (y < 720) { const bh = r.int(20, 60); blocks.push({ y, h: bh, tilt: (r() - 0.5) * 0.45, cap: r.int(4, 10), pro: r() < 0.45, alb: (r() - 0.5) * 0.14 }); y += bh; }
+      while (y < 720) { const bh = r.int(24, 62); blocks.push({ y, h: bh, tilt: (r() - 0.5) * 0.45, cap: r.int(4, 10), pro: r() < 0.45, alb: (r() - 0.5) * 0.14 }); y += bh; }
       cols.push({ x0: x, x1: x + w, seed: r.int(1, 1e6), blocks, p: r() });
       x += w;
     }
@@ -77,21 +77,33 @@ const PFTerrain = (() => {
     if (rawTop > gy + 2 && dt <= 0) return P[0];
     if (rawTop > gy + 2 && dt === 1 && PFK.cl(x, y, 2, c.seed + 3) < 0.55) return P[1];
     // normal de caja redondeada: tapa ancha si el bloque sobresale
-    const rcx = Math.min(5, w * 0.3), rTop = bl.pro ? bl.cap + 2 : Math.max(3, bl.cap - 2), rBot = 4;
+    // cara superior en 3/4 de cada bloque (banda clara de 3–5 px como la referencia) y panza en sombra
+    const topH = bl.pro ? 5 : 3, deep = d > 110 ? 1 : 0;
+    if (rawTop > gy + 2 && dt >= 1 && dt <= topH && dl > gap && dr > 0) {
+      let k = dt === 1 ? 8 : 7;
+      if (PFK.cl(x, y, 2, c.seed + 5) < 0.28) k--;
+      if (dr < 3 || dl <= gap + 1) k -= 2;
+      if (hash2(x, y, c.seed + 6) < 0.04) k -= 2;
+      return P[clamp(k - deep - (d > 150 ? 1 : 0), 2, 8)];
+    }
+    if (db <= 1 && B[bi + 1]) return P[db === 0 ? 1 : 2];
+    const rcx = Math.min(9, w * 0.42), rTop = bl.pro ? bl.cap + 2 : Math.max(3, bl.cap - 2), rBot = 7;
     let nx = 0, ny = 0;
     if (dl < rcx) nx = -(1 - dl / rcx); else if (dr < rcx + 1) nx = 1 - dr / (rcx + 1);
     if (dt < rTop) ny = -(1 - dt / rTop) * 0.95; else if (db < rBot) ny = (1 - db / rBot) * 0.9;
     const nz = Math.sqrt(Math.max(0.02, 1 - nx * nx - ny * ny));
     let lam = (nx * LV[0] + ny * LV[1] + nz * LV[2]);
-    let t = 0.2 + Math.max(-0.2, lam) * 0.78 + bl.alb + (c.p - 0.5) * 0.16;
+    let t = 0.27 + Math.max(-0.2, lam) * 0.8 + bl.alb + (c.p - 0.5) * 0.16;
     if (c.p < 0.3) t -= 0.1;                         // columnas que se retraen: más oscuras
     if (dl <= gap + 2) t -= (gap + 3 - dl) * 0.05;   // oclusión junto a la grieta
+    if (dl === gap + 1 && dt > topH + 1) t += 0.12;    // canto izquierdo iluminado
+    if (dr < 3) t -= (3 - dr) * 0.07;                 // canto derecho en sombra
     // sombra proyectada por la columna izquierda saliente y por la cornisa superior (bloques que se retraen)
     if (prev.p > c.p + 0.2 && dl < 3 + Math.round((prev.p - c.p) * 8)) t -= 0.22;
     if (!bl.pro && dt < 4 && bi > 0 && rawTop > gy + 3) t -= 0.25 - dt * 0.05;
     // textura pictórica: manchas en clusters, vetas verticales, motas
-    t += (PFK.vn(x * 0.13, y * 0.05, c.seed & 255) - 0.5) * 0.26 + (PFK.cl(x, y, 2, c.seed + 9) - 0.5) * 0.12;
-    if (PFK.vn(x * 0.7, y * 0.04, c.seed & 127) > 0.85 && dt > rTop) t -= 0.18;
+    t += (PFK.vn(x * 0.11, y * 0.09, c.seed & 255) - 0.5) * 0.24 + (PFK.cl(x, y, 2, c.seed + 9) - 0.5) * 0.12;
+    if (PFK.vn(x * 0.16, y * 0.12, c.seed & 127) > 0.8 && dt > rTop) t -= 0.14; // picaduras y manchas
     const h = hash2(x, y, c.seed); if (h < 0.025) t += 0.12; else if (h > 0.975) t -= 0.2;
     // primer plano más oscuro hacia abajo
     t -= clamp((d - 70) / 160, 0, 0.32);
@@ -131,10 +143,13 @@ const PFTerrain = (() => {
       case 'cliff': return cliffPix(s, x, y, gy, RW);
       case 'rocks': {
         if (d <= 1) return U(d === 0 ? LIP : '#e29441');
-        const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 4 || hash2(id, 5, s.seed || 77) < clamp(1 - (cy - sea) / 46, 0.12, 1) } : {});
-        if (sea != null && y >= sea - 1) { // rocas sumergidas: tinte azul por profundidad, huecos de agua
+        // bajo la línea de agua solo queda la base del roquedal (cantos cuyo centro está a ≤ 9 px):
+        // borde inferior dentado como la orilla de arena; debajo se ve el corte submarino
+        const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 9 } : {});
+        if (sea != null && y >= sea - 1) {
           if (u === -1) return 0;
-          return PFK.mixU(u, UWU()[clamp(6 - Math.round((y - sea) / 22), 1, 6)], clamp(0.42 + (y - sea) / 110, 0.42, 0.8));
+          const dz = y - sea;
+          return PFK.mixU(u, UWU()[clamp(7 - Math.round(dz / 10), 3, 7)], clamp(0.3 + dz / 40, 0.3, 0.65));
         }
         if (u === -1) return RW[d > 60 ? 0 : 1];
         return d > 90 ? PFK.shU(u, -0.25, 15) : u;

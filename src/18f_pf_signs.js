@@ -22,7 +22,7 @@ const PFSigns = (() => {
   const WOOD = ['#100100', '#2a0800', '#370b00', '#4e2519', '#5a2d21', '#6e3a24', '#8e542f', '#ab7448', '#cb9772'];
   const TXT = '#faebe2';
   /** Tablón con punta de flecha a la derecha (dir 1) o izquierda (−1) */
-  function plank(pb, x, y, w, h, text, seed, dir = 1) {
+  function plank(pb, x, y, w, h, text, seed, dir = 1, font = 'main') {
     const P = PFK.P32(WOOD), r = RNG(seed), tip = Math.round(h * 0.55);
     const inside = (xx, yy) => {
       const lx = dir > 0 ? xx - x : x + w - 1 - xx;
@@ -48,15 +48,17 @@ const PFSigns = (() => {
     PFK.put(pb, kx, ky, P[3]); PFK.put(pb, kx + 1, ky, P[2]); PFK.put(pb, kx + 2, ky, P[3]);
     // clavos
     for (const nx of [x + 4, x + w - tip - 4]) { PFK.put(pb, nx, y + 3, U('#d8d0c8')); PFK.put(pb, nx, y + 4, U('#5a5048')); PFK.put(pb, nx, y + h - 4, U('#d8d0c8')); PFK.put(pb, nx, y + h - 3, U('#5a5048')); }
-    // texto + flecha
-    const tw = PFK.measure(text, { font: 'main' });
-    const tx = dir > 0 ? x + 7 : x + tip + 6, ty = y + Math.round((h - 7) / 2) + 1;
-    PFK.text(pb, text, tx, ty, U(TXT), { font: 'main', shadow: U('#1a0500') });
-    const ax = dir > 0 ? x + w - tip - 4 : x + tip - 4, ay = y + Math.round(h / 2);
-    const arrowX = dir > 0 ? Math.max(tx + tw + 4, ax - 6) : tx + tw + 5;
-    const tipX = dir > 0 ? arrowX + 6 : arrowX;
-    for (let k = 0; k < 7; k++) { PFK.put(pb, arrowX + k, ay, U(TXT)); PFK.put(pb, arrowX + k + 1, ay + 1, U('#1a0500')); }
-    for (let k = 1; k <= 3; k++) { const xx = tipX - dir * k; PFK.put(pb, xx, ay - k, U(TXT)); PFK.put(pb, xx, ay + k, U(TXT)); PFK.put(pb, xx + 1, ay + k + 1, U('#1a0500')); }
+    // texto + flecha (la letra pequeña 'tiny' es la de la referencia: 5 px de alto en tablones de 12)
+    const tiny = font === 'tiny', gh = tiny ? 5 : 7;
+    const tw = PFK.measure(text, { font });
+    const tx = dir > 0 ? x + (tiny ? 5 : 7) : x + tip + 6, ty = y + Math.round((h - gh) / 2) + (tiny ? 1 : 1);
+    PFK.text(pb, text, tx, ty, U(TXT), { font, shadow: U('#1a0500') });
+    const ax = dir > 0 ? x + w - tip - 4 : x + tip - 4, ay = y + Math.round(h / 2) - (tiny ? 1 : 0);
+    const al = tiny ? 5 : 7, ah = tiny ? 2 : 3;
+    const arrowX = dir > 0 ? Math.max(tx + tw + 3, ax - al + 1) : tx + tw + 5;
+    const tipX = dir > 0 ? arrowX + al - 1 : arrowX;
+    for (let k = 0; k < al; k++) { PFK.put(pb, arrowX + k, ay, U(TXT)); PFK.put(pb, arrowX + k + 1, ay + 1, U('#1a0500')); }
+    for (let k = 1; k <= ah; k++) { const xx = tipX - dir * k; PFK.put(pb, xx, ay - k, U(TXT)); PFK.put(pb, xx, ay + k, U(TXT)); PFK.put(pb, xx + 1, ay + k + 1, U('#1a0500')); }
     return tw;
   }
   /** Poste con capuchón */
@@ -71,16 +73,18 @@ const PFSigns = (() => {
     for (let k = 0; k < w; k++) PFK.put(pb, x + k, yTop - 3, P[1]);
   }
   /** Grupo de tablones en flecha sobre dos postes. items: [{text, dir}] */
-  function post(pb, x, yGround, items, seed = 7) {
-    const h = 15, gap = 3, n = items.length;
-    const widths = items.map(it => PFK.measure(it.text, { font: 'main' }) + 30);
+  /** opts: {font:'main'|'tiny', h, gap, base} — 'tiny' = letrero compacto de la referencia (tablones de 12 px) */
+  function post(pb, x, yGround, items, seed = 7, opts = {}) {
+    const font = opts.font || 'main', tiny = font === 'tiny';
+    const h = opts.h ?? (tiny ? 12 : 15), gap = opts.gap ?? (tiny ? 2 : 3), n = items.length, base = opts.base ?? (tiny ? 6 : 21);
+    const widths = items.map(it => PFK.measure(it.text, { font }) + (tiny ? 23 : 30));
     const w = Math.max(...widths);
-    const top = yGround - 18 - n * (h + gap);
-    postV(pb, x + 6, top - 4, yGround + 1, 7);
-    postV(pb, x + Math.min(w - 28, 64), top + 6, yGround + 1, 6);
+    const top = yGround - base - n * (h + gap) + gap;
+    postV(pb, x + 6, top - 4, yGround + 1, tiny ? 6 : 7);
+    postV(pb, x + Math.min(w - (tiny ? 24 : 28), 64), top + 6, yGround + 1, tiny ? 5 : 6);
     items.forEach((it, i) => {
       const pw = Math.max(widths[i], w - 6 + (i % 2 ? -4 : 2));
-      plank(pb, x + (i % 2 ? 2 : 0), top + i * (h + gap), pw, h, it.text, seed + i * 11, it.dir || 1);
+      plank(pb, x + (i % 2 ? 2 : 0), top + i * (h + gap), pw, h, it.text, seed + i * 11, it.dir || 1, font);
     });
     // sombra de contacto en la base
     for (let k = -2; k < w * 0.7; k++) { const c = PFK.get(pb, x + k, yGround - 1); if (c >>> 24) PFK.put(pb, x + k, yGround - 1, PFK.shU(c, -0.3, 15)); }
@@ -137,9 +141,19 @@ const WorldLabels = (() => {
     if (bl) for (const L of bl) out.push(L);
     return out;
   }
-  function drawOne(g, L, cam, sc, alpha = 1) {
+  /** Rectángulo en pantalla de la caja de una etiqueta (o null si está fuera o no aplica) */
+  function rectOf(L, cam, sc) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
     const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy);
+    if (sx < -120 || sx > W + 120 || sy < -40 || sy > H + 60) return null;
+    if (L.when && sc && !L.when(sc)) return null;
+    const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
+    const B = box(L.title, sub, L.kind || 'water');
+    return { x: sx - Math.floor(B.w / 2), y: sy - B.h, w: B.w, h: B.h, B, sub };
+  }
+  function drawOne(g, L, cam, sc, alpha = 1, dy = 0) {
+    const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+    const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy) + dy;
     if (sx < -120 || sx > W + 120 || sy < -40 || sy > H + 60) return;
     if (L.when && !L.when(sc)) return;
     const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
@@ -158,12 +172,38 @@ const WorldLabels = (() => {
     g.drawImage(B.c, bx, by);
     if (alpha < 1) g.globalAlpha = 1;
   }
+  const hit = (a, b, m = 2) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+  /**
+   * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
+   * Una etiqueta lejana que choca con otra ya colocada o con el HUD sube hasta 18 px; si aún choca, se omite.
+   * L.camX = [x0, x1] limita una etiqueta a un tramo de cámara (fundido de 40 px en los bordes).
+   * Títulos repetidos en pantalla se dibujan una sola vez.
+   */
   function draw(g, sc) {
     const cam = sc.cam ? { x: sc.cam.ox, y: sc.cam.oy } : { x: 0, y: 0 };
-    const t = Game.time;
-    for (const L of list(sc)) {
-      // aparición suave escalonada (sin parpadeo): pulso de 1 px del halo cada 3 s
-      drawOne(g, L, cam, sc, 1);
+    const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
+    const placed = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const seen = new Set();
+    for (const L of all) {
+      let alpha = 1;
+      if (L.camX) {
+        const [c0, c1] = L.camX;
+        if (cam.x < c0 - 40 || cam.x > c1 + 40) continue;
+        alpha = clamp(Math.min(cam.x - (c0 - 40), (c1 + 40) - cam.x) / 40, 0, 1);
+        if (alpha <= 0.05) continue;
+      }
+      const R = rectOf(L, cam, sc); if (!R) continue;
+      if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
+      if (seen.has(L.title)) continue;
+      const far = (L.f ?? 1) !== 1;
+      let dy = 0, ok = !placed.some(p => hit(R, p));
+      if (!ok && far) for (dy = -3; dy >= -18; dy -= 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } }
+      if (!ok && far) continue;
+      // las del plano jugable se dibujan siempre (son del guion): si chocan, bajan hacia su objeto
+      if (!ok) { ok = false; for (dy = 3; dy <= 30; dy += 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } } if (!ok) dy = 0; }
+      placed.push({ x: R.x, y: R.y + dy, w: R.w, h: R.h });
+      seen.add(L.title);
+      drawOne(g, L, cam, sc, alpha, dy);
     }
   }
   function gallery(g) {

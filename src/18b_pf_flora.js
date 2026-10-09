@@ -162,9 +162,10 @@ const PFFlora = (() => {
     for (let k = 0; k < h; k++) PFK.put(pb, x + Math.round(Math.sin(k * 0.15 + seed) * 0.6), y - 2 - k, G[2]);
     // flores
     const fl0 = Math.round(h * 0.35);
+    const wk = opts.wide ? 3.4 : 2.2;
     for (let k = fl0; k < h + 2; k++) {
       const t = (k - fl0) / (h + 2 - fl0);
-      const hw = Math.max(0, Math.round((1 - t) * 2.2 + (k % 2 ? 0.4 : 0)));
+      const hw = Math.max(0, Math.round((1 - t) * wk + (k % 2 ? 0.4 : 0) + (opts.wide && k % 3 === 0 ? 0.8 : 0)));
       const yy = y - 2 - k, xc = x + Math.round(Math.sin(k * 0.15 + seed) * 0.6);
       for (let dx = -hw; dx <= hw; dx++) {
         let ki = 2 + (dx < 0 ? 1 : 0) + (t > 0.55 ? 1 : 0) - (Math.abs(dx) === hw && hw > 0 ? 1 : 0);
@@ -264,20 +265,44 @@ const PFFlora = (() => {
     const P = PFK.P32(ramp);
     leaf(pb, x, y, a, L, Wd, P, k, { rib: true, tipUp: 0 });
   }
+  /** Hoja frontal grande: degradado base→punta, borde iluminado de 1 px, nervio central y nervios laterales */
+  function fgLeaf(pb, x, y, a, L, Wd, P, k) {
+    const ca = Math.cos(a), sa = Math.sin(a), n = P.length;
+    const lit = (-sa * LX + ca * LY) > 0 ? 1 : -1;
+    const r = Math.ceil(L + Wd);
+    for (let yy = -r; yy <= r; yy++) for (let xx = -r; xx <= r; xx++) {
+      const s = xx * ca + yy * sa, q = -xx * sa + yy * ca;
+      if (s < 0 || s > L) continue;
+      const u = s / L, hw = Wd * 0.5 * Math.pow(Math.sin(Math.PI * clamp(u, 0, 1)), 0.7) + 0.35;
+      if (Math.abs(q) > hw) continue;
+      let ki = k + (u > 0.55 ? 1 : 0) - (u < 0.22 ? 1 : 0);
+      if (q * lit > 0.4) ki += 1; else if (q * lit < -hw * 0.45) ki -= 1;
+      if (q * lit > hw - 1.1 && u > 0.2 && u < 0.88) ki += 2;                      // canto iluminado
+      if (Math.abs(q) < 0.55 && u > 0.06 && u < 0.9) ki = k - 1;                    // nervio
+      else if (Math.abs(((s * 0.55 + Math.abs(q)) % 7) - 3.5) < 0.5 && Math.abs(q) > 1.2 && Math.abs(q) < hw - 1.5 && q * lit > 0) ki -= 1; // nervios laterales (lado iluminado)
+      PFK.put(pb, x + xx, y + yy, P[clamp(ki, 0, n - 1)]);
+    }
+  }
   /** Mata frontal: hojas anchas fgLeaf + espigas lavanda fgVio. side: -1 izquierda, 1 derecha */
   function fgClump(w, h, seed, opts = {}) {
     const pb = new PixelBuffer(w, h), r = RNG(seed);
-    const leafR = opts.leaf || ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88'];
+    const leafR = opts.leaf || ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88', '#7ab09a'];
     const vio = opts.vio || RAMP.fgVioR;
-    // espigas lavanda (detrás)
+    // follaje redondo de fondo (hojas en disco azul-verdosas, como la referencia)
+    const P7 = PFK.P32(leafR);
+    for (let i = 0; i < Math.round(w / 22); i++) {
+      const cx = w * (0.08 + r() * 0.84), cy = h - 6 - r() * h * 0.35, rr = 6 + r() * 7;
+      PFK.ellipseFn(pb, cx, cy, rr, rr * 0.8, (nx, ny, d) => P7[clamp(Math.round(2.6 - nx * 0.9 - ny * 1.4 + (d > 0.8 ? -1 : 0) + (d < 0.3 && ny < 0 ? 1 : 0)), 0, 5)]);
+    }
+    // espigas de lupino (detrás): altas, con flores en racimo
     const nsp = opts.spikes ?? 4;
-    for (let i = 0; i < nsp; i++) lupine(pb, Math.round(w * (0.15 + r() * 0.7)), h - Math.round(r() * 8), Math.round(h * (0.45 + r() * 0.4)), seed + i * 7, { ramp: vio, leaf: leafR });
+    for (let i = 0; i < nsp; i++) lupine(pb, Math.round(w * (0.12 + r() * 0.76)), h - Math.round(r() * 8), Math.round(h * (0.5 + r() * 0.4)), seed + i * 7, { ramp: vio, leaf: leafR, wide: 1 });
     // hojas anchas
     const nl = opts.leaves ?? 9;
     for (let i = 0; i < nl; i++) {
       const bx = w * (0.1 + r() * 0.8), a = -Math.PI / 2 + (r() - 0.5) * 2.2;
       const L = h * (0.35 + r() * 0.35), Wd = L * (0.38 + r() * 0.15);
-      bigLeaf(pb, Math.round(bx), h + 2, a, L, Wd, leafR, 2 + (i % 2));
+      fgLeaf(pb, Math.round(bx), h + 2, a, L, Wd, P7, 1 + (i % 3 === 0 ? 1 : 0));
     }
     // macizo inferior
     for (let x = 0; x < w; x++) { const hh = 5 + Math.round(PFK.vn(x * 0.15, 0, seed) * 8); for (let y = h - hh; y < h; y++) if (!(PFK.get(pb, x, y) >>> 24)) PFK.put(pb, x, y, U(leafR[y > h - 3 ? 0 : 1])); }

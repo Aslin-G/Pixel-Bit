@@ -3483,6 +3483,11 @@ function Mat(o) {
   m.outlineU = U(m.outline); m.rampU = ramp.map(c => U(c));
   return m;
 }
+/** Mezcla de dos colores u32 (ABGR) con t∈[0,1]; alfa opaco */
+function _mixU(a, b, t) {
+  const ar = a & 255, ag = (a >>> 8) & 255, ab = (a >>> 16) & 255;
+  return ((255 << 24) | (Math.round(ab + (((b >>> 16) & 255) - ab) * t) << 16) | (Math.round(ag + (((b >>> 8) & 255) - ag) * t) << 8) | Math.round(ar + ((b & 255) - ar) * t)) >>> 0;
+}
 const _matCache = new Map();
 /** Material por defecto de una rampa (cacheado por identidad del array) */
 function matOf(ramp) { let m = _matCache.get(ramp); if (!m) { m = Mat({ ramp }); _matCache.set(ramp, m); } return m; }
@@ -3796,11 +3801,20 @@ class Rig {
     // 7. luz de borde 1 px en espalda y coronilla
     const env = opt.env || 'coast', rimHex = opt.rimColor || RIM_ENV[env];
     if (rimHex && opt.rim !== 0) {
-      pb.rimPass(rimHex, opt.rim ?? 0.38, (i) => {
-        const p = zb[i]; if (p < 0) return false;
+      // Luz de borde que conserva el tono del material: el píxel de borde sube 2 tonos de SU rampa
+      // y solo se tiñe un poco del color del ambiente (un cian puro sobre pelo/piel daba grises sucios).
+      const kk = opt.rim ?? 0.38, rimU = U(rimHex), tint = opt.rimTint ?? 0.22, src = new Uint32Array(D);
+      for (let y = 1; y < H2; y++) for (let x = 1; x < W2 - 1; x++) {
+        const i = y * W2 + x, p = zb[i];
+        if (p < 0 || !(src[i] >>> 24)) continue;
+        const side = !(src[i - 1] >>> 24), top = !(src[i - W2] >>> 24);
+        if (!side && !top) continue;
         const P = parts[p];
-        return P.rim !== false && P.mat.rim !== false && ib[i] <= P.base + (P.rimHi ?? 0);
-      });
+        if (P.rim === false || P.mat.rim === false || ib[i] > P.base + (P.rimHi ?? 0)) continue;
+        const RU = P.mat.rampU, ti = Math.min(RU.length - 1, ib[i] + 2);
+        const tgt = _mixU(RU[ti], rimU, tint);
+        D[i] = _mixU(src[i], tgt, Math.min(1, (side && top ? 1.3 : 1) * (0.3 + kk)));
+      }
     }
     // 8. contorno por material (+ limpieza de escalera)
     if (opt.outline !== false) {
@@ -3936,8 +3950,8 @@ const MOUTH2 = {
 };
 const FACE2 = {
   /** pb, o = {x, y, flip}, plantilla, tokens de color */
-  eyeNear(pb, x, y, kind, pal) { const T = EYE2[kind] || EYE2.open; pb.stampMap(x, y + T.oy, T.rows, pal); },
-  eyeFar(pb, x, y, kind, pal) { const T = EYE2_FAR[kind] || EYE2_FAR.open; pb.stampMap(x, y - 1, T, pal); },
+  eyeNear(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2[kind] || EYE2.open; pb.stampMap(x, y + T.oy, T.rows, pal); },
+  eyeFar(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2_FAR[kind] || EYE2_FAR.open; pb.stampMap(x, y - 1, T, pal); },
   brow(pb, x, y, kind, col) {
     // ceja cercana sobre el flequillo solo en estados intensos (x = inicio, y = fila de la pestaña)
     const c = U(col);
@@ -3964,8 +3978,8 @@ const FACE2 = {
     let k = pose.blink ? 'blink' : (E.eye2 || EYE_V1_TO_V2[E.eyes] || 'open');
     let kf = pose.blink ? 'blink' : k;
     // ojo lejano primero (queda parcialmente tapado por el perfil)
-    if (!F.noFar) FACE2.eyeFar(pb, fx, ey, kf, palFar);
-    FACE2.eyeNear(pb, ex, ey, k, pal);
+    if (!F.noFar) FACE2.eyeFar(pb, fx, ey, kf, palFar, F.eyesFar);
+    FACE2.eyeNear(pb, ex, ey, k, pal, F.eyes);
     if (E.tear || pose.tear) { pb.set(ex - 1, ey + 4, pal.t); pb.set(ex - 1, ey + 5, pal.t); pb.set(ex, ey + 6, '#e6fdff'); }
     // cejas visibles solo cuando la emoción las levanta o frunce
     const bk = E.brow2 || E.brows;
@@ -4016,6 +4030,7 @@ const ANIMS = {
   fear: { frames: 4, fps: 10, loop: true },
   determined: { frames: 4, fps: 6, loop: true },
   victory: { frames: 4, fps: 6, loop: true },
+  glide: { frames: 4, fps: 6, loop: true },
 };
 /** Alias de animación (nombres del prompt §13) */
 const ANIM_ALIAS = { interact: 'help', analyze: 'scan', operate: 'program', anger: 'frustrate', sadness: 'sad', celebration: 'celebrate', worried: 'worry', scared: 'fear' };
@@ -4209,6 +4224,16 @@ function poseFor(anim, t, ch) {
       p.expr = 'determined'; p.hair = { base: -0.15, amp: 0.12, P, lag: 0.5 };
       break;
     }
+    case 'glide': {
+      // colgada de la Vela de Brisa: brazos en alto sujetando las cuerdas, piernas recogidas que se balancean, pelo hacia atrás
+      const sw = S(P);
+      p.shF = 3.0 + sw * 0.04; p.elF = -0.1; p.shB = 2.95 - sw * 0.04; p.elB = 0.12; p.handF = 'fist'; p.handB = 'fist';
+      p.armStretchF = 1.32; p.armStretchB = 1.32; p.shLiftF = 4; p.shLiftB = 4; p.backHandZ = 49.5; p.frontArmZ = 49;
+      p.hipF = 0.45 + sw * 0.12; p.kneeF = -0.7 - sw * 0.1; p.hipB = -0.1 - sw * 0.12; p.kneeB = -0.85; p.footF = 0.2; p.footB = 0.3;
+      p.lean = 0.04; p.headTilt = -0.05; p.bob = 0;
+      p.hair = { base: -0.55, amp: 0.25, P: P * 2, lag: 0.5 }; p.pack = -1; p.expr = ch.glideExpr || null;
+      break;
+    }
     case 'victory': {
       // brazo en alto sostenido (distinto de celebrate), otro en la cadera
       const b = S(P);
@@ -4316,8 +4341,9 @@ function buildHumanoid(R, D, pose, opts = {}) {
   const nose = D.noseSize ?? 1;
   if (nose > 0) R.capsule(hx + hrx - 1.2, hy + 1.5, hx + hrx + 0.2 + nose * 0.4, hy + 3.2 + nose * 0.3, 0.7 + nose * 0.15, 0.55, { mat: headM, base: 4, z: 51.5, group: 'head', bevel: 0.6 });
   // oreja
-  R.ellipse(hx - hrx * 0.22, hy + 2, 2.1, 3, { mat: headM, base: 3, z: D.earZ ?? 52, group: 'ear', bevel: 1.2 });
-  R.stamp((pb) => { const ex = Math.round(hx - hrx * 0.22), ey = Math.round(hy + 2); pb.set(ex, ey, headM.ramp[2]); pb.set(ex, ey + 1, headM.ramp[2]); pb.set(ex - 1, ey - 1, headM.ramp[3]); }, 60);
+  const earX = hx + (D.earDX ?? -hrx * 0.22), earY = hy + (D.earDY ?? 2);
+  R.ellipse(earX, earY, 2.1, 3, { mat: headM, base: 3, z: D.earZ ?? 52, group: 'ear', bevel: 1.2 });
+  R.stamp((pb) => { const ex = Math.round(earX), ey = Math.round(earY); pb.set(ex, ey, headM.ramp[2]); pb.set(ex, ey + 1, headM.ramp[2]); pb.set(ex - 1, ey - 1, headM.ramp[3]); }, 60);
   // ---- pelo y accesorios de cabeza
   const ho = { hx, hy, rx: hrx, ry: hry, pose, M, tilt, D };
   if (D.hair) D.hair(R, ho);
@@ -4327,6 +4353,8 @@ function buildHumanoid(R, D, pose, opts = {}) {
   if (D.extra) D.extra(R, Object.assign({ hx, hy }, A));
   // ---- brazo delantero (encima del torso y del pelo largo)
   arm(af, 80, 'armF', 0, pose.handF);
+  // brazo cercano por detrás de la cabeza (brazos en alto: planeo, colgarse)
+  if (pose.frontArmZ) for (let k = R.parts.length - 1; k >= 0 && R.parts[k].group.startsWith('armF'); k--) R.parts[k].z = pose.frontArmZ + (R.parts[k].z - 80) * 0.01;
   // ---- cara (plantillas v2)
   R.stamp((pb) => {
     const exprName = pose.expr || opts.expr || D.defaultExpr || 'neutral';
@@ -4915,13 +4943,31 @@ function renderHumanoid(id, D, anim, t, opts) {
   return pb;
 }
 
+/* Ojos de Amaya (perfil casi lateral, mira a la derecha). Columna 0 = remate exterior de la
+   pestaña (lado de la oreja); iris hacia delante; brillo blanco arriba; iris que aclara abajo. */
+const EYE_AM = {
+  open: { oy: -2, rows: ['.KKKK', 'KKhDD', '.wDDM', '.wMLL', '..ss.'] },
+  look: { oy: -2, rows: ['.KKKK', 'KKwhD', '.wwDD', '.wwML', '..ss.'] },
+  half: { oy: -1, rows: ['.KKKK', 'KKKDD', '.wDLM', '..ss.'] },
+  soft: { oy: 0, rows: ['.KKKK', 'K.DLM', '..ss.'] },
+  determined: { oy: -2, rows: ['KKKKK', '.KhDD', '.wDDM', '.wMLL', '..ss.'] },
+  wide: { oy: -3, rows: ['..KKK', '.KKKK', 'KwhDD', '.wDDM', '.wMLL', '..ww.'] },
+  surprised: { oy: -3, rows: ['..KKK', '.K..K', 'Kwwhw', '.wDDw', '.wDDw', '..ww.'] },
+  worried: { oy: -2, rows: ['...KK', 'KKKK.', '.whDD', '.wDDM', '.wMLL', '..ss.'] },
+  sad: { oy: -2, rows: ['...KK', '.KKK.', 'K.hDD', '.wDDM', '.wMLL', '..ss.'] },
+  blink: { oy: 1, rows: ['KKKKK', '..ss.'] },
+};
+
 /* ------------------------------------------------------------------ */
 /* AMAYA SERRANO — canon de la referencia (STYLE LOCK §10)              */
 /* ------------------------------------------------------------------ */
 const AMAYA_D = {
   thigh: 13, shin: 13.5, footH: 3, footL: 7.5, pelvisH: 5, chestH: 16, torsoW: 12.8,
   headRX: 10.5, headRY: 11.5, upperArm: 10, foreArm: 9.5, armW: 2.5, legW: 3.1, handR: 2.2, neckR: 2.5,
-  face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#1e0901', '#4a1c0c', '#9a5228'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06' },
+  // cara amable/decidida como la referencia: ojo grande con brillo e iris castaño claro, sin ojo lejano
+  // (perfil casi lateral), boca suave y rubor; sonrisa leve por defecto
+  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#6a3418', '#b06a34'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
+  defaultExpr: 'smile', earDX: -3.4, earDY: 2.5,
   shortSleeve: 0.55, fingerless: true, wristBand: true, sole: '#1a0a06', laces: '#e48a4a', bootTall: 4, earZ: 56,
   energetic: 1.15, shadowR: 12,
   prepare() {
@@ -5001,7 +5047,7 @@ const AMAYA_D = {
     const { hx, hy, rx, ry, pose } = o;
     const H = M.hairAm;
     // casquete + volumen trasero hasta la nuca
-    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.76, faceDX: -0.4, faceDY: -0.3, base: 3 });
+    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.84, faceDX: -1.4, faceDY: -1.0, base: 3 });
     R.ellipse(hx - rx * 0.55, hy + 1, 5, 7.5, { mat: H, base: 3, z: 54, group: 'hair', bevel: 2.2 }, 0.25);
     // coleta alta voluminosa: 6 mechones afilados que se abren hacia atrás
     HAIR2.ponytail(R, o, H, {
@@ -5009,14 +5055,15 @@ const AMAYA_D = {
       clumps: [[0.5, 13, 3.0, -0.16], [0.26, 18, 4.0, -0.24], [0.02, 20, 4.3, -0.3], [-0.2, 18, 4.0, -0.34], [-0.42, 15, 3.4, -0.38], [-0.66, 11, 2.7, -0.4]],
     });
     // flequillo en puntas hasta la línea de las cejas
+    // (las puntas terminan sobre la pestaña: la frente y el ojo quedan despejados)
     HAIR2.bangs(R, o, H, [
-      [[-1, -10.5], [1.5, -6], [2.2, -3], 2.8],
-      [[2.5, -11], [5, -6.5], [6.2, -2.4], 2.8],
-      [[6, -10], [8.2, -6], [9.6, -2.2], 2.5],
-      [[8.5, -8.5], [10.6, -5.2], [11.5, -1.5], 1.8],
+      [[-1, -10.5], [1.2, -6.5], [2.0, -4.0], 2.8],
+      [[2.5, -11], [4.8, -7.2], [6.0, -4.2], 2.7],
+      [[6, -10.5], [8.0, -7.2], [9.4, -4.6], 2.3],
+      [[8.5, -9.2], [10.3, -6.8], [11.0, -4.6], 1.6],
     ]);
     // mechón lateral delante de la oreja
-    HAIR2.lock(R, o, H, [[0.2, -5], [0.4, 2], [1.4, 8]], 1.9);
+    HAIR2.lock(R, o, H, [[-1.6, -5], [-1.5, 2], [-0.6, 7.5]], 1.7);
     // brillo en arco sobre la coronilla y en la coleta
     HAIR2.shine(R, o, ['hair', 'bangs'], RAMP.hairAm[6], -2.6, -1.25, 0.74);
     R.stamp(pb => {
@@ -5067,9 +5114,13 @@ const KIRU_EYE_TPL = {
   star: { n: ['.y.', 'ywy', '.y.'], f: ['y.', 'wy', 'y.'], dy: 2, star: 1 },
   blink: { n: ['ccc'], f: ['cc'], dy: 4 },
 };
+/* KIRU flota a la altura de la cabeza de Amaya (como en la referencia): el hueco de levitación
+   va en el ancla. Lienzo 60×72; pies del dibujo en y≈59; oy = 70 + KIRU_LIFT (altura de reposo).
+   Kiru.render (30_world.js) lo baja hasta KIRU_LIFT_MOVE px al desplazarse. */
+const KIRU_LIFT = 48, KIRU_LIFT_MOVE = 32;
 function renderKiru(anim, t, opts) {
   const M = charMats();
-  const R = new Rig(60, 64, { v2: true });
+  const R = new Rig(60, 72, { v2: true });
   const S = Math.sin, C = Math.cos, P = TAU * t;
   const a = ANIM_ALIAS[anim] || anim;
   // flotación ±1,5 px; inclinación hacia delante al moverse
@@ -5091,7 +5142,7 @@ function renderKiru(anim, t, opts) {
   // orejas caídas en culpa/tristeza, aplastadas atrás si hay alarma
   if (eyeMode === 'down' || eyeMode === 'guilty' || eyeMode === 'crying') earA = Math.max(earA, 0.6);
   if (eyeMode === 'big') earA = Math.min(earA, -0.15) + 0.35;
-  const hx = 31 + lean * 0.5, hy = 30 + bob + hop + Math.max(0, lean) * 0.5;
+  const hx = 31 + lean * 0.5, hy = 38 + bob + hop + Math.max(0, lean) * 0.5;
   // ---- orejas de zorro en aleta: marco gris, banda naranja→amarilla, panel solar cian con celdas
   const ear = (bx, by, ang, len, w, z, dark, grp) => {
     const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
@@ -5115,8 +5166,9 @@ function renderKiru(anim, t, opts) {
       } });
   };
   const eb = earA + earTw * 0.08;
-  ear(hx - 11, hy - 7, -2.32 - eb, 21, 11, 2, 1, 'earB');
-  ear(hx - 5, hy - 12, -2.12 - eb * 0.8 + earTw * 0.06, 19.5, 10.5, 14, 0, 'earF');
+  // orejas largas y separadas (la trasera inclinada atrás, la delantera casi erguida), como en la referencia
+  ear(hx - 12, hy - 8, -2.24 - eb, 22, 9, 2, 1, 'earB');
+  ear(hx - 3.5, hy - 12, -1.96 - eb * 0.8 + earTw * 0.06, 23, 9, 14, 0, 'earF');
   // ---- cola de lagartija corta con microturbina naranja
   const tb = [hx - 12, hy + 15];
   const tp = [[tb[0], tb[1]], [tb[0] - 4.5, tb[1] + 0.5 + tailA * 3], [tb[0] - 8, tb[1] - 2 + tailA * 5], [tb[0] - 9.5 + S(P) * 0.6, tb[1] - 6 + tailA * 6 + C(P) * 0.6]];
@@ -5211,10 +5263,11 @@ function renderKiru(anim, t, opts) {
     }
   }, 100);
   const pb = R.render({ env: opts.env, outlineColor: '#070813' });
-  pb.anchors = { head: { x: hx, y: hy }, eye: { x: hx + 5, y: hy }, shadowR: 8 - Math.max(-1, Math.min(1, bob)) };
+  // sombra de contacto pequeña: KIRU vuela alto
+  pb.anchors = { head: { x: hx, y: hy }, eye: { x: hx + 5, y: hy }, shadowR: 6 - Math.max(-1, Math.min(1, bob)) };
   return pb;
 }
-CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30, oy: 62, shadowR: 8, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
+CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30, oy: 70 + KIRU_LIFT, shadowR: 6, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
 
 /* ------------------------------------------------------------------ */
 /* Peinados v1 (se conservan por compatibilidad)                         */
@@ -5446,8 +5499,26 @@ function renderLimen(anim, t, opts) {
   const P = TAU * t;
   const cx = 36, cy = 46 + Math.round(Math.sin(P) * 1.5);
   const mood = opts.expr || 'calm';
-  const L = RAMP.limen;
-  const facet = (pts, base, z, group) => R.poly(pts, { ramp: L, base, z, group, flat: true, lineCol: '#0e2b4a' });
+  // cristal de 8 tonos (navy → cian → blanco) con matiz violeta en la sombra
+  const L = ['#120a34', '#0e2b4a', '#165a7a', '#1f8aa8', '#3cc0d6', '#7ee8f0', '#c4fbff', '#ffffff'];
+  let fseed = 0;
+  /** Faceta de cristal: degradado hacia la luz (arriba-izquierda), arista iluminada, veta de refracción
+      diagonal y reflejo violeta en la parte baja (STYLE LOCK §6: rampas con desplazamiento de tono) */
+  const facet = (pts, base, z, group) => {
+    let mx = 0, my = 0; pts.forEach(p => { mx += p[0]; my += p[1]; }); mx /= pts.length; my /= pts.length;
+    let ext = 1; pts.forEach(p => { ext = Math.max(ext, Math.hypot(p[0] - mx, p[1] - my)); });
+    const sd = (fseed++ * 3.7) % 9, streak = (fseed % 3) !== 0;
+    R.poly(pts, { ramp: L, base, z, group, bevel: 0.9, lineCol: '#165a7a',
+      texture: (x, y, idx, ramp, col, d) => {
+        const X = x / CH_SCALE, Y = y / CH_SCALE;
+        const g = ((mx - X) * 0.6 + (my - Y) * 0.8) / ext;
+        let k = base + Math.round(g * 1.4);
+        if (-d < 1.3 * CH_SCALE && g > 0.05) k += 1;                                   // arista iluminada
+        if (streak && Math.abs(((X + Y * 0.55 + sd) % 10) - 5) < 0.55) k += 2;          // veta de refracción
+        if (g < -0.55 && hash2(x >> 1, y >> 1, 41) < 0.35) return '#3a2a7a';           // reflejo violeta
+        return L[clamp(k, 1, 7)];
+      } });
+  };
   const off = (i) => Math.sin(P + i * 1.3) * 1.2;
   for (const side of [-1, 1]) {
     const ax = cx + side * 17, ay = cy - 2 + off(side + 2);
@@ -5495,6 +5566,22 @@ function renderLimen(anim, t, opts) {
     const B = pb.base || pb, gy = Math.round((cy - 20 + ((t * 7) % 1) * 50) * CH_SCALE);
     for (let x = 0; x < B.w - 1; x++) if (B.alpha(x, gy) && hash2(x, gy, Math.floor(t * 8)) < 0.4) B.set(x + 1, gy, '#b49cff');
   }, 100);
+  // halo emisivo del núcleo en anillos (sin tramado, sin contorno) y destellos de borde
+  R.glow(pb => {
+    const B = pb.base || pb, s = CH_SCALE, X0 = cx * s, Y0 = cy * s;
+    const cc = mood === 'alert' ? [255, 107, 107] : mood === 'warn' ? [255, 225, 77] : [86, 229, 255];
+    const pulse = 0.5 + 0.5 * Math.sin(P * 2);
+    for (let yy = Math.floor(Y0 - 13); yy <= Y0 + 13; yy++) for (let xx = Math.floor(X0 - 13); xx <= X0 + 13; xx++) {
+      const dd = Math.hypot(xx + 0.5 - X0, yy + 0.5 - Y0); if (dd < 7.2 || dd > 12.5) continue;
+      const ring = dd < 9 ? 0.55 : dd < 11 ? 0.3 : 0.14;
+      const a = Math.round(255 * ring * (0.75 + 0.25 * pulse));
+      const cur = B.data[yy * B.w + xx];
+      if (cur >>> 24 === 255) { // sobre el cristal: aclara hacia el color del núcleo
+        const r0 = cur & 255, g0 = (cur >>> 8) & 255, b0 = (cur >>> 16) & 255, k = ring * 0.7;
+        B.data[yy * B.w + xx] = ((255 << 24) | (Math.round(b0 + (cc[2] - b0) * k) << 16) | (Math.round(g0 + (cc[1] - g0) * k) << 8) | Math.round(r0 + (cc[0] - r0) * k)) >>> 0;
+      } else if (!(cur >>> 24)) B.data[yy * B.w + xx] = ((a << 24) | (cc[2] << 16) | (cc[1] << 8) | cc[0]) >>> 0;
+    }
+  });
   const pb = R.render({ env: opts.env, outlineColor: '#0b2238', outlineAll: '#0b2238', rim: 0.2 });
   pb.anchors = { head: { x: cx * CH_SCALE, y: hy * CH_SCALE }, core: { x: cx * CH_SCALE, y: cy * CH_SCALE } };
   return pb;
@@ -5525,7 +5612,11 @@ function renderTwin(anim, t, opts, mosaic) {
     const iso = Math.sin(x * 0.16 + y * 0.07) + Math.sin(y * 0.13 - x * 0.04 + P);
     if (Math.abs(iso) < 0.08) c = '#fff6ff';
     if ((x + y) % 11 === 0 && idx > 3) c = '#ffd84a';
-    if (idx <= 1) c = shadeM(c, -0.35);
+    // volumen: costados en sombra violeta, centro iluminado, pliegues verticales y líneas de barrido holográfico
+    const X = x / CH_SCALE, fold = Math.sin((X - cx) * 0.55 + Math.sin(y * 0.03) * 1.5);
+    if (idx <= 1) c = shadeM(c, -0.45); else if (idx === 2) c = shadeM(c, -0.25); else if (idx >= 5) c = shadeM(c, 0.12);
+    if (fold > 0.86 && y > hy * CH_SCALE + 30) c = shadeM(c, -0.3);
+    if ((Math.floor(y) + Math.floor(t * 24)) % 4 === 0) c = shadeM(c, 0.18);
     return c;
   };
   const gown = [[cx - 9, hy + 18], [cx + 9, hy + 18], [cx + 14, hy + 40], [cx + 30 + Math.sin(P) * 2, 128 + hov * 0.3], [cx - 30 - Math.sin(P) * 2, 128 + hov * 0.3], [cx - 14, hy + 40]];
@@ -5565,6 +5656,20 @@ function renderTwin(anim, t, opts, mosaic) {
       }
     }
   }, 100);
+  // el bajo del vestido se deshace en píxeles que suben (holograma), sin contorno
+  R.glow(pb => {
+    const B = pb.base || pb, s = CH_SCALE, yh = Math.round((128 + hov * 0.3) * s), fr = Math.floor(t * 8);
+    for (let y = yh - 20; y <= yh + 3; y++) for (let x = 0; x < B.w; x++) {
+      const i = y * B.w + x; if (y < 0 || y >= B.h || !(B.data[i] >>> 24)) continue;
+      if (hash2(x >> 1, y >> 1, fr) < (y - (yh - 20)) / 23 * 0.8) B.data[i] = 0;
+    }
+    const pal = mosaic ? MOSAIC_LAYERS : ['#ff8ad0', '#56e5ff', '#fff6ff', '#e050c8'];
+    for (let k = 0; k < 14; k++) {
+      const ph = (t * (1 + hash1(k, 6)) + k / 14) % 1;
+      const x = Math.round((cx - 28 + hash1(k, 5) * 56) * s), y = Math.round((130 - ph * 34) * s);
+      if (ph < 0.85) B.rect(x, y, ph < 0.4 ? 2 : 1, ph < 0.4 ? 2 : 1, pal[k % pal.length]);
+    }
+  });
   const oc = mosaic ? '#06100a' : '#1d0b3a';
   const pb = R.render({ env: opts.env, outlineColor: oc, outlineAll: oc, rim: 0.15 });
   pb.anchors = { head: { x: cx * CH_SCALE, y: hy * CH_SCALE } };
@@ -5597,7 +5702,22 @@ function renderBeta(anim, t, opts) {
     for (let y = by + 2; y < by + 9; y += 2) pb.hline(cx - 7, cx + 7, y, steel[2]);
     pb.set(cx, by - 14, anim === 'talk' && (Math.floor(t * 6) % 2) ? '#ff4e5d' : '#ffe14d');
     pb.set(cx - 7, by - 9, '#ffffff');
+    // reflejo de la pantalla, franja de aviso amarilla/negra, tornillos, aletas de disipación y LED de estado
+    pb.line(cx - 5, by - 7, cx - 3, by - 7, '#2a3a6a'); pb.set(cx + 4, by - 7, '#2a3a6a');
+    for (let k = 0; k < 14; k++) pb.set(cx - 7 + k, by + 10, ((k >> 1) % 2) ? '#1a1418' : '#ffd84a');
+    for (const [bx, by2] of [[-8, -10], [8, -10], [-8, 9], [8, 9]]) { pb.set(cx + bx, by + by2, '#f4fbff'); pb.set(cx + bx, by + by2 + 1, steel[1]); }
+    for (let y = by - 4; y < by + 8; y += 2) { pb.set(cx + 9, y, steel[1]); pb.set(cx - 9, y, steel[6]); }
+    pb.set(cx + 6, by + 3, Math.floor(t * 4) % 2 ? '#56e5ff' : '#1491aa');
+    // borne + (terminal de batería) en la tapa
+    pb.set(cx + 4, by - 13, '#ff4e5d'); pb.set(cx + 3, by - 13, '#ff4e5d'); pb.set(cx + 5, by - 13, '#ff4e5d'); pb.set(cx + 4, by - 14, '#ff4e5d');
+    // ruedas de la oruga
+    for (let k = -6; k <= 6; k += 4) { pb.set(cx + k, 41, '#5a5961'); pb.set(cx + k + ((Math.floor(t * 8)) % 2), 42, '#8f8f95'); }
   }, 100);
+  // halo del panel de SOC (emisivo, sin contorno)
+  R.glow(pb => {
+    const col = soc < 0.2 ? '#ff4e5d' : soc < 0.4 ? '#ffb83e' : '#86e36f', n = Math.round(soc * 10);
+    for (let i = 0; i < n; i++) pb.set(cx - 5 + i, by - 1, mixHex(col, '#0a1030', 0.55));
+  });
   const pb = R.render({ env: opts.env, outlineColor: '#0a0c16' });
   pb.anchors = { head: { x: cx * CH_SCALE, y: (by - 8) * CH_SCALE } };
   return pb;
@@ -10873,9 +10993,10 @@ const PFFlora = (() => {
     for (let k = 0; k < h; k++) PFK.put(pb, x + Math.round(Math.sin(k * 0.15 + seed) * 0.6), y - 2 - k, G[2]);
     // flores
     const fl0 = Math.round(h * 0.35);
+    const wk = opts.wide ? 3.4 : 2.2;
     for (let k = fl0; k < h + 2; k++) {
       const t = (k - fl0) / (h + 2 - fl0);
-      const hw = Math.max(0, Math.round((1 - t) * 2.2 + (k % 2 ? 0.4 : 0)));
+      const hw = Math.max(0, Math.round((1 - t) * wk + (k % 2 ? 0.4 : 0) + (opts.wide && k % 3 === 0 ? 0.8 : 0)));
       const yy = y - 2 - k, xc = x + Math.round(Math.sin(k * 0.15 + seed) * 0.6);
       for (let dx = -hw; dx <= hw; dx++) {
         let ki = 2 + (dx < 0 ? 1 : 0) + (t > 0.55 ? 1 : 0) - (Math.abs(dx) === hw && hw > 0 ? 1 : 0);
@@ -10975,20 +11096,44 @@ const PFFlora = (() => {
     const P = PFK.P32(ramp);
     leaf(pb, x, y, a, L, Wd, P, k, { rib: true, tipUp: 0 });
   }
+  /** Hoja frontal grande: degradado base→punta, borde iluminado de 1 px, nervio central y nervios laterales */
+  function fgLeaf(pb, x, y, a, L, Wd, P, k) {
+    const ca = Math.cos(a), sa = Math.sin(a), n = P.length;
+    const lit = (-sa * LX + ca * LY) > 0 ? 1 : -1;
+    const r = Math.ceil(L + Wd);
+    for (let yy = -r; yy <= r; yy++) for (let xx = -r; xx <= r; xx++) {
+      const s = xx * ca + yy * sa, q = -xx * sa + yy * ca;
+      if (s < 0 || s > L) continue;
+      const u = s / L, hw = Wd * 0.5 * Math.pow(Math.sin(Math.PI * clamp(u, 0, 1)), 0.7) + 0.35;
+      if (Math.abs(q) > hw) continue;
+      let ki = k + (u > 0.55 ? 1 : 0) - (u < 0.22 ? 1 : 0);
+      if (q * lit > 0.4) ki += 1; else if (q * lit < -hw * 0.45) ki -= 1;
+      if (q * lit > hw - 1.1 && u > 0.2 && u < 0.88) ki += 2;                      // canto iluminado
+      if (Math.abs(q) < 0.55 && u > 0.06 && u < 0.9) ki = k - 1;                    // nervio
+      else if (Math.abs(((s * 0.55 + Math.abs(q)) % 7) - 3.5) < 0.5 && Math.abs(q) > 1.2 && Math.abs(q) < hw - 1.5 && q * lit > 0) ki -= 1; // nervios laterales (lado iluminado)
+      PFK.put(pb, x + xx, y + yy, P[clamp(ki, 0, n - 1)]);
+    }
+  }
   /** Mata frontal: hojas anchas fgLeaf + espigas lavanda fgVio. side: -1 izquierda, 1 derecha */
   function fgClump(w, h, seed, opts = {}) {
     const pb = new PixelBuffer(w, h), r = RNG(seed);
-    const leafR = opts.leaf || ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88'];
+    const leafR = opts.leaf || ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88', '#7ab09a'];
     const vio = opts.vio || RAMP.fgVioR;
-    // espigas lavanda (detrás)
+    // follaje redondo de fondo (hojas en disco azul-verdosas, como la referencia)
+    const P7 = PFK.P32(leafR);
+    for (let i = 0; i < Math.round(w / 22); i++) {
+      const cx = w * (0.08 + r() * 0.84), cy = h - 6 - r() * h * 0.35, rr = 6 + r() * 7;
+      PFK.ellipseFn(pb, cx, cy, rr, rr * 0.8, (nx, ny, d) => P7[clamp(Math.round(2.6 - nx * 0.9 - ny * 1.4 + (d > 0.8 ? -1 : 0) + (d < 0.3 && ny < 0 ? 1 : 0)), 0, 5)]);
+    }
+    // espigas de lupino (detrás): altas, con flores en racimo
     const nsp = opts.spikes ?? 4;
-    for (let i = 0; i < nsp; i++) lupine(pb, Math.round(w * (0.15 + r() * 0.7)), h - Math.round(r() * 8), Math.round(h * (0.45 + r() * 0.4)), seed + i * 7, { ramp: vio, leaf: leafR });
+    for (let i = 0; i < nsp; i++) lupine(pb, Math.round(w * (0.12 + r() * 0.76)), h - Math.round(r() * 8), Math.round(h * (0.5 + r() * 0.4)), seed + i * 7, { ramp: vio, leaf: leafR, wide: 1 });
     // hojas anchas
     const nl = opts.leaves ?? 9;
     for (let i = 0; i < nl; i++) {
       const bx = w * (0.1 + r() * 0.8), a = -Math.PI / 2 + (r() - 0.5) * 2.2;
       const L = h * (0.35 + r() * 0.35), Wd = L * (0.38 + r() * 0.15);
-      bigLeaf(pb, Math.round(bx), h + 2, a, L, Wd, leafR, 2 + (i % 2));
+      fgLeaf(pb, Math.round(bx), h + 2, a, L, Wd, P7, 1 + (i % 3 === 0 ? 1 : 0));
     }
     // macizo inferior
     for (let x = 0; x < w; x++) { const hh = 5 + Math.round(PFK.vn(x * 0.15, 0, seed) * 8); for (let y = h - hh; y < h; y++) if (!(PFK.get(pb, x, y) >>> 24)) PFK.put(pb, x, y, U(leafR[y > h - 3 ? 0 : 1])); }
@@ -11071,9 +11216,9 @@ const PFTerrain = (() => {
     const r = RNG(seed), cols = [];
     let x = x0 - r.int(4, 14);
     while (x < x1 + 30) {
-      const w = r.int(14, 34);
+      const w = r.int(16, 40);
       const blocks = []; let y = 136 + r.int(0, 30);
-      while (y < 720) { const bh = r.int(20, 60); blocks.push({ y, h: bh, tilt: (r() - 0.5) * 0.45, cap: r.int(4, 10), pro: r() < 0.45, alb: (r() - 0.5) * 0.14 }); y += bh; }
+      while (y < 720) { const bh = r.int(24, 62); blocks.push({ y, h: bh, tilt: (r() - 0.5) * 0.45, cap: r.int(4, 10), pro: r() < 0.45, alb: (r() - 0.5) * 0.14 }); y += bh; }
       cols.push({ x0: x, x1: x + w, seed: r.int(1, 1e6), blocks, p: r() });
       x += w;
     }
@@ -11119,21 +11264,33 @@ const PFTerrain = (() => {
     if (rawTop > gy + 2 && dt <= 0) return P[0];
     if (rawTop > gy + 2 && dt === 1 && PFK.cl(x, y, 2, c.seed + 3) < 0.55) return P[1];
     // normal de caja redondeada: tapa ancha si el bloque sobresale
-    const rcx = Math.min(5, w * 0.3), rTop = bl.pro ? bl.cap + 2 : Math.max(3, bl.cap - 2), rBot = 4;
+    // cara superior en 3/4 de cada bloque (banda clara de 3–5 px como la referencia) y panza en sombra
+    const topH = bl.pro ? 5 : 3, deep = d > 110 ? 1 : 0;
+    if (rawTop > gy + 2 && dt >= 1 && dt <= topH && dl > gap && dr > 0) {
+      let k = dt === 1 ? 8 : 7;
+      if (PFK.cl(x, y, 2, c.seed + 5) < 0.28) k--;
+      if (dr < 3 || dl <= gap + 1) k -= 2;
+      if (hash2(x, y, c.seed + 6) < 0.04) k -= 2;
+      return P[clamp(k - deep - (d > 150 ? 1 : 0), 2, 8)];
+    }
+    if (db <= 1 && B[bi + 1]) return P[db === 0 ? 1 : 2];
+    const rcx = Math.min(9, w * 0.42), rTop = bl.pro ? bl.cap + 2 : Math.max(3, bl.cap - 2), rBot = 7;
     let nx = 0, ny = 0;
     if (dl < rcx) nx = -(1 - dl / rcx); else if (dr < rcx + 1) nx = 1 - dr / (rcx + 1);
     if (dt < rTop) ny = -(1 - dt / rTop) * 0.95; else if (db < rBot) ny = (1 - db / rBot) * 0.9;
     const nz = Math.sqrt(Math.max(0.02, 1 - nx * nx - ny * ny));
     let lam = (nx * LV[0] + ny * LV[1] + nz * LV[2]);
-    let t = 0.2 + Math.max(-0.2, lam) * 0.78 + bl.alb + (c.p - 0.5) * 0.16;
+    let t = 0.27 + Math.max(-0.2, lam) * 0.8 + bl.alb + (c.p - 0.5) * 0.16;
     if (c.p < 0.3) t -= 0.1;                         // columnas que se retraen: más oscuras
     if (dl <= gap + 2) t -= (gap + 3 - dl) * 0.05;   // oclusión junto a la grieta
+    if (dl === gap + 1 && dt > topH + 1) t += 0.12;    // canto izquierdo iluminado
+    if (dr < 3) t -= (3 - dr) * 0.07;                 // canto derecho en sombra
     // sombra proyectada por la columna izquierda saliente y por la cornisa superior (bloques que se retraen)
     if (prev.p > c.p + 0.2 && dl < 3 + Math.round((prev.p - c.p) * 8)) t -= 0.22;
     if (!bl.pro && dt < 4 && bi > 0 && rawTop > gy + 3) t -= 0.25 - dt * 0.05;
     // textura pictórica: manchas en clusters, vetas verticales, motas
-    t += (PFK.vn(x * 0.13, y * 0.05, c.seed & 255) - 0.5) * 0.26 + (PFK.cl(x, y, 2, c.seed + 9) - 0.5) * 0.12;
-    if (PFK.vn(x * 0.7, y * 0.04, c.seed & 127) > 0.85 && dt > rTop) t -= 0.18;
+    t += (PFK.vn(x * 0.11, y * 0.09, c.seed & 255) - 0.5) * 0.24 + (PFK.cl(x, y, 2, c.seed + 9) - 0.5) * 0.12;
+    if (PFK.vn(x * 0.16, y * 0.12, c.seed & 127) > 0.8 && dt > rTop) t -= 0.14; // picaduras y manchas
     const h = hash2(x, y, c.seed); if (h < 0.025) t += 0.12; else if (h > 0.975) t -= 0.2;
     // primer plano más oscuro hacia abajo
     t -= clamp((d - 70) / 160, 0, 0.32);
@@ -11173,10 +11330,13 @@ const PFTerrain = (() => {
       case 'cliff': return cliffPix(s, x, y, gy, RW);
       case 'rocks': {
         if (d <= 1) return U(d === 0 ? LIP : '#e29441');
-        const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 4 || hash2(id, 5, s.seed || 77) < clamp(1 - (cy - sea) / 46, 0.12, 1) } : {});
-        if (sea != null && y >= sea - 1) { // rocas sumergidas: tinte azul por profundidad, huecos de agua
+        // bajo la línea de agua solo queda la base del roquedal (cantos cuyo centro está a ≤ 9 px):
+        // borde inferior dentado como la orilla de arena; debajo se ve el corte submarino
+        const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 9 } : {});
+        if (sea != null && y >= sea - 1) {
           if (u === -1) return 0;
-          return PFK.mixU(u, UWU()[clamp(6 - Math.round((y - sea) / 22), 1, 6)], clamp(0.42 + (y - sea) / 110, 0.42, 0.8));
+          const dz = y - sea;
+          return PFK.mixU(u, UWU()[clamp(7 - Math.round(dz / 10), 3, 7)], clamp(0.3 + dz / 40, 0.3, 0.65));
         }
         if (u === -1) return RW[d > 60 ? 0 : 1];
         return d > 90 ? PFK.shU(u, -0.25, 15) : u;
@@ -11512,7 +11672,7 @@ const PFTerrain = (() => {
 const PFWater = (() => {
   const UND = ['#041939', '#062448', '#072e51', '#06406a', '#065481', '#0879a4', '#0c97b6', '#08bcd6', '#07dde6', '#7ef0f4'];
   const SURF = ['#00568a', '#0182ae', '#027bbe', '#11bedd', '#27e2e8', '#c0ebf7', '#ffffff'];
-  const SANDW = ['#1a3a4a', '#2a5560', '#3f7272', '#5a8e80', '#7ea890', '#a8c0a0'];
+  const SANDW = ['#0a2236', '#123446', '#1e4a58', '#2e6468', '#4a8278', '#78a890'];
   const ROCKW = ['#061224', '#0c2234', '#14344a', '#1f4a5e', '#2f6474', '#4a8288'];
   const KELP = ['#0a2a1e', '#12402a', '#1e5a30', '#2f7a3a', '#4f9a44', '#86c05a'];
 
@@ -11520,7 +11680,8 @@ const PFWater = (() => {
   function waterAt(P, dz, x, y, maxD) {
     const t = clamp(1 - dz / maxD, 0, 1);
     const j = (hash2((x / 3) | 0, (y / 2) | 0, 5) - 0.5) * 0.07 + (PFK.vn(x * 0.03, y * 0.05, 6) - 0.5) * 0.08;
-    return P[clamp(Math.round((t * t * 0.55 + t * 0.45 + j) * 8), 0, 8)];
+    // agua luminosa como la referencia: turquesa brillante en la mitad superior, azul medio y navy solo al fondo
+    return P[clamp(Math.round((t * 0.35 + Math.sqrt(t) * 0.65 + j) * 8), 0, 8)];
   }
 
   function build(world, w) {
@@ -11543,6 +11704,7 @@ const PFWater = (() => {
         const Y = y0 + y;
         if (Y < wy) {
           if (!hole) continue;
+          if (Y <= (world.ground[X] ?? 0) + 3) continue; // nunca sobre la cara superior del muelle
           // mar visto bajo la cubierta: superficie que se aleja + sombra de la cubierta
           const k = Y < wy - 20 ? 0 : Y < wy - 14 ? 1 : 2 + ((Y + Math.round(Math.sin(X * 0.2) * 1.2)) % 5 === 0 ? 1 : 0);
           pb.data[y * wd + x] = SF[clamp(k + (hash2(X, Y, 3) < 0.03 ? 3 : 0), 0, 6)];
@@ -11554,6 +11716,11 @@ const PFWater = (() => {
         let u = waterAt(UW, Math.max(0, dz), X, Y, maxD + 10);
         if (col > 0.68 && Y > wy + 10) u = PFK.mixU(u, UW[8], clamp((col - 0.68) * 1.6, 0, 0.35) * (1 - (Y - wy) / (maxD + 40)));
         if (Y > wy + 50 && PFK.vn(X * 0.02, Y * 0.02, 33) > 0.62) u = PFK.mixU(u, U('#2a2470'), 0.28);
+        // manchas pictóricas más oscuras (azul medio) y vetas claras inclinadas cerca de la superficie
+        const bl = PFK.vn(X * 0.03, Y * 0.05, 34) + (PFK.cl(X, Y, 3, 35) - 0.5) * 0.12;
+        if (bl > 0.6 && Y > wy + 6) u = PFK.mixU(u, UW[clamp(Math.round(5 - (Y - wy) / 40), 2, 5)], clamp((bl - 0.6) * 1.8, 0, 0.45));
+        const vt = PFK.vn(X * 0.06 + Y * 0.11, Y * 0.02, 36);
+        if (vt > 0.74 && Y < wy + 46 && Y > wy + 4) u = PFK.mixU(u, UW[9], clamp((vt - 0.74) * 2.4, 0, 0.32) * (1 - (Y - wy) / 46));
         pb.data[y * wd + x] = u;
       }
     }
@@ -11566,15 +11733,46 @@ const PFWater = (() => {
         pb.data[i] = PFK.mixU(c, UW[2], 0.32 + (Y - top) / 140);
       }
     }
-    // 3. lecho: arena con ondas, rocas
+    // 3. lecho: arrecife rocoso (cantos en celdas de Worley con tapa iluminada desde la superficie)
+    //    y arena con ondas entre los cantos; los cantos asoman por encima de la línea del lecho
     const SW = PFK.P32(SANDW), RK = PFK.P32(ROCKW);
+    const BR = PFK.P32(['#04101e', '#071c30', '#0c2a42', '#123a52', '#1b4e64', '#286676', '#3f8488', '#62a49a', '#9ad4c4']);
+    const rockAt = (X, Y) => {
+      const big = PFK.vn(X * 0.01, Y * 0.01, 79) > 0.55, cw = big ? 26 : 14, ch = big ? 16 : 10, gx = Math.floor(X / cw), gyc = Math.floor(Y / ch);
+      let d1 = 9, d2 = 9, sx = 0, sy = 0, rr = 1, id = 0;
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+        const cx = gx + i, cy = gyc + j;
+        const px = (cx + 0.2 + hash2(cx, cy, 71) * 0.6) * cw, py = (cy + 0.2 + hash2(cx, cy, 72) * 0.6) * ch;
+        const rad = (0.4 + hash2(cx, cy, 73) * 0.6) * cw * 0.62;
+        const dd = Math.hypot((X - px) / rad, (Y - py) / (rad * 0.72));
+        if (dd < d1) { d2 = d1; d1 = dd; sx = px; sy = py; rr = rad; id = cx * 31 + cy; } else if (dd < d2) d2 = dd;
+      }
+      return { d1, d2, nx: (X - sx) / rr, ny: (Y - sy) / (rr * 0.72), id, sy };
+    };
     for (let x = 0; x < wd; x++) {
       const X = x0 + x, bed = bedAt(X);
-      for (let Y = bed; Y < world.h; Y++) {
-        const d = Y - bed;
-        let k = 4 - Math.round(d * 0.12) + ((Y * 2 + Math.round(Math.sin(X * 0.11) * 2)) % 5 === 0 ? -1 : 0) + (PFK.cl(X, Y, 2, 7) < 0.15 ? -1 : 0);
-        if (d === 0) k = 5;
-        pb.data[(Y - y0) * wd + x] = SW[clamp(k, 0, 5)];
+      for (let Y = bed - 9; Y < world.h; Y++) {
+        if (Y < y0) continue;
+        const d = Y - bed, R = rockAt(X, Y);
+        // los cantos se agrupan en arrecifes (ruido de baja frecuencia); entre ellos, arena con ondas
+        const cluster = PFK.vn(X * 0.012, 0.5, 77) + (hash2(R.id, 1, 78) - 0.5) * 0.35 + Math.max(0, d - 26) * 0.012;
+        const isRock = R.d1 < 1 && cluster > 0.5 && (d >= 0 || (R.sy > bed - 2 && hash2(R.id, 3, 74) < 0.7));
+        let u;
+        if (isRock) {
+          if (R.d2 - R.d1 < 0.08) u = BR[1];
+          else {
+            let t = 0.56 - R.ny * 0.42 - R.nx * 0.14 - Math.max(0, d) * 0.0045 + (PFK.cl(X, Y, 2, R.id) - 0.5) * 0.18;
+            if (R.d1 > 0.85) t -= 0.16;
+            u = BR[clamp(Math.round(t * 8), 1, 7)];
+            if (R.ny < -0.62 && R.d1 > 0.6 && d < 50) u = BR[8 - (hash2(X, Y, 75) < 0.5 ? 1 : 0)]; // luz cenital
+            if (hash2(X, Y, 76) < 0.012) u = U(['#d86a9a', '#f0c060', '#7ff0dc'][R.id & 3 % 3] || '#7ff0dc'); // motas de vida
+          }
+        } else if (d >= 0) {
+          let k = 4 - Math.round(d * 0.08) + ((Y * 2 + Math.round(Math.sin(X * 0.11) * 2)) % 5 === 0 ? -1 : 0) + (PFK.cl(X, Y, 2, 7) < 0.15 ? -1 : 0);
+          if (d === 0) k = 5;
+          u = SW[clamp(k, 0, 5)];
+        } else continue;
+        pb.data[(Y - y0) * wd + x] = u;
       }
     }
     const put = (X, Y, u) => PFK.put(pb, X - x0, Y - y0, u);
@@ -11640,7 +11838,7 @@ const PFWater = (() => {
       for (let Y = sBot; Y < sBot + 4; Y++) for (let k = -2 - (Y - sBot); k < 9 + (Y - sBot); k++) put(sx - 3 + k, Y, PFK.mixU(U(Y === sBot + 3 ? '#062438' : '#245f90'), UW[5], 0.45));
     }
     // 5. tiras animadas y sprites
-    const crest = crestStrip(), shaft = shaftSprite(), fishS = fishStrip(0), fishB = fishStrip(1), fishO = fishStrip(2);
+    const crest = crestStrip(), shaft = shaftSprite(), fishS = fishStrip(0), fishB = fishStrip(1), fishO = fishStrip(2), splash = splashStrip();
     // cardumen
     const fish = [];
     const nF = W_.fish ?? 9;
@@ -11649,10 +11847,17 @@ const PFWater = (() => {
       const xx = (W_.fishX ? W_.fishX[0] : x0) + r() * ((W_.fishX ? W_.fishX[1] : x1) - (W_.fishX ? W_.fishX[0] : x0));
       fish.push({ x: xx, y: wy + 16 + r() * (Math.max(30, bedAt(Math.round(xx)) - wy - 40)), vx: (r() < 0.5 ? -1 : 1) * (5 + r() * 6), kind, ph: r() * 10, home: xx, range: 60 + r() * 120 });
     }
+    // cardúmenes de peces pequeños (6–9 juntos, misma dirección)
+    const nSch = W_.schools ?? 0;
+    for (let k = 0; k < nSch; k++) {
+      const fx0 = (W_.fishX ? W_.fishX[0] : x0) + (k + 0.5) / nSch * ((W_.fishX ? W_.fishX[1] : x1) - (W_.fishX ? W_.fishX[0] : x0)) + (r() - 0.5) * 60;
+      const fy0 = wy + 24 + r() * Math.max(20, bedAt(Math.round(fx0)) - wy - 60), dir = r() < 0.5 ? -1 : 1, sp = 7 + r() * 4, n = 6 + r.int(0, 3);
+      for (let i = 0; i < n; i++) fish.push({ x: fx0 + (r() - 0.5) * 34, y: fy0 + (r() - 0.5) * 16, vx: dir * sp, kind: k % 3 === 2 ? 2 : 0, ph: r() * 10, home: fx0, range: 90 + k * 13 });
+    }
     const contacts = [x0 + 4];
     for (const [a, b] of holes) for (let px = a + 18, idx = 0; px < b - 6; px += 46, idx++) contacts.push(px + Math.round((hash1(idx, 31) - 0.5) * 8));
     for (const cx of (W_.contacts || [])) contacts.push(cx);
-    return { w, x0, x1, y0, wy, c: pb.toCanvas(), crest, shaft, fishS, fishB, fishO, fish, bedAt, holes, maxD, contacts };
+    return { w, x0, x1, y0, wy, c: pb.toCanvas(), crest, shaft, fishS, fishB, fishO, splash, fish, bedAt, holes, maxD, contacts };
   }
 
   /* ---------- tiras ---------- */
@@ -11684,6 +11889,31 @@ const PFWater = (() => {
         // rocío
         if (hash2(x, i, 9) < 0.09) PFK.put(pb, x, b - 2 - curlH - Math.floor(hash2(x, i, 10) * 5), U('#ffffff'));
         if (hash2(x, i, 11) < 0.04) PFK.put(pb, x, b - 4 - curlH - Math.floor(hash2(x, i, 12) * 4), U('#c0ebf7'));
+      }
+    });
+  }
+  /** Salpicadura contra pilotes y muros (8 cuadros de 18×24): columna de rocío que sube y cae, espuma en la base */
+  function splashStrip() {
+    const Hs = [3, 8, 13, 17, 18, 15, 10, 5];
+    return PFK.strip(8, 18, 24, (pb, i) => {
+      const h = Hs[i], base = 21, r = RNG(300 + i);
+      // espuma en la base (turbulenta, ancha)
+      for (let x = 1; x < 17; x++) {
+        const hh = 2 + Math.round(Math.max(0, 1 - Math.abs(x - 8.5) / 8.5) * (2 + (i < 5 ? i * 0.5 : 2)));
+        for (let k = 0; k < hh; k++) PFK.put(pb, x, base - k, U(k === hh - 1 ? '#ffffff' : k > hh - 3 ? '#e8f8fc' : '#9fd8e8'));
+        PFK.put(pb, x, base + 1, U('#c0ebf7'));
+      }
+      // columna de rocío pegada al pilote (lado izquierdo del cuadro = cara del pilote)
+      for (let k = 0; k < h; k++) {
+        const w0 = Math.max(1, Math.round((1 - k / (h + 1)) * 5));
+        for (let q = 0; q < w0; q++) if (r() < 0.8 - k * 0.025) PFK.put(pb, 6 + q - Math.round(k * 0.15), base - 3 - k, U(r() < 0.6 ? '#ffffff' : '#d2ecee'));
+      }
+      // gotas sueltas que caen alrededor (más al final del ciclo)
+      const nd = i < 3 ? 2 : 6;
+      for (let k = 0; k < nd; k++) {
+        const ang = -Math.PI / 2 + (r() - 0.35) * 1.8, rr = 3 + r() * (4 + i * 1.4);
+        const x = Math.round(8 + Math.cos(ang) * rr * 1.1), y = Math.round(base - 4 - Math.max(0, h - 3) * 0.7 + Math.sin(ang) * rr * 0.6 + (i > 4 ? (i - 4) * 2 : 0));
+        PFK.put(pb, x, y, U(r() < 0.5 ? '#ffffff' : '#c0ebf7'));
       }
     });
   }
@@ -11817,15 +12047,17 @@ const PFWater = (() => {
     for (let X = xs - ((xs - scroll + 6400) % 64); X < xe; X += 64) {
       const x = X - ox, cut0 = Math.max(0, Wt.x0 + (Wt.w.crestFrom || 0) - X), cut1 = Math.min(64, Wt.x1 - (Wt.w.crestTo || 0) - X);
       if (cut1 <= cut0) continue;
-      g.drawImage(cs.c, fr * 64 + cut0, 0, cut1 - cut0, cs.h, x + cut0, yS, cut1 - cut0, cs.h);
+      // cada tramo de 64 px con su propio desfase de cuadro: la cresta no se lee como un patrón repetido
+      const ft = (fr + Math.floor(hash1(Math.floor((X + 6400) / 64), 17) * 8)) % 8;
+      g.drawImage(cs.c, ft * 64 + cut0, 0, cut1 - cut0, cs.h, x + cut0, yS, cut1 - cut0, cs.h);
     }
     // espuma de contacto en pilotes y muros (salpicaduras animadas)
     for (const px of Wt.contacts) {
-      const x = px - ox; if (x < -10 || x > W + 10) continue;
-      const k = (t * 2.5 + px * 0.13) % 1;
-      g.fillStyle = '#ffffff';
-      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI, rr = 3 + k * 6; g.globalAlpha = 1 - k; g.fillRect(Math.round(x + Math.cos(a) * rr * 1.3), Math.round(Wt.wy - oy - 1 - Math.sin(a) * rr * 0.8), 1, 1); }
-      g.globalAlpha = 1; g.fillStyle = '#d2ecee'; g.fillRect(x - 5, Wt.wy - oy - 1, 11, 2);
+      const x = px - ox; if (x < -20 || x > W + 20) continue;
+      // golpe de ola: salpicadura animada (8 cuadros, ~1,4 s por ciclo, desfase por pilote) + franja de espuma
+      const fi = Math.floor(t * 6 + hash1(Math.round(px), 23) * 8) % 8;
+      PFK.drawStrip(g, Wt.splash, fi, x - 6, Wt.wy - oy - 22);
+      g.fillStyle = '#d2ecee'; g.fillRect(x - 7, Wt.wy - oy, 15, 1);
     }
     // rocío ocasional
     if (Math.random() < 0.25) { const X = ox + Math.random() * W; if (X > Wt.x0 + (Wt.w.crestFrom || 0) && X < Wt.x1 - (Wt.w.crestTo || 0)) sc.world.ps.emit('splash', X, Wt.wy - 4, (Math.random() - 0.5) * 20, -40, 2, 3); }
@@ -11883,7 +12115,9 @@ const PFInfra = (() => {
   }
 
   /* ---------- cilindro vertical ---------- */
-  function colTone(f) { return f < 0.07 ? 0 : f < 0.18 ? 4 : f < 0.36 ? 6 : f < 0.52 ? 5 : f < 0.78 ? 3 : f < 0.9 ? 2 : f < 0.96 ? 3 : 1; }
+  /** Tono por columna de un cilindro iluminado arriba-izquierda: borde, luz, franja especular de 1–2 px
+      casi blanca al ~25 %, medios, sombra de núcleo, luz reflejada y borde (STYLE LOCK §6) */
+  function colTone(f) { return f < 0.06 ? 1 : f < 0.14 ? 4 : f < 0.2 ? 6 : f < 0.27 ? 7 : f < 0.36 ? 6 : f < 0.5 ? 5 : f < 0.6 ? 4 : f < 0.8 ? 2 : f < 0.9 ? 3 : f < 0.96 ? 2 : 1; }
   function cylV(pb, cx, yb, r, h, o = {}) {
     const P = PFK.P32(o.ramp || STEEL), B = PFK.P32(o.band || BAND);
     const ry = Math.max(1, Math.round(r * (o.ell ?? 0.32)));
@@ -12113,22 +12347,32 @@ const PFInfra = (() => {
   }
   /** Batería de filtros de medios: n tanques verticales sobre plinto con colector */
   function mediaFilters(pb, x, y, n = 4, o = {}) {
-    const r = o.r || 10, h = o.h || 44, gap = o.gap || 34;
-    box3q(pb, x - 8, y, n * gap + 6, 7, 14, { ramp: PFTerrain.CONC });
+    const r = o.r || 10, h = o.h || 44, gap = o.gap || 34, S = PFK.P32(STEEL);
+    const xe = x + 8 + (n - 1) * gap + r + 8;
+    box3q(pb, x - 8, y, xe - x + 8, 7, 14, { ramp: PFTerrain.CONC });
+    // bastidor de acero detrás de los tanques: pilares, viga con diagonales (se ve entre los tanques)
+    const fTop = y - 9 - h - 14;
+    for (const px of [x - 6, xe - 6]) for (let yy = fTop; yy < y - 7; yy++) { PFK.put(pb, px, yy, S[5]); PFK.put(pb, px + 1, yy, S[3]); PFK.put(pb, px + 2, yy, S[1]); }
+    for (let xx = x - 6; xx < xe - 3; xx++) { PFK.put(pb, xx, fTop, S[6]); PFK.put(pb, xx, fTop + 1, S[3]); PFK.put(pb, xx, fTop + 2, S[1]); }
+    for (let k = 0; k < n + 1; k++) { const bx = x - 6 + k * gap; PFK.lineFn(pb, bx, fTop + 3, bx + gap - 2, y - 12, () => S[2]); PFK.lineFn(pb, bx + gap - 2, fTop + 3, bx, y - 12, () => S[1]); }
     // colector superior de agua de mar por detrás de los domos
-    pipe(pb, [[x - 10, y - 9 - h - 7], [x + n * gap - 2, y - 9 - h - 7]], 2, 'sea', { flange: 17 });
+    pipe(pb, [[x - 10, y - 9 - h - 7], [xe, y - 9 - h - 7]], 3, 'sea', { flange: 17 });
     for (let k = 0; k < n; k++) {
       const cx = x + 8 + k * gap;
+      // sombra proyectada del tanque sobre el plinto (hacia la derecha-atrás) y sombra de contacto
+      for (let yy = y - 9 - 3; yy < y - 7; yy++) for (let xx = cx - r + 2; xx < cx + r + 5; xx++) { const c = PFK.get(pb, xx, yy); if (c >>> 24) PFK.put(pb, xx, yy, PFK.shU(c, -0.28, 15)); }
       cylV(pb, cx, y - 9, r, h, { dome: 0.6, bands: [{ y: 8, h: 3 }, { y: h - 6, h: 2 }], ladder: k === n - 1, plate: '#245f90', stain: true });
       // patas
       for (const lx of [cx - r + 1, cx + r - 2]) for (let yy = y - 9; yy < y - 6; yy++) { PFK.put(pb, lx, yy, U('#4f4d51')); PFK.put(pb, lx + 1, yy, U('#2a282e')); }
-      // válvula y manómetro frontales
-      gauge(pb, cx - 4, y - 9 - h + 12, 2);
-      valve(pb, cx + 4, y - 16);
+      // boca de hombre (escotilla atornillada) y manómetro frontales
+      PFK.ellipseFn(pb, cx - 2, y - 9 - Math.round(h * 0.42), 3.2, 3.2, (nx, ny, d) => d > 0.72 ? U(nx + ny < 0 ? '#f2efea' : '#4f4d51') : (d > 0.45 && ((Math.atan2(ny, nx) * 3 | 0) % 2) ? U('#2a282e') : U(ny < 0 ? '#d3ccc5' : '#948e91')));
+      gauge(pb, cx - 5, y - 9 - h + 12, 2);
+      valve(pb, cx + 5, y - 17);
+      // bajante de agua de mar desde el colector superior
+      pipe(pb, [[cx + r - 4, y - 9 - h - 7], [cx + r - 4, y - 9 - h + 5]], 1, 'sea', { flange: 0 });
     }
-    // colector inferior (agua pretratada) y superior (agua de mar)
-    pipe(pb, [[x - 4, y - 14], [x + n * gap - 4, y - 14]], 2, 'pre', { flange: 17 });
-    for (let k = 0; k < n; k++) { const cx = x + 8 + k * gap + r - 3; pipe(pb, [[cx, y - 9 - h - 7], [cx, y - 9 - h + 6]], 1, 'sea', { flange: 0 }); }
+    // colector inferior (agua pretratada), más grueso y visible, con bridas
+    pipe(pb, [[x - 4, y - 14], [xe, y - 14]], 3, 'pre', { flange: 15 });
   }
 
   /** Nave de rejas y tamices con techo abovedado de vidrio azul (como la CAPTACIÓN de la referencia) */
@@ -12260,7 +12504,7 @@ const PFSigns = (() => {
   const WOOD = ['#100100', '#2a0800', '#370b00', '#4e2519', '#5a2d21', '#6e3a24', '#8e542f', '#ab7448', '#cb9772'];
   const TXT = '#faebe2';
   /** Tablón con punta de flecha a la derecha (dir 1) o izquierda (−1) */
-  function plank(pb, x, y, w, h, text, seed, dir = 1) {
+  function plank(pb, x, y, w, h, text, seed, dir = 1, font = 'main') {
     const P = PFK.P32(WOOD), r = RNG(seed), tip = Math.round(h * 0.55);
     const inside = (xx, yy) => {
       const lx = dir > 0 ? xx - x : x + w - 1 - xx;
@@ -12286,15 +12530,17 @@ const PFSigns = (() => {
     PFK.put(pb, kx, ky, P[3]); PFK.put(pb, kx + 1, ky, P[2]); PFK.put(pb, kx + 2, ky, P[3]);
     // clavos
     for (const nx of [x + 4, x + w - tip - 4]) { PFK.put(pb, nx, y + 3, U('#d8d0c8')); PFK.put(pb, nx, y + 4, U('#5a5048')); PFK.put(pb, nx, y + h - 4, U('#d8d0c8')); PFK.put(pb, nx, y + h - 3, U('#5a5048')); }
-    // texto + flecha
-    const tw = PFK.measure(text, { font: 'main' });
-    const tx = dir > 0 ? x + 7 : x + tip + 6, ty = y + Math.round((h - 7) / 2) + 1;
-    PFK.text(pb, text, tx, ty, U(TXT), { font: 'main', shadow: U('#1a0500') });
-    const ax = dir > 0 ? x + w - tip - 4 : x + tip - 4, ay = y + Math.round(h / 2);
-    const arrowX = dir > 0 ? Math.max(tx + tw + 4, ax - 6) : tx + tw + 5;
-    const tipX = dir > 0 ? arrowX + 6 : arrowX;
-    for (let k = 0; k < 7; k++) { PFK.put(pb, arrowX + k, ay, U(TXT)); PFK.put(pb, arrowX + k + 1, ay + 1, U('#1a0500')); }
-    for (let k = 1; k <= 3; k++) { const xx = tipX - dir * k; PFK.put(pb, xx, ay - k, U(TXT)); PFK.put(pb, xx, ay + k, U(TXT)); PFK.put(pb, xx + 1, ay + k + 1, U('#1a0500')); }
+    // texto + flecha (la letra pequeña 'tiny' es la de la referencia: 5 px de alto en tablones de 12)
+    const tiny = font === 'tiny', gh = tiny ? 5 : 7;
+    const tw = PFK.measure(text, { font });
+    const tx = dir > 0 ? x + (tiny ? 5 : 7) : x + tip + 6, ty = y + Math.round((h - gh) / 2) + (tiny ? 1 : 1);
+    PFK.text(pb, text, tx, ty, U(TXT), { font, shadow: U('#1a0500') });
+    const ax = dir > 0 ? x + w - tip - 4 : x + tip - 4, ay = y + Math.round(h / 2) - (tiny ? 1 : 0);
+    const al = tiny ? 5 : 7, ah = tiny ? 2 : 3;
+    const arrowX = dir > 0 ? Math.max(tx + tw + 3, ax - al + 1) : tx + tw + 5;
+    const tipX = dir > 0 ? arrowX + al - 1 : arrowX;
+    for (let k = 0; k < al; k++) { PFK.put(pb, arrowX + k, ay, U(TXT)); PFK.put(pb, arrowX + k + 1, ay + 1, U('#1a0500')); }
+    for (let k = 1; k <= ah; k++) { const xx = tipX - dir * k; PFK.put(pb, xx, ay - k, U(TXT)); PFK.put(pb, xx, ay + k, U(TXT)); PFK.put(pb, xx + 1, ay + k + 1, U('#1a0500')); }
     return tw;
   }
   /** Poste con capuchón */
@@ -12309,16 +12555,18 @@ const PFSigns = (() => {
     for (let k = 0; k < w; k++) PFK.put(pb, x + k, yTop - 3, P[1]);
   }
   /** Grupo de tablones en flecha sobre dos postes. items: [{text, dir}] */
-  function post(pb, x, yGround, items, seed = 7) {
-    const h = 15, gap = 3, n = items.length;
-    const widths = items.map(it => PFK.measure(it.text, { font: 'main' }) + 30);
+  /** opts: {font:'main'|'tiny', h, gap, base} — 'tiny' = letrero compacto de la referencia (tablones de 12 px) */
+  function post(pb, x, yGround, items, seed = 7, opts = {}) {
+    const font = opts.font || 'main', tiny = font === 'tiny';
+    const h = opts.h ?? (tiny ? 12 : 15), gap = opts.gap ?? (tiny ? 2 : 3), n = items.length, base = opts.base ?? (tiny ? 6 : 21);
+    const widths = items.map(it => PFK.measure(it.text, { font }) + (tiny ? 23 : 30));
     const w = Math.max(...widths);
-    const top = yGround - 18 - n * (h + gap);
-    postV(pb, x + 6, top - 4, yGround + 1, 7);
-    postV(pb, x + Math.min(w - 28, 64), top + 6, yGround + 1, 6);
+    const top = yGround - base - n * (h + gap) + gap;
+    postV(pb, x + 6, top - 4, yGround + 1, tiny ? 6 : 7);
+    postV(pb, x + Math.min(w - (tiny ? 24 : 28), 64), top + 6, yGround + 1, tiny ? 5 : 6);
     items.forEach((it, i) => {
       const pw = Math.max(widths[i], w - 6 + (i % 2 ? -4 : 2));
-      plank(pb, x + (i % 2 ? 2 : 0), top + i * (h + gap), pw, h, it.text, seed + i * 11, it.dir || 1);
+      plank(pb, x + (i % 2 ? 2 : 0), top + i * (h + gap), pw, h, it.text, seed + i * 11, it.dir || 1, font);
     });
     // sombra de contacto en la base
     for (let k = -2; k < w * 0.7; k++) { const c = PFK.get(pb, x + k, yGround - 1); if (c >>> 24) PFK.put(pb, x + k, yGround - 1, PFK.shU(c, -0.3, 15)); }
@@ -12375,9 +12623,19 @@ const WorldLabels = (() => {
     if (bl) for (const L of bl) out.push(L);
     return out;
   }
-  function drawOne(g, L, cam, sc, alpha = 1) {
+  /** Rectángulo en pantalla de la caja de una etiqueta (o null si está fuera o no aplica) */
+  function rectOf(L, cam, sc) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
     const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy);
+    if (sx < -120 || sx > W + 120 || sy < -40 || sy > H + 60) return null;
+    if (L.when && sc && !L.when(sc)) return null;
+    const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
+    const B = box(L.title, sub, L.kind || 'water');
+    return { x: sx - Math.floor(B.w / 2), y: sy - B.h, w: B.w, h: B.h, B, sub };
+  }
+  function drawOne(g, L, cam, sc, alpha = 1, dy = 0) {
+    const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+    const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy) + dy;
     if (sx < -120 || sx > W + 120 || sy < -40 || sy > H + 60) return;
     if (L.when && !L.when(sc)) return;
     const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
@@ -12396,12 +12654,38 @@ const WorldLabels = (() => {
     g.drawImage(B.c, bx, by);
     if (alpha < 1) g.globalAlpha = 1;
   }
+  const hit = (a, b, m = 2) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+  /**
+   * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
+   * Una etiqueta lejana que choca con otra ya colocada o con el HUD sube hasta 18 px; si aún choca, se omite.
+   * L.camX = [x0, x1] limita una etiqueta a un tramo de cámara (fundido de 40 px en los bordes).
+   * Títulos repetidos en pantalla se dibujan una sola vez.
+   */
   function draw(g, sc) {
     const cam = sc.cam ? { x: sc.cam.ox, y: sc.cam.oy } : { x: 0, y: 0 };
-    const t = Game.time;
-    for (const L of list(sc)) {
-      // aparición suave escalonada (sin parpadeo): pulso de 1 px del halo cada 3 s
-      drawOne(g, L, cam, sc, 1);
+    const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
+    const placed = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const seen = new Set();
+    for (const L of all) {
+      let alpha = 1;
+      if (L.camX) {
+        const [c0, c1] = L.camX;
+        if (cam.x < c0 - 40 || cam.x > c1 + 40) continue;
+        alpha = clamp(Math.min(cam.x - (c0 - 40), (c1 + 40) - cam.x) / 40, 0, 1);
+        if (alpha <= 0.05) continue;
+      }
+      const R = rectOf(L, cam, sc); if (!R) continue;
+      if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
+      if (seen.has(L.title)) continue;
+      const far = (L.f ?? 1) !== 1;
+      let dy = 0, ok = !placed.some(p => hit(R, p));
+      if (!ok && far) for (dy = -3; dy >= -18; dy -= 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } }
+      if (!ok && far) continue;
+      // las del plano jugable se dibujan siempre (son del guion): si chocan, bajan hacia su objeto
+      if (!ok) { ok = false; for (dy = 3; dy <= 30; dy += 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } } if (!ok) dy = 0; }
+      placed.push({ x: R.x, y: R.y + dy, w: R.w, h: R.h });
+      seen.add(L.title);
+      drawOne(g, L, cam, sc, alpha, dy);
     }
   }
   function gallery(g) {
@@ -12535,7 +12819,8 @@ const PFStage = (() => {
       if (sx > W || sx + o.w < 0) continue;
       const sway = Math.round(Math.sin(t * 2.2 + o.ph) * o.sway);
       // abajo: anclado al borde inferior con leve parallax vertical; arriba: colgando del borde superior
-      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + (o.y || 0) + (cam.y - 60) * 0.3);
+      // (abajo nunca sube por encima del borde: no deja ver la base recortada de la mata)
+      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + Math.max(0, (o.y || 0) + (cam.y - 60) * 0.3));
       g.drawImage(o.c, sx + sway, sy);
     }
   }
@@ -12921,8 +13206,8 @@ BIOMES.coast = function (L) {
     coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
     const A = dc.anchors;
     labels.push(
-      { x: A.membranas.x - 10, y: COAST_LY + A.membranas.y - 4, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
-      { x: A.potable.x + 26, y: COAST_LY + A.potable.y - 16, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
+      { x: A.membranas.x - 40, y: COAST_LY + A.membranas.y - 22, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
+      { x: A.potable.x + 40, y: COAST_LY + A.potable.y - 28, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
       { x: A.salmuera.x - 4, y: COAST_LY + A.salmuera.y - 35, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
     );
     // rocas en la orilla con espuma
@@ -15591,7 +15876,7 @@ class Player extends Entity {
     if (this.landT > 0) this.landT -= dt;
     if (this.forcedAnim) this.setAnim(this.forcedAnim);
     else if (this.lock > 0 && this.anim === 'hit') { }
-    else if (!this.onGround) this.setAnim(this.vy < 0 ? 'jump' : 'fall');
+    else if (!this.onGround) this.setAnim(this.gliding ? 'glide' : this.vy < 0 ? 'jump' : 'fall');
     else if (this.landT > 0) this.setAnim('land');
     else if (Math.abs(this.vx) > 8) this.setAnim(this.wading ? 'wade' : Math.abs(this.vx) > PHYS.walk + 10 ? 'run' : 'walk');
     else this.setAnim('idle');
@@ -15605,17 +15890,38 @@ class Player extends Entity {
   render(g, cam) {
     if (this.inv > 0 && (Math.floor(this.inv * 20) % 2) && this.anim !== 'hit') return;
     const x = this.x - cam.ox, y = this.y - cam.oy;
-    if (this.gliding) drawGlider(g, x, y - 70, this.facing);
+    if (this.gliding) drawGlider(g, x + this.facing * 2, y - 102, this.facing); // vela sobre la cabeza (sprite de 74 px, puños en alto ≈ y−76)
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
-    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 9, wy, 18, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 8, wy + 1, 16, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 8, wy + 3, 16, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 9 + ((Game.frame >> 3) % 18), wy, '#ffffff'); }
+    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
   }
 }
+/** Vela de Brisa: lona curva prerenderizada (3 cuadros de flameo) con franjas cian, luz arriba,
+    sombra en la panza y contorno navy; cuerdas hasta las manos en alto (y + 26). */
+const _gliderStrip = { c: null };
 function drawGlider(g, x, y, f) {
   const t = Game.time;
-  g.fillStyle = '#fffaf0';
-  for (let i = -14; i <= 14; i++) { const yy = Math.round(y + Math.abs(i) * 0.35 + Math.sin(t * 8 + i * 0.3) * 0.6); g.fillRect(Math.round(x + i), yy, 1, 2); }
-  g.fillStyle = '#56e5ff'; for (let i = -14; i <= 14; i += 4) g.fillRect(Math.round(x + i), Math.round(y + Math.abs(i) * 0.35 + 2), 2, 1);
-  fline(g, x - 13, y + 5, x - 3, y + 26, '#cfe8ee'); fline(g, x + 13, y + 5, x + 3, y + 26, '#cfe8ee');
+  if (!_gliderStrip.c) {
+    const fw = 46, fh = 16;
+    _gliderStrip.c = PFK.strip(3, fw, fh, (pb, i) => {
+      const cx = fw / 2, P = PFK.P32(['#1d2a48', '#7a8aa8', '#b8c8d8', '#e8f0f4', '#fffaf0', '#ffffff']), C = PFK.P32(['#0c4560', '#1491aa', '#22bdd0', '#56e5ff', '#a6f4ff']);
+      for (let xx = 1; xx < fw - 1; xx++) {
+        const u = (xx - cx) / (cx - 1), arc = Math.round(Math.abs(u) * Math.abs(u) * 7 + Math.sin(u * 5 + i * 2.1) * 0.7);
+        const th = Math.round(4 - Math.abs(u) * 2.2);
+        for (let k = 0; k < th; k++) {
+          const stripe = Math.floor((xx + 2) / 6) % 2 === 0;
+          let col = k === 0 ? (stripe ? C[4] : P[5]) : k === th - 1 ? (stripe ? C[1] : P[2]) : (stripe ? C[3] : P[4]);
+          if (u > 0.55 && k > 0) col = stripe ? C[2] : P[3];
+          PFK.put(pb, xx, 2 + arc + k, col);
+        }
+        PFK.put(pb, xx, 1 + arc, P[0]); PFK.put(pb, xx, 2 + arc + th, P[0]);
+      }
+      PFK.put(pb, 0, 9, P[0]); PFK.put(pb, fw - 1, 9, P[0]);
+    });
+  }
+  const S = _gliderStrip.c, sway = Math.round(Math.sin(t * 3) * 1);
+  PFK.drawStrip(g, S, Math.floor(t * 7) % 3, x - (S.w >> 1), y - 3 + sway);
+  fline(g, x - 21, y + 5 + sway, x - 4, y + 26, '#cfe8ee'); fline(g, x + 21, y + 5 + sway, x + 4, y + 26, '#cfe8ee');
+  fline(g, x - 10, y + 2 + sway, x - 3, y + 26, '#8aa8c0'); fline(g, x + 10, y + 2 + sway, x + 3, y + 26, '#8aa8c0');
 }
 
 /** KIRU: compañero que sigue, comenta y reacciona */
@@ -15632,7 +15938,7 @@ class Kiru extends Entity {
       this.vx = Math.abs(d) > 2 ? sign(d) * (this.target.speed || 80) : 0;
       if (Math.abs(d) <= 2) { this.target.done = true; this.target = null; }
     } else if (this.follow && P) {
-      const tx = P.x - P.facing * 30;
+      const tx = P.x - P.facing * KIRU_FOLLOW;
       const d = tx - this.x;
       if (Math.abs(P.x - this.x) > 340 || Math.abs(P.y - this.y) > 220) { this.x = P.x - P.facing * 24; this.y = P.y - 10; W_.ps.emit('energy', this.x, this.y - 10, 0, 0, 10, 8); }
       const sp = Math.abs(d) > 70 ? 170 : Math.abs(d) > 20 ? 95 : 0;
@@ -15654,14 +15960,27 @@ class Kiru extends Entity {
     if (this.scanT > 0) a = 'scan';
     if (this.forced) a = this.forced;
     if (a !== this.anim) { this.anim = a; this.animT = 0; }
+    // altura de vuelo: reposa a la altura de la cabeza de Amaya y baja un poco al desplazarse (solo visual)
+    const moving = Math.abs(this.vx) > 6 || this.air;
+    this.lift = approach(this.lift ?? KIRU_LIFT, moving ? KIRU_LIFT_MOVE : KIRU_LIFT, (moving ? 60 : 24) * dt);
   }
+  /** Desplazamiento vertical de dibujo respecto al ancla del sprite (que ya incluye KIRU_LIFT) */
+  get dropY() { return Math.round(KIRU_LIFT - (this.lift ?? KIRU_LIFT)); }
   render(g, cam) {
-    const x = this.x - cam.ox, y = this.y - cam.oy;
-    drawChar(g, 'kiru', this.anim, this.animT, x, y, this.facing, { expr: this.mood });
-    if (this.scanT > 0) { for (let i = 0; i < 3; i++) { const r = ((Game.time * 30 + i * 8) % 24); g.globalAlpha = 1 - r / 24; for (let a = 0; a < 16; a++) fpx(g, x + Math.cos(a / 16 * TAU) * r, y - 22 + Math.sin(a / 16 * TAU) * r * 0.5, '#56e5ff'); g.globalAlpha = 1; } }
+    const x = this.x - cam.ox, y = this.y - cam.oy, dy = this.dropY;
+    drawChar(g, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false });
+    // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
+    const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+    if (this.scanT > 0) {
+      // anillos de escaneo centrados en el visor (ancla del ojo del sprite)
+      const ey = Math.round(y + dy - (CHARS.kiru.oy - 38));
+      for (let i = 0; i < 3; i++) { const r = ((Game.time * 30 + i * 8) % 24); g.globalAlpha = 1 - r / 24; for (let a = 0; a < 16; a++) fpx(g, x + this.facing * 6 + Math.cos(a / 16 * TAU) * r, ey + Math.sin(a / 16 * TAU) * r * 0.5, '#56e5ff'); g.globalAlpha = 1; }
+    }
   }
   renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - 36, this.bubble.text, '#20d6c7', this.bubble.t); }
 }
+/** Distancia de seguimiento de KIRU detrás de Amaya (px): deja libre la coleta y la mochila */
+const KIRU_FOLLOW = 36;
 
 /** Globo de diálogo ambiental (navy de la referencia, con nombre y cola hacia la cabeza del hablante).
     (x,y) = punto sobre el personaje en pantalla; si coincide con un KIRU/actor del nivel se ancla a su cabeza real. */
@@ -15715,7 +16034,7 @@ class Actor extends Entity {
     if (this.preDraw) this.preDraw(g, x, y);
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant });
   }
-  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 74), this.bubble.text, '#ffe14d', this.bubble.t); }
+  renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 92), this.bubble.text, '#ffe14d', this.bubble.t); }
 }
 
 /** Estación interactiva (terminal, sensor, válvula, simulador, evidencia) */
@@ -17683,13 +18002,13 @@ LEVELS[1] = {
     ],
     /** Lecho marino del corte submarino (mundo) */
     bedAt(x) {
-      const B = [[262, 318], [330, 326], [420, 336], [600, 348], [780, 352], [900, 362], [1060, 374], [1150, 388], [1300, 404], [1450, 410], [1600, 400], [1750, 394], [1885, 376], [2000, 326]];
+      const B = [[262, 326], [300, 348], [360, 372], [460, 392], [600, 404], [780, 410], [900, 412], [1060, 414], [1150, 418], [1300, 422], [1450, 424], [1600, 420], [1750, 414], [1885, 396], [2000, 336]];
       let i = 0; while (i < B.length - 2 && B[i + 1][0] <= x) i++;
       const t = clamp((x - B[i][0]) / (B[i + 1][0] - B[i][0]), 0, 1);
       return Math.round(lerp(B[i][1], B[i + 1][1], smooth(t)) + Math.sin(x * 0.07) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
     },
     /** Elementos sumergidos: toma con rejilla (bajo la torre), succiones de bombas, arrecifes, cardumen */
-    water: { intake: { x: 1462, y: 374, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 24, fishX: [380, 1980] },
+    water: { intake: { x: 1462, y: 408, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 22, schools: 6, fishX: [380, 1980] },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
       { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
@@ -17705,10 +18024,10 @@ LEVELS[1] = {
   },
   /** Etiquetas científicas en el mundo (WorldLabels) */
   labels: [
-    { x: 1226, y: 150, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 168 },
+    { x: 1226, y: 196, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 212 },
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
-    { x: 1500, y: 330, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 352 },
-    { x: 1250, y: 372, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 388 },
+    { x: 1506, y: 372, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 396 },
+    { x: 1250, y: 388, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 408 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
@@ -17728,7 +18047,7 @@ LEVELS[1] = {
     F.palm(pb, 300, back(300) + 2, 56, 4, 13);
     rockPile(pb, 62, back(62) + 4, 22, 9, 3); rockPile(pb, 246, back(246) + 6, 18, 7, 4);
     // letrero de destinos (como en la referencia)
-    PFSigns.post(pb, 14, gy(14) - 7, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7);
+    PFSigns.post(pb, 2, gy(2) + 2, [{ text: 'DESALINIZACIÓN' }, { text: 'ENERGÍA SOLAR' }, { text: 'AGROECOLOGÍA' }, { text: 'ZONA ÁRIDA' }], 7, { font: 'tiny' });
     F.hibiscusBush(pb, 104, gy(104) - 5, 22, 16, 41);
     for (let k = 0; k < 4; k++) F.lupine(pb, 124 + k * 4, gy(124) - 6, 14 + (k % 2) * 6, 43 + k);
     F.flowerPatch(pb, 180, gy(180) - 4, 18, 45);
@@ -17781,9 +18100,9 @@ LEVELS[1] = {
     /* ===== 6. PRETRATAMIENTO (1612–1885): batería de filtros de arena, caseta, dosificación ===== */
     const py = gy(1700);
     controlRoom(pb, 1612, py - 4);
-    I.mediaFilters(pb, 1660, py - 4, 4, { r: 11, h: 44, gap: 36 });
+    I.mediaFilters(pb, 1660, py - 4, 5, { r: 12, h: 46, gap: 29 });
     // soportes de la pasarela (la pasarela se hornea en el terreno)
-    for (const x of [1644, 1716, 1786]) for (let y = 210; y < py - 10; y++) { PFK.put(pb, x, y, U('#948e91')); PFK.put(pb, x + 1, y, U('#4f4d51')); }
+    for (const x of [1644, 1711, 1769]) for (let y = 210; y < py - 10; y++) { PFK.put(pb, x, y, U('#948e91')); PFK.put(pb, x + 1, y, U('#4f4d51')); }
     dosingSkid(pb, 1812, py - 4);
     I.cylV(pb, 1862, py - 8, 9, 54, { dome: 0.45, bands: [{ y: 10, h: 3 }, { y: 40, h: 2 }], ladder: true, plate: '#11bedd', stain: true }); // tanque de lavado
     I.pipe(pb, [[1806, py - 18], [1872, py - 18], [1872, py - 14], [1995, py - 14], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], 3, 'pre', { flange: 24, supports: 44, supportTo: (x) => gy(x) - 6 });
@@ -17847,7 +18166,7 @@ LEVELS[1] = {
   lens(g, sc, cam, k) {
     const ox = cam.x, oy = cam.y, S = sc.state;
     lensBoundary(g, 1110 - ox, 150 - oy, 780, 150, '#ffe14d', 'LÍMITE: CAPTACIÓN + PRETRATAMIENTO');
-    Charts.flow(g, [[1462 - ox, 360 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
+    Charts.flow(g, [[1462 - ox, 398 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
     Charts.flow(g, [[1262 - ox, 254 - oy], [1622 - ox, 254 - oy], [1622 - ox, 218 - oy], [1652 - ox, 218 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
     Charts.flow(g, [[1872 - ox, 264 - oy], [1995 - ox, 264 - oy], [1995 - ox, 252 - oy], [2120 - ox, 252 - oy]], 'water', 1, 3);
     Charts.flow(g, [[1138 - ox, 238 - oy], [1182 - ox, 238 - oy]], 'power', 1, 2);
@@ -17856,7 +18175,7 @@ LEVELS[1] = {
     lensTag(g, 1660 - ox, 176 - oy, 'ΔP filtro ' + fmt(S.dp || 0.3, 2) + ' bar', '#ff9a8a', 'chart');
     lensTag(g, 1880 - ox, 238 - oy, '→ OI (agua pretratada)', '#a6f4ff', 'membrane');
     lensTag(g, 1180 - ox, 140 - oy, 'Bombas ~' + fmt0((S.q || 100) * 0.25) + ' kW', '#ffe14d', 'bolt');
-    lensTag(g, 1380 - ox, 344 - oy, 'v aprox. ' + fmt((S.q || 100) / 3600 / 1.6, 3) + ' m/s', '#86e36f', 'fish');
+    lensTag(g, 1380 - ox, 384 - oy, 'v aprox. ' + fmt((S.q || 100) / 3600 / 1.6, 3) + ' m/s', '#86e36f', 'fish');
   },
   hud(g, sc) {
     const S = sc.state;
@@ -17950,7 +18269,8 @@ const LV1_FLOWS = [
   { pts: [[1432, 238], [1398, 238]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
   { pts: [[1302, 238], [1272, 238]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
   { pts: [[1262, 254], [1622, 254], [1622, 218], [1652, 218]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
-  { pts: [[1806, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
+  { pts: [[1650, 216], [1804, 216]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
+  { pts: [[1656, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
 ];
 const LV1_LEDS = [
   { x: 1065, y: 271, col: '#3fe0a0', hz: 1 }, { x: 1067, y: 271, col: '#ffd84a', hz: 1.7, ph: 0.3 },
@@ -24092,17 +24412,17 @@ const PostCreditsScene = {
     frect(g, 0, 270, W, H - 270, '#0e1a12'); fdither(g, 0, 270, W, 8, '#1f3a24', 0.5);
     for (let x = 6; x < W; x += 11) { const hh = 2 + (x * 7) % 4; frect(g, x, 270 - hh, 1, hh, '#1f5a34'); fpx(g, x + 1, 270 - hh + 1, '#2f7a44'); }
     // farol junto a Amaya
-    frect(g, 178, 236, 2, 34, '#3a3a5a'); fdisc(g, 179, 234, 3, '#ffe8a0'); fdither(g, 150, 214, 60, 56, '#ffd86a', 0.1);
+    frect(g, 178, 196, 2, 74, '#3a3a5a'); frect(g, 176, 196, 6, 2, '#5a5a7a'); fdisc(g, 179, 194, 3, '#ffe8a0'); PFK.drawGlow(g, 179, 194, 30, '#ffd86a', 0.35);
     // casa de sombra
-    frect(g, 300, 196, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 196, 3, 74, '#2a3a2a'); fdither(g, 300, 200, 200, 70, '#1a2a1a', 0.5);
+    frect(g, 300, 178, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 178, 3, 92, '#2a3a2a'); fdither(g, 300, 182, 200, 88, '#1a2a1a', 0.5);
     for (let k = 0; k < 8; k++) { const x = 312 + k * 23, hh = 12 + (k * 5) % 10; frect(g, x, 270 - hh, 2, hh, '#1f854c'); fpx(g, x - 1, 270 - hh, '#4ccb70'); fpx(g, x + 2, 270 - hh + 2, '#4ccb70'); }
     // sensor con la alarma
-    frect(g, 456, 236, 2, 34, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 234, 3, on ? '#ffe14d' : '#6a5a10'); if (on) fdither(g, 440, 218, 34, 30, '#ffe14d', 0.12);
+    frect(g, 456, 226, 2, 44, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 224, 3, on ? '#ffe14d' : '#6a5a10'); if (on) PFK.drawGlow(g, 457, 224, 14, '#ffe14d', 0.4);
     // Amaya y KIRU
     drawChar(g, 'amaya', 'idle', t, 220, 270, 1, { expr: this.i >= 4 ? 'smile' : 'surprised' });
     drawChar(g, 'kiru', 'idle', t, 260, 270, -1, {});
     // taza de té con vapor
-    frect(g, 248, 248, 8, 6, '#fff6d8'); frect(g, 256, 249, 2, 3, '#fff6d8'); for (let i = 0; i < 3; i++) fpx(g, 251 + Math.round(Math.sin(t * 3 + i) * 1.5), 244 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0');
+    frect(g, 225, 238, 7, 6, '#fff6d8'); frect(g, 232, 239, 2, 3, '#fff6d8'); frect(g, 225, 243, 7, 1, '#cfc4a8'); for (let i = 0; i < 3; i++) fpx(g, 228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0'); // taza en la mano de Amaya (sprite de 74 px)
     this.ps.render(g);
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {
@@ -24845,7 +25165,7 @@ TESTS.portraits = {
   },
 };
 
-TESTS.level = { enter() { const q = new URLSearchParams(location.search); const lv = parseInt(q.get('lv') || '1'); if (q.get('tools')) for (const t of q.get('tools').split(',')) GS.giveTool(t, true); Game.setScene(GameplayScene, { level: lv, checkpoint: q.get('cp') || null }); if (q.get('px')) { const P = GameplayScene.player; P.x = parseFloat(q.get('px')); P.y = GameplayScene.world.groundAt(P.x); GameplayScene.kiru && (GameplayScene.kiru.x = P.x - 30); GameplayScene.cam.snap(P); } if (q.get('lens')) { GameplayScene.lens = true; GameplayScene.lensT = 1; } if (q.get('nocard')) GameplayScene.chapterCard.t = 9; }, update() { }, render() { } };
+TESTS.level = { enter() { const q = new URLSearchParams(location.search); const lv = parseInt(q.get('lv') || '1'); if (q.get('tools')) for (const t of q.get('tools').split(',')) GS.giveTool(t, true); Game.setScene(GameplayScene, { level: lv, checkpoint: q.get('cp') || null }); if (q.get('px')) { const P = GameplayScene.player; P.x = parseFloat(q.get('px')); P.y = GameplayScene.world.groundAt(P.x); GameplayScene.kiru && (GameplayScene.kiru.x = P.x - (P.facing || 1) * KIRU_FOLLOW); GameplayScene.cam.snap(P); } if (q.get('lens')) { GameplayScene.lens = true; GameplayScene.lensT = 1; } if (q.get('nocard')) GameplayScene.chapterCard.t = 9; }, update() { }, render() { } };
 TESTS.title = { enter() { Game.setScene(TitleScene); }, update() { }, render() { } };
 TESTS.map = { enter() { for (let i = 0; i <= 10; i++) GS.s.unlocked.push(i); GS.s.completed.push(0, 1); Game.setScene(WorldMapScene, { focus: 2 }); }, update() { }, render() { } };
 TESTS.scene = { enter() { const q = new URLSearchParams(location.search); const sc = window[q.get('s')] || eval(q.get('s')); Game.setScene(sc, JSON.parse(q.get('p') || '{}')); }, update() { }, render() { } };
