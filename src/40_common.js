@@ -36,33 +36,40 @@ const LevelCompleteScene = {
   enter(p) { this.id = p.level; this.t = 0; this.onDone = p.onDone; Audio2.sfx('unlock'); Audio2.playMusic('ending'); this.ps = new Particles(300); },
   update(dt) {
     this.t += dt; this.ps.update(dt);
-    if (Math.random() < 0.4) this.ps.emit('confetti', Math.random() * W, -4, 0, 30, 1);
+    // recompensa sobria: destellos de cristal y luciérnagas, sin confeti
+    if (Math.random() < 0.1) this.ps.emit(Math.random() < 0.5 ? 'crystal' : 'firefly', 120 + Math.random() * (W - 240), 60 + Math.random() * 200, 0, -6, 1);
   },
   render(g) {
     const M = LEVEL_META[this.id], lp = GS.lp(this.id);
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.7);
     this.ps.render(g);
     const x = 70, y = 22, w = W - 140, h = H - 44;
-    UIK.panel(g, x, y, w, h, 'dialog');
-    drawText(g, M.chapter + ' COMPLETADO', W / 2, y + 10, { align: 'center', font: 'tiny', color: '#ffe14d' });
-    drawTitleText(g, M.title, W / 2, y + 20, 2, ['#fffaf0', '#ffe14d', '#ff9f43'], { align: 'center', shadow: '#140d26', depth: 2 });
-    // insignia
-    const bx = x + 46, by = y + 92;
+    UIK.panel(g, x, y, w, h, 'tech');
+    UIK.badge(g, 'star', x - 3, y - 3, 22, 'tech');
+    drawText(g, M.chapter + ' COMPLETADO', x + 28, y + 7, { font: 'bold', color: '#ffd23a' });
+    frect(g, x + 22, y + 18, w - 28, 1, '#12305a'); frect(g, x + 22, y + 19, w - 28, 1, '#0b2a58');
+    drawTitleText(g, M.title, W / 2, y + 24, 2, ['#ffffff', '#e6f8fe', '#a8c8ff'], { align: 'center', font: 'bold', shadow: '#000633', depth: 1, outline: '#000633' });
+    // insignia (medalla de 48 px con el icono de la herramienta)
+    const bx = x + 50, by = y + 98;
     const k = Math.min(1, this.t * 1.5);
-    fdisc(g, bx, by, 26 * k, '#8a5e14'); fdisc(g, bx, by, 23 * k, '#eab02a'); fdisc(g, bx, by, 18 * k, M.pal[0]);
-    for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + this.t; fpx(g, bx + Math.cos(a) * 30, by + Math.sin(a) * 30, '#fff08a'); }
-    if (k >= 1) Icons.draw(g, TOOLS[M.tool].icon, bx - 14, by - 14, 2);
-    drawText(g, 'INSIGNIA', bx, by + 32, { align: 'center', font: 'tiny', color: '#ffe14d' });
-    drawTextBlock(g, M.badge, bx - 40, by + 40, 80, { align: 'center', color: '#fffaf0' });
+    if (k > 0.05) {
+      const r = Math.round(26 * k);
+      fdisc(g, bx, by, r + 1, '#000633'); fdisc(g, bx, by, r, '#ffd23a'); fdisc(g, bx, by, r - 2, '#9a6a12'); fdisc(g, bx, by, r - 4, mixHex('#041533', M.pal[0], 0.35)); fdisc(g, bx - 3, by - 4, (r - 4) * 0.55, mixHex('#072248', M.pal[0], 0.5));
+    }
+    for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + this.t * 0.6; fpx(g, bx + Math.cos(a) * 31, by + Math.sin(a) * 31, i % 2 ? '#fff2a0' : '#ffd23a'); }
+    if (k >= 1) { const ic = TOOLS[M.tool].icon; if (Icons.hasBig(ic)) Icons.drawBig(g, ic, bx, by); else Icons.draw(g, ic, bx - 14, by - 14, 2); }
+    UIK.pill(g, bx, by + 32, 'INSIGNIA', { align: 'center', rim: '#ffd23a', fill: '#1a1404', color: '#fff2c0' });
+    drawTextBlock(g, M.badge, bx - 44, by + 48, 88, { align: 'center', color: UI_INK.body });
     // criterios
-    let yy = y + 56;
-    drawText(g, 'CRITERIOS DE FINALIZACIÓN', x + 100, yy, { font: 'tiny', color: '#ffe14d' }); yy += 10;
-    for (const c in CRITERIA_LABELS) { Icons.draw(g, lp[c] ? 'check' : 'cross', x + 98, yy - 2); drawText(g, CRITERIA_LABELS[c], x + 116, yy + 1, { color: lp[c] ? '#fffaf0' : '#8a8fb8' }); yy += 15; }
+    let yy = y + 58;
+    drawText(g, 'CRITERIOS DE FINALIZACIÓN', x + 104, yy, { font: 'tiny', color: '#ffd23a' }); yy += 10;
+    for (const c in CRITERIA_LABELS) { Icons.draw(g, lp[c] ? 'check' : 'cross', x + 102, yy - 2); drawText(g, CRITERIA_LABELS[c], x + 120, yy + 1, { color: lp[c] ? UI_INK.body : UI_INK.dim }); yy += 15; }
     yy += 2;
-    drawText(g, 'HERRAMIENTA', x + 100, yy, { font: 'tiny', color: '#ffe14d' }); yy += 9;
-    Icons.draw(g, TOOLS[M.tool].icon, x + 98, yy - 2); drawText(g, TOOLS[M.tool].name, x + 116, yy + 1, { color: '#a6f4ff' }); yy += 18;
-    UIK.panel(g, x + 16, yy, w - 32, 40, 'glass');
-    drawTextBlock(g, '{y}Debrief:{/} ' + M.debrief, x + 24, yy + 6, w - 48, { color: '#fffaf0' });
+    drawText(g, 'HERRAMIENTA', x + 104, yy, { font: 'tiny', color: '#ffd23a' }); yy += 9;
+    Icons.draw(g, TOOLS[M.tool].icon, x + 102, yy - 2); drawText(g, TOOLS[M.tool].name, x + 120, yy + 1, { color: '#8fdfff' }); yy += 18;
+    const dt = '{y}Debrief:{/} ' + M.debrief, dh = textHeight(dt, w - 52) + 12;
+    UIK.panel(g, x + 16, yy, w - 32, dh, 'sheet', null, { chamfer: 2, key: false });
+    drawTextBlock(g, dt, x + 26, yy + 6, w - 52, { color: UI_INK.body });
     Gui.begin();
     if (this.t > 1 && Gui.button(g, 'cont', W / 2 - 80, y + h - 28, 160, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(); }
     Gui.end();
@@ -75,6 +82,18 @@ const LevelCompleteScene = {
    controles, error seguro y registro de evidencia.
    ===================================================================== */
 const SIM_PHASES = { demo: 'Demostración', guided: 'Práctica guiada', auto: 'Práctica autónoma', transfer: 'Transferencia', free: 'Laboratorio libre' };
+/** Fondo común de simuladores (cacheado): azul noche plano con rejilla de 16 px y viñeta en bandas */
+let _simBg = null;
+function simBackdrop() {
+  if (_simBg) return _simBg;
+  const c = makeCanvas(W, H), b = c.getContext('2d');
+  b.fillStyle = '#041026'; b.fillRect(0, 0, W, H);
+  b.fillStyle = '#071a36'; b.fillRect(0, Math.round(H * 0.42), W, H);
+  b.fillStyle = '#0a1e3a'; for (let x = 8; x < W; x += 16) b.fillRect(x, 0, 1, H); for (let y = 8; y < H; y += 16) b.fillRect(0, y, W, 1);
+  b.fillStyle = '#0e2850'; for (let x = 8; x < W; x += 64) for (let y = 8; y < H; y += 64) b.fillRect(x - 1, y, 3, 1), b.fillRect(x, y - 1, 1, 3);
+  b.globalAlpha = 0.5; b.fillStyle = '#020a1e'; b.fillRect(0, 0, W, 10); b.fillRect(0, H - 10, W, 10); b.globalAlpha = 1;
+  _simBg = c; return c;
+}
 function makeSim(def) {
   return Object.assign({
     overlay: true,
@@ -127,44 +146,46 @@ function makeSim(def) {
       this.ps.update(dt);
     },
     render(g) {
-      frect(g, 0, 0, W, H, '#070a1c');
-      fdither(g, 0, 0, W, H, '#0e1430', 0.5);
+      // fondo de laboratorio: azul noche plano con rejilla de 16 px (prerenderizado, sin tramado)
+      g.drawImage(simBackdrop(), 0, 0);
       this.draw && this.draw(g);
       this.ps.render(g);
-      // cabecera
-      UIK.panel(g, 4, 4, W - 8, 20, def.style || 'tech');
-      Icons.draw(g, def.icon || 'flask', 9, 7);
-      drawText(g, def.title, 26, 10, { color: '#fffaf0', shadow: '#070a1c' });
+      // cabecera: insignia + título en negrita + fase + puntos de fase + RA
+      UIK.panel(g, 4, 4, W - 8, 22, def.style || 'hud', null, { chamfer: 2, key: false });
+      UIK.badge(g, def.icon || 'flask', 2, 2, 22, def.style || 'hud');
       const ph = SIM_PHASES[this.phase] || this.phase;
       const phw = FONTS.main.measure(ph) + 14;
-      frect(g, W - phw - 120, 7, phw, 13, '#ffe14d'); drawText(g, ph, W - phw / 2 - 120, 10, { align: 'center', color: '#140d26' });
-      // indicadores de fase
-      def.phases.forEach((p2, i) => { const on = def.phases.indexOf(this.phase) >= i; frect(g, W - 110 + i * 14, 10, 10, 7, on ? '#86e36f' : '#1c2350'); });
-      drawText(g, def.ra || '', W - 52, 11, { font: 'tiny', color: '#a6f4ff' });
+      const phx = W - phw - 128;
+      drawText(g, fitText(def.title || '', phx - 40, 'bold'), 30, 11, { font: 'bold', color: '#edfcfe' });
+      frect(g, phx, 8, phw, 14, '#000633'); frect(g, phx + 1, 9, phw - 2, 12, '#ffd23a'); frect(g, phx + 2, 10, phw - 4, 5, '#ffe58a');
+      drawText(g, ph, phx + phw / 2, 11, { align: 'center', color: '#1a0f00' });
+      def.phases.forEach((p2, i) => { const on = def.phases.indexOf(this.phase) >= i; const dx = W - 118 + i * 14; frect(g, dx, 11, 11, 8, '#000633'); frect(g, dx + 1, 12, 9, 6, on ? '#3fe0a0' : '#0b2444'); if (on) frect(g, dx + 1, 12, 9, 1, '#c2f5de'); });
+      if (def.ra) UIK.pill(g, W - 9, 9, def.ra, { align: 'right', rim: '#8fdfff', fill: '#031128', color: '#c4fbff' });
+      // mensaje de KIRU (u otro guía) como globo con cola hacia su busto
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
-        const lines = wrapText(m.text, 300);
-        const hh = lines.length * 11 + 10;
-        const by = H - hh - 6;
-        UIK.panel(g, 6, by, 340, hh, 'glass');
-        Icons.draw(g, m.who === 'kiru' ? 'kiru' : 'person', 10, by + 4);
-        let rem = Math.floor(m.t * 60);
-        lines.forEach((l, i) => { if (rem > 0) drawText(g, l, 28, by + 5 + i * 11, { color: '#fffaf0', max: rem, shadow: '#070a1c' }); rem -= stripMarkup(l).length + 1; });
+        const bx = 6, by = H - 40;
+        UIK.frame(g, bx, by, 34, 34, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+        const bust = UIK.bust(sp.portrait || 'kiru', 'smile');
+        // recorte 1:1 de la cara (sin reescalar el arte)
+        const cx0 = Math.round(bust.width / 2 - 13), cy0 = Math.max(0, Math.round(bust.height * 0.12));
+        g.drawImage(bust, cx0, cy0, 26, 26, bx + 4, by + 4, 26, 26);
+        UIK.speechBubble(g, bx + 34, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);
     },
     renderSafeErr(g) {
       const e = this.safeErr;
-      fdither(g, 0, 0, W, H, '#2a0c18', 0.5);
+      UIK.scrim(g, 0.55, '#1a0612');
       const w = 380, x = W / 2 - w / 2;
-      const th = textHeight(e.text, w - 20) + textHeight(e.guide || '', w - 20) + 70;
-      const y = H / 2 - th / 2;
+      const th = textHeight('{o}Consecuencia (reversible):{/} ' + e.text, w - 20) + textHeight(e.guide ? '{y}Pregunta orientadora:{/} ' + e.guide : '', w - 20) + 70;
+      const y = Math.round(H / 2 - th / 2);
       UIK.panel(g, x, y, w, th, 'alert');
-      UIK.header(g, x, y, w, 'ESTADO DE ERROR SEGURO · ' + e.title, 'alert', 'warn');
-      let yy = y + 22;
-      yy += drawTextBlock(g, '{o}Consecuencia (reversible):{/} ' + e.text, x + 10, yy, w - 20, { color: '#fffaf0' }) + 4;
-      if (e.guide) yy += drawTextBlock(g, '{y}Pregunta orientadora:{/} ' + e.guide, x + 10, yy, w - 20, { color: '#fffaf0' }) + 4;
+      UIK.header(g, x, y, w, 'ERROR SEGURO · ' + e.title, 'alert', 'warn');
+      let yy = y + 24;
+      yy += drawTextBlock(g, '{o}Consecuencia (reversible):{/} ' + e.text, x + 10, yy, w - 20, { color: '#ffe8e4' }) + 4;
+      if (e.guide) yy += drawTextBlock(g, '{y}Pregunta orientadora:{/} ' + e.guide, x + 10, yy, w - 20, { color: '#ffe8e4' }) + 4;
       Gui.begin();
       if (Gui.button(g, 'serr_inspect', x + 10, y + th - 26, 150, 18, 'Inspeccionar datos', { icon: 'eye', style: 'ghost' })) { this.safeErr = null; this.inspect = true; }
       if (Gui.button(g, 'serr_retry', x + w - 160, y + th - 26, 150, 18, 'Corregir y continuar', { icon: 'reset', style: 'gold' })) { this.safeErr = null; this.paused = false; this.onSafeRetry && this.onSafeRetry(); }
@@ -180,24 +201,30 @@ const ExplainScene = {
   update() { },
   render(g) {
     const p = this.p;
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.62);
     const x = 50, w = W - 100;
-    UIK.panel(g, x, 30, w, H - 60, 'tech');
-    UIK.header(g, x, 30, w, 'EXPLICA LA RELACIÓN', 'tech', 'chart');
-    let y = 52;
-    y += drawTextBlock(g, p.prompt, x + 10, y, w - 20, { color: '#fffaf0' }) + 6;
+    const opts = this.order.map(k => p.options[k]);
+    const M = UIK.measureQuestion(w, p.prompt, opts);
+    let fbTxt = '';
+    if (this.fb) fbTxt = this.fb.ok ? '{g}Relación bien explicada.{/} ' + p.why : '{o}Revisa:{/} ' + (p.whyNot ? p.whyNot[this.fb.c] || p.why : p.why) + (this.conf === 'mucho' ? ' {p}(Respondiste con mucha confianza: es una buena oportunidad para revisar la concepción.){/}' : '');
+    const fbh = this.fb ? textHeight(fbTxt, w - 46, { lineH: 11 }) + 12 : 0;
+    const h = Math.min(H - 12, M.h + 34 + (fbh ? fbh + 4 : 0));
+    const y = Math.max(6, Math.round(H / 2 - h / 2));
+    const r = UIK.questionPanel(g, x, y, w, h, { title: 'EXPLICA LA RELACIÓN', icon: 'chart', stem: p.prompt, tag: 'RELACIONAL' });
+    let yy = r.contentY;
     Gui.begin();
     this.order.forEach((k, i) => {
       let st = this.sel === k ? 'selected' : null;
       if (this.fb) st = k === p.key ? 'correct' : (k === this.fb.c ? 'wrong' : 'dim');
-      const r = Gui.choice(g, 'ex' + i, x + 10, y, w - 20, p.options[k], 'ABCD'[i], { state: st, disabled: !!this.fb });
-      if (r.clicked && !this.fb) this.sel = k;
-      y += r.h + 3;
+      const c = Gui.choice(g, 'ex' + i, r.x, yy, r.w, p.options[k], 'ABCD'[i], { state: st, disabled: !!this.fb });
+      if (c.clicked && !this.fb) this.sel = k;
+      yy += c.h + 3;
     });
+    const by = y + h - 26;
     if (!this.fb) {
-      drawText(g, '¿Qué tan seguro estás?', x + 10, H - 56, { font: 'tiny', color: '#cfd6f0' });
-      ['poco', 'medio', 'mucho'].forEach((c, k) => { if (Gui.button(g, 'cf' + c, x + 110 + k * 56, H - 60, 52, 14, c.toUpperCase(), { style: this.conf === c ? 'gold' : 'ghost' })) this.conf = c; });
-      if (Gui.button(g, 'ok', x + w - 130, H - 62, 120, 20, 'Explicar', { style: 'good', icon: 'check', disabled: this.sel < 0 || !this.conf })) {
+      drawText(g, '¿Qué tan seguro estás?', r.x, by + 5, { color: UI_INK.dim });
+      ['poco', 'medio', 'mucho'].forEach((c, k) => { if (Gui.button(g, 'cf' + c, r.x + 130 + k * 58, by + 1, 54, 16, c.toUpperCase(), { style: this.conf === c ? 'gold' : 'ghost', selected: this.conf === c })) this.conf = c; });
+      if (Gui.button(g, 'ok', r.x + r.w - 120, by, 120, 20, 'Explicar', { style: 'good', icon: 'check', disabled: this.sel < 0 || !this.conf })) {
         const ok = this.sel === p.key;
         this.fb = { c: this.sel, ok };
         LearningModel.record({ kind: 'challenge', id: p.id, ra: p.ra, concepts: p.concepts, solo: 4, correct: ok, confidence: this.conf, time: (nowMs() - this.t0) / 1000, misconception: ok ? null : p.mis, explanation: p.options[this.sel] });
@@ -205,12 +232,11 @@ const ExplainScene = {
         Audio2.sfx(ok ? 'success' : 'error');
       }
     } else {
-      const txt = this.fb.ok ? '{g}Relación bien explicada.{/} ' + p.why : '{o}Revisa:{/} ' + (p.whyNot ? p.whyNot[this.fb.c] || p.why : p.why) + (this.conf === 'mucho' ? ' {p}(Respondiste con mucha confianza: es una buena oportunidad para revisar la concepción.){/}' : '');
-      const hh = textHeight(txt, w - 40) + 10;
-      UIK.panel(g, x + 10, H - 70 - hh, w - 20, hh, this.fb.ok ? 'green' : 'alert');
-      drawTextBlock(g, txt, x + 16, H - 65 - hh, w - 32, { color: '#fffaf0' });
-      if (!this.fb.ok && Gui.button(g, 'retry', x + 10, H - 62, 120, 20, 'Reintentar', { style: 'gold', icon: 'reset' })) { this.fb = null; this.sel = -1; this.conf = null; }
-      if (Gui.button(g, 'cont', x + w - 130, H - 62, 120, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(this.fb.ok); }
+      UIK.panel(g, r.x, yy + 1, r.w, fbh, this.fb.ok ? 'green' : 'alert', null, { chamfer: 2, key: false, spark: false });
+      Icons.draw(g, this.fb.ok ? 'check' : 'warn', r.x + 5, yy + 4);
+      drawTextBlock(g, fbTxt, r.x + 22, yy + 7, w - 46, { color: this.fb.ok ? '#eafff6' : '#ffe8e4', lineH: 11 });
+      if (!this.fb.ok && Gui.button(g, 'retry', r.x, by, 120, 20, 'Reintentar', { style: 'gold', icon: 'reset' })) { this.fb = null; this.sel = -1; this.conf = null; }
+      if (Gui.button(g, 'cont', r.x + r.w - 120, by, 120, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(this.fb.ok); }
     }
     Gui.end();
   },
@@ -234,25 +260,18 @@ function drawLampPost(g, x, y, on = true, col = '#ffe14d') {
   frect(g, x, y - 34, 2, 34, '#263442'); frect(g, x - 3, y - 36, 8, 3, '#345a78'); frect(g, x - 2, y - 33, 6, 3, on ? col : '#3a4a6e');
   if (on) { fdither(g, x - 12, y - 40, 26, 20, col, 0.18); fdither(g, x - 6, y - 36, 14, 12, col, 0.3); }
 }
-/** Panel de HUD de nivel con varias medidas */
+/** Panel de HUD de nivel con varias medidas: placas de instrumento (insignia + etiqueta + valor + barra) */
 function hudGauges(g, items, x = 6, y = H - 34) {
-  const w = items.length * 92 + 8;
-  UIK.panel(g, x, y, w, 28, 'glass');
-  items.forEach((it, i) => {
-    const xx = x + 6 + i * 92;
-    Icons.draw(g, it.icon, xx, y + 3);
-    drawText(g, it.label, xx + 16, y + 4, { font: 'tiny', color: '#cfd6f0' });
-    drawText(g, it.value, xx + 16, y + 12, { color: it.color || '#fffaf0', shadow: '#070a1c' });
-    if (it.frac != null) UIK.bar(g, xx, y + 22, 84, 4, it.frac, it.color || '#56e5ff');
-  });
+  UIK.instrumentPlates(g, items, x - 2, y - 2);
 }
-/** Etiqueta flotante para la Lente Nexo */
+/** Etiqueta flotante para la Lente Nexo: píldora navy con borde del color del sistema */
 function lensTag(g, x, y, text, col = '#56e5ff', icon = null) {
   const w = FONTS.tiny.measure(stripMarkup(text)) + (icon ? 18 : 8);
   x = Math.round(x); y = Math.round(y);
-  frect(g, x - 1, y - 1, w + 2, 11, '#05031a'); frect(g, x, y, w, 9, '#0a1030'); frect(g, x, y, 2, 9, col);
+  frect(g, x, y - 1, w, 11, '#000633'); frect(g, x - 1, y, w + 2, 9, '#000633');
+  frect(g, x, y, w, 9, col); frect(g, x + 1, y + 1, w - 2, 7, '#031128'); frect(g, x + 1, y + 1, w - 2, 1, mixHex('#031128', col, 0.25));
   if (icon) Icons.draw(g, icon, x + 2, y - 3);
-  drawText(g, text, x + (icon ? 16 : 5), y + 2, { font: 'tiny', color: col });
+  drawText(g, text, x + (icon ? 16 : 4), y + 2, { font: 'tiny', color: mixHex(col, '#ffffff', 0.6) });
 }
 function lensBoundary(g, x, y, w, h, col = '#ffe14d', label = null) {
   const t = Math.floor(Game.time * 12);

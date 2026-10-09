@@ -136,34 +136,35 @@ const CodexScene = {
     if (Input.pointer.wheel) this.scroll = Math.max(0, this.scroll + Input.pointer.wheel * 12);
   },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
-    UIK.panel(g, 8, 8, W - 16, H - 16, 'paper');
-    drawTitleText(g, 'ATLAS DEL NEXO', W / 2, 13, 1, ['#fff6d8', '#f8d677', '#e49c44'], { align: 'center', shadow: '#3a1a10' });
+    UIK.scrim(g, 0.75);
+    UIK.panel(g, 8, 8, W - 16, H - 16, 'tech');
+    UIK.header(g, 8, 8, W - 16, 'ATLAS DEL NEXO · ' + GS.s.codex.length + ' / ' + CODEX.length + ' fichas', 'tech', 'book');
     Gui.begin();
     // pestañas de sección
     CODEX_SECTIONS.forEach(([id, label, icon], i) => {
       const col = i % 7, row = Math.floor(i / 7);
       const n = CODEX.filter(e => e.sec === id && Codex.has(e.id)).length, tot = CODEX.filter(e => e.sec === id).length;
-      if (Gui.button(g, 'sec' + id, 14 + col * 87, 28 + row * 18, 84, 16, label.length > 11 ? label.slice(0, 10) + '.' : label, { icon, style: this.sec === id ? 'gold' : 'paper', selected: this.sec === id, align: 'left', tip: label + ' · ' + n + '/' + tot })) { this.sec = id; this.sel = null; this.scroll = 0; }
+      if (Gui.button(g, 'sec' + id, 14 + col * 87, 32 + row * 18, 84, 16, label.length > 11 ? label.slice(0, 10) + '.' : label, { icon, style: 'tab', selected: this.sec === id, align: 'left', tip: label + ' · ' + n + '/' + tot })) { this.sec = id; this.sel = null; this.scroll = 0; }
     });
-    // lista
+    // lista (pozo hundido)
     const list = CODEX.filter(e => e.sec === this.sec);
-    let ly = 68;
-    frect(g, 14, 66, 168, H - 86, '#e8c47a');
+    let ly = 72;
+    Charts.frame(g, 14, 70, 170, H - 90);
     for (const e of list) {
       const un = Codex.has(e.id);
-      if (ly > H - 34) break;
-      if (Gui.button(g, 'ent' + e.id, 16, ly, 164, 16, un ? (e.title.length > 26 ? e.title.slice(0, 25) + '…' : e.title) : '??? (bloqueada)', { style: this.sel === e.id ? 'gold' : 'paper', disabled: !un, align: 'left', textColor: '#3a1a10' })) { this.sel = e.id; this.scroll = 0; Audio2.sfx('page'); }
+      if (ly > H - 38) break;
+      if (Gui.button(g, 'ent' + e.id, 17, ly, 164, 16, un ? (e.title.length > 26 ? e.title.slice(0, 25) + '…' : e.title) : '??? (bloqueada)', { style: this.sel === e.id ? 'gold' : 'ghost', selected: this.sel === e.id, disabled: !un, align: 'left' })) { this.sel = e.id; this.scroll = 0; Audio2.sfx('page'); }
       ly += 18;
     }
     // página
-    const px = 190, pw = W - px - 18;
+    const px = 192, pw = W - px - 20;
+    UIK.panel(g, px - 4, 68, pw + 10, H - 86, 'sheet', null, { chamfer: 2, key: false });
     const e = this.sel && CODEX_BY_ID[this.sel];
-    g.save(); g.beginPath(); g.rect(px, 66, pw, H - 86); g.clip();
+    g.save(); g.beginPath(); g.rect(px, 70, pw, H - 90); g.clip();
     if (e) {
-      let y = 68 - this.scroll;
-      drawText(g, e.title, px, y, { color: '#7a1f36' }); y += 14;
-      const field = (lbl, txt) => { if (!txt) return; drawText(g, lbl, px, y, { font: 'tiny', color: '#a82c40' }); y += 8; y += drawTextBlock(g, txt, px, y, pw - 4, { color: '#3a1a10' }) + 4; };
+      let y = 74 - this.scroll;
+      drawText(g, e.title, px + 2, y, { font: 'bold', color: '#e6f8fe' }); y += 15;
+      const field = (lbl, txt) => { if (!txt) return; if (lbl) { drawText(g, lbl, px + 2, y, { font: 'tiny', color: '#ffd23a' }); y += 9; } y += drawTextBlock(g, txt, px + 2, y, pw - 8, { color: UI_INK.body }) + 5; };
       if (e.person) field('', e.def);
       else {
         field('DEFINICIÓN', e.def); field('VARIABLES', e.vars); field('UNIDADES', e.units); field('RELACIONES', e.rel); field('EJEMPLO', e.ex);
@@ -172,12 +173,12 @@ const CodexScene = {
       this.maxScroll = Math.max(0, y + this.scroll - (H - 30));
       this.scroll = Math.min(this.scroll, this.maxScroll);
     } else {
-      drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px, 80, pw, { color: '#5a3020' });
-      drawText(g, 'Fichas desbloqueadas: ' + GS.s.codex.length + ' / ' + CODEX.length, px, 130, { color: '#7a1f36' });
+      drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px + 2, 80, pw - 8, { color: UI_INK.body });
+      drawText(g, 'Fichas desbloqueadas: ' + GS.s.codex.length + ' / ' + CODEX.length, px + 2, 132, { color: '#8fdfff' });
     }
     g.restore();
-    if (e && this.maxScroll > 0) { const sh = H - 90; frect(g, W - 16, 66, 3, sh, '#c8925e'); frect(g, W - 16, 66 + (sh - 20) * this.scroll / this.maxScroll, 3, 20, '#7a1f36'); if (Gui.button(g, 'up', W - 40, H - 34, 16, 14, '↑', { style: 'paper' })) this.scroll = Math.max(0, this.scroll - 40); if (Gui.button(g, 'dn', W - 22, H - 34, 16, 14, '↓', { style: 'paper' })) this.scroll += 40; }
-    if (Gui.button(g, 'close', 16, H - 30, 80, 16, 'Cerrar', { style: 'paper', textColor: '#3a1a10' })) { Game.pop(); }
+    if (e && this.maxScroll > 0) { const sh = H - 94; frect(g, W - 18, 70, 3, sh, '#0b2444'); frect(g, W - 18, 70 + (sh - 20) * this.scroll / this.maxScroll, 3, 20, '#8fdfff'); if (Gui.button(g, 'up', W - 44, H - 36, 16, 14, '↑', { style: 'ghost' })) this.scroll = Math.max(0, this.scroll - 40); if (Gui.button(g, 'dn', W - 26, H - 36, 16, 14, '↓', { style: 'ghost' })) this.scroll += 40; }
+    if (Gui.button(g, 'close', 16, H - 32, 80, 16, 'Cerrar', { style: 'ghost' })) { Game.pop(); }
     Gui.end();
     Gui.renderTooltip(g);
   },

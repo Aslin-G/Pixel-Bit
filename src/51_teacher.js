@@ -7,12 +7,12 @@ const TeacherScene = {
   enter() { this.tab = 'resumen'; this.ra = 'RA-01'; this.lv = GS.s.level || 0; this.val = null; this.confirmReset = false; Audio2.sfx('page'); },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.85);
+    UIK.scrim(g, 0.82);
     UIK.panel(g, 6, 6, W - 12, H - 12, 'tech');
     UIK.header(g, 6, 6, W - 12, 'MODO DOCENTE · panel local (no envía datos)', 'tech', 'chart');
     Gui.begin();
     const tabs = ['resumen', 'retos', 'errores', 'fuentes', 'validación'];
-    tabs.forEach((t, i) => { if (Gui.button(g, 'tt' + t, 12 + i * 92, 26, 88, 15, t.toUpperCase(), { style: this.tab === t ? 'gold' : 'tab', selected: this.tab === t })) this.tab = t; });
+    tabs.forEach((t, i) => { if (Gui.button(g, 'tt' + t, 12 + i * 92, 26, 88, 15, t.toUpperCase(), { style: 'tab', selected: this.tab === t })) this.tab = t; });
     const x = 14, y0 = 48;
     if (this.tab === 'resumen') this.renderSummary(g, x, y0);
     if (this.tab === 'retos') this.renderLaunch(g, x, y0);
@@ -46,8 +46,8 @@ const TeacherScene = {
   renderLaunch(g, x, y) {
     drawText(g, 'LANZAR SUPERCONTEXTO SOLO (5 tareas en progresión)', x, y, { font: 'tiny', color: '#ffe14d' });
     Object.keys(RA).forEach((ra, i) => { if (Gui.button(g, 'ra' + ra, x + (i % 9) * 68, y + 10, 64, 15, ra, { style: this.ra === ra ? 'gold' : 'ghost' })) this.ra = ra; });
-    drawTextBlock(g, RA[this.ra], x, y + 30, W - 40, { color: '#cfd6f0', font: 'tiny' });
-    let yy = y + 50;
+    const rh = drawTextBlock(g, RA[this.ra], x, y + 30, W - 40, { color: UI_INK.body });
+    let yy = y + 34 + rh;
     for (let c = 1; c <= 3; c++) {
       const id = this.ra + '-C' + c, C = CONTEXTS[id];
       if (!C) continue;
@@ -101,11 +101,11 @@ const PracticeScene = {
   enter() { Audio2.sfx('page'); },
   update() { if (Input.pressed('cancel')) Game.pop(); },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
+    UIK.scrim(g, 0.78);
     UIK.panel(g, 20, 14, W - 40, H - 28, 'green');
     UIK.header(g, 20, 14, W - 40, 'SALA DE PRÁCTICA · recuperación espaciada', 'green', 'flask');
     Gui.begin();
-    drawTextBlock(g, 'Repasa con supercontextos de capítulos ya visitados, diagnósticos, cálculos y debates. Se priorizan los conceptos con menor dominio estimado.', 30, 38, W - 60, { color: '#fffaf0' });
+    drawTextBlock(g, 'Repasa con supercontextos de capítulos ya visitados, diagnósticos, cálculos y debates. Se priorizan los conceptos con menor dominio estimado.', 30, 38, W - 60, { color: '#eafff6' });
     const weak = LearningModel.weakest(3);
     drawText(g, 'Sugerido para ti: ' + weak.map(k => MASTERY_LABELS[k]).join(' · '), 30, 62, { font: 'tiny', color: '#ffe14d' });
     let y = 76;
@@ -152,9 +152,9 @@ const CreditsScene = {
       if (k === 't') { if (y > -40 && y < H) drawTitleText(g, txt, W / 2, y, 3, ['#fff6d8', '#ffe14d', '#ff7656'], { align: 'center', shadow: '#2a1040' }); y += 38; continue; }
       if (k === 's') { if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#56e5ff' }); y += 20; continue; }
       if (k === 'h') { if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#ffe14d' }); y += 14; continue; }
-      if (k === 'f') { const hh = textHeight(txt, 520, { font: 'tiny', lineH: 8 }); if (y > -40 && y < H) drawTextBlock(g, txt, 60, y, 520, { font: 'tiny', color: '#cfd6f0', align: 'center', lineH: 8 }); y += hh + 4; continue; }
+      if (k === 'f') { const hh = textHeight(txt, 520, { lineH: 11 }); if (y > -60 && y < H) drawTextBlock(g, txt, 60, y, 520, { color: '#b8c8e8', align: 'center', lineH: 11 }); y += hh + 4; continue; }
       if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#fffaf0' }); y += 12;
     }
-    drawText(g, 'ESC: cerrar · mantén ENTER: acelerar', W - 8, H - 10, { font: 'tiny', color: '#5a5e80', align: 'right' });
+    UIK.pill(g, W - 6, H - 14, 'ESC: cerrar · mantén ENTER: acelerar', { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' });
   },
 };

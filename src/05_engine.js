@@ -122,16 +122,18 @@ const Game = {
     if (this.settings.showFps) drawText(g, fmt0(this.fps) + ' FPS', 4, H - 10, { font: 'tiny', color: '#86e36f', shadow: '#140d26' });
   },
   renderToasts(g) {
-    let y = H - 50;
+    // avisos abajo a la derecha, apilados hacia arriba; en el mapa quedan sobre la tira de capítulos
+    let y = (typeof WorldMapScene !== 'undefined' && this.top() === WorldMapScene) ? H - 92 : H - 28;
     for (const t of this.toasts) {
       const a = t.t < 0.25 ? t.t / 0.25 : t.t > t.dur - 0.4 ? (t.dur - t.t) / 0.4 : 1;
-      const w = Math.min(300, FONTS.main.measure(t.text) + 34);
-      const x = Math.round(W - w - 8 + (1 - a) * 24);
-      const yy = y;
-      UIK.panel(g, x, yy, w, 18, 'toast', t.color);
-      Icons.draw(g, t.icon, x + 5, yy + 2);
-      drawText(g, t.text, x + 25, yy + 5, { color: '#fffaf0', shadow: '#140d26' });
-      y -= 22;
+      const txt = fitText(t.text, 266);
+      const w = Math.min(300, FONTS.main.measure(txt) + 36);
+      const x = Math.round(W - w - 6 + (1 - a) * 24);
+      UIK.panel(g, x, y, w, 20, 'hud', null, { chamfer: 2, key: false, spark: w > 60 });
+      frect(g, x + 3, y + 3, 2, 14, t.color || '#8fdfff');
+      Icons.draw(g, t.icon, x + 8, y + 3);
+      drawText(g, txt, x + 26, y + 6, { color: UI_INK.body });
+      y -= 23;
     }
   },
 };

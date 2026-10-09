@@ -167,8 +167,9 @@ const TINY_SRC = {
 };
 const TINY_MAP = { 'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N', 'Ü': 'U', 'á': 'A', 'é': 'E', 'í': 'I', 'ó': 'O', 'ú': 'U', 'ñ': 'N', 'ü': 'U', '¿': '?', '¡': '!' };
 
+// {y}/{o} = tonos de palabra clave de la referencia (STYLE LOCK §11): amarillo suave y melocotón
 const TEXT_COLORS = {
-  y: '#ffe14d', c: '#56e5ff', o: '#ff9f43', r: '#ff4e5d', g: '#86e36f', p: '#f78acb', v: '#b49cff', b: '#6cb4ff', w: '#fffaf0', d: '#8a8fb8', k: '#140d26', t: '#20d6c7',
+  y: '#f5dc5a', c: '#56e5ff', o: '#f5a576', r: '#ff4e5d', g: '#86e36f', p: '#f78acb', v: '#b49cff', b: '#6cb4ff', w: '#fffaf0', d: '#8a8fb8', k: '#140d26', t: '#20d6c7',
 };
 
 class BitmapFont {
@@ -183,6 +184,9 @@ class BitmapFont {
       const [rows, up] = this._compose(src, opts.accented[ch]);
       entries.push([ch, rows, up]);
     }
+    // negrita: dilatación horizontal de cada fila (trazos verticales de 2 px, ancho +1)
+    if (opts.bold) for (const e of entries) e[1] = BitmapFont.dilate(e[1]);
+    this.bold = !!opts.bold;
     let ax = 0;
     for (const [ch, rows, up] of entries) { const w = Math.max(...rows.map(r => r.length)); this.glyphs.set(ch, { x: ax, w, rows, up }); ax += w + 1; }
     this.atlas = makeCanvas(Math.max(1, ax), this.cellH);
@@ -192,6 +196,10 @@ class BitmapFont {
       gl.rows.forEach((row, ry) => { for (let i = 0; i < row.length; i++) if (row[i] === '#') this.atlas.g.fillRect(gl.x + i, ry + off, 1, 1); });
     }
     this.tints = new Map();
+  }
+  static dilate(rows) {
+    const w = Math.max(...rows.map(r => r.length));
+    return rows.map(r => { const a = (r.padEnd(w, '.') + '.').split(''); for (let i = w - 1; i >= 0; i--) if (r[i] === '#') a[i + 1] = '#'; return a.join(''); });
   }
   /** Compone glifo acentuado; retorna [filas, esMayúsculaConFilasExtra] */
   _compose(src, [base, accKey]) {
@@ -247,6 +255,8 @@ function stripMarkup(t) { return String(t).replace(/\{[a-z\/]\}/g, ''); }
 const FONTS = {};
 function initFonts() {
   FONTS.main = new BitmapFont(FONT_SRC, { cellH: 11, top: 2, lineH: 11, accented: ACCENTED });
+  // negrita (nombres, títulos, letras de opción y «Nv.»): mismas métricas que main, trazo de 2 px
+  FONTS.bold = new BitmapFont(FONT_SRC, { cellH: 11, top: 2, lineH: 11, accented: ACCENTED, bold: true });
   // la fuente diminuta reserva una fila superior para tildes (desplazada al dibujar)
   const tinyAcc = {};
   for (const [ch, base, mark] of [['Á', 'A', '.#'], ['É', 'E', '.#'], ['Í', 'I', '.#'], ['Ó', 'O', '.#'], ['Ú', 'U', '.#'], ['Ñ', 'N', '.##.'], ['Ü', 'U', '#.#']]) {
@@ -318,7 +328,7 @@ function drawText(g, text, x, y, opts = {}) {
   let cx = Math.round(x);
   if (opts.align === 'center') cx = Math.round(x - totalW / 2);
   else if (opts.align === 'right') cx = Math.round(x - totalW);
-  y = Math.round(y) - (font === FONTS.main ? 2 * scale : 0);
+  y = Math.round(y) - (font.top || 0) * scale;
   let shown = 0; const max = opts.max ?? Infinity;
   const startX = cx;
   const passes = [];
@@ -365,10 +375,11 @@ function textHeight(text, maxW, opts = {}) {
 
 /** Texto de título: escalado, relleno en degradado por filas, contorno y sombra profunda */
 function drawTitleText(g, text, x, y, scale, ramp, opts = {}) {
-  const font = FONTS.main;
+  const fname = opts.font || 'main';
+  const font = FONTS[fname];
   const w = font.measure(text);
   const c = makeCanvas(w + 4, font.cellH + 4);
-  drawText(c.g, text, 2, 2 + 2, { color: '#ffffff' });
+  drawText(c.g, text, 2, 2 + 2, { color: '#ffffff', font: fname });
   // recolorea por filas con rampa
   const id = c.g.getImageData(0, 0, c.width, c.height);
   const d = new Uint32Array(id.data.buffer);

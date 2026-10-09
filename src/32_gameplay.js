@@ -216,58 +216,68 @@ const GameplayScene = {
     // rejilla técnica
     if (k > 0.5) { g.fillStyle = 'rgba(86,229,255,0.10)'; for (let x = -(cam.x % 32); x < W; x += 32) g.fillRect(Math.round(x), 0, 1, H); for (let y = -(cam.y % 32); y < H; y += 32) g.fillRect(0, Math.round(y), W, 1); }
     if (this.def.lens) this.def.lens(g, this, cam, k);
-    UIK.panel(g, W - 192, H - 26, 184, 18, 'glass');
-    Icons.draw(g, 'lens', W - 186, H - 24);
-    drawText(g, 'LENTE NEXO · flujos y unidades', W - 92, H - 21, { align: 'center', color: '#a6f4ff', shadow: '#070a1c' });
+    // etiqueta de la Lente arriba al centro (no tapa el plano jugable ni las esquinas del HUD)
+    const lw = 190, lx = Math.round(W / 2 - lw / 2);
+    UIK.panel(g, lx, 6, lw, 18, 'sheet', null, { chamfer: 2, key: false });
+    Icons.draw(g, 'lens', lx + 5, 8);
+    drawText(g, 'LENTE NEXO', lx + 22, 11, { font: 'bold', color: '#e6f8fe' });
+    drawText(g, 'flujos · unidades · límites', lx + 92, 12, { font: 'tiny', color: '#8fdfff' });
   },
   renderHUD(g) {
-    if (this.hideHUD) return;
-    const def = this.def;
-    // tarjeta de capítulo (cinta con borde, sin oscurecer el cielo)
+    if (this.hideHUD) { UIK._hudRects = []; return; }
+    const def = this.def, P = this.player;
+    const rects = [];
+    // cinta de capítulo (sin caja que oscurezca el cielo)
     const ct = this.chapterCard.t;
-    if (ct < 4.2) {
-      const a = ct < 0.5 ? ct / 0.5 : ct > 3.4 ? (4.2 - ct) / 0.8 : 1;
-      const tw = Math.max(220, FONTS.main.measure(this.chapterCard.title || '') * 2 + 60);
-      const bx = Math.round(W / 2 - tw / 2), by = Math.round(30 - (1 - a) * 46);
-      UIK.panel(g, bx, by, tw, 44, 'dialog');
-      drawText(g, this.chapterCard.sub || '', W / 2, by + 6, { align: 'center', font: 'tiny', color: '#ffe14d' });
-      drawTitleText(g, this.chapterCard.title || '', W / 2, by + 13, 2, ['#fffaf0', '#ffe14d', '#ff9f43'], { align: 'center', shadow: '#140d26', depth: 1 });
-      frect(g, bx + 10, by + 40, tw - 20, 1, '#8a5e14');
-    }
-    // objetivo
+    if (ct < 4.2) UIK.chapterRibbon(g, this.chapterCard.title || '', this.chapterCard.sub || '', ct < 0.5 ? ct / 0.5 : ct > 3.4 ? (4.2 - ct) / 0.8 : 1, 66);
+    // bloque de retrato: retrato enmarcado + AMAYA + 7 corazones + energía + Nv.
+    if ((this._rankT = (this._rankT || 0) + Game.dt) > 0.5) { this._rankT = 0; GS.checkRank(); }
+    const hurt = P && P.hurtT > 0, rankUp = GS.rankUpT != null && Game.time - GS.rankUpT < 2.2;
+    const expr = P && P.hudExpr ? P.hudExpr : hurt ? 'worried' : (P && P.hp <= 2) ? 'tired' : rankUp ? 'happy' : 'smile';
+    UIK.hudPortraitBlock(g, 4, 4, { id: 'amaya', name: (GS.s.player && GS.s.player.name ? GS.s.player.name : 'Amaya').toUpperCase(), expr, tint: SPEAKERS.amaya.color, hp: P ? P.hp : 7, maxHp: P ? P.maxHp : 7, energy: P ? P.energy : 1, rank: GS.rank(), rankFrac: GS.rankFrac(), lostIdx: P ? P.lostIdx : -1, flash: P ? P.hurtT - 1.1 : 0 });
+    rects.push({ x: 0, y: 0, w: 152, h: 62 });
+    // objetivo (bajo el retrato, tras la cinta)
     if (this.objective && ct > 3.5) {
       const o = this.objective;
-      const lines = wrapText(o.text, 200);
-      const h = 18 + lines.length * 11;
-      const slide = Math.min(1, o.t * 3);
-      const x = Math.round(6 - (1 - slide) * 240);
-      UIK.panel(g, x, 6, 236, h, 'glass');
-      Icons.draw(g, o.icon, x + 6, 9);
-      drawText(g, 'OBJETIVO', x + 22, 10, { font: 'tiny', color: '#ffe14d' });
-      lines.forEach((l, i) => drawText(g, l, x + 22, 18 + i * 11, { color: '#fffaf0', shadow: '#070a1c' }));
+      o.shownT = (o.shownT || 0) + Game.dt; // avanza también durante diálogos superpuestos
+      const slide = Math.min(1, o.shownT * 3);
+      const x = Math.round(6 - (1 - slide) * 230);
+      const oh = UIK.objectiveCard(g, x, 64, 204, o.text, o.icon === 'target' || !Icons.hasBig(o.icon) ? 'target' : o.icon);
+      rects.push({ x: 0, y: 60, w: 214, h: oh + 6 });
     }
-    // herramienta activa y teclas
-    const tools = GS.s.tools;
-    let tx = W - 8;
-    const slot = (icon, key, on) => { tx -= 26; UIK.panel(g, tx, 6, 24, 24, on ? 'glass' : 'tech', on ? '#ffe14d' : null); Icons.draw(g, icon, tx + 5, 9); drawText(g, key, tx + 20, 22, { font: 'tiny', color: '#ffe14d', align: 'right', shadow: '#070a1c' }); };
+    // minimapa «MAPA» (arriba a la derecha) y ranuras de herramienta debajo
+    UIK.minimapPanel(g, W - 108, 4, 104, 70, { sc: this, level: this.levelId });
+    rects.push({ x: W - 112, y: 0, w: 112, h: 102 });
     if (!Input.touchMode) {
-      slot('book', keyName(Input.codesFor('codex')[0]), false);
-      slot('eye', 'TAB', false);
-      if (GS.hasTool('lente')) slot('lens', keyName(Input.codesFor('lens')[0]), this.lens);
-      const tl = tools.filter(t => t !== 'lente'); if (tl.length) { const t = TOOLS[GS.s.activeTool || tl[tl.length - 1]]; if (t) slot(t.icon, keyName(Input.codesFor('tool')[0]), false); }
-      slot('hint', keyName(Input.codesFor('hint')[0]), false);
+      const tools = GS.s.tools;
+      const slots = [];
+      slots.push(['hint', keyName(Input.codesFor('hint')[0]), false]);
+      const tl = tools.filter(t => t !== 'lente'); if (tl.length) { const t = TOOLS[GS.s.activeTool || tl[tl.length - 1]]; if (t) slots.push([t.icon, keyName(Input.codesFor('tool')[0]), false]); }
+      if (GS.hasTool('lente')) slots.push(['lens', keyName(Input.codesFor('lens')[0]), this.lens]);
+      slots.push(['eye', 'TAB', false]);
+      slots.push(['book', keyName(Input.codesFor('codex')[0]), false]);
+      let sx = W - 4 - slots.length * 21 + 1;
+      for (const [ic, key, on] of slots) { UIK.toolSlot(g, sx, 78, ic, key, on); sx += 21; }
     }
     if (def.hud) def.hud(g, this);
+    UIK._hudRects = rects;
   },
 };
 
+/** Indicación de conversación sobre un NPC: tecla + puntos animados, anclada sobre su cabeza real */
 function drawTalkPrompt(g, a, cam) {
-  const x = Math.round(a.x - cam.ox), y = Math.round(a.y - cam.oy - (a.bubbleH || 74) - 6 + Math.sin(Game.time * 5) * 1.5);
-  UIK.panel(g, x - 18, y, 36, 15, 'glass');
-  const key = keyName(Input.codesFor('interact')[0]);
-  frect(g, x - 14, y + 2, 11, 11, '#fffaf0'); drawText(g, key, x - 8, y + 4, { color: '#140d26', align: 'center' });
-  for (let i = 0; i < 3; i++) frect(g, x + 1 + i * 4, y + 7, 2, 2, (Math.floor(Game.time * 4) % 3) === i ? '#ffe14d' : '#fffaf0');
+  const x = Math.round(a.x - cam.ox);
+  const head = Math.max(a.bubbleH || 0, UIK.headTop(a.charId));
+  const y = Math.round(a.y - cam.oy - head - 24 + Math.sin(Game.time * 5) * 1.5);
+  UIK.interactPrompt(g, x, y, '', {});
 }
+/* Las indicaciones de estaciones usan el mismo lenguaje (tecla + píldora navy; verde si ya se completó).
+   Se conserva la geometría original de Station.renderPrompt (altura hY). */
+if (typeof Station !== 'undefined') Station.prototype.renderPrompt = function (g, cam, P) {
+  if (!this.near(P)) return;
+  const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy - (this.hY || 30) - 22 + Math.sin(Game.time * 4) * 1.5);
+  UIK.interactPrompt(g, x, y, this.label, { done: this.done, key: Input.touchMode ? 'E' : keyName(Input.codesFor('interact')[0]) });
+};
 function drawLadder(g, l, ox, oy) {
   const x = Math.round(l.x - ox), y0 = Math.round(l.y0 - oy), y1 = Math.round(l.y1 - oy);
   if (x < -20 || x > W + 20) return;
@@ -309,15 +319,15 @@ const PauseScene = {
   enter(p) { this.gp = p.gameplay; this.tab = p.tab || 'main'; Audio2.sfx('uiBack'); },
   update() { if (Input.pressed('cancel') || Input.pressed('pause')) { if (this.tab !== 'main') this.tab = 'main'; else Game.pop(); } },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.7);
+    UIK.scrim(g, 0.6);
     const x = W / 2 - 120, y = 40, w = 240;
-    UIK.panel(g, x, y, w, 270, 'dialog');
-    UIK.header(g, x, y, w, 'PAUSA · ' + (LEVELS[this.gp.levelId].title || ''), 'dialog', 'pause');
+    UIK.panel(g, x, y, w, this.tab === 'map' ? 140 : 246, 'tech');
+    UIK.header(g, x, y, w, 'PAUSA · ' + (LEVELS[this.gp.levelId].title || ''), 'tech', 'pause');
     Gui.begin();
     const B = (id, label, icon, fn, st) => { if (Gui.button(g, id, x + 20, this._y, w - 40, 22, label, { icon, align: 'left', style: st })) fn(); this._y += 26; };
     this._y = y + 26;
     if (this.tab === 'map') {
-      drawTextBlock(g, '¿Volver al mapa del Nexo? El progreso del nivel se conserva en el último punto de control.', x + 16, this._y, w - 32, { color: '#fffaf0' });
+      drawTextBlock(g, '¿Volver al mapa del Nexo? El progreso del nivel se conserva en el último punto de control.', x + 16, this._y, w - 32, { color: UI_INK.body });
       this._y += 50;
       B('ymap', 'Sí, ir al mapa', 'map', () => { Game.pop(); GS.save(); Game.transition(() => Game.setScene(WorldMapScene)); });
       B('nmap', 'Seguir aquí', 'play', () => { this.tab = 'main'; });
