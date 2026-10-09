@@ -505,6 +505,13 @@ LEVELS[10] = {
     drawSign(pb, 3000, gy(3000), 'NÚCLEO SYNARA', '#56e5ff');
   },
   /* ---------------- dinámico ---------------- */
+  /* ---------------- cielo: publica el estado de la tormenta para el panorama ---------------- */
+  skyFx(g, sc, cam) {
+    const S = sc.state, B = sc.backdrop, clear = clamp(S.clearK || 0, 0, 1);
+    B.calima = { storm: 1 - clear, gust: S.gust || 0, clear, transformed: !!S.transformed };
+    // al despejar vuelve el cielo azul (fundido sobre el cielo de polvo)
+    if (clear > 0.01 && B.skyClear) { g.globalAlpha = clear; g.drawImage(B.skyClear, 0, 0); g.globalAlpha = 1; }
+  },
   renderBack(g, sc, cam) {
     // relámpagos secos azul eléctrico dentro de la tormenta de polvo
     const S = sc.state, t = Game.time;
@@ -513,7 +520,7 @@ LEVELS[10] = {
     if (hash1(k, 9) > 0.55 && (t * 0.6 - k) < 0.08) {
       let x = hash1(k, 3) * W, y = 10;
       for (let i = 0; i < 14; i++) { const nx = x + (hash1(k, i) - 0.5) * 22, ny = y + 8 + hash1(i, k) * 6; fline(g, x, y, nx, ny, '#c6f6ff'); fline(g, x + 1, y, nx + 1, ny, '#56e5ff'); x = nx; y = ny; }
-      fdither(g, 0, 0, W, 140, '#56e5ff', 0.06);
+      VISTA.veil(g, 0, 0, W, 140, '#56e5ff', 0.06);
     }
   },
   renderMid(g, sc, cam) {
@@ -522,13 +529,13 @@ LEVELS[10] = {
     // pantalla de MIRAGE: la falsa elección (o MOSAICO con capas al final)
     { const x = CAL_X.screen - 60 - ox, y = gyw(CAL_X.screen) - 104; if (x > -140 && x < W + 20) {
       frect(g, x, y, 120, 72, '#1d0b3a');
-      if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a', '#b49cff']; for (let i = 0; i < 7; i++) fdither(g, x + 4, y + 6 + i * 8, 112, 6, cols[i], 0.55); drawText(g, 'ALTERNATIVAS: 4', x + 60, y + 30, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#06100a' }); }
+      if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a', '#b49cff']; for (let i = 0; i < 7; i++) VISTA.veil(g, x + 4, y + 6 + i * 8, 112, 6, cols[i], 0.55); drawText(g, 'ALTERNATIVAS: 4', x + 60, y + 30, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#06100a' }); }
       else {
         drawText(g, 'SELECCIONE UNA', x + 60, y + 5, { font: 'tiny', align: 'center', color: '#f27ee6' });
         ['A. AGUA', 'B. HIDRÓGENO', 'C. CULTIVOS'].forEach((s2, i) => { const on = !S.falseDone || ((Math.floor(t * 3) + i) % 3); frect(g, x + 10, y + 16 + i * 16, 100, 13, on ? '#3a1060' : '#1d0b3a'); drawText(g, s2, x + 60, y + 19 + i * 16, { align: 'center', color: '#ffd0e8', font: 'tiny' }); });
         if (S.falseDone) { drawText(g, 'D. ?', x + 104, y + 58, { font: 'tiny', color: (Math.floor(t * 4) % 2) ? '#c2f58e' : '#ffe14d', align: 'right' }); for (let i = 0; i < 4; i++) frect(g, x + hash1(i, Math.floor(t * 8)) * 110, y + hash1(Math.floor(t * 8), i) * 64, 8, 1, '#56e5ff'); }
       }
-      fdither(g, x, y, 120, 72, '#ffffff', 0.04 + 0.03 * Math.sin(t * 9));
+      VISTA.veil(g, x, y, 120, 72, '#ffffff', 0.04 + 0.03 * Math.sin(t * 9));
     } }
     // canal de captación: el color sigue a la turbidez
     { const x = 470 - ox, y = gyw(470) - 6; if (x > -160 && x < W + 20) {
@@ -538,28 +545,28 @@ LEVELS[10] = {
       for (let k = 0; k < 3; k++) { const fx = 660 + k * 44 - ox + 14, fy = gyw(660) - 50; const c = S.cards.toma ? (ntu > 60 ? '#ff4e5d' : ntu > 20 ? '#ffb93b' : '#86e36f') : ((Math.floor(t * 3) + k) % 2 ? '#ff4e5d' : '#6a1414'); frect(g, fx, fy, 5, 3, c); }
       const mode = S.cards.toma ? (ntu > 60 ? 'TOMA CERRADA' : ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA';
       frect(g, 650 - ox, gyw(650) - 104, 112, 11, '#05081d'); drawText(g, fmt0(ntu) + ' NTU · ' + mode, 706 - ox, gyw(650) - 102, { font: 'tiny', align: 'center', color: S.cards.toma ? '#ffe14d' : '#ff9a8a' });
-      Charts.flow(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
+      VISTA.flowClip(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
     } }
     // trenes de OI: luces por tren y permeado hacia el tanque
     { const x0 = 880 - ox; if (x0 > -320 && x0 < W + 20) {
       const on = S.cards.membranas ? (ntu > 60 && S.cards.toma ? 0 : 3) : 3;
       for (let k = 0; k < 3; k++) { const lx = 880 + 14 + k * 92 - ox, ly = gyw(880) - 62; frect(g, lx + 30, ly, 10, 3, k < on ? (S.cards.membranas ? '#86e36f' : '#ffb93b') : '#3a3a4a'); }
-      Charts.flow(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
-      if (!S.cards.membranas) { fdither(g, 880 - ox, gyw(880) - 96, 300, 96, '#a8742c', 0.08 + 0.04 * Math.sin(t * 4)); }
+      VISTA.flowClip(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
+      if (!S.cards.membranas) { VISTA.veil(g, 880 - ox, gyw(880) - 96, 300, 96, '#a8742c', 0.08 + 0.04 * Math.sin(t * 4)); }
       const lvl = clamp(S.tank / CalimaModel.TANK_CAP, 0, 1), tx = 1196 - ox + 4, ty = gyw(1196) - 6;
-      frect(g, tx, ty - Math.round(70 * lvl), 32, Math.round(70 * lvl), '#22bdd0'); fdither(g, tx, ty - Math.round(70 * lvl), 32, 3, '#a6f4ff', 0.6);
+      frect(g, tx, ty - Math.round(70 * lvl), 32, Math.round(70 * lvl), '#22bdd0'); VISTA.veil(g, tx, ty - Math.round(70 * lvl), 32, 3, '#a6f4ff', 0.6);
       drawText(g, fmt0(S.tank) + ' m³', 1216 - ox, gyw(1196) - 96, { font: 'tiny', align: 'center', color: '#a6f4ff' });
     } }
     // laguna de retención y válvula del difusor
     { const x = 1294 - ox, y = gyw(1294) - 2; if (x > -220 && x < W + 20) {
       const k = clamp(S.pond / CalimaModel.POND, 0, 1), lh = Math.max(1, Math.round(13 * (0.15 + 0.85 * k)));
-      frect(g, x, y - lh, 192, lh, '#bc3e92'); frect(g, x, y - lh, 192, 1, '#f888b8'); fdither(g, x, y - lh + 1, 192, lh - 1, '#621a66', 0.4);
+      frect(g, x, y - lh, 192, lh, '#bc3e92'); frect(g, x, y - lh, 192, 1, '#f888b8'); VISTA.veil(g, x, y - lh + 1, 192, lh - 1, '#621a66', 0.4);
       for (let i = 0; i < 10; i++) fpx(g, x + ((i * 19 + t * 12) % 192), y - lh + (i % 2), '#ffd8ec');
       const hold = S.cards.salmuera && S.tideBad;
       const vx = 1520 - ox, vy = gyw(1520) - 16;
       frect(g, vx + 3, vy, 8, 6, hold ? '#ff4e5d' : '#86e36f');
       drawText(g, hold ? 'RETENIENDO' : 'DIFUSOR', vx + 7, vy - 10, { font: 'tiny', align: 'center', color: hold ? '#ff9a8a' : '#c2f58e' });
-      Charts.flow(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
+      VISTA.flowClip(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
     } }
     // turbinas con ráfagas y corte por velocidad
     for (const x of CAL_TURB) { const sx = x - ox; if (sx < -80 || sx > W + 80) continue; const gust = S.gust > 0.75; ART.turbine(g, sx, gyw(x), 70, S.rotor + x * 0.01, { stopped: gust && !S.clearK }); }
@@ -573,7 +580,7 @@ LEVELS[10] = {
       drawText(g, S.cards.h2 ? 'SOLO EXCEDENTE' : '300 kW FIJOS', x + 60, gyw(2200) - 96, { font: 'tiny', align: 'center', color: S.cards.h2 ? '#c2f58e' : '#ff9a8a', shadow: '#2a0e0a' });
     } }
     // goteo del vivero y cortavientos
-    { const x = 2536 - ox; if (x > -140 && x < W + 20) { drawDrips(g, x, x + 114, gyw(2536) - 1, t, S.cards.agro || S.clearK > 0, 10); if (S.cards.agro) { for (let k = 0; k < 6; k++) fdither(g, x - 6 + k * 2, gyw(2536) - 34, 1, 34, '#c8861a', 0.6); } } }
+    { const x = 2536 - ox; if (x > -140 && x < W + 20) { drawDrips(g, x, x + 114, gyw(2536) - 1, t, S.cards.agro || S.clearK > 0, 10); if (S.cards.agro) { for (let k = 0; k < 6; k++) VISTA.veil(g, x - 6 + k * 2, gyw(2536) - 34, 1, 34, '#c8861a', 0.6); } } }
     // pantallas del núcleo: optimización opaca de MIRAGE → capas de MOSAICO
     for (let k = 0; k < 2; k++) { const x = 2902 + k * 250 - ox, y = gyw(2900) - 72; if (x < -80 || x > W + 10) continue;
       if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#f78acb', '#b49cff']; for (let i = 0; i < 5; i++) frect(g, x + 2, y + 2 + i * 8, 20 + ((i * 13 + k * 7) % 40), 6, cols[i]); drawText(g, k ? 'ESCENARIOS: 3' : 'INCERT.: VISIBLE', x + 33, y + 34, { font: 'tiny', align: 'center', color: '#fffaf0' }); }
@@ -582,7 +589,7 @@ LEVELS[10] = {
     // núcleo: holograma de MIRAGE / MOSAICO y flujo de datos de KIRU
     { const x = CAL_X.core - ox, y = gyw(CAL_X.core) - 120; if (x > -200 && x < W + 200) {
       if (S.dataFlow > 0 && sc.kiru) { const kx = sc.kiru.x - ox, ky = sc.kiru.y - oy - 20; for (let i = 0; i < 10; i++) { const u = ((t * 0.8 + i / 10) % 1); fdisc(g, lerp(kx, x, u), lerp(ky, y + 40, u) - Math.sin(u * Math.PI) * 30, 2, '#b49cff'); } }
-      if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff']; for (let i = 0; i < 7; i++) { const yy = y - 40 + i * 9 + Math.sin(t * 1.5 + i) * 2; fdither(g, x - 60 + i * 3, yy, 120 - i * 6, 6, cols[i], 0.5); } }
+      if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff']; for (let i = 0; i < 7; i++) { const yy = y - 40 + i * 9 + Math.sin(t * 1.5 + i) * 2; VISTA.veil(g, x - 60 + i * 3, yy, 120 - i * 6, 6, cols[i], 0.5); } }
       else if (S.coreOpen) { for (let i = 0; i < 26; i++) { const a = t * 2 + i; fpx(g, x + Math.cos(a) * (20 + i), y + Math.sin(a * 1.3) * 30, '#f27ee6'); } }
     } }
   },
@@ -590,7 +597,7 @@ LEVELS[10] = {
     const S = sc.state, t = Game.time, storm = 1 - (S.clearK || 0);
     if (storm <= 0.02) return;
     // bandas de polvo que barren la escena
-    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; fdither(g, x, y, 360, 18, '#e2a052', (0.05 + 0.05 * S.gust) * storm); }
+    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.25 + 0.25 * S.gust) * storm); }
     // visibilidad reducida: velo tramado con claro alrededor de Amaya y KIRU
     const P = sc.player; if (!P) return;
     const cx = Math.round(P.x - cam.x), cy = Math.round(P.y - cam.y - 30);
@@ -694,22 +701,16 @@ LEVELS[10] = {
   },
 };
 
-/* velo de polvo: máscaras precalculadas con un claro circular (tramado ordenado) */
+/* velo de polvo: máscaras precalculadas con un claro circular (alfa en bandas, sin tramado) */
 const CAL_VEIL = {};
 function calVeilMask(level) {
   if (CAL_VEIL[level]) return CAL_VEIL[level];
-  const w = W * 2, h = H * 2, c = document.createElement('canvas'); c.width = w; c.height = h;
-  const ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data;
-  const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-  const dens = [0.22, 0.32, 0.42][level];
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const dd = Math.hypot(x - w / 2, (y - h / 2) * 1.25);
-    const f = clamp((dd - 150) / 330, 0, 1) * dens;
-    if (B[(y & 3) * 4 + (x & 3)] / 16 < f) { const i = (y * w + x) * 4; d[i] = 0x5a; d[i + 1] = 0x24; d[i + 2] = 0x10; d[i + 3] = 255; }
-  }
-  ctx.putImageData(img, 0, 0);
-  CAL_VEIL[level] = c; return c;
+  CAL_VEIL[level] = VISTA.veilMask(W * 2, H * 2, { r0: 150, r1: 330, dens: [0.22, 0.32, 0.42][level], col: '#5a2410', bands: 7, sy: 1.25 });
+  return CAL_VEIL[level];
 }
+/* jirones de polvo que barren la escena (velo en bandas, sin tramado) */
+const CAL_WISP = [];
+function calWisp(i) { return CAL_WISP[i % 5] || (CAL_WISP[i % 5] = VISTA.dustVeil(W + 360, 22, { seed: 50 + i, a0: 0.1, a1: 0.55, billow: 0.5, topK: 0.45, dense: false, cols: ['#a85a2a', '#c87a40', '#e2a052', '#f0c07a'] })); }
 function calVeil(g, cx, cy, k) {
   if (k < 0.15) return;
   const lvl = k > 0.62 ? 2 : k > 0.42 ? 1 : 0;

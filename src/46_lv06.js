@@ -55,6 +55,11 @@ LEVELS[6] = {
     drawSign(pb, 2460, 250, 'ASCENSOR · CIUDADELA H2', '#56e5ff');
   },
   /* ---------------- dinámico ---------------- */
+  /* ---------------- panorama: publica el estado de la microrred para el fondo ---------------- */
+  skyFx(g, sc) {
+    const S = sc.state;
+    sc.backdrop.vault = { soc: S.blackout ? 0 : (S.soc ?? 0.28), charging: S.charging || 0, blackout: !!S.blackout };
+  },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, w = sc.world, ox = cam.x, oy = cam.y;
     const gy = (x) => w.groundAt(x) - oy;
@@ -66,7 +71,7 @@ LEVELS[6] = {
       if (!S.blackout) drawSOCStrip(g, sx + 8, gy(x) - 110, 48, soc, t, S.charging || 0);
     }
     // flujo por la barra de cobre: hacia el electrolizador (arriba) o a cargas críticas
-    if (!S.blackout) Charts.flow(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
+    if (!S.blackout) VISTA.flowClip(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
     // arcos eléctricos temporizados (peligro no letal)
     for (let i = 0; i < ARCS.length; i++) {
       const a = ARCS[i], hz = w.hazards[i];
@@ -74,7 +79,7 @@ LEVELS[6] = {
       hz.on = !S.blackout && ph < 0.8;
       const sx = a.x - ox, top = 198 - oy, bot = gy(a.x);
       frect(g, sx + 4, top, 3, 4, '#c8861a'); frect(g, sx + a.w - 7, bot - 4, 3, 4, '#c8861a');
-      if (hz.on) { let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } fdither(g, sx - 6, top, a.w + 12, bot - top, '#56e5ff', 0.12); }
+      if (hz.on) { let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } VISTA.veil(g, sx - 6, top, a.w + 12, bot - top, '#56e5ff', 0.12); }
       else if (ph > 1.8) for (let k = 0; k < 3; k++) fpx(g, sx + 6 + Math.random() * 10, top + 6 + Math.random() * 10, '#a6e6ff');
     }
     // pantallas de control

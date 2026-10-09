@@ -116,9 +116,9 @@ LEVELS[9] = {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, gy = 292 - oy;
     // holograma del gemelo: ciudad "perfecta" de MIRAGE sin personas (o Mosaico con capas)
     const hx = 1440 - ox, hy = gy - 70;
-    for (let i = 0; i < 10; i++) fdither(g, hx - 10 - i * 5, gy - 31 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
-    if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; fdither(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
-    else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) fdither(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
+    for (let i = 0; i < 10; i++) VISTA.veil(g, hx - 10 - i * 5, gy - 31 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
+    if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
+    else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
     // pantallas del observatorio
     for (let k = 0; k < 3; k++) { const x = 1736 + k * 70 - ox, y = 166 - oy; for (let i = 0; i < 4; i++) frect(g, x + 4, y + 4 + i * 7, 6 + ((i * 11 + Math.floor(t * 2) + k * 3) % 40), 2, ['#eab02a', '#4ccb70', '#ff6b6b'][k]); }
     // cielo de calima que avanza al final
