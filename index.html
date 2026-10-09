@@ -7176,6 +7176,7 @@ const Portraits = {
     let c = this.cache.get(k);
     if (c) return c;
     c = this._make(id, expr, talk ? 1 : 0, !!blink, 'P').toCanvas();
+    this.anchor(c, id, 'P');
     this.cache.set(k, c);
     if (this.cache.size > 400) this.cache.delete(this.cache.keys().next().value);
     return c;
@@ -7186,8 +7187,16 @@ const Portraits = {
     let c = this.cache.get(k);
     if (c) return c;
     c = this._make(id, expr, talk ? 1 : 0, !!blink, 'B').toCanvas();
+    this.anchor(c, id, 'B');
     this.cache.set(k, c);
     if (this.cache.size > 400) this.cache.delete(this.cache.keys().next().value);
+    return c;
+  },
+  /** Centro de la cara en el lienzo (c.faceX, c.faceY): para recortes 1:1 en la interfaz */
+  anchor(c, id, scale) {
+    const def = pdef(PDEFS[id] ? id : 'amaya'), sc = PSCALE[scale];
+    const f = def.faceAt || [66, 52];
+    c.faceX = Math.round((f[0] - sc.ox) * sc.S); c.faceY = Math.round((f[1] - sc.oy) * sc.S);
     return c;
   },
   /** alias del análisis (02_personajes §5.5) */
@@ -7445,7 +7454,7 @@ const PH_HAT = {
     const st = (x, y, i) => { const fx = Math.floor(x), fy = Math.floor(y); return (fy % 2 === 0 && (fx + (fy >> 1)) % 3 === 0) ? Math.max(1, i - 1) : ((fx * 2 + fy) % 7 === 0 ? Math.min(6, i + 1) : i); };
     const on = ['face', 'ear', 'hair', 'bang0', 'bang1', 'neck', 'braid0', 'braid1'];
     P.ellipse(57, 13, 21, 12.5, { mat: M.straw, z: 70, group: 'crown', base: 3, bevel: 6, tex: st });
-    P.ellipse(58, 25, 47, 8.5, { mat: M.straw, z: 71, group: 'brim', base: 4, bevel: 4, tex: st, cast: { on, dx: -1, dy: 6, k: 1 } }, -0.05);
+    P.ellipse(55, 25, 41, 8.5, { mat: M.straw, z: 71, group: 'brim', base: 4, bevel: 4, tex: st, cast: { on, dx: -1, dy: 6, k: 1 } }, -0.05);
     P.box(57, 20.5, 20.5, 2.6, 1.2, { mat: M.band, z: 72, group: 'band', base: 4, bevel: 1.5 });
     P.stamp((pb, c) => {
       const X = c.X, Y = c.Y;
@@ -7569,7 +7578,7 @@ function phMake(cfg) {
     const iris = phIris(cfg.iris || (spr && spr.iris) || ['#1a0a06', '#3a2010', '#6a4422']);
     const sk = M.skin.ramp;
     return {
-      M, iris, head: cfg.head, face: cfg.face, neck: cfg.neck, dx: cfg.dx, dy: cfg.dy, shadeK: cfg.shadeK,
+      M, iris, head: cfg.head, face: cfg.face, faceAt: cfg.faceAt, neck: cfg.neck, dx: cfg.dx, dy: cfg.dy, shadeK: cfg.shadeK,
       lash: cfg.lash || shade(sk[0], -0.3), lashSoft: cfg.lashSoft || sk[1], brow: cfg.brow || M.hair.ramp[1], browDY: cfg.browDY, browOverHair: cfg.browOverHair,
       mouthInk: cfg.mouthInk || shade(sk[1], -0.15), mouthIn: cfg.mouthIn || '#6a1e1a', tongue: '#d8606a', blush: cfg.blush || mixHex(sk[4], '#ff5a6a', cfg.male ? 0.3 : 0.55), blushAlways: cfg.blushAlways || 0,
       rimColor: cfg.rimColor || '#ffc89a', rimK: cfg.rimK ?? 0.16, white: cfg.white,
@@ -7616,7 +7625,7 @@ PDEFS.cobre = phMake({
 });
 /* ---------- Alma Semilla — niña ---------- */
 PDEFS.alma = phMake({
-  sprite: 'alma', outfit: 'tee', torso: 'child', hair: 'curly', blushAlways: 0.8, iris: ['#0e2a16', '#2a6a3a', '#7ab86a'],
+  sprite: 'alma', faceAt: [64, 57], outfit: 'tee', torso: 'child', hair: 'curly', blushAlways: 0.8, iris: ['#0e2a16', '#2a6a3a', '#7ab86a'],
   mats: () => ({ skin: PK.mat(RAMP.skinA, '#1e0c0a', RAMP.skinA[2]), hair: PK.mat(RAMP.hairA, '#08040a', RAMP.hairA[1]), top: MAT.nairaShirt, tie: RAMP.coral }),
   lash: '#140606', brow: '#321c3a', dy: 7, hdy: 7, hk: 0.9, head: { rx: 23.5, ry: 24.5, chinY: 26, chinX: 3, soft: 6 }, face: { eyeY: 7, eyeNX: -6, eyeFX: 15, mouthY: 18.5, noseY: 12.5, noseX: 6.5, mouthX: 3.5, earX: -21.5, earY: 9 }, neck: { w: 5.5 }, blush: '#ff8a7a',
   acc(P) {
@@ -7719,7 +7728,7 @@ PDEFS.kiru = () => {
     P.ellipse(hx + 11.4, hy + 3.5, 24.6, 22.9, { mat: M.rim, z: 21, group: 'visorRim', base: 3, flat: true });
     const vis = SDF.smoothUnion(6.6, SDF.box(vx, vy, 22, 20.5, 14.3), SDF.ellipse(vx, vy, 22.4, 20.9));
     P.custom(vis, [vx - 25, vy - 23, vx + 25, vy + 23], { mat: M.visor, z: 22, group: 'visor', base: 2, line: false, rim: false,
-      shade: (x, y) => { const dx = x - vx, dy = y - vy; return dx + dy * 1.2 > 17 ? 1 : 2; } });
+      shade: (x, y) => { const dx = x - vx, dy = y - vy; return dx + dy * 1.1 > 24 ? 1 : 2; } });
     P.stamp((pb, c) => {
       const X = c.X, Y = c.Y, sm = c.S < 1;
       // barrido sutil cada 3.ª fila del visor
@@ -7766,6 +7775,11 @@ PDEFS.kiru = () => {
     for (const k of cells.keys()) { const r = Math.floor(k / 64), x = (k % 64) - 32; for (const [ax, ay] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { const kk = (r + ay) * 64 + (x + ax + 32); if (!cells.has(kk)) pb.set(cx + x + ax, cy - Math.floor(h / 2) + r + ay, PAL.g); } }
     for (const [k, t] of cells) { const r = Math.floor(k / 64), x = (k % 64) - 32; pb.set(cx + x, cy - Math.floor(h / 2) + r, PAL[t]); }
   }
+  function bar(pb, cx, cy, w) {
+    const x0 = cx - (w >> 1);
+    pb.hline(x0, x0 + w - 1, cy - 2, PAL.g); pb.hline(x0, x0 + w - 1, cy + 2, PAL.g); pb.set(x0 - 1, cy, PAL.g); pb.set(x0 - 1, cy - 1, PAL.g); pb.set(x0 - 1, cy + 1, PAL.g); pb.set(x0 + w, cy, PAL.g); pb.set(x0 + w, cy - 1, PAL.g); pb.set(x0 + w, cy + 1, PAL.g);
+    pb.hline(x0, x0 + w - 1, cy - 1, PAL.c); pb.hline(x0, x0 + w - 1, cy, PAL.w); pb.hline(x0, x0 + w - 1, cy + 1, PAL.b);
+  }
   function arc(pb, cx, cy, w, up, thick = 3) {
     for (let x = -w; x <= w; x++) {
       const y = Math.round((up ? -1 : 1) * (Math.sqrt(Math.max(0, 1 - (x / (w + 0.5)) ** 2)) * (w * 0.55)));
@@ -7780,23 +7794,23 @@ PDEFS.kiru = () => {
   }
   function eyes96(pb, mode, blink, X, Y) {
     const nx = X(vx - 6.6), fx = X(vx + 7.7), ey = Y(vy - 2.2);
-    if (blink) { capsule(pb, nx, ey + 6, 9, 3); capsule(pb, fx, ey + 6, 6, 3); return; }
+    if (blink) { bar(pb, nx, ey + 6, 9); bar(pb, fx, ey + 6, 7); return; }
     switch (mode) {
       case 'happy': arc(pb, nx, ey + 2, 5, true); arc(pb, fx, ey + 2, 4, true); break;
       case 'calm': arc(pb, nx, ey + 1, 5, false); arc(pb, fx, ey + 1, 4, false); break;
-      case 'big': capsule(pb, nx, ey - 1, 10, 19); capsule(pb, fx, ey - 1, 7, 18); break;
-      case 'smile': capsule(pb, nx, ey + 1, 7, 13); capsule(pb, fx, ey + 1, 5, 12); break;
+      case 'big': capsule(pb, nx, ey - 1, 11, 21); capsule(pb, fx, ey - 1, 8, 20); pb.rect(nx - 1, ey - 2, 2, 3, '#ffffff'); pb.rect(fx, ey - 2, 1, 3, '#ffffff'); break;
+      case 'smile': capsule(pb, nx, ey + 1, 8, 15); capsule(pb, fx, ey + 1, 6, 14); break;
       case 'down': capsule(pb, nx - 1, ey + 4, 7, 11, { slope: 0.9, side: 1 }); capsule(pb, fx, ey + 4, 5, 10, { slope: 0.9, side: -1 }); break;
       case 'guilty': capsule(pb, nx - 2, ey + 6, 7, 8, { flat: 2 }); capsule(pb, fx - 1, ey + 6, 5, 7, { flat: 2 }); break;
       case 'crying': capsule(pb, nx - 1, ey + 4, 7, 11, { slope: 0.9, side: 1 }); capsule(pb, fx, ey + 4, 5, 10, { slope: 0.9, side: -1 }); for (let k = 0; k < 5; k++) pb.set(nx - 2, ey + 10 + k, k === 4 ? '#e6fdff' : PAL.t); break;
       case 'brave': capsule(pb, nx, ey + 1, 7, 15, { slope: 0.7, side: -1 }); capsule(pb, fx, ey + 1, 5, 14, { slope: 0.7, side: 1 }); break;
       case 'focus': capsule(pb, nx, ey + 2, 7, 13, { flat: 3 }); capsule(pb, fx, ey + 2, 5, 12, { flat: 3 }); break;
-      case 'tired': capsule(pb, nx, ey + 6, 9, 3); capsule(pb, fx, ey + 6, 7, 3); pb.hline(nx - 3, nx + 3, ey + 9, PAL.b); pb.hline(fx - 2, fx + 2, ey + 9, PAL.b); break;
-      case 'skeptical': capsule(pb, nx, ey, 7, 16); capsule(pb, fx, ey + 5, 6, 4); break;
-      case 'mixed': capsule(pb, nx, ey, 7, 15); capsule(pb, fx, ey + 5, 6, 4);
+      case 'tired': bar(pb, nx, ey + 6, 9); bar(pb, fx, ey + 6, 7); pb.hline(nx - 3, nx + 3, ey + 9, PAL.b); pb.hline(fx - 2, fx + 2, ey + 9, PAL.b); break;
+      case 'skeptical': capsule(pb, nx, ey, 8, 18); bar(pb, fx, ey + 5, 7); break;
+      case 'mixed': capsule(pb, nx, ey, 8, 17); bar(pb, fx, ey + 5, 7);
         pb.stampMap(fx + 4, ey - 12, ['.yyy.', 'y...y', '....y', '...y.', '..y..', '.....', '..y..'], { y: PAL.y }); break;
       case 'star': star(pb, nx, ey, 6); star(pb, fx, ey, 5); break;
-      default: capsule(pb, nx, ey, 7, 16); capsule(pb, fx, ey, 5, 15);
+      default: capsule(pb, nx, ey, 8, 18); capsule(pb, fx, ey, 6, 17);
     }
   }
   function mouth(pb, mode, talk, X, Y, sm) {
@@ -7815,7 +7829,7 @@ PDEFS.kiru = () => {
     else pb.stampMap(mx - 2, my, ['ggggg', 'gbbbg', 'ggggg'], PAL);
   }
   return {
-    M, custom: build,
+    M, custom: build, faceAt: [62, 57],
     faceFn(Pt, scale, name, E, talk, blink, raw) {
       const KE = typeof KIRU_EYES !== 'undefined' ? KIRU_EYES : {};
       const mode = KE[raw] || KE[name] || 'open';
@@ -7850,44 +7864,48 @@ PDEFS.limen = () => {
   function build(scale, sc) {
     const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
     const facet = (pts, base, z, g) => P.poly(pts, { mat: M.cr, z, group: g, base, flat: true, line: true, lineU: U(L[5]) });
-    // hombros
-    for (const s of [-1, 1]) {
-      facet([[cx + s * 14, 70], [cx + s * 44, 80], [cx + s * 46, 99], [cx + s * 10, 99]], s < 0 ? 2 : 4, 4, 'sh' + s);
-      facet([[cx + s * 14, 70], [cx + s * 10, 99], [cx, 99], [cx, 74]], s < 0 ? 3 : 5, 4.1, 'sh2' + s);
-      facet([[cx + s * 30, 76], [cx + s * 44, 80], [cx + s * 40, 86]], s < 0 ? 4 : 6, 4.2, 'sh3' + s);
-    }
-    facet([[cx - 7, 62], [cx + 7, 62], [cx + 4, 78], [cx - 4, 78]], 2, 5, 'neck');
-    // cabeza: octaedro de 4 facetas + facetas de mejilla
-    const top = [cx + 1, 4], l = [cx - 23, 38], r = [cx + 24, 36], b = [cx, 70], m = [cx + 2, 40];
-    facet([top, l, m], 3, 10, 'f1'); facet([top, m, r], 5, 10.1, 'f2');
-    facet([l, m, b], 2, 10.2, 'f3'); facet([m, r, b], 4, 10.3, 'f4');
-    facet([top, [cx - 10, 18], [cx - 3, 30]], 5, 10.4, 'f5'); facet([[cx + 12, 24], r, [cx + 16, 46]], 6, 10.5, 'f6');
-    facet([l, [cx - 12, 52], [cx - 18, 46]], 1, 10.6, 'f7');
-    // halo de esquirlas
-    for (let i = 0; i < 7; i++) {
-      const a = -Math.PI * 0.95 + i * Math.PI * 0.95 / 3, rx = 40, ry = 30;
-      const x = cx + Math.cos(a) * rx, y = 38 + Math.sin(a) * ry;
-      if (y > 60) continue;
-      const nx = Math.cos(a), ny = Math.sin(a), tx = -ny, ty = nx, len = 7 + (i % 2) * 3, wd = 2.6;
-      facet([[x - nx * len * 0.3, y - ny * len * 0.3], [x + tx * wd, y + ty * wd], [x + nx * len, y + ny * len]], Math.cos(a - 0.9) > 0 ? 5 : 3, 6 + i * 0.01, 'sa' + i);
-      facet([[x - nx * len * 0.3, y - ny * len * 0.3], [x - tx * wd, y - ty * wd], [x + nx * len, y + ny * len]], Math.cos(a - 0.9) > 0 ? 4 : 2, 6.005 + i * 0.01, 'sb' + i);
-    }
+    // hombros de placas cristalinas + hombreras + cuello y collar
+    facet([[6, 99], [12, 82], [30, 73], [41, 79], [37, 99]], 2, 4, 'shL'); facet([[37, 99], [41, 79], [47, 83], [47, 99]], 1, 4.1, 'shL2');
+    facet([[92, 99], [86, 82], [68, 73], [57, 79], [61, 99]], 4, 4.2, 'shR'); facet([[61, 99], [57, 79], [51, 83], [51, 99]], 5, 4.3, 'shR2');
+    facet([[47, 99], [47, 83], [49, 80], [51, 83], [51, 99]], 3, 4.4, 'chest');
+    facet([[8, 80], [22, 66], [31, 72], [16, 84]], 3, 4.5, 'pdL'); facet([[90, 80], [76, 66], [67, 72], [82, 84]], 5, 4.6, 'pdR');
+    facet([[43, 60], [55, 60], [53, 73], [45, 73]], 2, 5, 'neck');
+    facet([[38, 73], [49, 67], [49, 78]], 3, 5.1, 'colL'); facet([[60, 73], [49, 67], [49, 78]], 5, 5.2, 'colR');
+    // cabeza: rombo de 8 facetas alrededor del núcleo (luz arriba-derecha)
+    const T = [49, 3], UL = [33, 19], Lf = [25, 38], LL = [34, 56], B = [49, 68], LR = [64, 55], Rt = [74, 37], UR = [65, 18], C = [50, 39];
+    facet([T, UR, C], 5, 10, 'h1'); facet([UR, Rt, C], 4, 10.1, 'h2'); facet([Rt, LR, C], 3, 10.2, 'h3'); facet([LR, B, C], 2, 10.3, 'h4');
+    facet([B, LL, C], 2, 10.4, 'h5'); facet([LL, Lf, C], 1, 10.5, 'h6'); facet([Lf, UL, C], 2, 10.6, 'h7'); facet([UL, T, C], 4, 10.7, 'h8');
+    facet([[49, 3], [56, 10], [52, 22]], 6, 10.8, 'h9'); facet([[66, 20], [74, 36], [69, 33]], 5, 10.9, 'h10');
+    // halo de esquirlas flotantes
+    const ring = [-2.95, -2.45, -1.95, -1.2, -0.62, -0.18, 2.85, 0.32];
+    ring.forEach((a, i) => {
+      const x = 49 + Math.cos(a) * 38, y = 37 + Math.sin(a) * 32;
+      const nx = Math.cos(a), ny = Math.sin(a), tx = -ny, ty = nx, len = 7 + (i % 3) * 2.5, wd = 2.8;
+      const lit = Math.cos(a + 0.9) > 0;
+      facet([[x - nx * len * 0.35, y - ny * len * 0.35], [x + tx * wd, y + ty * wd], [x + nx * len, y + ny * len]], lit ? 5 : 3, 6 + i * 0.01, 'sa' + i);
+      facet([[x - nx * len * 0.35, y - ny * len * 0.35], [x - tx * wd, y - ty * wd], [x + nx * len, y + ny * len]], lit ? 4 : 2, 6.005 + i * 0.01, 'sb' + i);
+    });
     P.stamp((pb, c) => {
       const X = c.X, Y = c.Y;
-      pb.line(X(cx - 18), Y(34), X(cx - 2), Y(8), '#ffffff'); pb.line(X(cx + 6), Y(60), X(cx + 18), Y(42), '#c4fbff');
-      if (c.S >= 1) { pb.set(X(cx + 10), Y(14), '#ffffff'); pb.set(X(cx + 11), Y(15), '#c4fbff'); }
+      pb.line(X(30), Y(34), X(46), Y(8), '#ffffff'); pb.line(X(56), Y(62), X(68), Y(46), '#c4fbff');
+      // canal de energía del pecho
+      pb.vline(X(49), Y(80), Y(99), '#c4fbff'); if (c.S >= 1) { pb.stampMap(X(49) - 2, Y(88) - 2, ['..a..', '.aba.', 'abcba', '.aba.', '..a..'], { a: L[3], b: L[5], c: '#ffffff' }); pb.set(X(58), Y(12), '#ffffff'); pb.set(X(59), Y(13), '#c4fbff'); }
     }, 5);
+    P.post((pb, c) => {
+      const X = c.X, Y = c.Y;
+      for (const [x, y] of [[10, 30], [86, 22], [14, 60], [90, 58], [30, 8], [72, 6]]) { pb.set(X(x), Y(y), '#7ee8f0'); if (c.S >= 1) { pb.set(X(x) + 1, Y(y), '#1f8aa8'); pb.set(X(x), Y(y) - 1, '#e6fdff'); } }
+    });
     return P.render({ rim: false, outlineColor: '#0b2238' });
   }
   return {
-    M, custom: build,
+    M, custom: build, faceAt: [50, 39],
     faceFn(Pt, scale, name, E, talk, blink) {
       const base = Pt.base('limen', scale);
       const pb = pbClone(base.pb), S = base.S, sm = scale === 'B';
       const X = (x) => Math.floor((x - base.ox) * S), Y = (y) => Math.floor((y - base.oy) * S);
       const mood = ['alert', 'angry', 'scared', 'surprised', 'frustrated', 'alarmado'].includes(name) ? 'alert' : ['warn', 'worried', 'sad', 'tired', 'guilty', 'skeptical'].includes(name) ? 'warn' : 'calm';
       const core = mood === 'alert' ? RAMP.coral : mood === 'warn' ? RAMP.yellow : RAMP.cyan;
-      const ccx = X(cx + 1), ccy = Y(39), r = sm ? 5 : 10;
+      const ccx = X(50), ccy = Y(39), r = sm ? 5 : 10;
       // anillo oscuro + núcleo con bandas (luz arriba-derecha) + pupila en rendija
       for (let y = -r - 2; y <= r + 2; y++) for (let x = -r - 2; x <= r + 2; x++) {
         const d = Math.hypot(x + 0.5, y + 0.5);
@@ -7950,7 +7968,7 @@ function twinDef(mosaic) {
       return r;
     }
     return {
-      M, custom: build,
+      M, custom: build, faceAt: [50, 38],
       faceFn(Pt, scale, name, E, talk, blink) {
         const base = Pt.base(mosaic ? 'mosaico' : 'mirage', scale);
         const pb = pbClone(base.pb), S = base.S, sm = scale === 'B', c = base.ctx;
@@ -8022,7 +8040,7 @@ PDEFS.beta9 = () => {
     return P.render({ rimK: 0.2, rimColor: '#9fe8ff', outlineColor: '#0a0c16' });
   }
   return {
-    M, custom: build,
+    M, custom: build, faceAt: [48, 40],
     faceFn(Pt, scale, name, E, talk, blink) {
       const base = Pt.base('beta9', scale);
       const pb = pbClone(base.pb), S = base.S, sm = scale === 'B';
