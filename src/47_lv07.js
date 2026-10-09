@@ -97,10 +97,10 @@ LEVELS[7] = {
       if (S.thermal) { for (let i = 0; i < 30; i++) { const a = Math.random() * 0.8 - 0.4, r = Math.random() * 18; fpx(g, lx + Math.sin(a) * r, ly - Math.cos(a) * r, ['#ffe14d', '#ff9f43', '#ff4e5d', '#ffffff'][i % 4]); } }
       else if (Math.random() < 0.3) fpx(g, lx + (Math.random() - 0.5) * 6, ly - Math.random() * 10, '#c6d8ff');
       // luces de alarma ámbar
-      if ((Math.floor(t * 3) % 2) === 0) { fdither(g, 760 - ox, 150 - oy, 500, 140, '#ffb93b', 0.08); }
+      if ((Math.floor(t * 3) % 2) === 0) { VISTA.veil(g, 760 - ox, 150 - oy, 500, 140, '#ffb93b', 0.08); }
     }
     // escudo cristalino de LIMEN protegiendo al equipo
-    if (S.shield > 0) { const sx = S.shieldX - ox, sy = gy - 40; for (let a = 0; a < 40; a++) { const an = a / 40 * Math.PI; fpx(g, sx + Math.cos(an) * 46, sy - Math.sin(an) * 40, (a + Math.floor(t * 10)) % 3 ? '#7ee8f0' : '#ffffff'); } fdither(g, sx - 44, sy - 40, 88, 40, '#c4fbff', 0.12 * S.shield); }
+    if (S.shield > 0) { const sx = S.shieldX - ox, sy = gy - 40; for (let a = 0; a < 40; a++) { const an = a / 40 * Math.PI; fpx(g, sx + Math.cos(an) * 46, sy - Math.sin(an) * 40, (a + Math.floor(t * 10)) % 3 ? '#7ee8f0' : '#ffffff'); } VISTA.veil(g, sx - 44, sy - 40, 88, 40, '#c4fbff', 0.12 * S.shield); }
     // pantallas de seguridad
     for (let k = 0; k < 3; k++) { const x = 1972 + k * 68 - ox, y = 142 - oy; for (let i = 0; i < 5; i++) frect(g, x + 4, y + 4 + i * 5, 6 + ((i * 9 + Math.floor(t * 3) + k) % 40), 1, S.leak ? '#ffb93b' : '#56e5ff'); }
   },
