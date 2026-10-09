@@ -208,3 +208,102 @@ function fshadow(g, cx, cy, rx, ry, col = 'rgba(20,13,38,1)', level = 0.5) {
     if (hw > 0) g.fillRect(Math.round(cx - hw), Math.round(cy + y), hw * 2, 1);
   }
 }
+
+/* =====================================================================
+   Pases del rediseño de personajes (STYLE LOCK §10): contorno por
+   material, sellos por mapa de caracteres, luz de borde y limpieza.
+   Todo es aditivo: no altera el comportamiento de los métodos previos.
+   ===================================================================== */
+/**
+ * Sello desde mapa de caracteres. rows: array de strings; pal: {char: hex|u32|null}.
+ * Los caracteres sin entrada en la paleta son transparentes. flip refleja en X.
+ */
+PixelBuffer.prototype.stampMap = function (x, y, rows, pal, flip = false) {
+  x = Math.round(x); y = Math.round(y);
+  for (let j = 0; j < rows.length; j++) {
+    const row = rows[j], n = row.length;
+    for (let i = 0; i < n; i++) {
+      let c = pal[row[i]];
+      if (c == null) continue;
+      if (typeof c === 'string') c = U(c);
+      this.set(flip ? x + n - 1 - i : x + i, y + j, c);
+    }
+  }
+  return this;
+};
+/**
+ * Contorno exterior por parte: un píxel transparente con vecino opaco (4-vecindad) toma el
+ * color de contorno (mat.outlineU) de la parte vecina más al frente (zb = índice de parte, −1 = sello).
+ * fallback(nbU32) | hex se usa para vecinos sin parte. Devuelve la máscara de contorno.
+ */
+PixelBuffer.prototype.outlineByPart = function (zb, parts, fallback) {
+  const w = this.w, h = this.h, d = this.data, out = new Uint32Array(d);
+  const mask = new Uint8Array(w * h);
+  const fb = typeof fallback === 'string' ? U(fallback) : fallback;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (d[i] >>> 24) continue;
+    let best = -1, nbc = 0;
+    for (let k = 0; k < 4; k++) {
+      const j = k === 0 ? (y < h - 1 ? i + w : -1) : k === 1 ? (x > 0 ? i - 1 : -1) : k === 2 ? (x < w - 1 ? i + 1 : -1) : (y > 0 ? i - w : -1);
+      if (j < 0 || !(d[j] >>> 24)) continue;
+      if (zb[j] > best) best = zb[j];
+      if (!nbc) nbc = d[j];
+    }
+    if (!nbc) continue;
+    const P = best >= 0 ? parts[best] : null;
+    out[i] = P && P.mat && P.mat.outlineU ? P.mat.outlineU : (typeof fb === 'function' ? fb(nbc) : (fb != null ? fb : darkOf(nbc, -0.8)));
+    mask[i] = 1;
+  }
+  d.set(out);
+  return mask;
+};
+/**
+ * Luz de borde de 1 px: píxeles opacos cuyo vecino trasero (dirX) o superior es transparente
+ * se mezclan k hacia rimHex. sel(i, lado, arriba) filtra (p. ej. por material o banda).
+ */
+PixelBuffer.prototype.rimPass = function (rimHex, k = 0.4, sel = null, dirX = -1) {
+  const w = this.w, h = this.h, d = this.data, out = new Uint32Array(d);
+  const rr = hexToRgb(rimHex);
+  for (let y = 1; y < h; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    if (!(d[i] >>> 24)) continue;
+    const side = !(d[i + dirX] >>> 24), top = !(d[i - w] >>> 24);
+    if (!side && !top) continue;
+    if (sel && !sel(i, side, top)) continue;
+    const c = d[i], r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255;
+    const kk = Math.min(1, side && top ? k * 1.3 : k);
+    out[i] = ((255 << 24) | (Math.round(b + (rr[2] - b) * kk) << 16) | (Math.round(g + (rr[1] - g) * kk) << 8) | Math.round(r + (rr[0] - r) * kk)) >>> 0;
+  }
+  d.set(out);
+  return this;
+};
+/**
+ * Limpieza (STYLE LOCK §10). Sin máscara (antes del contorno): quita motas opacas aisladas
+ * (0 vecinos opacos en 4-vecindad) y rellena agujeros de 1 px rodeados por 4 lados.
+ * Con máscara de contorno (después): quita espuelas de contorno (3+ vecinos transparentes y sin
+ * relleno en 4-vecindad) y esquinas redundantes en L de la escalera ("pixel-perfect").
+ */
+PixelBuffer.prototype.cleanup = function (mask = null) {
+  const w = this.w, h = this.h, d = this.data;
+  const op = (i) => (d[i] >>> 24) !== 0;
+  if (!mask) {
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x, n = op(i - 1) + op(i + 1) + op(i - w) + op(i + w);
+      if (op(i) && n === 0) d[i] = 0;
+      else if (!op(i) && n === 4) d[i] = d[i - 1];
+    }
+    return this;
+  }
+  const body = (i) => op(i) && !mask[i];
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    if (!mask[i]) continue;
+    const L = i - 1, R = i + 1, T = i - w, B = i + w;
+    if (body(L) || body(R) || body(T) || body(B)) continue;
+    const tr = !op(L) + !op(R) + !op(T) + !op(B);
+    const mh = mask[L] ? L : mask[R] ? R : -1, mv = mask[T] ? T : mask[B] ? B : -1;
+    if (tr >= 3 || (mh >= 0 && mv >= 0 && body(mv + (mh - i)))) { d[i] = 0; mask[i] = 0; }
+  }
+  return this;
+};
