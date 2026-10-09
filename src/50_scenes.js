@@ -107,8 +107,8 @@ const TitleScene = {
     this.ps.render(g);
     // logotipo
     const ly = 22 + Math.round(Math.sin(t * 1.2) * 2);
-    drawTitleText(g, 'ARIDIA NEXUS', W / 2, ly, 4, ['#fff6d8', '#ffe14d', '#ffb862', '#ff7656', '#e050c8'], { align: 'center', shadow: '#2a1040', depth: 3, outline: '#140d26' });
-    drawTitleText(g, 'LA CIUDAD QUE BEBÍA EL MAR', W / 2, ly + 50, 2, ['#c4fbff', '#56e5ff', '#20d6c7'], { align: 'center', shadow: '#140d26', depth: 1 });
+    drawTitleText(g, 'ARIDIA NEXUS', W / 2, ly, 4, ['#fff6d8', '#ffe14d', '#ffb862', '#ff7656', '#e050c8'], { align: 'center', font: 'bold', shadow: '#2a1040', depth: 3, outline: '#140d26' });
+    drawTitleText(g, 'LA CIUDAD QUE BEBÍA EL MAR', W / 2, ly + 50, 2, ['#e6f8fe', '#8fdfff', '#22c1e7'], { align: 'center', font: 'bold', shadow: '#000633', depth: 1, outline: '#000633' });
     for (let i = 0; i < 5; i++) { const sx = W / 2 - 150 + ((t * 40 + i * 70) % 300); fpx(g, sx, ly + 4 + (i * 7) % 26, '#ffffff'); }
     this.renderMenu(g);
     UIK.pill(g, W / 2, 96, 'Videojuego educativo STEAM · agua · energía · hidrógeno · agroecología', { align: 'center', rim: '#c244a2', fill: '#1d0b3a', color: '#ffd8ec' });
@@ -333,7 +333,7 @@ const WorldMapScene = {
     UIK.badge(g, 'map', 3, 3, 22, 'hud');
     drawText(g, 'MAPA DEL NEXO', 30, 13, { font: 'bold', color: '#edfcfe' });
     const items = [['Atlas del Nexo', 'book', () => Game.push(CodexScene, {})], ['Tablero de Evidencias', 'eye', () => Game.push(EvidenceScene, {})], ['Mi aprendizaje', 'chart', () => Game.push(AnalyticsScene, {})], ['Sala de práctica', 'flask', () => Game.push(PracticeScene, {})], ['Menú', 'gear', () => Game.push(MapMenuScene, {})]];
-    items.forEach(([l, ic, fn], i) => { if (Gui.button(g, 'mb' + i, W - 6 - (items.length - i) * 25, 6, 23, 22, '', { icon: ic, style: 'primary', tip: l })) fn(); });
+    items.forEach(([l, ic, fn], i) => { if (Gui.pbutton(g, 'mb' + i, W - 6 - (items.length - i) * 25, 6, 23, 22, '', { icon: ic, style: 'primary', tip: l })) fn(); });
     // panel de información del capítulo
     const n = MAP_NODES[this.sel], M = LEVEL_META[n.id];
     const px = n.x > W / 2 ? 10 : W - 230, pw = 220, py = 38, ph = 248;
@@ -366,7 +366,7 @@ const WorldMapScene = {
       const id = ids[first + k], cx = 6 + k * 79, cy = MAP_STRIP_Y + 5;
       const st = GS.s.completed.includes(id) ? 'done' : !GS.s.unlocked.includes(id) ? 'locked' : id === cur ? 'current' : 'open';
       UIK.levelCard(g, cx, cy, 74, 57, { id, label: LEVEL_CARD_NAME[id], state: st, selected: this.sel === id });
-      if (Gui.button(g, 'card' + id, cx, cy, 74, 57, '', { noDraw: true, noKey: true, tip: LEVEL_META[id].chapter + ' · ' + LEVEL_META[id].title })) { if (this.sel === id) this.enterLevel(); else { this.sel = id; Audio2.sfx('uiMove'); } }
+      if (Gui.pbutton(g, 'card' + id, cx, cy, 74, 57, '', { noDraw: true, tip: LEVEL_META[id].chapter + ' · ' + LEVEL_META[id].title })) { if (this.sel === id) this.enterLevel(); else { this.sel = id; Audio2.sfx('uiMove'); } }
     }
     Gui.end();
     Gui.renderTooltip(g);

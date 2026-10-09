@@ -328,6 +328,21 @@ const Gui = {
     if (clicked) { Audio2.sfx(opts.sfx || 'ui'); Input.consumePointer(); }
     return clicked;
   },
+  /** Botón solo de puntero: no entra en la navegación por teclado (atajos que ya tienen tecla propia, tarjetas) */
+  pbutton(g, id, x, y, w, h, label, opts = {}) {
+    const p = Input.pointer;
+    const over = p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
+    let clicked = false;
+    if (!opts.disabled) {
+      if (over && p.pressed) this.active = id;
+      if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
+    }
+    if (over && opts.tip) this.tooltip = opts.tip;
+    if (!opts.noDraw) this.drawButton(g, x, y, w, h, label, Object.assign({}, opts, { focused: over, pressed: this.active === id && over }));
+    else if (over) { const c = '#e8f6ff'; frect(g, x, y, w, 1, c); frect(g, x, y + h - 1, w, 1, c); frect(g, x, y, 1, h, c); frect(g, x + w - 1, y, 1, h, c); }
+    if (clicked) { Audio2.sfx(opts.sfx || 'ui'); Input.consumePointer(); }
+    return clicked;
+  },
   drawButton(g, x, y, w, h, label, o) {
     const st = o.style || 'primary';
     const P = BTN_STYLES[st] || BTN_STYLES.primary;

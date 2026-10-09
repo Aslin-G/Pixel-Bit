@@ -330,17 +330,16 @@ UIK.hudPortraitBlock = function (g, x = 4, y = 4, d = {}) {
   const pf = _cacheGet(UIK._shapeCache, pk, () => {
     const c = makeCanvas(54, 52); const b = c.g;
     UIK.drawFrame(b, 0, 0, 54, 52, s, null, { chamfer: 3, key: false, spark: false });
-    frect(b, 3, 3, 48, 46, '#000633');
-    // ventana: fondo navy con halo suave del color del personaje
+    // ventana de 48×46: fondo navy con halo suave del color del personaje
     const bg = mixHex('#0a1a3a', d.tint || '#ff7656', 0.12);
-    frect(b, 4, 4, 46, 44, bg);
-    b.fillStyle = mixHex(bg, '#2a4a8a', 0.35); b.beginPath(); b.arc(27, 22, 17, 0, TAU); b.fill();
+    frect(b, 3, 3, 48, 46, bg);
+    b.fillStyle = mixHex(bg, '#2a4a8a', 0.35); b.beginPath(); b.arc(27, 22, 18, 0, TAU); b.fill();
     b.fillStyle = mixHex(bg, '#4a6ab0', 0.35); b.beginPath(); b.arc(27, 20, 11, 0, TAU); b.fill();
-    b.save(); b.beginPath(); b.rect(4, 4, 46, 44); b.clip();
+    b.save(); b.beginPath(); b.rect(3, 3, 48, 46); b.clip();
     const bust = UIK.bust(d.id || 'amaya', d.expr || 'smile');
-    b.drawImage(bust, 4 + Math.round((46 - bust.width) / 2), 4 + Math.round(44 - bust.height) + 1);
+    b.drawImage(bust, 3 + Math.round((48 - bust.width) / 2), 3 + (46 - bust.height));
     b.restore();
-    frect(b, 4, 4, 46, 1, 'rgba(255,255,255,0.10)');
+    frect(b, 3, 3, 48, 1, 'rgba(255,255,255,0.10)');
     return c;
   }, 48);
   // panel de estado con muesca: cuerpo 94×42 y pestaña «Nv.» que baja a la izquierda con chaflán a 45°
@@ -632,14 +631,15 @@ UIK.minimapPanel = function (g, x = 532, y = 4, w = 104, h = 70, o = {}) {
       const [nx, ny] = P(nd);
       const unl = nd.levels.some(l => GS.s.unlocked.includes(l)), dn = nd.levels.every(l => GS.s.completed.includes(l));
       // halo de neón bajo la isla (elipses sólidas translúcidas, sin tramado)
-      b.globalAlpha = unl ? 0.32 : 0.12; b.fillStyle = nd.ring; b.beginPath(); b.ellipse(nx, ny + 9, 12, 4.5, 0, 0, TAU); b.fill();
-      b.globalAlpha = unl ? 0.75 : 0.25; b.beginPath(); b.ellipse(nx, ny + 9, 10, 3, 0, 0, TAU); b.fill();
-      b.globalAlpha = 1; b.fillStyle = '#051a36'; b.beginPath(); b.ellipse(nx, ny + 9, 8, 2, 0, 0, TAU); b.fill();
-      b.globalAlpha = unl ? 1 : 0.55; b.drawImage(UIK.island(nd.x + nd.y), nx - 9, ny); b.globalAlpha = 1;
+      b.globalAlpha = unl ? 0.3 : 0.1; b.fillStyle = nd.ring; b.beginPath(); b.ellipse(nx, ny + 9, 13, 5, 0, 0, TAU); b.fill();
+      b.globalAlpha = 1; b.fillStyle = '#051a36'; b.beginPath(); b.ellipse(nx, ny + 9, 10, 3, 0, 0, TAU); b.fill();
+      // anillo de neón de 1 px (pixelado, sin suavizado)
+      if (unl) for (let a = 0; a < 40; a++) { const an = a / 40 * TAU; fpx(b, nx + Math.cos(an) * 10.5, ny + 9 + Math.sin(an) * 3.6, a % 5 === 0 ? '#ffffff' : nd.ring); }
+      b.globalAlpha = unl ? 1 : 0.75; b.drawImage(UIK.island(nd.x + nd.y), nx - 9, ny); b.globalAlpha = 1;
       // icono del sistema con brillo; atenuado si el capítulo está bloqueado
       if (unl) { b.globalAlpha = 0.28; b.fillStyle = nd.ring; b.beginPath(); b.arc(nx, ny - 6, 9, 0, TAU); b.fill(); b.globalAlpha = 0.4; b.beginPath(); b.arc(nx, ny - 6, 6, 0, TAU); b.fill(); b.globalAlpha = 1; }
       const ic = Icons.hasBig(nd.icon) ? Icons.mid(nd.icon) : Icons.get(nd.icon);
-      b.globalAlpha = unl ? 1 : 0.4; b.drawImage(ic, Math.round(nx - ic.width / 2), ny - ic.height + 3); b.globalAlpha = 1;
+      b.globalAlpha = unl ? 1 : 0.6; b.drawImage(ic, Math.round(nx - ic.width / 2), ny - ic.height + 3); b.globalAlpha = 1;
       if (!unl) { frect(b, nx + 3, ny - 4, 5, 4, '#000633'); frect(b, nx + 4, ny - 3, 3, 2, '#c8861a'); fpx(b, nx + 4, ny - 5, '#9ab4be'); fpx(b, nx + 6, ny - 5, '#9ab4be'); fpx(b, nx + 5, ny - 6, '#9ab4be'); }
       if (dn) { fpx(b, nx + 6, ny - 10, '#ffd23a'); fpx(b, nx + 7, ny - 11, '#fff2a0'); fpx(b, nx + 8, ny - 10, '#ffd23a'); fpx(b, nx + 7, ny - 9, '#ffd23a'); }
     }
@@ -696,6 +696,9 @@ const LevelThumbs = {
     const palm = (x, y, hh, lean = 1) => { for (let k = 0; k < hh; k++) pb.set(Math.round(x + lean * k * k / (hh * 3)), y - k, k % 3 ? '#a57432' : '#6b5020'); const tx = Math.round(x + lean * hh / 3), ty = y - hh; for (const [dx, dy] of [[-6, 2], [6, 2], [-4, -2], [4, -2], [-7, 4], [7, 4], [0, -3]]) pb.line(tx, ty, tx + dx, ty + dy, dy < 0 ? '#9cb42c' : '#597611'); pb.set(tx, ty, '#3b5312'); };
     const tank = (x, y, tw, th, body = RAMP.steelWR, cap = null) => { for (let yy = 0; yy < th; yy++) for (let xx = 0; xx < tw; xx++) pb.set(x + xx, y - yy, body[clamp(Math.round((1 - Math.abs(xx - tw * 0.35) / tw) * (body.length - 1)), 0, body.length - 1)]); pb.hline(x, x + tw - 1, y - th, cap || body[body.length - 1]); };
     const sunsetR = ['#3a2a6a', '#8a4a96', '#d06e94', '#f08a6a', '#ffb862', '#ffe08a'];
+    // figuritas de 2×5 px (personas) y KIRU (punto blanco con ojos cian)
+    const person = (x, y, shirt = '#de3f22', hair = '#5f1a0b', legs = '#3a3430') => { pb.set(x, y - 5, hair); pb.set(x + 1, y - 5, hair); pb.set(x, y - 4, '#f9a879'); pb.set(x + 1, y - 4, '#e07f58'); pb.set(x, y - 3, shirt); pb.set(x + 1, y - 3, shade(shirt, -0.3)); pb.set(x, y - 2, shirt); pb.set(x + 1, y - 2, shade(shirt, -0.3)); pb.set(x, y - 1, legs); pb.set(x + 1, y - 1, legs); };
+    const kiru = (x, y) => { pb.set(x, y - 2, '#ebf1f3'); pb.set(x + 1, y - 2, '#ffffff'); pb.set(x, y - 1, '#17f3f7'); pb.set(x + 1, y - 1, '#061b4d'); pb.set(x - 1, y - 3, '#dc8a1f'); pb.set(x + 2, y - 3, '#dc8a1f'); };
     switch (id) {
       case 0: { // plaza de Aridia: casas de colores, banderines y torre SYNARA
         sky(RAMP.skyR, 26, [58, 7, 3]); clouds(3); ridge(26, 5, RAMP.mountFarR, 2); ground(29, RAMP.sandR, 1, 3);
@@ -703,6 +706,7 @@ const LevelThumbs = {
         const HC = ['#ff7656', '#20d6c7', '#ffd23a', '#8d6bff', '#fff6e8', '#4ccb70'];
         for (let i = 0; i < 7; i++) { const hx = 3 + i * 9, hh2 = r.int(6, 10), c = HC[i % 6]; pb.rect(hx, 33 - hh2, 8, hh2, c); pb.rect(hx, 33 - hh2, 8, 1, shade(c, 0.3)); pb.rect(hx + 6, 33 - hh2 + 1, 2, hh2 - 1, shade(c, -0.25)); pb.rect(hx + 2, 33 - hh2 + 3, 2, 2, '#1e2a55'); pb.rect(hx + 3, 31, 2, 2, '#4e2519'); }
         for (let x = 0; x < w; x += 2) pb.set(x, 21 + Math.round(Math.sin(x * 0.12) * 2), ['#ff4e5d', '#ffd23a', '#20d6c7'][(x >> 1) % 3]);
+        person(20, 40, '#20c0ae'); person(30, 40, '#ffd23a', '#1c0503'); person(52, 40); kiru(48, 40);
         for (let x = 0; x < w; x++) for (let y = 34; y < h; y++) pb.set(x, y, smoothBand(['#a24a1f', '#d07530', '#edaf5f'], (y - 34) / 7, x, y));
         break;
       }
@@ -711,6 +715,7 @@ const LevelThumbs = {
         for (let x = 0; x < 30; x++) { const top = Math.round(20 + x * 0.25 + Math.sin(x * 0.5) * 1.5); for (let y = top; y < h; y++) pb.set(x, y, smoothBand(RAMP.rockR, clamp(1 - (y - top) / 16, 0, 1) - ((x % 5) === 0 ? 0.2 : 0), x, y)); pb.set(x, top, '#9cb42c'); pb.set(x, top - 1, x % 3 ? '#bfd52c' : '#597611'); }
         for (let x = 30; x < w; x++) { const top = 33 + Math.round(Math.sin(x * 0.3)); for (let y = top; y < h; y++) pb.set(x, y, smoothBand(RAMP.sandR, 1 - (y - top) / 8, x, y)); pb.set(x, top - 1, '#d2ecee'); }
         palm(8, 22, 14, 1); palm(22, 25, 11, -1);
+        person(14, 24); kiru(10, 22);
         pb.rect(44, 26, 14, 6, '#cebaac'); pb.rect(44, 26, 14, 1, '#f5e5c3'); pb.rect(47, 20, 8, 6, '#2186eb'); pb.rect(47, 20, 8, 1, '#9be4e6'); pb.rect(58, 29, 10, 2, '#22c1e7');
         break;
       }
@@ -721,7 +726,8 @@ const LevelThumbs = {
         for (let k = 0; k < 3; k++) { pb.rect(42, 13 + k * 3, 22, 2, RAMP.membraneR[3]); pb.hline(42, 63, 13 + k * 3, '#b6e9f7'); }
         pb.rect(41, 12, 1, 10, '#555a78'); pb.rect(64, 12, 1, 10, '#555a78');
         for (let y = 30; y < h; y++) pb.hline(46, 49, y, y % 3 ? '#abfafd' : '#ffffff');
-        pb.rect(30, 24, 30, 2, '#22c1e7'); pb.hline(30, 59, 24, '#abfafd');
+        pb.rect(30, 24, 30, 2, '#22c1e7'); pb.hline(30, 59, 24, '#abfafd'); for (let x = 31; x < 59; x += 5) pb.set(x + ((id * 3) % 5), 25, '#ffffff');
+        pb.rect(2, 26, 2, 4, '#555a78'); pb.rect(2, 29, 26, 2, '#3a405d'); pb.hline(2, 27, 29, '#787a9b');
         break;
       }
       case 3: { // cañones de sal: mesas rosadas, estanques y pila de sal
@@ -767,6 +773,7 @@ const LevelThumbs = {
         sky(RAMP.skyR, 18, [10, 5, 3]); clouds(3, undefined, 2, 8); ridge(18, 3, RAMP.mountFarR, 1);
         for (let y = 18; y < h; y++) for (let x = 0; x < w; x++) pb.set(x, y, smoothBand(RAMP.cropSoilR, 0.6 - (y - 18) / 40, x, y));
         for (let row = 0; row < 5; row++) { const y0 = 22 + row * 4; for (let x = 2 + row; x < w - 2; x += 3) { pb.set(x, y0, '#9cb42c'); pb.set(x, y0 - 1, row % 2 ? '#efd83f' : '#bfd52c'); pb.set(x + 1, y0, '#597611'); } pb.hline(0, w - 1, y0 + 1, '#22c1e7'); }
+        person(30, 38, '#de3f22'); person(36, 38, '#4ccb70', '#3a2a20'); kiru(26, 37);
         pb.rect(46, 9, 20, 11, '#9be4e6'); pb.poly([[45, 9], [56, 4], [67, 9]], '#c2d5ef'); for (let x = 48; x < 66; x += 4) pb.vline(x, 9, 19, '#597b8c'); pb.hline(46, 65, 19, '#597b8c');
         palm(6, 20, 10, 1);
         break;

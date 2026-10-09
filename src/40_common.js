@@ -164,13 +164,13 @@ function makeSim(def) {
       // mensaje de KIRU (u otro guía) como globo con cola hacia su busto
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
-        const bx = 6, by = H - 36;
-        UIK.frame(g, bx, by, 30, 30, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+        const bx = 6, by = H - 40;
+        UIK.frame(g, bx, by, 34, 34, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
         const bust = UIK.bust(sp.portrait || 'kiru', 'smile');
-        g.save(); g.beginPath(); g.rect(bx + 4, by + 4, 22, 22); g.clip();
-        g.drawImage(bust, 0, 0, bust.width, bust.height, bx + 2, by + 3, 26, 25);
-        g.restore();
-        UIK.speechBubble(g, bx + 30, by + 2, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
+        // recorte 1:1 de la cara (sin reescalar el arte)
+        const cx0 = Math.round(bust.width / 2 - 13), cy0 = Math.max(0, Math.round(bust.height * 0.12));
+        g.drawImage(bust, cx0, cy0, 26, 26, bx + 4, by + 4, 26, 26);
+        UIK.speechBubble(g, bx + 34, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);

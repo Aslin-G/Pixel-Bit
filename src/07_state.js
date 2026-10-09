@@ -87,6 +87,7 @@ const GS = {
     if (!d) return false;
     this.s = Object.assign(newState(), d);
     LearningModel.init(this.s);
+    if (d.lastRank == null) this.s.lastRank = this.rank(); // partidas antiguas: sin aviso de rango espurio
     return true;
   },
 };
