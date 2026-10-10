@@ -69,45 +69,16 @@ const EndingScene = {
     this.id = p.ending || computeEnding(); this.E = ENDINGS[this.id]; this.t = 0; this.st = endingStats();
     this.ps = new Particles(300); Audio2.playMusic('ending');
     this.weak = LearningModel.weakest(3).map(k => MASTERY_LABELS[k]);
+    this.art = SCBEnd.make(this.id);
     GS.s.ending = this.id; GS.save();
   },
-  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.3) this.ps.emit('firefly', Math.random() * W, 60 + Math.random() * 120, 0, 0, 1); },
+  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.12) this.ps.emit('firefly', Math.random() * W, 70 + Math.random() * 80, 0, 0, 1); },
   render(g) {
     const E = this.E, t = this.t, st = this.st;
-    // ilustración: amanecer después de la Calima sobre SYNARA, con las capas de MOSAICO
-    const HZ = 128;
-    for (let y = 0; y < HZ; y++) frect(g, 0, y, W, 1, mixHex('#2a1050', mixHex('#ff9f6a', '#fff0c0', y / HZ), clamp(y / 100, 0, 1)));
-    for (let i = 0; i < 7; i++) fdither(g, 0, 30 + i * 9, W, 3, ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'][i], 0.1);
-    const sx = 470; fdisc(g, sx, HZ - 4, 26, '#ffe8b0'); fdisc(g, sx, HZ - 4, 19, '#fff6d8'); fdisc(g, sx, HZ - 4, 13, '#ffffff');
-    // nubes residuales de la tormenta, iluminadas desde abajo por el amanecer
-    for (let k = 0; k < 3; k++) {
-      const cx = ((k * 230 + 60 + t * 3) % (W + 160)) - 80, cy = 56 + (k % 2) * 16;
-      for (const [dx, dy, r] of [[-18, 4, 8], [-6, -2, 11], [8, 0, 10], [20, 5, 7]]) fdisc(g, cx + dx, cy + dy, r, '#8a4a7a');
-      for (const [dx, dy, r] of [[-18, 6, 6], [-6, 1, 9], [8, 3, 8], [20, 7, 5]]) fdisc(g, cx + dx, cy + dy + 2, r, '#b8607a');
-      frect(g, cx - 26, cy + 11, 54, 2, '#ffb08a'); fdither(g, cx - 28, cy + 13, 58, 2, '#ffd8a0', 0.5);
-    }
-    // ciudad en dos planos, más baja junto al sol
-    for (let layer = 0; layer < 2; layer++) {
-      const col = layer ? '#2e2050' : '#5a4278', top = layer ? '#4a3a7a' : '#7a62a0';
-      for (let x = -4, k = layer * 50; x < W; k++) {
-        const bw = 8 + (hash1(k, 5) * 14 | 0), near = Math.abs(x + bw / 2 - 470) < 70;
-        const bh = near ? 4 + (hash1(k, 6) * 5 | 0) : (layer ? 8 : 14) + (hash1(k, 6) * (layer ? 22 : 18) | 0);
-        frect(g, x, HZ - bh, bw, bh, col); frect(g, x, HZ - bh, bw, 1, top);
-        if (layer) for (let j = 0; j < 3; j++) if (hash1(k, j + 9) > 0.5) fpx(g, x + 2 + j * 3, HZ - bh + 3 + (j % 2) * 4, '#ffd86a');
-        x += bw + (layer ? 2 : 1);
-      }
-    }
-    // núcleo de SYNARA con anillos de MOSAICO
-    const cx = 110, ch = 84;
-    for (let y = HZ - ch; y < HZ; y++) { const ww = 4 + Math.round((y - (HZ - ch)) / 9); frect(g, cx - ww, y, ww * 2, 1, y % 9 < 2 ? '#7ae0d0' : '#e8dcc0'); frect(g, cx + ww - 2, y, 2, 1, '#b8a888'); }
-    for (let i = 0; i < 5; i++) { const ry = HZ - ch + 14 + i * 9 + Math.sin(t * 1.5 + i) * 2; fdither(g, cx - 34 + i * 3, ry, 68 - i * 6, 3, E.cols[i % 3], 0.55); }
-    fdisc(g, cx, HZ - ch - 4, 4, '#ffffff'); fdither(g, cx - 10, HZ - ch - 14, 20, 20, E.cols[0], 0.2 + 0.1 * Math.sin(t * 3));
-    // mar con reflejos del sol
-    for (let y = HZ; y < 164; y++) frect(g, 0, y, W, 1, mixHex('#3a2a6a', '#14103a', (y - HZ) / 36));
-    for (let y = HZ + 1; y < 164; y += 2) { const ww = 30 - (y - HZ) * 0.4 + Math.sin(t * 2 + y) * 4; frect(g, sx - ww / 2, y, ww, 1, (y % 4) ? '#ffe8b0' : '#ffb08a'); }
-    for (let i = 0; i < 30; i++) { const xx = (i * 37 + t * 10) % W, yy = HZ + 3 + (i * 7) % 32; frect(g, xx, yy, 4, 1, '#6a5a9a'); }
-    frect(g, cx - 2, HZ + 2, 4, 24, '#e8dcc0'); fdither(g, cx - 6, HZ + 2, 12, 24, '#7ae0d0', 0.3);
-    frect(g, 0, 164, W, H - 164, '#0e0a24');
+    // ilustración cinematográfica del final (kit VISTA + primer plano con personajes): 19n_scb_ending.js
+    if (!this.art || this.art.id !== this.id) this.art = SCBEnd.make(this.id);
+    this.art.draw(g, t);
+    frect(g, 0, 164, W, H - 164, '#04142e');
     this.ps.render(g);
     // título del final
     drawText(g, 'FINAL', W / 2, 16, { align: 'center', font: 'tiny', color: '#fff6d8', shadow: '#2a1050' });
@@ -144,60 +115,19 @@ LEVELS[11] = {
   ground: [[0, 292], [1500, 292]],
   terrain: [{ x0: 0, x1: 1500, mat: 'plaza' }],
   cam: { look: 50, vy: 0.66 },
-  props(pb, world) {
-    const gy = 292, E = GS.s.ending || 'pacto';
-    ART.bunting(pb, 20, 170, 700, 176, 14, ['#ff6b6b', '#ffe14d', '#20d6c7', '#86e36f', '#f78acb'], 2);
-    ART.bunting(pb, 700, 176, 1400, 168, 14, ['#ffe14d', '#20d6c7', '#ff9f43', '#86e36f'], 5);
-    // puestos de la primera cosecha con cestas
-    const crops = ['maiz', 'frijol', 'ahuyama', 'tomate', 'aji', 'sorgo', 'nopal'];
-    for (let k = 0; k < 3; k++) {
-      const x = 120 + k * 120;
-      ART.stall(pb, x, gy, 70, { c1: ['#ff6b6b', '#20d6c7', '#ffb93b'][k], c2: '#fffaf0', h: 44 });
-      for (let j = 0; j < 4; j++) { const bx = x + 8 + j * 15; pb.ellipse(bx + 5, gy - 18, 6, 3, '#a87028'); pb.ellipse(bx + 5, gy - 20, 5, 2, ['#ffe14d', '#ff6b6b', '#86e36f', '#ff9f43'][(j + k) % 4]); }
-    }
-    for (let k = 0; k < 7; k++) ART.crop(pb, 500 + k * 18, gy, crops[k], 1, 70 + k, 0);
-    ART.dripLine(pb, 496, 626, gy - 1, 9);
-    drawSign(pb, 560, gy, 'PARCELA ESCOLAR', '#33a552');
-    // panel público de SYNARA 2.0
-    ART.bigScreen(pb, 720, gy, 170, 90);
-    drawSign(pb, 900, gy, 'PANEL PÚBLICO', '#56e5ff');
-    // laboratorio abierto a estudiantes
-    pb.rect(1000, gy - 70, 150, 70, '#1c3a5a'); pb.rect(1000, gy - 70, 150, 3, '#56e5ff');
-    for (let k = 0; k < 3; k++) { pb.rect(1012 + k * 46, gy - 58, 34, 24, '#0a1440'); pb.rect(1012 + k * 46, gy - 58, 34, 2, '#86e36f'); }
-    drawSign(pb, 1075, gy - 70, 'LABORATORIO ABIERTO', '#86e36f');
-    // variaciones según el final
-    if (E === 'pacto') { pb.rect(1190, gy - 64, 80, 52, '#8a5e14'); pb.rect(1192, gy - 62, 76, 48, '#fff4de'); for (let k = 0; k < 8; k++) pb.rect(1196 + (k % 4) * 18, gy - 58 + Math.floor(k / 4) * 22, 14, 14, ['#ffe14d', '#ff9a8a', '#a6f4ff', '#c2f58e'][k % 4]); pb.rect(1228, gy - 12, 4, 12, '#5a3826'); drawSign(pb, 1230, gy - 64, 'DECISIONES PENDIENTES', '#ff9f43'); }
-    if (E === 'tecnica') { pb.rect(1180, gy - 70, 100, 30, '#fffaf0'); pb.rect(1180, gy - 70, 100, 3, '#ff6b6b'); pb.rect(1184, gy - 40, 3, 40, '#5a3826'); pb.rect(1273, gy - 40, 3, 40, '#5a3826'); drawSign(pb, 1230, gy - 70, '¿QUIÉN DECIDE?', '#ff6b6b'); }
-    if (E === 'deuda') { for (let k = 0; k < 4; k++) { pb.rect(1180 + k * 26, gy - 14, 22, 14, '#8a5e14'); ART.mangrove(pb, 1191 + k * 26, gy - 14, 14, 9 + k); } drawSign(pb, 1230, gy - 30, 'RESTAURACIÓN DEL MANGLAR', '#1f854c'); }
-    if (E === 'mosaico') { for (let k = 0; k < 6; k++) pb.rect(1180 + k * 16, gy - 40, 14, 14, ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'][k]); drawSign(pb, 1228, gy - 40, 'MOSAICO VIVO', '#1f854c'); }
-    drawSign(pb, 1440, gy, 'MUELLE · MAR', '#1283bf');
-  },
+  /* plano jugable con kit PF al atardecer (19q_scb_lv11.js): mismo suelo, actores y guion */
+  pf: SCBL11.pf,
+  labels: SCBL11.labels,
+  props(pb, world) { SCBL11.props(pb, world); },
+  propsFront(pb, world) { SCBL11.propsFront(pb, world); },
+  renderBack(g, sc, cam) { SCBL11.renderBack(g, sc, cam); },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
+    SCBL11.renderMidFx(g, sc, cam);
     // pantalla: SYNARA 2.0 (el título que no cabe) → MOSAICO proyecta al final
     const x = 722 - ox, y = 292 - 118 - oy;
     if (x < -180 || x > W + 10) return;
-    frect(g, x, y, 166, 86, '#05081d');
-    if (S.mosaicProj) {
-      const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'];
-      for (let i = 0; i < 7; i++) fdither(g, x + 2, y + 2 + i * 11, 158, 9, cols[i], 0.3);
-      ['INCERTIDUMBRE: VISIBLE', 'ALTERNATIVAS: 4', 'DECISIÓN: PENDIENTE', 'DE DELIBERACIÓN'].forEach((s2, i) => drawText(g, s2, x + 81, y + 14 + i * 14, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#05081d' }));
-    } else if (S.title2 === 2) {
-      drawText(g, 'SYNARA 2.0', x + 81, y + 14, { align: 'center', color: '#56e5ff' });
-      drawTextBlock(g, 'NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA', x + 8, y + 32, 146, { font: 'tiny', color: '#ffe14d', align: 'center', lineH: 8 });
-      for (let i = 0; i < 3; i++) frect(g, x + 20 + i * 44, y + 58, 34, 14, ['#1f854c', '#2c63c0', '#bc3e92'][i]);
-      drawText(g, 'AGUA', x + 37, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' }); drawText(g, 'ENERGÍA', x + 81, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' }); drawText(g, 'SALMUERA', x + 125, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' });
-    } else if (S.title2 === 1) {
-      // el título no cabe: desborda la pantalla
-      const msg = 'SYNARA 2.0 — NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA';
-      g.save(); g.beginPath(); g.rect(x - 34, y - 6, 166 + 68, 98); g.clip();
-      drawTitleText(g, msg, x + 6 - ((t * 30) % 40), y + 30, 2, ['#fff6d8', '#ffe14d', '#ff9f43'], { shadow: '#05081d' });
-      g.restore();
-    } else {
-      for (let i = 0; i < 4; i++) frect(g, x + 10, y + 12 + i * 16, 60 + ((i * 23 + Math.floor(t * 2)) % 80), 6, ['#86e36f', '#56e5ff', '#ffe14d', '#f78acb'][i]);
-      drawText(g, 'PANEL PÚBLICO · EN VIVO', x + 81, y + 72, { font: 'tiny', align: 'center', color: '#a6f4ff' });
-    }
-    fdither(g, x, y, 166, 86, '#ffffff', 0.03);
+    SCBEpi.drawScreen(g, S, x, y, t); // 19p_scb_epi.js: panel en vivo · título que desborda · SYNARA 2.0 · MOSAICO
   },
   setup(sc) {
     const S = sc.state, E = GS.s.ending || 'pacto';
@@ -251,7 +181,7 @@ async function epilogueFinale(sc) {
   Game.transition(() => { Game.setScene(BlankScene, {}); Game.push(CreditsScene, { final: true, onDone: () => Game.setScene(PostCreditsScene, {}) }); }, '#05030f', 1.2);
 }
 
-const BlankScene = { enter() { }, update() { }, render(g) { frect(g, 0, 0, W, H, '#05030f'); } };
+const BlankScene = { enter() { }, update() { }, render(g) { SCBEpi.drawBlank(g, Game.time); } };
 
 /* ---------------------------------------------------------------------
    Poscréditos: una variable desconocida en el vivero
@@ -261,6 +191,7 @@ const PostCreditsScene = {
     this.t = 0; this.i = 0; this.ps = new Particles(120); Audio2.playMusic('oasis');
     this.lines = [['kiru', 'Amaya.'], ['amaya', '¿Qué ocurre?'], ['kiru', 'El sensor del vivero reporta una variable desconocida.'], ['amaya', '¿La eliminaste?'], ['kiru', 'Preparé té.']];
     this.lt = 0;
+    this.art = SCBPost.make();
   },
   update(dt) {
     this.t += dt; this.lt += dt; this.ps.update(dt);
@@ -271,29 +202,9 @@ const PostCreditsScene = {
   },
   render(g) {
     const t = this.t;
-    // noche en el vivero
-    for (let y = 0; y < H; y++) frect(g, 0, y, W, 1, mixHex('#05081d', '#1a1a4a', y / H));
-    for (let i = 0; i < 60; i++) fpx(g, hash1(i, 1) * W, hash1(i, 2) * 160, (Math.floor(t * 2 + i) % 7) ? '#cfd6f0' : '#ffffff');
-    fdisc(g, 520, 60, 12, '#fff6d8'); fdisc(g, 525, 57, 11, '#1a1a4a');
-    // colinas con las luces de Aridia a lo lejos
-    for (let x = 0; x < W; x += 2) { const hh = 26 + Math.round(12 * Math.sin(x * 0.013) + 6 * Math.sin(x * 0.041)); frect(g, x, 270 - hh, 2, hh, '#141a3a'); }
-    for (let i = 0; i < 40; i++) { const lx = (i * 97) % W, ly = 270 - 10 - (i * 13) % 18; fpx(g, lx, ly, (Math.floor(t + i) % 9) ? '#ffd86a' : '#ff9f43'); }
-    for (let k = 0; k < 3; k++) { const tx = 80 + k * 240; frect(g, tx - 1, 200, 3, 70, '#2a2a5a'); fdisc(g, tx, 200, 3, '#56e5ff'); }
-    frect(g, 0, 270, W, H - 270, '#0e1a12'); fdither(g, 0, 270, W, 8, '#1f3a24', 0.5);
-    for (let x = 6; x < W; x += 11) { const hh = 2 + (x * 7) % 4; frect(g, x, 270 - hh, 1, hh, '#1f5a34'); fpx(g, x + 1, 270 - hh + 1, '#2f7a44'); }
-    // farol junto a Amaya
-    frect(g, 178, 196, 2, 74, '#3a3a5a'); frect(g, 176, 196, 6, 2, '#5a5a7a'); fdisc(g, 179, 194, 3, '#ffe8a0'); PFK.drawGlow(g, 179, 194, 30, '#ffd86a', 0.35);
-    // casa de sombra
-    frect(g, 300, 178, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 178, 3, 92, '#2a3a2a'); fdither(g, 300, 182, 200, 88, '#1a2a1a', 0.5);
-    for (let k = 0; k < 8; k++) { const x = 312 + k * 23, hh = 12 + (k * 5) % 10; frect(g, x, 270 - hh, 2, hh, '#1f854c'); fpx(g, x - 1, 270 - hh, '#4ccb70'); fpx(g, x + 2, 270 - hh + 2, '#4ccb70'); }
-    // sensor con la alarma
-    frect(g, 456, 226, 2, 44, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 224, 3, on ? '#ffe14d' : '#6a5a10'); if (on) PFK.drawGlow(g, 457, 224, 14, '#ffe14d', 0.4);
-    // Amaya y KIRU
-    drawChar(g, 'amaya', 'idle', t, 220, 270, 1, { expr: this.i >= 4 ? 'smile' : 'surprised' });
-    drawChar(g, 'kiru', 'idle', t, 260, 270, -1, {});
-    // taza de té con vapor
-    frect(g, 225, 238, 7, 6, '#fff6d8'); frect(g, 232, 239, 2, 3, '#fff6d8'); frect(g, 225, 243, 7, 1, '#cfc4a8'); for (let i = 0; i < 3; i++) fpx(g, 228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0'); // taza en la mano de Amaya (sprite de 74 px)
-    this.ps.render(g);
+    // noche en el vivero (19o_scb_post.js): cielo estrellado, invernadero con luz cálida, faroles, luciérnagas
+    if (!this.art) this.art = SCBPost.make();
+    this.art.draw(g, t, { amayaExpr: this.i >= 4 ? 'smile' : 'surprised' });
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {
       const sp = SPEAKERS[L[0]];

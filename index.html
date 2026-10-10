@@ -22933,6 +22933,1334 @@ const SCACredits = (() => {
   return { build, render };
 })();
 
+/* ===== 19m_scb_kit.js ===== */
+/* =====================================================================
+   19m_scb_kit.js — Kit compartido de las ESCENAS B (finales, poscréditos,
+   epílogo). Todo bajo SCBK para no chocar con otros kits.
+   Sin tramado Bayer/ajedrez: bandas con borde de ruido y alfa horneada.
+     SCBK.grade(pb, {sat, tint, tintK, bright, lift, liftCol})  gradación de color por plano
+     SCBK.ledge(pb, x0, x1, top(x), yBot, {seed, ramp, grass, lip, cols}) → Int16Array top
+         cornisa rocosa columnar en 3/4 (luz arriba-izquierda, estratos, fisuras, labio de pradera)
+     SCBK.folk(pb, x, y, seed, {s, k, cols, pose})          vecino diminuto del plano medio
+     SCBK.stars(pb, w, h, seed, {n, y1})                     estrellas horneadas (1–2 px, cruz las brillantes)
+     SCBK.nightSky(w, h, {stops, horizonY, moon:{x,y,r}})   cielo nocturno en bandas con resplandor lunar
+     SCBK.moon(pb, cx, cy, r)                                luna con mares y terminador
+     SCBK.drawFireflies(g, n, t, seed, {x0,x1,y0,y1,col})   luciérnagas con halo 1 px (≤ 2n fillRect)
+     SCBK.drawTwinkle(g, list, t)                           centelleo de estrellas brillantes
+     SCBK.mosaicTiles(pb, x, y, w, h, seed, cols)           teselas de datos (mosaico comunitario)
+     SCBK.veil(g, x, y, w, h, col, a)                       velo plano con alfa (sustituye a fdither)
+     SCBK.drawBulbs(g, pts, t, cols, step) · SCBK.catenary(x0,y0,x1,y1,sag) guirnaldas de luces sin tramado
+   ===================================================================== */
+const SCBK = (() => {
+  const V = VISTA;
+  const P = (r, k) => V.P32(k ? V.hz(r, k) : r);
+  /** Gradación por plano: saturación, tinte y brillo (horneado, sin coste por cuadro) */
+  function grade(pb, o = {}) {
+    const sat = o.sat ?? 1, tk = o.tintK || 0, br = o.bright ?? 1, lift = o.lift || 0;
+    const T = o.tint ? U(o.tint) : 0, tr = T & 255, tg = (T >>> 8) & 255, tb = (T >>> 16) & 255;
+    const Lc = o.liftCol ? U(o.liftCol) : 0, lr = Lc & 255, lg = (Lc >>> 8) & 255, lb = (Lc >>> 16) & 255;
+    const d = pb.data;
+    for (let i = 0; i < d.length; i++) {
+      const c = d[i], a = c >>> 24; if (!a) continue;
+      let r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255;
+      const l = r * 0.3 + g * 0.59 + b * 0.11;
+      r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+      if (tk) { const m = tk * (0.6 + 0.4 * (l / 255)); r += (tr * l / 160 - r) * m; g += (tg * l / 160 - g) * m; b += (tb * l / 160 - b) * m; }
+      r *= br; g *= br; b *= br;
+      if (lift) { r += (lr - r) * lift; g += (lg - g) * lift; b += (lb - b) * lift; }
+      d[i] = ((a << 24) | (clamp(b, 0, 255) << 16) | (clamp(g, 0, 255) << 8) | clamp(r, 0, 255)) >>> 0;
+    }
+  }
+  /**
+   * Cornisa rocosa columnar en 3/4 (como el acantilado de la referencia): labio de
+   * pradera iluminado, caras de columnas con arista clara a la izquierda, fisuras
+   * oscuras, estratos y oclusión hacia la base. top(x) = y del borde superior.
+   */
+  function ledge(pb, x0, x1, topFn, yBot, o = {}) {
+    const R = P(o.ramp || RAMP.rockWarmR, o.k), n = R.length, seed = o.seed || 3;
+    const G = P(o.grass || RAMP.grassR, o.k), nG = G.length;
+    const top = new Int16Array(pb.w).fill(32767);
+    const colW = o.colW || 13;
+    for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+      const yt = Math.round(topFn(x)); top[x] = yt;
+      // columna: índice y posición dentro de la columna (anchos variables)
+      const cx = x + Math.round(vnoise(x * 0.02, 0, seed) * 9);
+      const ci = Math.floor(cx / colW), u = (cx % colW) / colW;
+      const jag = Math.round(hash1(ci, seed) * 6);
+      for (let y = yt; y < Math.min(pb.h, yBot); y++) {
+        const d = y - yt;
+        let c;
+        if (d < (o.lip ?? 4)) {
+          // labio de pradera (lima iluminada arriba, verde en sombra debajo)
+          const gi = clamp(nG - 1 - d - (hash2(x >> 1, y, seed) < 0.3 ? 1 : 0) - (x > x1 - 30 ? 1 : 0), 1, nG - 1);
+          c = G[gi];
+        } else {
+          // cara de columna: arista iluminada, cuerpo, sombra lateral; oscurece con la profundidad
+          const deep = clamp((d - 4) / Math.max(10, (yBot - yt)), 0, 1);
+          let k = u < 0.12 ? n - 2 : u < 0.45 ? n - 3 : u < 0.8 ? n - 4 : n - 6;
+          k -= Math.round(deep * 3.2);
+          if (d < 7) k += 1; // borde soleado bajo el labio
+          // fisura entre columnas y grietas horizontales (estratos)
+          if (u > 0.92 || ((d + jag) % 17 === 0 && hash2(ci, (d + jag) / 17 | 0, seed) < 0.7)) k = 1;
+          else if ((d + jag) % 17 === 1) k += 1;
+          // textura en clusters
+          const nz = hash2(x >> 1, y >> 1, seed + 7);
+          if (nz < 0.12) k -= 1; else if (nz > 0.9) k += 1;
+          c = R[clamp(k, 0, n - 1)];
+        }
+        pb.data[y * pb.w + x] = c;
+      }
+    }
+    // sombra de contacto del labio (1 px granate) y matas colgantes
+    const r = RNG(seed + 11);
+    for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+      const y = top[x] + (o.lip ?? 4); if (y < pb.h) V.put(pb, x, y, R[1]);
+      if (r() < 0.12) { const L = r.int(2, 6); for (let q = 0; q < L; q++) V.put(pb, x + (q > 2 ? 1 : 0), y + q, G[clamp(3 - (q >> 1), 0, nG - 1)]); }
+    }
+    return top;
+  }
+  /** Vecino diminuto del plano medio (cabeza 2 px, cuerpo 3–4 px, piernas) */
+  const SKINS = ['#f2c8a0', '#d89a6a', '#b4744a', '#8a5434', '#6a3e26'];
+  const CLOTH = ['#e83b41', '#11bedd', '#f5dc5a', '#3fe0a0', '#8d6bff', '#ff9f43', '#ffffff', '#f060b8', '#2186eb'];
+  function folk(pb, x, y, seed, o = {}) {
+    const r = RNG(seed), k = o.k || 0, s = o.s || 1;
+    const sk = U(V.hzc(SKINS[r.int(0, 4)], k)), cl = o.cols ? o.cols[r.int(0, o.cols.length - 1)] : CLOTH[r.int(0, CLOTH.length - 1)];
+    const C = U(V.hzc(cl, k)), Cs = U(V.hzc(shadeTo(cl, -0.3, 250), k)), Lg = U(V.hzc(r.chance(0.5) ? '#3a3050' : '#5a4430', k)), Hr = U(V.hzc(['#1a0a08', '#3a1a10', '#6a3a1a', '#c8c0b0'][r.int(0, 3)], k));
+    const h = s > 1 ? 9 : 7, child = r.chance(0.18) && !o.adult;
+    const hh = child ? h - 2 : h;
+    // piernas
+    V.put(pb, x, y - 1, Lg); V.put(pb, x + 1, y - 1, Lg); if (hh > 6) { V.put(pb, x, y - 2, Lg); V.put(pb, x + 1, y - 2, Lg); }
+    // cuerpo
+    const by = y - (hh > 6 ? 3 : 2), bh = hh > 7 ? 4 : 3;
+    for (let q = 0; q < bh; q++) { V.put(pb, x - (q < bh - 1 && s > 1 ? 1 : 0), by - q, Cs); V.put(pb, x, by - q, C); V.put(pb, x + 1, by - q, q === bh - 1 ? C : Cs); }
+    // brazo en alto (celebración) o al costado
+    if (o.pose === 'cheer' && r.chance(0.6)) { V.put(pb, x - 1, by - bh, sk); V.put(pb, x - 1, by - bh - 1, sk); }
+    // cabeza
+    const hy = by - bh; V.put(pb, x, hy, sk); V.put(pb, x + 1, hy, V.shU(sk, -0.2, 20)); V.put(pb, x, hy - 1, Hr); V.put(pb, x + 1, hy - 1, Hr);
+    return hy - 1;
+  }
+  /** Estrellas horneadas */
+  function stars(pb, w, h, seed, o = {}) {
+    const r = RNG(seed), n = o.n || 120, y1 = o.y1 ?? h, out = [];
+    const C = [U('#8a94c8'), U('#b8c0e8'), U('#e6ecff'), U('#ffffff'), U('#ffe8c0')];
+    for (let i = 0; i < n; i++) {
+      const x = r.int(0, w - 1), y = Math.floor(Math.pow(r(), 1.4) * y1), b = r();
+      const c = b > 0.93 ? C[3] : b > 0.75 ? C[2] : b > 0.45 ? C[1] : C[0];
+      V.put(pb, x, y, c);
+      if (b > 0.93) { V.blend(pb, x - 1, y, C[1], 0.6); V.blend(pb, x + 1, y, C[1], 0.6); V.blend(pb, x, y - 1, C[1], 0.6); V.blend(pb, x, y + 1, C[1], 0.6); out.push([x, y, r.range(0, 6)]); }
+      else if (b > 0.88) { V.put(pb, x, y, C[4]); out.push([x, y, r.range(0, 6)]); }
+    }
+    return out;
+  }
+  /** Cielo nocturno en bandas con resplandor lunar suave y banda de luz sobre el horizonte */
+  function nightSky(w, h, o = {}) {
+    const pb = new PixelBuffer(w, h), hy = o.horizonY ?? h;
+    const stops = o.stops || ['#03061a', '#060b26', '#0a1232', '#0e1a40', '#14244e', '#1c2e5c', '#283a6a', '#364678', '#4a5284', '#62608c'];
+    const nb = 20, R = V.P32(V.expand(stops, nb)), M = o.moon;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let t = Math.pow(clamp(y / hy, 0, 1), 1.6);
+      if (M) { const d = Math.hypot(x - M.x, (y - M.y) * 1.15); const b = Math.max(0, 1 - d / (M.r * 9)); t += b * b * 0.42; }
+      pb.data[y * w + x] = R[V.band(clamp(t, 0, 1), nb, x, y, 0.05, 11)];
+    }
+    return pb;
+  }
+  /** Luna creciente-gibosa: disco crema con mares y terminador en violeta */
+  function moon(pb, cx, cy, r) {
+    const C = V.P32(['#3a3a6a', '#6a6a98', '#a8a8c8', '#d8d4e0', '#f4f0e0', '#fffcf0']);
+    for (let y = -r - 1; y <= r + 1; y++) for (let x = -r - 1; x <= r + 1; x++) {
+      const d = Math.hypot(x, y) / r; if (d > 1) continue;
+      const lit = (x + r * 0.35) / r; // terminador a la derecha
+      let k = d > 0.86 ? 4 : 5;
+      if (lit > 0.95) k = lit > 1.1 ? 1 : 2;
+      const mare = vnoise((cx + x) * 0.35, (cy + y) * 0.35, 77);
+      if (mare > 0.62 && k > 2) k -= 1;
+      if (d > 0.93 && x < 0) k = 5;
+      V.put(pb, cx + x, cy + y, C[k]);
+    }
+  }
+  /** Luciérnagas: punto 1 px + halo 1 px al 40 %, parpadeo lento */
+  function drawFireflies(g, n, t, seed, o = {}) {
+    const x0 = o.x0 ?? 0, x1 = o.x1 ?? W, y0 = o.y0 ?? 0, y1 = o.y1 ?? H, col = o.col || '#e8ff8a', halo = o.halo || '#9aff5a';
+    for (let i = 0; i < n; i++) {
+      const hx = hash1(i, seed), hy = hash1(i, seed + 1), ph = hash1(i, seed + 2) * 6.28;
+      const x = x0 + hx * (x1 - x0) + Math.sin(t * 0.6 + ph) * 10, y = y0 + hy * (y1 - y0) + Math.sin(t * 0.9 + ph * 1.7) * 6;
+      const a = 0.5 + 0.5 * Math.sin(t * 2.2 + ph); if (a < 0.15) continue;
+      g.globalAlpha = a * 0.4; g.fillStyle = halo; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+      g.globalAlpha = a; g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), 1, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Centelleo: cruz breve sobre las estrellas brillantes */
+  function drawTwinkle(g, list, t) {
+    g.fillStyle = '#ffffff';
+    for (const [x, y, ph] of list) {
+      const a = Math.sin(t * 1.7 + ph); if (a < 0.55) continue;
+      g.globalAlpha = (a - 0.55) * 1.8; g.fillRect(x - 1, y, 3, 1); g.fillRect(x, y - 1, 1, 3);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Teselas de datos (mosaico comunitario): celdas 2–3 px con brillo arriba-izquierda */
+  function mosaicTiles(pb, x, y, w, h, seed, cols) {
+    const C = cols.map(c => [U(shadeTo(c, -0.3, 250)), U(c), U(shadeTo(c, 0.35))]);
+    for (let yy = 0; yy < h; yy += 3) for (let xx = 0; xx < w; xx += 3) {
+      const c = C[Math.floor(hash2(xx + x, yy + y, seed) * C.length)];
+      V.put(pb, x + xx, y + yy, c[2]); V.put(pb, x + xx + 1, y + yy, c[1]); V.put(pb, x + xx, y + yy + 1, c[1]); V.put(pb, x + xx + 1, y + yy + 1, c[0]);
+    }
+  }
+  /** Velo plano con alfa (sustituto sin tramado de fdither en las escenas B) */
+  function veil(g, x, y, w, h, col, a) {
+    if (a <= 0) return;
+    g.globalAlpha = Math.min(1, a); g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); g.globalAlpha = 1;
+  }
+  /** Guirnalda de bombillas (sin tramado): halo plano 5×5 al 18 % + 3×3 al 30 % + bombilla 2×2 con brillo */
+  function drawBulbs(g, pts, t, cols = ['#ffe14d', '#ff9f43', '#7ff0dc', '#ff8ab8'], step = 12) {
+    for (let i = 6, k = 0; i < pts.length - 4; i += step, k++) {
+      const [x, y] = pts[i], c = cols[k % cols.length], tw = 0.75 + 0.25 * Math.sin(t * 3 + k * 1.7);
+      g.fillStyle = c;
+      g.globalAlpha = 0.16 * tw; g.fillRect(x - 3, y - 2, 7, 7);
+      g.globalAlpha = 0.3 * tw; g.fillRect(x - 2, y - 1, 5, 5);
+      g.globalAlpha = 1; g.fillRect(x - 1, y + 1, 2, 2); g.fillStyle = '#fffaf0'; g.fillRect(x - 1, y + 1, 1, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Catenaria de puntos entre (x0,y0) y (x1,y1) con flecha sag */
+  function catenary(x0, y0, x1, y1, sag) { const pts = [], n = Math.max(2, Math.round(Math.abs(x1 - x0))); for (let i = 0; i <= n; i++) { const t = i / n; pts.push([Math.round(lerp(x0, x1, t)), Math.round(lerp(y0, y1, t) + Math.sin(t * Math.PI) * sag)]); } return pts; }
+  return { drawBulbs, catenary, veil, grade, ledge, folk, stars, nightSky, moon, drawFireflies, drawTwinkle, mosaicTiles, SKINS, CLOTH };
+})();
+
+/* ===== 19n_scb_ending.js ===== */
+/* =====================================================================
+   19n_scb_ending.js — Ilustraciones de los FINALES (640×164 sobre el
+   panel de debrief) con el kit de panorama VISTA, en diorama 3/4:
+   cielo + sol · nubes que derivan · cordillera lila · mar con destellos ·
+   montañas medias con aerogeneradores · llano costero con la desaladora,
+   FV e H₂ · colina de ARIDIA con la cúpula, la torre de SYNARA, terrazas y
+   cascadas · barrio bajo con vecinos · cornisa columnar de primer plano con
+   Amaya, KIRU y vecinos (drawChar) · palmera y follaje de encuadre.
+   Cada final cambia luz, color, vegetación y detalles:
+     mosaico  mañana clara y vibrante; la torre de SYNARA lleva el mosaico de
+              datos comunitarios; guirnaldas, cometas y la plaza llena.
+     pacto    amanecer tras la tormenta: nubes residuales encendidas desde
+              abajo, andamio y grúa en la cúpula, tablero de decisiones pendientes.
+     tecnica  luz fría y eficiente: la planta domina, vallas y puertas cerradas,
+              pocas personas, ventanas apagadas; color desaturado.
+     deuda    calima residual: cielo ocre, sol apagado, manglar seco en la orilla,
+              pluma de salmuera; plan de reparación con plantones.
+   SCBEnd.make(id) → {draw(g, t)}  (prerender ≈ 300–500 ms; ≈250 fillRect/cuadro)
+   ===================================================================== */
+const SCBEnd = (() => {
+  const V = VISTA;
+  const IH = 164; // alto de la ilustración
+  const MOODS = {
+    mosaico: {
+      sun: { x: 556, y: 26, r: 11, halo: 26 }, sunKind: 'noon', HZ: 96,
+      sky: ['#1466d8', '#1a74e2', '#2484ec', '#3292f2', '#40a0f6', '#58acf6', '#7cbcf2', '#a2caf0', '#c4d0ec', '#dcd2e2'],
+      skyHaze: ['#d8cce0', '#e4cad4', '#ecd0c8', '#f0d8c4'], clouds: null, cloudN: 7,
+      farHaze: '#b9bde0', farRim: '#e8c2b4', hzc: '#a9a6cc', rim: '#f6dcc8', rimN: '#fcd8ae',
+      vegK: 1.5, gold: 0.25, lit: null, grade: { sat: 1.12 }, sea: null, folk: 46, festive: true,
+    },
+    pacto: {
+      sun: { x: 452, y: 90, r: 13, halo: 34 }, sunKind: 'dusk', HZ: 96,
+      sky: ['#2a1a5e', '#3a2470', '#523080', '#6e3c8c', '#8c4890', '#b05a90', '#d07090', '#ec9090', '#f8b48c', '#fcd49a'],
+      skyHaze: ['#f4c0a0', '#f8c898', '#fcd8a0', '#ffe4b0'], cloudN: 6,
+      clouds: ['#4a2a6a', '#6a3a7a', '#8c4a84', '#b05a88', '#d47088', '#f09488', '#fcb890', '#ffdcac'],
+      farHaze: '#d4a8c0', farRim: '#ffd0a0', hzc: '#c49ab4', rim: '#ffc890', rimN: '#ffd8a0',
+      vegK: 1.1, gold: 0.4, lit: { off: 0.45 }, grade: { sat: 1.02 }, folk: 26,
+      sea: ['#e8b8b0', '#b49ac0', '#7a86c0', '#4a74b8', '#2a66ae', '#2a6aae', '#3474b4', '#3c80ba'], seaH: '#ffe0c0', scaffold: true, board: true, storm: true,
+    },
+    tecnica: {
+      sun: { x: 300, y: 22, r: 10, halo: 22 }, sunKind: 'noon', HZ: 96,
+      sky: ['#2a4a7a', '#30568a', '#3a6498', '#4672a6', '#5480b0', '#6890bc', '#7ea0c4', '#96b0cc', '#adbed2', '#c2cad6'],
+      skyHaze: ['#c4ccd8', '#cad0da', '#d0d4dc', '#d6dae0'], cloudN: 5,
+      clouds: ['#6a7a94', '#8494ac', '#9eacc0', '#b8c4d2', '#cfd8e2', '#e2e8ee', '#f0f4f6', '#ffffff'],
+      farHaze: '#a8b4cc', farRim: '#d8dce6', hzc: '#9aa6c0', rim: '#e0e4ec', rimN: '#e8eaf0',
+      vegK: 0.55, gold: 0.05, lit: null, grade: { sat: 0.62, tint: '#8aa8d0', tintK: 0.14 }, folk: 6, cold: true,
+      sea: ['#b8c8dc', '#7a9ac0', '#4a7aae', '#2a64a0', '#1e5894', '#1e5a94', '#24629a', '#2a6aa0'], seaH: '#dce4ee',
+    },
+    deuda: {
+      sun: { x: 508, y: 54, r: 12, halo: 30 }, sunKind: 'dusk', HZ: 96,
+      sky: ['#4a2418', '#5e2e1c', '#743a20', '#8a4824', '#a0582a', '#b46a34', '#c47e40', '#d2944e', '#dcaa60', '#e4bc74'],
+      skyHaze: ['#d8a878', '#dcb080', '#e0b888', '#e4c094'], cloudN: 5,
+      clouds: ['#5a2a1a', '#74361e', '#8e4624', '#a8582e', '#c06e3a', '#d4884a', '#e2a460', '#eec080'],
+      farHaze: '#c09078', farRim: '#e8b888', hzc: '#b08a78', rim: '#e8b080', rimN: '#ecc090',
+      vegK: 0.45, gold: 0.6, lit: { off: 0.7 }, grade: { sat: 0.78, tint: '#c89060', tintK: 0.2, bright: 0.92 }, folk: 14, dust: true,
+      sea: ['#c8a088', '#9a8a90', '#6a7690', '#46648a', '#345680', '#345882', '#3a5e86', '#40668a'], seaH: '#f0c8a0', mangrove: true,
+    },
+  };
+  /** Ilustración del final id */
+  function make(id) {
+    const M = MOODS[id] || MOODS.pacto;
+    const B = new Backdrop(W, H);
+    const HZ = M.HZ, SUN = M.sun, T = () => Game.time;
+    const fx = { turb: [], falls: [], glints: [], glows: [], perm: null, fauna: [], flags: [], kites: [], lanterns: [], tower: null, plume: null, beacons: [] };
+    const P = (ys, h, draw, opts) => B.vplane(0, ys, h, (pb, w, hh) => { draw(pb, w, hh); SCBK.grade(pb, M.grade); }, opts);
+    /* ---------- cielo, sol y haces ---------- */
+    const sky = V.sky(W, IH, { horizonY: HZ, sun: SUN, curve: 1.15, stops: M.sky, haze: M.skyHaze });
+    if (M.sunKind === 'dusk') V.sunDisc(sky, SUN.x, SUN.y, SUN.r, SUN.halo, 'dusk');
+    V.rays(sky, SUN.x, SUN.y, M.sunKind === 'dusk' ? { n: 8, len: 300, col: M.dust ? '#ffd090' : '#ffe0b0', a: M.dust ? 0.07 : 0.11, spread: 2.8, ang: -Math.PI / 2, w: 0.05, seed: 4, yMax: HZ + 10 }
+      : { n: 6, len: 220, col: '#fff6dc', a: M.cold ? 0.04 : 0.08, spread: 1.6, ang: Math.PI / 2 + 0.3, w: 0.04, seed: 4, yMax: HZ });
+    SCBK.grade(sky, M.grade);
+    const skyC = sky.toCanvas();
+    B.vdyn(0, (g) => g.drawImage(skyC, 0, 0), { tag: 'sky' });
+    B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, M.dust ? 56 : 42, M.dust ? '#ffb070' : M.cold ? '#f0f4ff' : M.sunKind === 'dusk' ? '#ffb070' : '#fff0c0', M.dust ? 0.3 : 0.22, T()), { tag: 'bloom' });
+    /* ---------- nubes ---------- */
+    B.cloudDeck({ kind: 'cirrus', n: 5, seed: 31, f: [0.01, 0.03], y: [4, 34], w: [80, 160], speed: [1, 2], pal: M.clouds ? M.clouds.slice(3, 7) : null });
+    B.cloudDeck({ n: M.cloudN, seed: M.storm ? 51 : 37, f: [0.03, 0.07], y: [-4, 46], w: M.storm ? [80, 150] : [50, 120], bias: 0.6, speed: [2, 3.5], sunX: SUN.x, pal: M.clouds, tall: !!M.storm });
+    /* ---------- cordillera lejana ---------- */
+    P(HZ - 52, 54, (pb, w, h) => {
+      const r = RNG(57), peaks = [];
+      for (let x = 210; x < w + 60;) { const ww = r.int(50, 120); peaks.push({ x: x + ww * 0.5, v: r.int(14, 30), h: r.int(20, 48) * (x < 330 ? 0.55 : 1), w: ww, d: r.int(16, 28) }); x += r.int(34, 80); }
+      V.relief(pb, { yBase: h - 1, nv: 40, dvy: 0.3, seed: 59, hMax: 48, H: V.massif(peaks, { seed: 59, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }), ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55, haze: { col: M.farHaze, k0: 0, k: 0.22 }, mist: { col: M.farHaze, h: 10, k: 0.5 }, rim: M.farRim, tex: 0.04 });
+    }, { tag: 'far' });
+    /* ---------- mar ---------- */
+    P(HZ, 62, (pb) => V.seaFar(pb, 0, pb.h, { seed: 7, stops: M.sea, horizonCol: M.seaH }), {
+      tag: 'sea', dyn: (g) => {
+        V.drawSeaFx(g, 0, HZ, W, 48, T(), { sunX: SUN.x, density: 0.8 });
+        if (fx.plume) V.drawPlume(g, fx.plume[0], fx.plume[1], T(), { n: 26, len: 34 });
+      },
+    });
+    /* ---------- cabos lejanos a la izquierda con faro y barcas ---------- */
+    P(HZ - 30, 50, (pb, w, h) => {
+      const k = 0.22;
+      const C = V.headlands(pb, { seed: 93, k, base: h - 8, yTop: [8, 22], w: [60, 120], gap: [24, 60], x0: -30, x1: 250, end: 0.25, ramp: M.cold ? V.RAMPS.cliff : null });
+      const sp = C.spans[1] || C.spans[0];
+      if (sp) { const lx = Math.round(sp[0] + (sp[1] - sp[0]) * 0.7), ly = C.top[lx] + 1; const L = V.lighthouse(pb, lx, ly, 12, { k }); fx.light = [L.lx, HZ - 30 + L.ly]; }
+      for (const s0 of C.spans) for (let x = s0[0] + 6; x < s0[1] - 8; x += 9) { const y = C.top[x]; if (y < 32000 && hash2(x, 3, 5) < 0.6) V.house(pb, x, y + 1, 5 + (x % 3), 3 + (x % 2), 6100 + x, { k }); }
+      // barcas de pesca fondeadas
+      const HL = V.P32(V.hz(['#3a1a14', '#7a2a1e', '#c84a2a', '#f0e6d8'], k * 0.5));
+      for (const [bx, by] of [[44, h - 3], [120, h - 1], [190, h - 4]]) { for (let q = 0; q < 7; q++) { V.put(pb, bx + q, by, HL[q === 0 || q === 6 ? 1 : 2]); V.put(pb, bx + q + (q > 0 && q < 6 ? 0 : 1), by + 1, HL[0]); } V.put(pb, bx + 3, by - 1, HL[3]); V.put(pb, bx + 3, by - 2, HL[3]); for (let q = 0; q < 4; q++) V.put(pb, bx + 2, by - 1 - q, HL[1]); }
+    }, { tag: 'cape', dyn: (g) => { if (fx.light && Math.floor(Game.time * 1.2) % 3 === 0) V.drawGlow(g, fx.light[0], fx.light[1], 5, '#fff0b0', 0.7); } });
+    /* ---------- montañas medias con aerogeneradores ---------- */
+    P(34, 86, (pb, w, h) => {
+      const r = RNG(63), peaks = [];
+      for (let x = 330; x < w + 60;) { const ww = r.int(80, 150), hh = r.int(40, 76); peaks.push({ x: x + ww * 0.5, v: r.int(18, 34), h: hh, w: ww, d: r.int(22, 36) }); if (r.chance(0.6)) peaks.push({ x: x + ww * r.range(0.2, 0.8), v: r.int(4, 12), h: hh * 0.5, w: ww * 0.5, d: 16 }); x += r.int(70, 120); }
+      const info = V.relief(pb, { yBase: h - 1, nv: 50, dvy: 0.36, seed: 67, hMax: 76, H: V.massif(peaks, { seed: 67, rough: 0.6, scale: 0.034, apron: 7, spurs: 6, spurW: 0.45 }), ramp: V.RAMPS.mid, contrast: 2.3, facet: 0.35, cav: 0.1, haze: { col: M.hzc, k0: 0, k: 0.14 }, mist: { col: M.hzc, h: 22, k: 0.5 }, rim: M.rim, tex: 0.05, veg: { ramp: V.RAMPS.vegMid, density: 0.03 * M.vegK, maxSlope: 0.6, minY: 40 } });
+      for (const x of [372, 418, 600, 628]) {
+        let bx = x; for (let q = -14; q <= 14; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
+        const y = info.top[bx] + 1; if (y > h - 20) continue;
+        const hub = V.turbineTower(pb, bx, y, 18, { k: 0.3, w: 2 });
+        fx.turb.push({ x: hub.hx, y: hub.hy + 34, R: 8, k: 0.3, sp: 1.6 + (x % 7) * 0.2, ph: x, stop: M.dust && x === 418 });
+      }
+    }, { tag: 'mid', dyn: (g) => { const t = T(); for (const tb of fx.turb) { if (!tb.rot) tb.rot = V.rotor(tb.R, { k: tb.k }); V.drawRotor(g, tb.rot, tb.x, tb.y, tb.stop ? 0.4 : t * tb.sp + tb.ph); } } });
+    /* ---------- llano costero: desaladora, FV, H₂ e invernaderos ---------- */
+    const PLY = 100;
+    P(PLY, 34, (pb, w, h) => {
+      const k = 0.1, r = RNG(71), yB = 16;
+      const info = V.relief(pb, { yBase: yB + 2, nv: 22, dvy: 0.3, seed: 73, hMax: 16, x0: 300, H: V.massif([{ x: 380, v: 10, h: 12, w: 90, d: 14 }, { x: 520, v: 12, h: 16, w: 120, d: 16 }, { x: 640, v: 12, h: 14, w: 100, d: 14 }], { seed: 73, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, haze: { col: M.hzc, k0: 0.1, k: 0.06 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.12 * M.vegK, maxSlope: 1.1, minY: 0, size: 2 } });
+      V.fields(pb, 300, w, yB + 3, h, { k: 0.08, seed: 75, gold: M.gold, irrig: !M.dust });
+      const SAND = V.P32(V.hz(['#c58440', '#edaf5f', '#fccf85'], k)), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
+      for (let x = 150; x < w; x++) { V.put(pb, x, yB, SAND[2]); V.put(pb, x, yB + 1, SAND[1]); V.put(pb, x, yB + 2, SAND[0]); if (info.top[x] >= yB) V.put(pb, x, yB - 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); for (let y = yB + 3; y < h; y++) if (x < 300) V.put(pb, x, y, SAND[y > yB + 6 ? 0 : 1]); }
+      // la desaladora SYNARA, con el mismo orden de proceso del Nivel 1 (más grande en la victoria técnica)
+      const dc = V.desalChain(pb, M.cold ? 168 : 178, yB + 3, { k, s: M.cold ? 0.62 : 0.52, climb: 5 });
+      fx.perm = dc.perm;
+      if (M.mangrove) fx.plume = [dc.outfall.x, PLY + dc.outfall.y];
+      const pv = V.pvArray(pb, 330, info.yAt(380, 6) - 1, { tables: M.cold ? 4 : 3, cols: 10, rows: 2, cw: 3, ch: 2, gap: 2, skew: 2, k, shift: 2 });
+      fx.glints.push({ x: pv.x0 + 2, y: PLY + pv.y0 + 2, len: pv.x1 - pv.x0 - 4, ph: 0.2, sp: 0.18 });
+      if (M.dust) V.dustOn(pb, pv.x0, pv.y0, pv.x1 - pv.x0, pv.y1 - pv.y0, '#c88a50', 0.5);
+      const h2 = V.h2Plant(pb, 560, info.yAt(560, 8) - 1, { k, s: 0.5 });
+      fx.glows.push(...h2.glows.map(([x, y, rr]) => [x, PLY + y, Math.max(2, rr - 1)]));
+      if (!M.cold) { V.greenhouse(pb, 470, yB + 1, 18, 8, { k }); V.greenhouse(pb, 500, yB + 1, 14, 7, { k }); }
+      for (let x = 310; x < w; x += r.int(22, 48)) if (!(x > 540 && x < 620)) V.palm(pb, x, yB + 1, r.int(8, 13), r.range(-3, 3), 7300 + x, { k });
+      if (M.cold) { const FN = U(V.hzc('#9aa4b8', k)); for (let x = 160; x < 330; x++) { if (x % 3 === 0) for (let q = 0; q < 4; q++) V.put(pb, x, yB + 2 - q, FN); V.put(pb, x, yB - 2, FN); } }
+      fx.fauna.push({ kind: 'gull', x: 230, y: PLY - 20, r: 120, sp: 6 }, { kind: 'gull', x: 260, y: PLY - 30, r: 150, sp: 5 });
+    }, {
+      tag: 'plain', dyn: (g) => {
+        const t = T();
+        if (fx.perm) V.drawFlow(g, fx.perm, 0, PLY, t, { col: '#f4ffff', speed: 10, gap: 5 });
+        V.drawPulse(g, fx.glows, 0, 0, t, '#4cd48e', 0.35, 0.2, 2);
+        V.drawGlints(g, fx.glints, 0, 0, t);
+      },
+    });
+    /* ---------- colina de ARIDIA: cúpula, torre de SYNARA, terrazas, cascadas ---------- */
+    const CITY_X = 560, TOWER_X = 466;
+    P(0, 150, (pb, w, h) => {
+      const k = 0.08, r = RNG(81);
+      const peaks = [{ x: CITY_X, v: 22, h: 84, w: 150, d: 30, k: 0.8 }, { x: TOWER_X, v: 16, h: 62, w: 90, d: 22, k: 0.85 }, { x: 380, v: 12, h: 40, w: 110, d: 18 }, { x: 650, v: 14, h: 60, w: 90, d: 20 }];
+      const info = V.relief(pb, { yBase: h - 1, nv: 44, dvy: 0.3, seed: 83, hMax: 90, x0: 280, H: V.massif(peaks, { seed: 83, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 66, h: 76 }, { x: TOWER_X, w: 24, h: 58 }] }), ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1, haze: { col: M.hzc, k0: 0, k: 0.1 }, mist: { col: M.hzc, h: 14, k: 0.3 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegHill, density: 0.13 * M.vegK, maxSlope: 1.1, minY: 60, size: 3 } });
+      const TA = V.carveTerraces(pb, info, { x0: 360, x1: 430, yTop: 104, yBot: 142, stepH: [7, 9], wallK: 0.42, k, seed: 85, kinds: ['rows', 'orchard', 'flowers', 'rows', 'vine'], crop: M.gold > 0.3 ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 396, w: 3, from: 0 }] });
+      const TB = V.carveTerraces(pb, info, { x0: 600, x1: 640, yTop: 96, yBot: 140, stepH: [7, 9], wallK: 0.42, k, seed: 87, kinds: ['rows', 'orchard', 'rows'], falls: [] });
+      fx.falls.push(...TA.falls, ...TB.falls);
+      V.scatterVeg(pb, (x) => (Math.abs(x - CITY_X) < 50 || Math.abs(x - TOWER_X) < 18) ? null : info.top[x] + 1, 290, w, 8101, { k: k + 0.02, gap: Math.round(7 / M.vegK), mix: { tree: 4, shrub: 3, palm: 1 }, ramp: V.RAMPS.vegHill });
+      for (let i = 0; i < 30; i++) { const x = r.pick([r.int(300, 440), r.int(480, 520), r.int(600, 640)]); const y = info.onSurf(x, r.int(4, 16)); if (y == null || y < 60 || y > h - 8 || Math.abs(x - TOWER_X) < 14) continue; V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 8200 + i, { k: k + 0.02 }); }
+      // torre de SYNARA (en el final mosaico, envuelta en el mosaico de datos comunitarios)
+      const tw = V.synaraTower(pb, TOWER_X, info.top[TOWER_X] + 4, 70, { k: 0.04 });
+      fx.tower = tw;
+      if (id === 'mosaico') {
+        const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#f78acb', '#ff9f43', '#8d6bff'];
+        const yb = info.top[TOWER_X] + 4 - 4;
+        for (let q = 0; q < 5; q++) { const y0 = yb - 10 - q * 11, hw = Math.round(lerp(6, 3, (10 + q * 11) / 70)); SCBK.mosaicTiles(pb, TOWER_X - hw, y0 - 6, hw * 2 + 3, 6, 90 + q, cols); }
+        fx.orbit = { x: TOWER_X, y: yb - 40, cols };
+      }
+      if (id === 'tecnica') { const yb = info.top[TOWER_X] + 4; const FN = U('#8a94ac'); for (let x = TOWER_X - 22; x < TOWER_X + 24; x++) { V.put(pb, x, yb - 1, FN); if (x % 3 === 0) for (let q = 2; q < 6; q++) V.put(pb, x, yb - q, FN); V.put(pb, x, yb - 6, FN); } }
+      // ciudad de ARIDIA sobre la meseta
+      const dc = V.domeCity(pb, CITY_X, info.top[CITY_X] + 8, { k: 0.03, s: 0.72 });
+      for (const F of dc.falls) {
+        let y0 = dc.base, x0 = F.x, wf = F.w; const total = h - 6 - y0, tiers = F.w > 8 ? [0.34, 0.3, 0.26] : [0.5, 0.45];
+        for (let ti = 0; ti < tiers.length; ti++) {
+          const y1 = Math.round(y0 + total * tiers[ti]);
+          if (!M.dust || ti === 0) { V.fall(pb, x0, y0, y1, M.dust ? Math.max(2, wf >> 2) : wf, { k: 0.02 }); fx.falls.push({ x: x0, y0, y1, w: M.dust ? Math.max(2, wf >> 2) : wf }); }
+          const RK = V.P32(V.RAMPS.hill);
+          for (let xx = x0 - 4; xx < x0 + wf + 4; xx++) { V.put(pb, xx, y1 + 2, RK[2]); V.put(pb, xx, y1 + 1, RK[7]); V.put(pb, xx, y1, U(M.dust ? '#b89a7a' : (xx < x0 || xx >= x0 + wf ? '#3adcf1' : '#e8f8fc'))); }
+          y0 = y1 + 2; x0 += (ti % 2 ? -2 : 2); if (wf > 8) wf += 2;
+        }
+      }
+      // pacto: andamio y grúa sobre el flanco de la cúpula (obra sin terminar)
+      if (M.scaffold) {
+        const SC = U('#f0b040'), SD = U('#8a5a20'), x0 = CITY_X + 18, y0 = dc.top + 14;
+        for (let yy = y0; yy < y0 + 30; yy++) { V.put(pb, x0, yy, SD); V.put(pb, x0 + 10, yy, SD); V.put(pb, x0 + 20, yy, SD); if ((yy - y0) % 6 === 0) for (let xx = x0; xx <= x0 + 20; xx++) V.put(pb, xx, yy, SC); }
+        for (let q = 0; q < 6; q++) V.put(pb, x0 + q * 2, y0 + 6 + q * 2, SC);
+        const cx = CITY_X - 30, cy = dc.top + 4; for (let yy = cy; yy < cy + 44; yy++) { V.put(pb, cx, yy, SC); if (yy % 3 === 0) V.put(pb, cx + 1, yy, SD); }
+        for (let xx = cx - 10; xx < cx + 34; xx++) { V.put(pb, xx, cy, SC); if (xx % 3 === 0) V.put(pb, xx, cy + 1, SD); }
+        for (let q = 0; q < 10; q++) V.put(pb, cx + 28, cy + 1 + q, U('#3a3040'));
+        fx.beacons.push([cx, cy - 1]);
+      }
+      fx.fauna.push({ kind: 'eagle', x: 300, y: 28, r: 70 }, { kind: 'drone', x: CITY_X + 60, y: dc.top + 6, r: 24 });
+      if (!M.dust && !M.cold) fx.fauna.push({ kind: 'drone', x: 610, y: 60, r: 20 });
+    }, {
+      tag: 'hill', dyn: (g) => {
+        const t = T();
+        V.drawFalls(g, fx.falls, 0, 0, t, { speed: 40, alpha: 0.8 });
+        const tw = fx.tower;
+        if (tw) V.drawPulse(g, tw.glows, 0, 0, t, id === 'mosaico' ? '#ffe14d' : M.cold ? '#a8f0ff' : '#5ae8f0', id === 'deuda' ? 0.2 : 0.4, 0.2, 1.6);
+        if (tw && Math.floor(t * 1.5) % 2) { g.fillStyle = id === 'deuda' ? '#ffb04a' : '#ff6a5a'; g.fillRect(tw.beacon[0], tw.beacon[1] - 1, 1, 1); }
+        for (const [x, y] of fx.beacons) if (Math.floor(t * 2) % 2) V.drawGlow(g, x, y, 3, '#ff6a40', 0.8);
+        if (fx.orbit) {
+          const O = fx.orbit;
+          for (let i = 0; i < 14; i++) {
+            const a = t * 0.8 + i * TAU / 14, ry = 4 + (i % 3) * 3, x = O.x + Math.cos(a) * (16 + (i % 2) * 5), y = O.y - i * 2.2 + Math.sin(a) * ry * 0.4;
+            if (Math.sin(a) < -0.2 && Math.abs(x - O.x) < 6) continue; // detrás de la torre
+            g.fillStyle = O.cols[i % O.cols.length]; g.globalAlpha = 0.6 + 0.4 * Math.sin(a); g.fillRect(Math.round(x), Math.round(y), 2, 2);
+          }
+          g.globalAlpha = 1;
+        }
+        V.drawFauna(g, fx.fauna, 0, 0, t);
+      },
+    });
+    /* ---------- barrio bajo con vecinos (plano medio) ---------- */
+    P(108, 56, (pb, w, h) => {
+      const k = 0.03, r = RNG(101);
+      const info = V.relief(pb, { yBase: h - 10, nv: 20, dvy: 0.3, seed: 105, hMax: 30, x0: 250, H: V.massif([{ x: 380, v: 10, h: 18, w: 150, d: 14, k: 1.1 }, { x: 560, v: 10, h: 26, w: 200, d: 16, k: 1.1 }], { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: M.hzc, k0: 0, k: 0.03 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.16 * M.vegK, maxSlope: 1.3, minY: 6, size: 3 } });
+      const GR = V.P32(V.hz(M.dust ? ['#4a3a1c', '#6a5226', '#8a6a32', '#a88440', '#c49c52'] : ['#2a3a0c', '#3b5312', '#597611', '#7b981a', '#9cb42c'], k));
+      for (let x = 250; x < w; x++) for (let y = h - 10; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
+      const town = V.hillTown(pb, { x0: 268, x1: w + 8, seed: 109, k, bunting: M.festive ? 0.9 : M.cold ? 0 : 0.4, lit: M.lit, rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.03) * 1), w: [14, 24], h: [10, 18], gap: [-4, 8], hole: 0.15, veg: 0.85 * M.vegK, vegGap: [10, 24], roofs: M.cold ? ['flat', 'solar', 'flat'] : ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles'], scale: 1.2, s: 2, flowers: M.dust ? 0.05 : 0.5 }] });
+      for (const [x, y] of town.tops) if (M.festive && hash2(x, y, 11) < 0.3) { const PL = U('#e8e4de'); for (let q = 0; q < 8; q++) V.put(pb, x, y - q, PL); fx.flags.push({ x, y: 108 + y - 8, col: SCBK.CLOTH[(x >> 3) % 6] }); }
+      if (M.lit) for (const hs of town.houses) if (hash2(hs.x, 1, 3) < 0.5) fx.lanterns.push([hs.x + 3, 108 + hs.y - hs.h + 2, 3]);
+      // vecinos en la calle (más gente en el mosaico; casi nadie en la victoria técnica)
+      for (let i = 0; i < M.folk; i++) { const x = r.int(262, w - 4); SCBK.folk(pb, x, h - 2 - r.int(0, 3), 900 + i, { k, pose: M.festive ? 'cheer' : null, cols: M.cold ? ['#8a94ac', '#c8d0dc', '#5a6a8a'] : null }); }
+      if (M.festive) { const KC = ['#e83b41', '#f5dc5a', '#8d6bff', '#11bedd', '#ff9f43', '#3fe0a0']; for (let i = 0; i < 4; i++) fx.kites.push({ x: 300 + i * 90, y: 60 + (i % 2) * 12, col: KC[i], sp: 0.6, ph: i, tail: 10, line: [8, 30] }); }
+    }, {
+      tag: 'low', dyn: (g) => {
+        const t = T();
+        V.drawFlags(g, fx.flags, 0, 0, t);
+        V.drawKites(g, fx.kites, 0, 0, t);
+        if (fx.lanterns.length) V.drawPulse(g, fx.lanterns, 0, 0, t, '#ffb050', 0.4, 0.15, 3);
+      },
+    });
+    /* ---------- primer plano: cornisa columnar, palmera, follaje ---------- */
+    const topF = (x) => x < 196 ? 146 - Math.round(Math.sin(x * 0.03) * 2) + (x > 150 ? Math.round((x - 150) * 0.16) : 0) : 153 + (x - 196) * 0.55;
+    const fg = new PixelBuffer(W, IH);
+    // cornisa de primer plano con el terreno del plano jugable (PFTerrain: acantilado columnar en 3/4)
+    const ground = new Int16Array(W + 1).fill(9999);
+    for (let x = 0; x < 236; x++) ground[x] = Math.round(topF(x));
+    const rockR = M.cold ? ['#1e1a28', '#2e2838', '#463a48', '#5e4c56', '#7a6268', '#967c7c', '#b0989a', '#c8b4b0', '#dccac4']
+      : M.dust ? ['#2a120a', '#3e1c10', '#562816', '#6a361c', '#8e5228', '#ac6c36', '#c48a4a', '#dcaa6a', '#ecc898'] : RAMP.rockWarmR;
+    const world = { def: { pf: { terrain: [{ x0: 0, x1: 236, surf: 'grass', face: 'cliff', ramp: rockR, ledges: false, ledgePlants: false, lip: M.cold ? '#dcd8e0' : '#fde3a8' }] } }, w: W, h: IH, ground, platforms: [], water: [] };
+    const surfPB = new PixelBuffer(W, IH);
+    PFTerrain.surface(surfPB, world);
+    const terrC = PFTerrain.render(world);
+    const ledgeTop = ground;
+    const gy = (x) => ledgeTop[Math.max(0, Math.min(235, Math.round(x)))] - 3;
+    if (M.dust) PFFlora.scatter(fg, gy, 4, 220, 41, { mix: { dry: 5, agave: 1 }, gap: 12 });
+    else PFFlora.scatter(fg, gy, 4, 220, 41, { mix: M.cold ? { tuft: 4, agave: 2 } : { tuft: 4, flowers: 3, lupine: 1, hibiscus: 1 }, gap: 12 });
+    PFFlora.palm(fg, 20, gy(20), 96, 10, 77, M.dust ? { ramp: ['#1a1408', '#2e240c', '#4a3a14', '#6a5420', '#8a7030', '#a88a44', '#c4a45a', '#dcc070'] } : {});
+    // matas oscuras del borde derecho (oclusor frío)
+    const clump = PFFlora.fgClump(80, 40, 9, { spikes: M.dust ? 0 : 3 });
+    V.blit(fg, clump, 572, IH - 40);
+    // flores en el labio de la cornisa (más en el mosaico, ninguna en la deuda)
+    if (!M.dust) for (let x = 12; x < 220; x += M.festive ? 9 : 17) if (hash2(x, 3, 71) < 0.7) PFFlora.flowerPatch(fg, x, gy(x) + 1, 7, x + 3, M.cold ? ['#c8d0e0', '#e8ecf4', '#8a94ac', '#ffffff'] : undefined);
+    // follaje de encuadre que cuelga en la esquina superior izquierda (el plano más oscuro)
+    const canopyC = PFFlora.canopy(180, 56, 21, { side: -1, n: 9, vines: 2 }).toCanvas();
+
+    // manglar seco (deuda): raíces grises sobre la orilla y plantones nuevos en cajas
+    if (M.mangrove) {
+      const DW = V.P32(['#2a2420', '#4a403a', '#6a5e56', '#8a7e74', '#a89c90']);
+      for (let i = 0; i < 4; i++) {
+        const bx = 226 + i * 18, by = 150 + (i & 1) * 3;
+        for (let q = -3; q <= 3; q++) for (let s = 0; s < 8; s++) { V.put(fg, bx + q * 2 + Math.round(q * (8 - s) * 0.35), by - s, DW[1 + (s & 1)]); V.put(fg, bx + q * 2 + Math.round(q * (8 - s) * 0.35) + 1, by - s, DW[0]); }
+        for (let s = 0; s < 16; s++) { V.put(fg, bx, by - 8 - s, DW[3]); V.put(fg, bx + 1, by - 8 - s, DW[1]); }
+        for (const [dx, dy] of [[-7, -28], [6, -30], [-4, -33], [9, -24], [2, -36]]) { V.line(fg, bx, by - 20, bx + dx, by + dy, () => DW[4]); V.line(fg, bx + 1, by - 20, bx + dx + 1, by + dy, () => DW[1]); }
+        // agua turbia con espuma de salmuera al pie de las raíces
+        for (let xx = -9; xx < 10; xx++) { V.put(fg, bx + xx, by + 1, U(xx % 3 ? '#8a6a7a' : '#c08ab0')); V.put(fg, bx + xx, by + 2, U('#5a4a62')); }
+      }
+    }
+    SCBK.grade(fg, M.cold ? { sat: 0.8, tint: '#8aa8d0', tintK: 0.08 } : M.dust ? { sat: 0.86, tint: '#c89060', tintK: 0.1 } : { sat: 1.05 });
+    const fgC = fg.toCanvas(), surfC = surfPB.toCanvas();
+    // tablero de decisiones pendientes (pacto) / caja de plantones (deuda) / mosaico (mosaico), horneados aparte
+    const props = new PixelBuffer(W, IH);
+    if (M.board) {
+      const x = 186, y = gy(186) - 40, WD = U('#5a3826'), WL = U('#8e542f');
+      for (let q = 0; q < 40; q++) { V.put(props, x + 2, y + q, WD); V.put(props, x + 33, y + q, WD); }
+      for (let yy = 0; yy < 22; yy++) for (let xx = 0; xx < 36; xx++) V.put(props, x + xx, y + yy, U(yy === 0 || xx === 0 ? '#cb9772' : yy === 21 || xx === 35 ? '#4e2519' : hash2(xx >> 1, yy >> 1, 3) < 0.2 ? '#7a4a28' : '#8e542f'));
+      const NC = ['#ffe14d', '#ff9a8a', '#a6f4ff', '#c2f58e'];
+      for (let i = 0; i < 8; i++) { const nx = x + 3 + (i % 4) * 8, ny = y + 3 + Math.floor(i / 4) * 9; for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 6; xx++) V.put(props, nx + xx, ny + yy, U(yy === 0 ? shadeTo(NC[i % 4], 0.3) : yy === 5 ? shadeTo(NC[i % 4], -0.25) : NC[i % 4])); V.put(props, nx + 1, ny + 2, U('#3a2a40')); V.put(props, nx + 3, ny + 2, U('#3a2a40')); V.put(props, nx + 2, ny + 4, U('#3a2a40')); }
+      for (let xx = 0; xx < 36; xx++) V.put(props, x + xx, y - 1, WL);
+    }
+    if (M.mangrove) {
+      const x = 170, y = gy(170);
+      for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 26; xx++) V.put(props, x + xx, y - 8 + yy, U(yy === 0 ? '#cb9772' : yy === 7 ? '#4e2519' : xx % 9 === 0 ? '#5a2d21' : '#8e542f'));
+      for (let i = 0; i < 5; i++) PFFlora.leaf(props, x + 3 + i * 5, y - 8, -Math.PI / 2 - 0.4 + i * 0.2, 7, 3, V.P32(RAMP.foliageR), 4);
+    }
+    const propsC = props.toCanvas();
+    // personajes del primer plano por final
+    const cast = {
+      mosaico: [['amaya', 'victory', 104, 1, { expr: 'happy' }], ['alma', 'celebrate', 56, 1, {}], ['crowd3', 'celebrate', 196, -1, {}]],
+      pacto: [['amaya', 'observe', 112, 1, { expr: 'smile' }], ['consejal', 'talk', 58, 1, {}]],
+      tecnica: [['amaya', 'think', 112, 1, { expr: 'thinking' }], ['operador', 'idle', 186, -1, {}]],
+      deuda: [['amaya', 'determined', 104, 1, {}], ['marea', 'talk', 214, -1, {}]],
+    }[id] || [];
+    // luz de borde de los personajes según la hora del final (rig: RIM_ENV)
+    const ENV = M.dust ? 'calima' : M.sunKind === 'dusk' ? 'dusk' : 'coast';
+    const kiruExpr = { mosaico: 'happy', pacto: 'smile', tecnica: 'calm', deuda: 'brave' }[id];
+    return {
+      id, B, cast,
+      draw(g, t) {
+        g.save(); g.beginPath(); g.rect(0, 0, W, IH); g.clip();
+        B.render(g, { x: 0, y: V.CAMY });
+        if (M.dust) { V.drawSand(g, 24, t, 5, { y0: 40, y1: 150, col: '#f0c890', wind: 0.6 }); }
+        g.drawImage(surfC, 0, 0); g.drawImage(terrC, 0, 0);
+        g.drawImage(fgC, 0, 0);
+        g.drawImage(propsC, 0, 0);
+        for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, Object.assign({ env: ENV }, op));
+        drawChar(g, 'kiru', 'idle', t, 148, gy(148) - 10, 1, { expr: kiruExpr, env: ENV });
+        if (M.sunKind === 'dusk' || M.festive) V.drawMotes(g, 12, t, 13, { y0: 60, y1: 160, col: M.dust ? '#f0c890' : '#ffe8b0' });
+        g.drawImage(canopyC, -8 + Math.round(Math.sin(t * 1.1) * 1), -6);
+        // borde inferior: sombra de contacto suave sobre el panel
+        g.fillStyle = '#04142e'; g.globalAlpha = 0.5; g.fillRect(0, IH - 2, W, 2); g.globalAlpha = 1;
+        g.restore();
+      },
+    };
+  }
+  return { make, MOODS, IH };
+})();
+
+/* ===== 19o_scb_post.js ===== */
+/* =====================================================================
+   19o_scb_post.js — Escena POSCRÉDITOS: el vivero de noche.
+   Cielo nocturno en bandas con estrellas y luna con resplandor, cirros
+   plateados, cordillera y colinas en hora azul con las luces de ARIDIA y
+   la baliza de la torre de SYNARA, bancales del vivero, invernadero en 3/4
+   con luz cálida interior (estantes, plantones, lámparas colgantes), puerta
+   abierta que derrama luz sobre el suelo, faroles con halo suave, bandejas
+   de plantones, sensor con la alarma de la «variable desconocida»,
+   Amaya y KIRU con tinte nocturno y luz de borde cálida, luciérnagas.
+   SCBPost.make() → {draw(g, t, o)}   o = {amayaExpr}
+   Sin tramado: bandas, alfa horneada y halos en anillos.
+   ===================================================================== */
+const SCBPost = (() => {
+  const V = VISTA;
+  const GY = 270; // línea de paso del suelo (pies de Amaya y KIRU)
+  const NIGHT = { sat: 0.7, tint: '#5a6ab8', tintK: 0.5, bright: 0.5, lift: 0.06, liftCol: '#0e1440' };
+  /** Sprite con tinte nocturno (cache por lienzo de cuadro) */
+  const _nightC = new Map();
+  function nightSprite(c) {
+    let o = _nightC.get(c); if (o) return o;
+    const w = c.width, h = c.height, cv = makeCanvas(w, h);
+    cv.g.drawImage(c, 0, 0);
+    const id = cv.g.getImageData(0, 0, w, h), d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+      // mezcla hacia azul noche conservando el brillo de los rasgos claros (borde cálido del rig)
+      const k = l > 200 ? 0.12 : 0.34;
+      d[i] = d[i] + (l * 0.42 - d[i]) * k; d[i + 1] = d[i + 1] + (l * 0.5 - d[i + 1]) * k; d[i + 2] = d[i + 2] + (Math.min(255, l * 0.95 + 30) - d[i + 2]) * k;
+    }
+    cv.g.putImageData(id, 0, 0);
+    o = cv; o.anchors = c.anchors; _nightC.set(c, o);
+    if (_nightC.size > 64) _nightC.delete(_nightC.keys().next().value);
+    return o;
+  }
+  /** drawChar con tinte nocturno y luz de borde cálida (env 'dusk' del rig) */
+  function drawNight(g, id, anim, time, x, y, facing, opts = {}) {
+    const def = CHARS[id]; if (!def) return;
+    const A = ANIMS[anim] || ANIMS.idle;
+    let frame = Math.floor(time * A.fps); frame = A.loop ? frame % A.frames : Math.min(frame, A.frames - 1);
+    const o2 = Object.assign({ env: 'dusk' }, opts);
+    const c = nightSprite(SpriteCache.get(id, anim, frame, o2));
+    const ox = def.ox ?? 30, oy = def.oy ?? 78, dx = Math.round(x), dy = Math.round(y);
+    const sh = charShadow((c.anchors && c.anchors.shadowR) || def.shadowR || 9);
+    g.drawImage(sh, dx - (sh.width >> 1), dy - 2);
+    if (facing < 0) { g.save(); g.translate(dx, 0); g.scale(-1, 1); g.drawImage(c, -ox - 1, dy - oy); g.restore(); }
+    else g.drawImage(c, dx - ox, dy - oy);
+  }
+  function make() {
+    const B = new Backdrop(W, H), T = () => Game.time;
+    const fx = { stars: [], city: [], beacon: null, lamps: [], win: [], leds: [] };
+    const P = (ys, h, draw, opts) => B.vplane(0, ys, h, (pb, w, hh) => { draw(pb, w, hh); SCBK.grade(pb, NIGHT); }, opts);
+    /* ---------- cielo nocturno, estrellas y luna ---------- */
+    const MOON = { x: 512, y: 58, r: 12 };
+    const sky = SCBK.nightSky(W, 250, { horizonY: 236, moon: MOON });
+    fx.stars = SCBK.stars(sky, W, 250, 17, { n: 200, y1: 220 });
+    // vía láctea tenue: banda diagonal de motas
+    { const r = RNG(23); for (let i = 0; i < 380; i++) { const u = r(), x = Math.round(u * W), y = Math.round(150 - u * 120 + (r() - 0.5) * 34 * (1 - Math.abs(u - 0.5))); V.blend(sky, x, y, U(r() < 0.3 ? '#c8c0ff' : '#8a90d8'), 0.18 + r() * 0.25); } }
+    SCBK.moon(sky, MOON.x, MOON.y, MOON.r);
+    const skyC = sky.toCanvas();
+    B.vdyn(0, (g) => { g.drawImage(skyC, 0, 0); SCBK.drawTwinkle(g, fx.stars, T()); V.drawBloom(g, MOON.x, MOON.y, 44, '#c8d0ff', 0.16, T()); }, { tag: 'sky' });
+    B.cloudDeck({ kind: 'cirrus', n: 5, seed: 61, f: [0.01, 0.03], y: [30, 110], w: [90, 170], speed: [0.6, 1.2], pal: ['#2a3470', '#46529a', '#7a86c8', '#c8d0f4'] });
+    /* ---------- cordillera lejana con ARIDIA iluminada ---------- */
+    P(176, 66, (pb, w, h) => {
+      const r = RNG(57), peaks = [];
+      for (let x = -20; x < w + 60;) { const ww = r.int(60, 130); peaks.push({ x: x + ww * 0.5, v: r.int(14, 30), h: r.int(18, 46), w: ww, d: r.int(16, 28) }); x += r.int(40, 90); }
+      V.relief(pb, { yBase: h - 1, nv: 40, dvy: 0.3, seed: 61, hMax: 46, H: V.massif(peaks, { seed: 61, rough: 0.5, scale: 0.05, apron: 5 }), ramp: V.RAMPS.far, contrast: 1.8, t0: 0.55, haze: { col: '#6a70b0', k0: 0, k: 0.2 }, mist: { col: '#5a6098', h: 10, k: 0.4 }, rim: '#c8d4ff', tex: 0.04 });
+    }, { tag: 'far' });
+    // ciudad lejana (cúpula y torre) sobre la colina de la izquierda
+    P(150, 96, (pb, w, h) => {
+      const info = V.relief(pb, { yBase: h - 1, nv: 30, dvy: 0.3, seed: 71, hMax: 60, x0: 0, x1: 300, H: V.massif([{ x: 130, v: 14, h: 52, w: 160, d: 24 }, { x: 250, v: 10, h: 30, w: 110, d: 18 }], { seed: 71, rough: 0.4, scale: 0.05, apron: 4, plateaus: [{ x: 130, w: 60, h: 46 }] }), ramp: V.RAMPS.hill, contrast: 2, t0: 0.5, haze: { col: '#5a6098', k0: 0, k: 0.12 }, rim: '#b8c4ff', tex: 0.05, veg: { ramp: V.RAMPS.vegHill, density: 0.08, maxSlope: 1, minY: 50, size: 2 } });
+      const dc = V.domeCity(pb, 132, info.top[132] + 6, { k: 0.1, s: 0.42 });
+      const tw = V.synaraTower(pb, 196, info.top[196] + 3, 40, { k: 0.1 });
+      fx.beacon = [tw.beacon[0], 150 + tw.beacon[1]];
+      fx.towerGlow = tw.glows.map(([x, y, rr]) => [x, 150 + y, rr]);
+      const r = RNG(73);
+      for (let i = 0; i < 70; i++) { const x = r.int(10, 296), y = info.onSurf(x, r.int(2, 14)); if (y == null) continue; if (r.chance(0.5)) V.house(pb, x, y + 1, r.int(4, 7), r.int(3, 5), 5100 + i, { k: 0.12 }); else fx.city.push([x, 150 + y - 1, r.range(0, 6)]); }
+      fx.domeY = 150 + dc.top + 16;
+    }, { tag: 'city' });
+    /* ---------- colinas del vivero (bancales en hora azul) ---------- */
+    P(200, 70, (pb, w, h) => {
+      const info = V.relief(pb, { yBase: h - 1, nv: 30, dvy: 0.32, seed: 81, hMax: 44, x0: 0, H: V.massif([{ x: 60, v: 10, h: 22, w: 200, d: 18 }, { x: 330, v: 12, h: 30, w: 200, d: 20 }, { x: 560, v: 14, h: 42, w: 240, d: 24 }], { seed: 81, rough: 0.45, scale: 0.05, apron: 4 }), ramp: V.RAMPS.low, contrast: 1.8, t0: 0.5, haze: { col: '#4a5090', k0: 0, k: 0.06 }, rim: '#c0caff', tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.18, maxSlope: 1.2, minY: 4, size: 3 } });
+      const TA = V.carveTerraces(pb, info, { x0: 470, x1: 640, yTop: 14, yBot: 60, stepH: [6, 8], wallK: 0.4, k: 0.04, seed: 85, kinds: ['rows', 'orchard', 'rows', 'vine'], falls: [] });
+      void TA;
+      const r = RNG(83);
+      for (let x = 8; x < w; x += r.int(14, 30)) { const y = info.onSurf(x, r.int(2, 10)); if (y != null) V.cypress(pb, x, y + 1, r.int(8, 14), 600 + x, { k: 0.04 }); }
+      // depósito de agua del vivero sobre su torre
+      V.waterTower(pb, 548, (info.onSurf(548, 6) ?? info.top[548]) + 1, 30, { k: 0.04 });
+      // casita del vivero con ventana encendida
+      const hs = V.townHouse(pb, 600, (info.onSurf(600, 6) ?? info.top[600]) + 1, 22, 14, 77, { k: 0.02, roof: 'tiles', pal: 'white' });
+      fx.win.push(...hs.wins.slice(0, 2).map(([x, y, ww, hh]) => [x, 200 + y, ww, hh]));
+    }, { tag: 'hills' });
+    /* ---------- suelo (PFTerrain en hora azul), invernadero, faroles ---------- */
+    // suelo del vivero: cara superior de tierra con hierba (3/4) y bancales elevados de madera delante
+    const surf = new PixelBuffer(W, H);
+    soil(surf);
+    const terrC = null;
+    const art = new PixelBuffer(W, H);
+    greenhouse(art, 318, GY - 6, fx);
+    // bandejas de plantones delante del invernadero y bancos de madera
+    trays(art, 292, GY - 2, 6, 11); trays(art, 486, GY - 3, 4, 13);
+    bench(art, 540, GY - 4, 60, fx);
+    // faroles (el de Amaya y el del camino)
+    for (const [x, h] of [[179, 74], [606, 62]]) fx.lamps.push(lampPost(art, x, GY - 2, h));
+    // sensor del vivero (la alarma de la variable desconocida)
+    { const S = V.P32(['#1a1c34', '#2e3254', '#4a5078', '#6a72a0', '#9aa4d0']); for (let q = 0; q < 44; q++) { V.put(art, 456, GY - 2 - q, S[2]); V.put(art, 457, GY - 2 - q, S[1]); } for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 8; xx++) V.put(art, 453 + xx, GY - 50 + yy, S[yy === 0 ? 4 : xx === 7 ? 0 : 2]); V.put(art, 455, GY - 48, U('#56e5ff')); fx.sensor = [457, GY - 52]; }
+    // regadera, saco de sustrato, macetas
+    pots(art, 252, GY - 1); pots(art, 520, GY - 1);
+    const flora = new PixelBuffer(W, H);
+    PFFlora.scatter(flora, () => GY - 3, 4, 290, 31, { mix: { tuft: 4, fern: 2, lupine: 1, flowers: 1 }, gap: 10 });
+    PFFlora.scatter(flora, () => GY - 3, 560, 636, 37, { mix: { tuft: 4, fern: 2, agave: 1 }, gap: 10 });
+    PFFlora.palm(flora, 36, GY - 4, 120, 14, 91, { ramp: ['#060a14', '#0c1626', '#142438', '#1e3448', '#2a4658', '#3a5a6a', '#527280', '#6e8c98'], trunk: ['#06070e', '#10121e', '#1c2030', '#2a3044', '#3a4258', '#4e5870'] });
+    const clumpL = PFFlora.fgClump(120, 60, 13, { spikes: 4 }), clumpR = PFFlora.fgClump(110, 56, 19, { spikes: 3 });
+    V.blit(flora, clumpL, -10, H - 60); V.blit(flora, clumpR, W - 100, H - 56);
+    SCBK.grade(art, { sat: 0.85, tint: '#6a78c8', tintK: 0.32, bright: 0.72 });
+    SCBK.grade(flora, NIGHT);
+    // la luz del invernadero queda sin gradar (cálida): se hornea después
+    greenhouseLight(art, 318, GY - 6);
+    spill(surf, 318, GY - 6);
+    const surfC = surf.toCanvas(), artC = art.toCanvas(), floraC = flora.toCanvas();
+    fx.wires = [SCBK.catenary(181, GY - 74, 318, GY - 62, 10), SCBK.catenary(486, GY - 70, 606, GY - 62, 9)];
+    return {
+      draw(g, t, o = {}) {
+        B.render(g, { x: 0, y: V.CAMY });
+        // luces de la ciudad y baliza de SYNARA
+        for (const [x, y, ph] of fx.city) { const a = 0.6 + 0.4 * Math.sin(t * 0.7 + ph); g.globalAlpha = a; g.fillStyle = ph > 4.5 ? '#ff9f43' : '#ffd86a'; g.fillRect(x, y, 1, 1); }
+        g.globalAlpha = 1;
+        V.drawPulse(g, fx.towerGlow, 0, 0, t, '#5ae8f0', 0.35, 0.2, 1.4);
+        if (Math.floor(t * 1.5) % 2) V.drawGlow(g, fx.beacon[0], fx.beacon[1], 3, '#ff6a5a', 0.9);
+        for (const [x, y, ww, hh] of fx.win) { g.fillStyle = '#ffc860'; g.fillRect(x, y, ww, hh); }
+        g.drawImage(surfC, 0, 0); g.drawImage(artC, 0, 0);
+        // guirnalda de bombillas cálidas del farol al invernadero y del invernadero al farol del camino
+        g.fillStyle = '#141428'; for (const pts of fx.wires) for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0], pts[i][1], 1, 1);
+        for (const pts of fx.wires) SCBK.drawBulbs(g, pts, t, ['#ffd070', '#ffb050', '#fff0b0'], 10);
+        // lámparas colgantes del invernadero (parpadeo cálido muy leve)
+        for (const [x, y] of fx.ghLamps) V.drawSoftGlow(g, x, y, 14, '#ffb050', 0.18 + 0.03 * Math.sin(t * 5 + x), 5);
+        // sensor: alarma amarilla que parpadea
+        const on = Math.floor(t * 3) % 2;
+        g.fillStyle = on ? '#ffe14d' : '#6a5a10'; g.fillRect(fx.sensor[0] - 1, fx.sensor[1] - 1, 3, 3);
+        if (on) V.drawSoftGlow(g, fx.sensor[0], fx.sensor[1], 12, '#ffe14d', 0.35, 4);
+        // Amaya y KIRU (tinte nocturno + luz de borde cálida del farol)
+        drawNight(g, 'amaya', 'idle', t, 220, GY, 1, { expr: o.amayaExpr || 'surprised' });
+        drawNight(g, 'kiru', 'idle', t, 260, GY, -1, {});
+        // taza de té con vapor (en la mano de Amaya)
+        g.fillStyle = '#e8dcc0'; g.fillRect(225, 238, 7, 6); g.fillRect(232, 239, 2, 3); g.fillStyle = '#a89a80'; g.fillRect(225, 243, 7, 1); g.fillStyle = '#fff6e0'; g.fillRect(225, 238, 7, 1);
+        g.fillStyle = '#cfd6f0';
+        for (let i = 0; i < 3; i++) { g.globalAlpha = 0.7 - i * 0.2; g.fillRect(228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), 1, 2); }
+        g.globalAlpha = 1;
+        g.drawImage(floraC, 0, 0);
+        // halos de los faroles por delante (iluminan la espalda de Amaya y el suelo)
+        for (const L of fx.lamps) { V.drawSoftGlow(g, L.x, L.y, 44, '#ffc870', 0.34 + 0.03 * Math.sin(t * 7 + L.x), 7); V.drawSoftGlow(g, L.x, L.y, 12, '#fff0c0', 0.4, 3); g.fillStyle = '#fff4c8'; g.fillRect(L.x - 1, L.y - 1, 3, 2); }
+        SCBK.drawFireflies(g, 22, t, 5, { x0: 60, x1: 600, y0: 150, y1: 285 });
+      },
+    };
+    /* ---------- piezas ---------- */
+    function greenhouse(pb, x, yb, fx) {
+      // nave de cristal en 3/4: frente (x..x+FW), costado que se aleja a la derecha, bóveda de cañón
+      const FW = 140, FH = 58, D = 46, dx = Math.round(D * 0.62), dy = Math.round(D * 0.36), AR = 22;
+      const FR = V.P32(['#10182e', '#1e2a48', '#34446a', '#56689a', '#8a9cd0', '#c8d4f4']);
+      const KN = V.P32(['#3a2a1a', '#5a3e22', '#7a5a30']);
+      fx.gh = { x, yb, FW, FH, D, dx, dy, AR };
+      // zócalo de bloques
+      for (let xx = 0; xx < FW; xx++) for (let yy = 0; yy < 6; yy++) V.put(pb, x + xx, yb - yy, KN[yy === 5 ? 2 : (xx + (yy > 2 ? 4 : 0)) % 9 === 0 ? 0 : 1]);
+      for (let xx = 0; xx < dx; xx++) for (let yy = 0; yy < 6; yy++) V.put(pb, x + FW + xx, yb - yy - Math.round(xx * dy / dx), KN[0]);
+      fx.ghLamps = [];
+    }
+    function greenhouseLight(pb, x, yb) {
+      const G = fx.gh, FW = G.FW, FH = G.FH, dx = G.dx, dy = G.dy, AR = G.AR;
+      const top = yb - 6 - FH;
+      // interior cálido: degradado en bandas desde las lámparas (arriba) hacia el suelo
+      const IN = V.P32(['#3a1c10', '#5a2c14', '#86441a', '#b4622a', '#d88a3c', '#f0b456', '#fcd47c', '#fff0b0']);
+      const GL = V.P32(['#14304a', '#1e4a66', '#2e6a86', '#4a90a8', '#8acadc', '#d4f4fc']);
+      const PL = V.P32(['#0a140a', '#14260e', '#1e3a14', '#2e5418', '#46701e']);
+      const lamps = [[x + 26, top - 4], [x + 70, top - 10], [x + 114, top - 4]];
+      fx.ghLamps = lamps;
+      const arcY = (xx) => Math.round(Math.sin(clamp(xx / FW, 0, 1) * Math.PI) * AR);
+      // pared frontal + gablete curvo
+      for (let xx = 0; xx < FW; xx++) {
+        const yTop = top - arcY(xx);
+        for (let y = yTop; y < yb - 6; y++) {
+          // luz interior: más intensa cerca de cada lámpara colgante
+          let li = 0; for (const [lx, ly] of lamps) li = Math.max(li, 1 - Math.hypot((x + xx - lx) * 0.8, y - ly) / 64);
+          let k = clamp(Math.round(1 + li * 6.2 + (hash2(xx >> 1, y >> 1, 7) - 0.5) * 0.8), 0, 7);
+          let c = IN[k];
+          // estantes con bandejas y plantones (siluetas a contraluz)
+          const sy = yb - 6 - y;
+          if (sy === 12 || sy === 28) c = IN[Math.max(0, k - 4)];
+          else if ((sy > 12 && sy < 20 && hash2(xx, 3, 11) < 0.55 && sy < 13 + (hash2(xx >> 1, 5, 13) * 7 | 0)) || (sy > 28 && sy < 36 && hash2(xx, 9, 17) < 0.5 && sy < 29 + (hash2(xx >> 1, 7, 19) * 7 | 0))) c = PL[1 + ((xx + sy) % 3)];
+          else if (sy < 12 && hash2(xx >> 1, sy >> 1, 23) < 0.18) c = PL[2];
+          // plantas grandes colgantes cerca del techo
+          if (y < top + 10 && y > yTop + 3 && hash2(xx >> 2, (y - yTop) >> 2, 29) < 0.2) c = PL[3];
+          // cristal: tinte frío leve, reflejo de luna en diagonal
+          const refl = ((xx + (y - top) * 0.6) % 37) < 3;
+          c = V.mixU(c, GL[refl ? 5 : 2], refl ? 0.5 : 0.16);
+          V.put(pb, x + xx, y, c);
+        }
+      }
+      // costado (se aleja a la derecha, más oscuro y más frío)
+      for (let xx = 0; xx < dx; xx++) {
+        const off = Math.round(xx * dy / dx);
+        for (let y = top - off; y < yb - 6 - off; y++) {
+          const li = clamp(1 - Math.abs(y - (top + 18 - off)) / 50, 0, 1);
+          let c = IN[clamp(Math.round(li * 3.6), 0, 7)];
+          c = V.mixU(c, GL[1], 0.42);
+          V.put(pb, x + FW + xx, y, c);
+        }
+      }
+      // bóveda (techo de cristal en 3/4): franjas entre la curva frontal y la trasera
+      for (let xx = 0; xx < FW + dx; xx++) {
+        const yF = xx < FW ? top - arcY(xx) : null;
+        const xb = xx - dx, yB = xb >= 0 && xb < FW ? top - arcY(xb) - dy : (xb < 0 ? top - dy - Math.round((xx / dx) * 0) : null);
+        const y0 = yB != null ? yB : top - dy, y1 = yF != null ? yF : top - Math.round((xx - FW) * dy / dx);
+        for (let y = Math.min(y0, y1); y < Math.max(y0, y1); y++) {
+          const u = (y - y0) / Math.max(1, (y1 - y0));
+          let c = V.mixU(IN[clamp(Math.round(2 + u * 3), 0, 7)], GL[3], 0.45);
+          if (((xx + Math.round(u * 6)) % 12) === 0) c = GL[5]; // nervios de la bóveda
+          V.put(pb, x + xx, y, c);
+        }
+      }
+      // estructura: montantes, travesaños, nervios y caballete
+      const FRu = V.P32(['#0e1424', '#1e2840', '#3a4a70', '#6a7aa8', '#b0bce4']);
+      for (let xx = 0; xx < FW; xx += 14) { const yt = top - arcY(xx); for (let y = yt; y < yb - 6; y++) { V.put(pb, x + xx, y, FRu[2]); V.put(pb, x + xx + 1, y, FRu[1]); } }
+      for (const sy of [12, 28, 44]) for (let xx = 0; xx < FW; xx++) V.put(pb, x + xx, yb - 6 - sy, FRu[2]);
+      for (let xx = 0; xx < FW; xx++) { V.put(pb, x + xx, top - arcY(xx), FRu[4]); V.put(pb, x + xx, top - arcY(xx) + 1, FRu[2]); }
+      for (let xx = 0; xx < dx; xx++) { const off = Math.round(xx * dy / dx); V.put(pb, x + FW + xx, top - off, FRu[3]); V.put(pb, x + FW + xx, yb - 6 - off, FRu[1]); }
+      for (let xx = 0; xx < FW; xx++) { const yb2 = top - arcY(xx) - dy; V.put(pb, x + xx + dx, yb2, FRu[3]); }
+      for (let q = 0; q <= dx; q++) { V.put(pb, x + q, top - Math.round(q * dy / dx), FRu[3]); V.put(pb, x + FW / 2 + q, top - AR - Math.round(q * dy / dx), FRu[4]); }
+      for (let y = top - dy; y < yb - 6 - dy; y++) V.put(pb, x + FW + dx, y, FRu[1]);
+      // puerta abierta (luz plena) en el frente
+      const DX = x + 58, DW = 22, DH = 40;
+      for (let yy = 0; yy < DH; yy++) for (let xx = 0; xx < DW; xx++) V.put(pb, DX + xx, yb - 6 - yy, IN[yy > DH - 4 ? 5 : 7 - (xx < 3 ? 1 : 0)]);
+      for (let yy = 0; yy < DH; yy++) { V.put(pb, DX - 1, yb - 6 - yy, FRu[3]); V.put(pb, DX + DW, yb - 6 - yy, FRu[1]); }
+      for (let xx = -1; xx <= DW; xx++) V.put(pb, DX + xx, yb - 6 - DH, FRu[3]);
+      // hoja de la puerta abierta hacia fuera (cristal oscuro)
+      for (let yy = 0; yy < DH; yy++) for (let xx = 0; xx < 7; xx++) V.put(pb, DX - 8 + xx, yb - 6 - yy + Math.round(xx * 0.3), V.mixU(GL[1], IN[3], 0.25));
+      // lámparas colgantes (cable + pantalla)
+      for (const [lx, ly] of lamps) { for (let y = top - AR; y < ly; y++) V.put(pb, lx, y, FRu[0]); V.put(pb, lx - 2, ly, IN[2]); V.put(pb, lx - 1, ly, IN[2]); V.put(pb, lx, ly, IN[2]); V.put(pb, lx + 1, ly, IN[2]); V.put(pb, lx + 2, ly, IN[2]); V.put(pb, lx - 1, ly + 1, IN[7]); V.put(pb, lx, ly + 1, IN[7]); V.put(pb, lx + 1, ly + 1, IN[7]); }
+      // rótulo de madera VIVERO sobre la puerta
+      const tx = DX - 6, ty = yb - 6 - DH - 10;
+      for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 34; xx++) V.put(pb, tx + xx, ty + yy, U(yy === 0 ? '#8e6a48' : yy === 7 ? '#2a1a12' : '#4e3424'));
+      V.text(pb, 'VIVERO', tx + 4, ty + 2, '#ffd890', { font: 'tiny' });
+    }
+    function soil(pb) {
+      const S = V.P32(['#06081a', '#0a0e24', '#10162e', '#161e3a', '#1e2848', '#283456', '#344264']);
+      const G = V.P32(['#06120e', '#0a1c14', '#10281a', '#183622', '#22462a', '#2e5834']);
+      for (let y = GY - 10; y < H; y++) for (let x = 0; x < W; x++) {
+        const d = y - GY;
+        let k = d < 0 ? 4 - Math.round((-d) / 4) : clamp(3 - Math.round(d / 30), 0, 4);
+        const n = vnoise(x * 0.08, y * 0.16, 41);
+        if (n > 0.66) k += 1; else if (n < 0.28) k -= 1;
+        let c = S[clamp(k, 0, 6)];
+        // hierba en el borde trasero y en manchas
+        if ((d < -4 && hash2(x >> 1, y, 5) < 0.55) || (vnoise(x * 0.05, y * 0.09, 47) > 0.7 && hash2(x, y >> 1, 9) < 0.45)) c = G[clamp(k, 0, 5)];
+        pb.data[y * pb.w + x] = c;
+      }
+      // borde iluminado por la luna en el labio trasero
+      for (let x = 0; x < W; x++) if (hash2(x >> 1, 2, 7) < 0.6) V.put(pb, x, GY - 10, U('#3a4a7a'));
+      // senda de losas hacia la puerta del invernadero
+      const SL = V.P32(['#1a2038', '#2a3250', '#3e4868', '#56628a']);
+      for (let i = 0; i < 7; i++) { const cx = 300 + i * 14 + (i & 1) * 3, cy = GY + 4 + i * 9; V.ellipse(pb, cx, cy, 6 + i * 0.6, 2 + i * 0.3, (nx, ny) => SL[ny < -0.3 ? 3 : nx > 0.4 ? 1 : 2]); }
+      // bancales elevados de madera en primer plano (se alejan en 3/4)
+      const WD = V.P32(['#05040a', '#100c14', '#1e1620', '#2e2230', '#40303e']), PL = V.P32(['#06140c', '#0c2414', '#14361c', '#1e4a24', '#2c602e', '#3e7a3a']);
+      for (const [bx, by, bw] of [[-10, 302, 150], [470, 300, 190], [140, 336, 340]]) {
+        for (let xx = 0; xx < bw; xx++) for (let yy = 0; yy < 10; yy++) V.put(pb, bx + xx, by + yy, WD[yy < 2 ? 4 : yy === 9 ? 0 : (xx % 24 === 0 ? 1 : 2 + ((yy >> 1) & 1))]);
+        for (let xx = 0; xx < bw; xx++) for (let yy = 1; yy < 7; yy++) V.put(pb, bx + xx, by - yy, S[2 - (yy > 4 ? 1 : 0)]);
+        for (let xx = 2; xx < bw - 2; xx += 4) { const h = 3 + (hash2(bx + xx, by, 3) * 5 | 0); for (let q = 0; q < h; q++) V.put(pb, bx + xx, by - 2 - q, PL[1 + Math.min(4, q)]); V.put(pb, bx + xx - 1, by - 1 - h, PL[3]); V.put(pb, bx + xx + 1, by - 1 - h, PL[5]); V.put(pb, bx + xx + 1, by - h, PL[4]); }
+      }
+    }
+    function spill(pb, x, yb) {
+      // luz de la puerta derramada sobre el suelo: trapecio en bandas de alfa (sin tramado)
+      const DX = x + 58, DW = 22, C = U('#ffc870');
+      for (let yy = 0; yy < 14; yy++) {
+        const y = yb + 1 + yy, spread = yy * 1.6, a = 0.42 * (1 - yy / 14);
+        const lv = Math.round(a * 8) / 8;
+        for (let xx = Math.round(DX - spread); xx < Math.round(DX + DW + spread * 1.4); xx++) V.blend(pb, xx, y, C, lv);
+      }
+    }
+    function trays(pb, x, yb, n, w) {
+      const WD = V.P32(['#1a1008', '#3a2414', '#5a3a20', '#7a5430']), PL = V.P32(['#0e2a10', '#1e4a18', '#3a7a22', '#6ab03a', '#a8e05a']);
+      for (let i = 0; i < n; i++) {
+        const bx = x + i * (w + 2);
+        for (let xx = 0; xx < w; xx++) { V.put(pb, bx + xx, yb, WD[1]); V.put(pb, bx + xx, yb - 1, WD[3]); V.put(pb, bx + xx, yb - 2, WD[2]); }
+        for (let xx = 1; xx < w - 1; xx += 2) { const h = 2 + (hash2(bx + xx, 1, 3) * 3 | 0); for (let q = 0; q < h; q++) V.put(pb, bx + xx, yb - 3 - q, PL[1 + Math.min(3, q)]); V.put(pb, bx + xx - 1, yb - 3 - h + 1, PL[3]); V.put(pb, bx + xx + 1, yb - 3 - h + 1, PL[4]); }
+      }
+    }
+    function bench(pb, x, yb, w, fx) {
+      const WD = V.P32(['#1a1008', '#3a2414', '#5a3a20', '#7a5430', '#9a7448']);
+      for (let xx = 0; xx < w; xx++) { V.put(pb, x + xx, yb - 12, WD[4]); V.put(pb, x + xx, yb - 11, WD[3]); V.put(pb, x + xx, yb - 10, WD[1]); }
+      for (const lx of [2, w - 4]) for (let q = 0; q < 10; q++) { V.put(pb, x + lx, yb - q, WD[2]); V.put(pb, x + lx + 1, yb - q, WD[0]); }
+      trays(pb, x + 1, yb - 13, 4, 13);
+    }
+    function lampPost(pb, x, yb, h) {
+      const S = V.P32(['#0e1020', '#1e2238', '#363c5a', '#5a6288', '#8a94c0']);
+      for (let q = 0; q < h; q++) { V.put(pb, x, yb - q, S[q < 3 ? 1 : 3]); V.put(pb, x + 1, yb - q, S[1]); }
+      for (let xx = -2; xx <= 3; xx++) V.put(pb, x + xx, yb - h, S[4]);
+      for (let yy = 1; yy <= 4; yy++) for (let xx = -1; xx <= 2; xx++) V.put(pb, x + xx, yb - h + yy, U(yy === 4 ? '#c88a3a' : xx === -1 ? '#ffe8a0' : '#ffd070'));
+      for (let xx = -2; xx <= 3; xx++) V.put(pb, x + xx, yb - h + 5, S[2]);
+      return { x: x + 1, y: yb - h + 3 };
+    }
+    function pots(pb, x, yb) {
+      const TC = V.P32(['#3a1408', '#6a2a12', '#9a4420', '#c86a34']), PL = V.P32(['#0e2a10', '#1e4a18', '#3a7a22', '#6ab03a']);
+      for (let i = 0; i < 3; i++) { const px = x + i * 9; for (let yy = 0; yy < 6; yy++) for (let xx = (yy > 3 ? 1 : 0); xx < 7 - (yy > 3 ? 1 : 0); xx++) V.put(pb, px + xx, yb - yy, TC[yy === 5 ? 3 : xx < 2 ? 2 : 1]); for (let q = 0; q < 6; q++) PFFlora.leaf(pb, px + 3, yb - 6, -Math.PI / 2 + (q - 2.5) * 0.4, 4 + (q & 1) * 2, 2, PL, 2); }
+    }
+  }
+  return { make, drawNight, nightSprite };
+})();
+
+/* ===== 19p_scb_epi.js ===== */
+/* =====================================================================
+   19p_scb_epi.js — Arte del FINAL DEL EPÍLOGO (pantalla pública de la
+   plaza y chiste del título que no cabe) y fondo de BlankScene.
+   SCBEpi.drawScreen(g, S, x, y, t)  pantalla LED 166×86 en coordenadas de
+     pantalla: S.title2 (0 panel en vivo · 1 el título desborda · 2 SYNARA 2.0),
+     S.mosaicProj (proyección de MOSAICO con capas de teselas)
+   SCBEpi.drawBlank(g, t)             noche en bandas con estrellas tenues
+   Paneles navy con bisel (STYLE LOCK §11), sin tramado: bandas, alfa plana
+   y halos en anillos.
+   ===================================================================== */
+const SCBEpi = (() => {
+  const SW = 166, SH = 86;
+  const LAYERS = [['AGUA', '#20d6c7'], ['ENERGÍA', '#ffe14d'], ['CULTIVOS', '#4ccb70'], ['ECOSISTEMAS', '#1f9a5c'], ['PERSONAS', '#f78acb'], ['SALMUERA', '#c8861a'], ['DATOS', '#b49cff']];
+  let _base = null, _blank = null;
+  /** Fondo del panel LED: bandas navy con rejilla de píxeles de LED y viñeta en anillos */
+  function base() {
+    if (_base) return _base;
+    const pb = new PixelBuffer(SW, SH), R = PFK.P32(['#030716', '#050a1d', '#081028', '#0b1634', '#0f1c40']);
+    for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+      const dx = (x - SW / 2) / (SW / 2), dy = (y - SH / 2) / (SH / 2), d = Math.sqrt(dx * dx * 0.8 + dy * dy);
+      let k = clamp(Math.round(4 - d * 3.2), 0, 4);
+      if (y % 3 === 2) k = Math.max(0, k - 1); // filas de LED
+      pb.data[y * SW + x] = R[k];
+    }
+    _base = pb.toCanvas(); return _base;
+  }
+  /** Mini-panel con bisel (UI navy) */
+  function tile(g, x, y, w, h, acc) {
+    frect(g, x + 1, y, w - 2, h, '#000633'); frect(g, x, y + 1, w, h - 2, '#000633');
+    frect(g, x + 1, y + 1, w - 2, h - 2, '#3a64b0');
+    frect(g, x + 2, y + 2, w - 4, h - 4, '#072248'); frect(g, x + 2, y + 2 + Math.round((h - 4) / 2), w - 4, Math.floor((h - 4) / 2), '#041533');
+    frect(g, x + 2, y + 1, w - 4, 1, '#a8c8ff'); frect(g, x + 2, y + h - 2, w - 4, 1, '#6d9be8');
+    frect(g, x + 2, y + 2, 2, h - 4, acc);
+  }
+  function spark(g, x, y, w, h, t, col, seed, sp = 1) {
+    g.fillStyle = col;
+    for (let i = 0; i < w; i++) { const v = 0.5 + 0.28 * Math.sin((i + t * 14 * sp) * 0.21 + seed) + 0.16 * Math.sin((i + t * 9) * 0.53 + seed * 2); g.fillRect(x + i, y + Math.round((1 - v) * (h - 1)), 1, 1); }
+  }
+  function drawScreen(g, S, x, y, t) {
+    g.drawImage(base(), x, y);
+    if (S.mosaicProj) {
+      // MOSAICO: siete capas de teselas que ondulan (cada capa es una dimensión del sistema)
+      const cell = 4;
+      for (let i = 0; i < 7; i++) {
+        const [, col] = LAYERS[i], cy = y + 3 + i * 11;
+        for (let cx = 0; cx < SW - 4; cx += cell) {
+          const w = Math.sin(cx * 0.09 + t * 1.6 + i * 0.8), on = w > -0.55;
+          if (!on) continue;
+          const a = 0.35 + 0.45 * (w * 0.5 + 0.5);
+          g.globalAlpha = a; g.fillStyle = col; g.fillRect(x + 2 + cx, cy + Math.round(w * 1.2), cell - 1, 8);
+          if (w > 0.75) { g.globalAlpha = 0.8; g.fillStyle = '#ffffff'; g.fillRect(x + 2 + cx, cy + Math.round(w * 1.2), cell - 1, 1); }
+        }
+      }
+      g.globalAlpha = 1;
+      // banda navy con el veredicto (texto fijo de la escena)
+      g.globalAlpha = 0.72; frect(g, x + 14, y + 12, SW - 28, 46, '#041533'); g.globalAlpha = 1;
+      frect(g, x + 14, y + 12, SW - 28, 1, '#a8c8ff'); frect(g, x + 14, y + 57, SW - 28, 1, '#6d9be8');
+      ['INCERTIDUMBRE: VISIBLE', 'ALTERNATIVAS: 4', 'DECISIÓN: PENDIENTE', 'DE DELIBERACIÓN'].forEach((s2, i) => drawText(g, s2, x + 83, y + 15 + i * 10, { font: 'tiny', align: 'center', color: i === 2 || i === 3 ? '#f5dc5a' : '#e6f8fe', shadow: '#000633' }));
+      drawText(g, 'MOSAICO', x + 83, y + 70, { font: 'tiny', align: 'center', color: '#c2f58e', shadow: '#000633' });
+      VISTA.drawSoftGlow(g, x + SW / 2, y + SH / 2, 70, '#9ae8ff', 0.1 + 0.03 * Math.sin(t * 2), 6);
+    } else if (S.title2 === 2) {
+      // SYNARA 2.0: título, lema y tres capas visibles
+      frect(g, x + 4, y + 4, SW - 8, 16, '#072248'); frect(g, x + 4, y + 4, SW - 8, 1, '#a8c8ff'); frect(g, x + 4, y + 19, SW - 8, 1, '#3a64b0');
+      drawText(g, 'SYNARA 2.0', x + 83, y + 8, { font: 'bold', align: 'center', color: '#56e5ff', shadow: '#000633' });
+      drawTextBlock(g, 'NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA', x + 10, y + 25, 146, { font: 'tiny', color: '#f5dc5a', align: 'center', lineH: 8 });
+      const cols = [['AGUA', '#20d6c7', 0], ['ENERGÍA', '#ffe14d', 1], ['SALMUERA', '#c244a2', 2]];
+      for (const [lab, col, i] of cols) {
+        const tx = x + 6 + i * 52, ty = y + 50;
+        tile(g, tx, ty, 50, 30, col);
+        drawText(g, lab, tx + 27, ty + 4, { font: 'tiny', align: 'center', color: '#e6f8fe' });
+        spark(g, tx + 6, ty + 13, 40, 12, t, col, i * 3, 0.6 + i * 0.3);
+      }
+      VISTA.drawSoftGlow(g, x + SW / 2, y + 12, 50, '#56e5ff', 0.08, 5);
+    } else if (S.title2 === 1) {
+      // el título no cabe: desborda el marco (el chiste de la escena)
+      const msg = 'SYNARA 2.0 — NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA';
+      g.save(); g.beginPath(); g.rect(x - 34, y - 6, SW + 68, 98); g.clip();
+      drawTitleText(g, msg, x + 6 - ((t * 30) % 40), y + 30, 2, ['#fff6d8', '#f5dc5a', '#ff9f43'], { shadow: '#000633' });
+      g.restore();
+      // la luz del texto que se sale del panel ilumina los bordes del marco
+      VISTA.drawSoftGlow(g, x - 6, y + 38, 22, '#ffb050', 0.22, 4); VISTA.drawSoftGlow(g, x + SW + 6, y + 38, 22, '#ffb050', 0.22, 4);
+      if (Math.floor(t * 4) % 2) { frect(g, x + 4, y + 74, 48, 7, '#3a0a14'); drawText(g, 'DESBORDE', x + 8, y + 75, { font: 'tiny', color: '#ff6b6b' }); }
+    } else {
+      // panel público en vivo: turbidez, energía disponible, salmuera y cultivos
+      frect(g, x + 3, y + 3, SW - 6, 11, '#072248'); frect(g, x + 3, y + 3, SW - 6, 1, '#a8c8ff');
+      drawText(g, 'PANEL PÚBLICO · EN VIVO', x + 10, y + 6, { font: 'tiny', color: '#e6f8fe' });
+      if (Math.floor(t * 2) % 2) { frect(g, x + SW - 12, y + 6, 4, 4, '#ff4e5d'); }
+      const rows = [['TURBIDEZ', '#20d6c7', ((1.2 + 0.2 * Math.sin(t * 0.7)).toFixed(1)) + ' NTU'], ['ENERGÍA', '#ffe14d', Math.round(72 + 6 * Math.sin(t * 0.4)) + ' %'], ['SALMUERA', '#c244a2', 'BOYA OK'], ['RIEGO', '#4ccb70', 'GOTEO']];
+      rows.forEach(([lab, col, val], i) => {
+        const ry = y + 18 + i * 16;
+        frect(g, x + 6, ry, 3, 11, col);
+        drawText(g, lab, x + 12, ry + 2, { font: 'tiny', color: '#cfe0ff' });
+        spark(g, x + 58, ry, 54, 11, t, col, i * 2.1, 0.5 + i * 0.2);
+        drawText(g, val, x + SW - 6, ry + 2, { font: 'tiny', align: 'right', color: col });
+      });
+    }
+    // reflejo del cristal: dos franjas diagonales tenues
+    g.globalAlpha = 0.06; g.fillStyle = '#ffffff';
+    for (let i = 0; i < 18; i++) { g.fillRect(x + 20 + i, y + i * 2, 2, 2); g.fillRect(x + 30 + i, y + i * 2, 1, 2); }
+    g.globalAlpha = 1;
+  }
+  /** Fondo de BlankScene (detrás de los créditos): noche en bandas con estrellas */
+  function drawBlank(g, t) {
+    if (!_blank) {
+      const pb = SCBK.nightSky(W, H, { horizonY: H + 60, stops: ['#03020c', '#05030f', '#070516', '#0a081e', '#0e0c28', '#141236', '#1a1842', '#20204c', '#28285a', '#323268'] });
+      SCBK.stars(pb, W, H, 7, { n: 90, y1: H });
+      _blank = pb.toCanvas();
+    }
+    g.drawImage(_blank, 0, 0);
+  }
+  return { drawScreen, drawBlank, SW, SH };
+})();
+
+/* ===== 19q_scb_lv11.js ===== */
+/* =====================================================================
+   19q_scb_lv11.js — Plano jugable del EPÍLOGO «La Primera Cosecha»
+   (Nivel 11) con el kit PF, al atardecer en la plaza de ARIDIA.
+   Mismo suelo (y = 292), mismos actores, estación y guion: solo arte.
+     0–110     entrada: arco de cosecha con mazorcas, jardineras, farola
+     110–480   mercado de la primera cosecha: tres puestos, cajas de
+               productos, sacos, cestas, barriles, carretilla, mesa
+     480–640   parcela escolar: bancal con cultivos, goteo y sensor
+     650–910   pantalla pública de SYNARA 2.0 sobre torres de truss,
+               altavoces, tarima baja, focos y pancarta del festival
+     910–1000  PANEL PÚBLICO (poste) y bancos
+     1000–1160 laboratorio abierto (pabellón-aula) con mesa de muestras
+     1160–1300 variante según el final (tablero · pancarta · plantones · mosaico)
+     1300–1500 hacia el muelle: barandilla, redes, cajas de pescado, poste
+   Faroles y guirnaldas encendidos al atardecer; gradación cálida horneada.
+   SCBL11.pf · SCBL11.props(pb, world) · SCBL11.propsFront(pb, world) ·
+   SCBL11.renderBack(g, sc, cam) · SCBL11.renderMidFx(g, sc, cam) · SCBL11.labels
+   ===================================================================== */
+const SCBL11 = (() => {
+  const A = () => PFArch, C = () => PFCivic, F = () => PFFlora;
+  const DUSK = { sat: 1.04, tint: '#ffb070', tintK: 0.1, bright: 0.96 };
+  const K = { lamps: [], spots: [], lights: null, lanterns: [] };
+  const pf = {
+    terrain: [
+      { x0: 0, x1: 480, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
+      { x0: 480, x1: 640, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false },
+      { x0: 640, x1: 1500, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
+    ],
+    fg: [
+      { kind: 'garland', x: -30, y: -6, w: 330, h: 40, seed: 3, top: true },
+      { kind: 'clump', x: -20, w: 130, h: 80, seed: 5, spikes: 3, leaves: 12 },
+      { kind: 'bougain', x: 560, w: 120, h: 72, seed: 9 },
+      { kind: 'garland', x: 900, y: -8, w: 300, h: 44, seed: 7, top: true },
+      { kind: 'bougain', x: 1320, w: 130, h: 76, seed: 11 },
+      { kind: 'clump', x: 1820, w: 130, h: 84, seed: 13, spikes: 4, leaves: 10 },
+    ],
+    fauna: { gulls: [{ x: 400, y: 70, n: 3 }, { x: 1200, y: 60, n: 4 }], drones: [{ x: 900, y: 110, r: 30 }] },
+    decorateFace(pb) { SCBK.grade(pb, DUSK); },
+  };
+  const labels = [
+    { x: 562, y: 210, title: 'PARCELA ESCOLAR', sub: 'Goteo + sensor de humedad', kind: 'green', ax: 562, ay: 248 },
+    { x: 960, y: 196, title: 'PANEL PÚBLICO', sub: (sc) => ((1.2 + 0.2 * Math.sin(Game.time * 0.7)).toFixed(1)) + ' NTU en vivo', kind: 'water', ax: 930, ay: 214 },
+  ];
+  function props(pb, world) {
+    const gy = (x) => world.groundAt(x);
+    const segs = PFTerrain.surface(pb, world);
+    const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
+    const Ar = A(), Cv = C(), Fl = F(), r = RNG(1101), E = GS.s.ending || 'pacto';
+    K.lamps = []; K.spots = []; K.lanterns = [];
+    // pavimento: tapas de registro, hojas y granos de maíz barridos
+    for (const x of [60, 300, 700, 1040, 1260, 1420]) Ar.manhole(pb, x, gy(x) - 12);
+    for (let x = 0; x < 1500; x += 3) if (hash2(x, 7, 51) < 0.05) PFK.put(pb, x, gy(x) - 3 - Math.floor(hash2(x, 8, 51) * 16), U(['#ffe14d', '#e8a030', '#c86a2a', '#86c040', '#ffffff'][Math.floor(hash2(x, 9, 51) * 5)]));
+    /* ===== 1. ENTRADA: ARCO DE COSECHA ===== */
+    harvestArch(pb, 14, gy(14) - 6, 92);
+    Ar.planter(pb, 0, gy(0) - 14, 12, { kind: 'flowers', seed: 2 });
+    K.lamps.push(Ar.lamp(pb, 112, gy(112) - 8, { h: 106, arms: 2 }));
+    /* ===== 2. MERCADO DE LA PRIMERA COSECHA (puestos en las mismas posiciones) ===== */
+    const cols = ['#ff6b6b', '#20d6c7', '#ffb93b'], goods = ['fruit', 'crafts', 'fruit'], signs = ['FRUTAS', 'SEMILLAS', 'HORTALIZAS'];
+    for (let k = 0; k < 3; k++) {
+      const x = 120 + k * 120;
+      Ar.stall(pb, x + 6, gy(x) - 8, 64, { c1: cols[k], goods: goods[k], sign: signs[k], seed: 3 + k * 2 });
+      produceCrates(pb, x + 74, gy(x + 74) - 6, 2 + (k % 2), 40 + k);
+    }
+    Ar.sack(pb, 228, gy(228) - 4, { col: '#d8c08a' }); Ar.sack(pb, 238, gy(238) - 6, { col: '#c8b07a' });
+    Ar.barrel(pb, 350, gy(350) - 6, { r: 6, h: 18 });
+    K.lamps.push(Ar.lamp(pb, 470, gy(470) - 8, { h: 104, basket: true }));
+    /* ===== 3. PARCELA ESCOLAR ===== */
+    const bed = Cv.raisedBed(pb, 496, 626, gy(496) - 4, { kinds: ['maiz', 'frijol', 'ahuyama', 'tomate', 'aji', 'sorgo', 'frijol', 'maiz', 'ahuyama', 'tomate', 'aji', 'maiz'] });
+    K.bed = bed;
+    sensor(pb, 630, gy(630) - 4);
+    Fl.scatter(pb, (x) => back(x) + 3, 482, 640, 51, { gap: 9, mix: { tuft: 4, flowers: 2, fern: 1 } });
+    PFSigns.post(pb, 482, gy(482) - 2, [{ text: 'PARCELA ESCOLAR' }], 31, { font: 'tiny' });
+    /* ===== 4. PANTALLA PÚBLICA DE SYNARA 2.0 (el contenido se pinta por cuadro) ===== */
+    screenRig(pb, 722, 174, 166, 86, gy(800));
+    /* ===== 5. PANEL PÚBLICO Y BANCOS ===== */
+    PFSigns.post(pb, 902, gy(902) - 2, [{ text: 'PANEL PÚBLICO' }, { text: 'DATOS ABIERTOS', dir: 1 }], 41, { font: 'tiny' });
+    Ar.bench(pb, 950, gy(950) - 8, 34);
+    K.lamps.push(Ar.lamp(pb, 994, gy(994) - 8, { h: 108, arms: 2 }));
+    /* ===== 6. LABORATORIO ABIERTO ===== */
+    const pav = Cv.pavilion(pb, 1004, gy(1004) - 6, 148);
+    K.pav = pav;
+    sampleTable(pb, 1046, gy(1046) - 10);
+    PFSigns.post(pb, 1150, gy(1150) - 2, [{ text: 'LABORATORIO ABIERTO' }], 43, { font: 'tiny' });
+    /* ===== 7. VARIANTE SEGÚN EL FINAL ===== */
+    endingCorner(pb, 1176, gy(1176) - 4, E);
+    /* ===== 8. HACIA EL MUELLE ===== */
+    K.lamps.push(Ar.lamp(pb, 1310, gy(1310) - 8, { h: 104, arms: 1 }));
+    fishCrates(pb, 1360, gy(1360) - 6);
+    nets(pb, 1430, gy(1430) - 6);
+    Ar.planter(pb, 1330, gy(1330) - 10, 22, { kind: 'palm', seed: 61, h: 16 });
+    railing(pb, 1446, 1500, gy(1446) - 6);
+    PFSigns.post(pb, 1466, gy(1466) - 2, [{ text: 'MUELLE · MAR' }, { text: 'PLAZA', dir: -1 }], 47, { font: 'tiny' });
+    // guirnaldas de banderines entre farolas y puestos (sobre la plaza)
+    Ar.bunting(pb, 20, 170, 700, 176, 14, { cols: ['#ff6b6b', '#ffe14d', '#20d6c7', '#86e36f', '#f78acb'] });
+    Ar.bunting(pb, 900, 168, 1400, 172, 14, { cols: ['#ffe14d', '#20d6c7', '#ff9f43', '#86e36f'] });
+    SCBK.grade(pb, DUSK);
+  }
+  function propsFront(pb, world) {
+    const gy = (x) => world.groundAt(x), Fl = F();
+    for (let x = 486; x < 636; x += 13) Fl.tuft(pb, x, gy(x) + 2, 6, 6, x + 1);
+    for (const x of [6, 104, 476, 646, 996, 1304]) PFArch.pots(pb, x, gy(x) + 4, 1, x);
+    // mazorcas y calabazas en el bordillo del mercado
+    for (const x of [150, 266, 392]) pumpkins(pb, x, gy(x) + 4, x);
+    SCBK.grade(pb, DUSK);
+  }
+  /* ---------- dinámico ---------- */
+  function renderBack(g, sc, cam) {
+    const t = Game.time, ox = cam.x, oy = cam.y;
+    if (!K.lights) { K.lights = []; for (const [x0, x1, ya, yb] of [[112, 470, 178, 160], [994, 1310, 160, 176]]) { const pts = []; for (let i = 0; i <= x1 - x0; i++) { const tt = i / (x1 - x0); pts.push([x0 + i, lerp(ya, yb, tt) + Math.sin(tt * Math.PI) * 16]); } K.lights.push(pts); } }
+    for (const pts of K.lights) {
+      if (pts[0][0] - ox > W + 40 || pts[pts.length - 1][0] - ox < -40) continue;
+      g.fillStyle = '#3a2a22';
+      for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0] - ox, Math.round(pts[i][1] - oy), 1, 1);
+      SCBK.drawBulbs(g, pts.map(p => [p[0] - ox, p[1] - oy]), t);
+    }
+  }
+  function renderMidFx(g, sc, cam) {
+    const t = Game.time, ox = cam.x, oy = cam.y;
+    // faroles encendidos (halo cálido suave, sin tramado)
+    for (const L of K.lamps) for (const [hx, hy] of L.heads) {
+      const x = hx - ox, y = hy - oy; if (x < -40 || x > W + 40) continue;
+      VISTA.drawSoftGlow(g, x, y, 26, '#ffb860', 0.24 + 0.03 * Math.sin(t * 6 + hx), 5);
+      g.fillStyle = '#fff2c0'; g.fillRect(x - 1, y - 1, 3, 3);
+    }
+    // farolillos de papel del arco y del mercado
+    for (const [lx, ly, col] of K.lanterns) { const x = lx - ox, y = ly - oy; if (x < -20 || x > W + 20) continue; VISTA.drawSoftGlow(g, x, y, 9, col, 0.3 + 0.08 * Math.sin(t * 3 + lx), 3); }
+    // focos de la pantalla
+    for (const [fx, fy, col] of K.spots) { const x = fx - ox, y = fy - oy; if (x < -20 || x > W + 20) continue; if (Math.sin(t * 2 + fx * 0.1) > -0.4) PFK.drawGlow(g, x, y + 2, 6, col, 0.55); }
+    // goteo de la parcela escolar
+    if (K.bed && typeof drawDrips === 'function') drawDrips(g, 496 + 5 - ox, 626 - ox, K.bed.dripY - oy, t, true, 10);
+    // LED del sensor de humedad
+    if (K.sensor) { const on = Math.floor(t * 1.5) % 2; g.fillStyle = on ? '#3fe0a0' : '#0e4a34'; g.fillRect(K.sensor[0] - ox, K.sensor[1] - oy, 2, 2); }
+  }
+  /* ---------- piezas ---------- */
+  function harvestArch(pb, x, yb, w) {
+    const Wd = PFK.P32(PFArch.WOOD), h = 120;
+    // postes de madera y dintel con guirnalda de mazorcas, ajíes y flores
+    for (const px of [x, x + w - 6]) { for (let y = yb - h; y < yb; y++) for (let k = 0; k < 6; k++) PFK.put(pb, px + k, y, Wd[k === 0 ? 1 : k === 1 ? 5 : k < 4 ? 4 : 2]); for (let k = -1; k < 7; k++) { PFK.put(pb, px + k, yb - 1, Wd[1]); PFK.put(pb, px + k, yb - 2, Wd[3]); } }
+    for (let xx = x - 6; xx < x + w + 6; xx++) for (let k = 0; k < 7; k++) PFK.put(pb, xx, yb - h - 7 + k, Wd[k === 0 ? 5 : k === 6 ? 1 : k === 1 ? 4 : 3]);
+    PFK.text(pb, 'PRIMERA COSECHA', x + Math.round(w / 2) - Math.round(PFK.measure('PRIMERA COSECHA', { font: 'tiny' }) / 2), yb - h - 5, '#fff2c0', { font: 'tiny' });
+    const r = RNG(77), COB = ['#ffe14d', '#f0b020', '#c86a10'], CHI = ['#e8402e', '#a01e1a'], LF = PFK.P32(RAMP.foliageR);
+    for (let xx = x - 4; xx < x + w + 4; xx += 5) {
+      const sag = Math.round(Math.sin((xx - x) / w * Math.PI) * 9), yy = yb - h + 1 + sag;
+      F().leaf(pb, xx, yy, Math.PI / 2 + (r() - 0.5), 6, 3, LF, 3);
+      const kind = r.int(0, 2);
+      if (kind === 0) for (let q = 0; q < 6; q++) { PFK.put(pb, xx, yy + 2 + q, U(COB[q === 0 ? 0 : q < 4 ? 1 : 2])); PFK.put(pb, xx + 1, yy + 2 + q, U(COB[q < 3 ? 0 : 1])); }
+      else if (kind === 1) for (let q = 0; q < 4; q++) PFK.put(pb, xx + (q > 2 ? 1 : 0), yy + 2 + q, U(CHI[q < 2 ? 0 : 1]));
+      else PFArch.blob(pb, xx, yy + 3, 2, ['#f478b8', '#ffd84a', '#ffffff'][r.int(0, 2)]);
+    }
+    // farolillos de papel colgando del dintel
+    for (const [lx, col] of [[x + 20, '#ff9f43'], [x + w / 2, '#ffe14d'], [x + w - 20, '#ff6b6b']]) {
+      for (let q = 0; q < 8; q++) PFK.put(pb, Math.round(lx), yb - h + q, U('#2a1a12'));
+      PFK.ellipseFn(pb, lx, yb - h + 14, 4, 5, (nx, ny) => U(shadeTo(col, ny < -0.4 ? 0.3 : nx > 0.4 ? -0.25 : 0)));
+      PFK.put(pb, Math.round(lx), yb - h + 20, U('#2a1a12'));
+      K.lanterns.push([Math.round(lx), yb - h + 14, col]);
+    }
+    // calabazas y cestas al pie de los postes
+    pumpkins(pb, x + 8, yb, 3); pumpkins(pb, x + w - 14, yb, 5);
+  }
+  function pumpkins(pb, x, yb, seed) {
+    const r = RNG(seed);
+    for (let i = 0; i < 3; i++) {
+      const cx = x + i * 6 + r.int(0, 2), rr = 3 + r.int(0, 2), col = r.pick(['#f08a20', '#e8a030', '#d86a18', '#9ab040']);
+      PFK.ellipseFn(pb, cx, yb - rr, rr + 1, rr, (nx, ny, d) => { const c = U(col); if (Math.abs(nx) < 0.12 || Math.abs(Math.abs(nx) - 0.55) < 0.1) return PFK.shU(c, -0.25, 20); return ny < -0.35 && nx < 0.2 ? PFK.shU(c, 0.25) : nx > 0.5 || ny > 0.5 ? PFK.shU(c, -0.3, 15) : c; });
+      PFK.put(pb, cx, yb - 2 * rr - 1, U('#3a5a1a')); PFK.put(pb, cx + 1, yb - 2 * rr - 2, U('#5a7a2a'));
+    }
+  }
+  function produceCrates(pb, x, yb, n, seed) {
+    const r = RNG(seed), CR = ['#ff8a2a', '#e8402e', '#ffe060', '#8ad040', '#f478b8', '#c86a2a'];
+    for (let i = 0; i < n; i++) {
+      const cx = x + i * 2, cy = yb - i * 12;
+      PFArch.crate(pb, cx, cy, 20, 11, 7);
+      for (let q = 0; q < 9; q++) PFArch.blob(pb, cx + 3 + (q % 5) * 3 + (q > 4 ? 1 : 0), cy - 12 - (q > 4 ? 2 : 0), 1.6, CR[(r.int(0, 5) + seed) % CR.length]);
+    }
+  }
+  function sensor(pb, x, yb) {
+    const S = PFK.P32(PFInfra.STEEL);
+    for (let y = yb - 26; y < yb; y++) { PFK.put(pb, x, y, S[5]); PFK.put(pb, x + 1, y, S[2]); }
+    PFInfra.box3q(pb, x - 4, yb - 26, 10, 7, 3, { ramp: PFInfra.STEEL });
+    for (let k = 0; k < 8; k++) PFK.put(pb, x - 3 + k, yb - 34 + Math.round(k * 0.3), U('#16214a'));
+    K.sensor = [x - 2, yb - 31];
+  }
+  function screenRig(pb, sx, sy, sw, sh, ground) {
+    const Cv = C();
+    // tarima baja de madera (decorativa, a ras del suelo: no cambia la colisión)
+    PFInfra.box3q(pb, sx - 30, ground - 2, sw + 60, 3, 10, { ramp: PFArch.WOOD });
+    // torres de truss y viga superior
+    Cv.truss(pb, sx - 18, sy - 22, ground - 4, 8);
+    Cv.truss(pb, sx + sw + 10, sy - 22, ground - 4, 8);
+    Cv.truss(pb, sx - 18, sx + sw + 18, sy - 28, 7, true);
+    // pancarta del festival colgada de la viga
+    const bw = 120, bx = sx + Math.round((sw - bw) / 2), by = sy - 20;
+    for (let yy = 0; yy < 12; yy++) for (let xx = 0; xx < bw; xx++) PFK.put(pb, bx + xx, by + yy, U(yy === 0 ? '#ffe8a0' : yy === 11 ? '#8a3a10' : (xx >> 3) % 2 ? '#e8702a' : '#f08a30'));
+    PFK.text(pb, 'FIESTA DE LA COSECHA', bx + Math.round(bw / 2 - PFK.measure('FIESTA DE LA COSECHA', { font: 'tiny' }) / 2), by + 3, '#fff6e0', { font: 'tiny' });
+    // marco del panel LED + pies
+    for (const lx of [sx + 12, sx + sw - 14]) for (let yy = sy + sh + 3; yy < ground - 4; yy++) { PFK.put(pb, lx, yy, PFK.P32(PFInfra.STEEL)[4]); PFK.put(pb, lx + 1, yy, PFK.P32(PFInfra.STEEL)[1]); }
+    Cv.screenFrame(pb, sx, sy, sw, sh);
+    // altavoces y focos
+    Cv.speaker(pb, sx - 34, ground - 4, 16, 28); Cv.speaker(pb, sx + sw + 20, ground - 4, 16, 28);
+    for (let k = 0; k < 4; k++) { const fx = sx + 10 + k * 48; PFInfra.box3q(pb, fx, sy - 26, 6, 4, 3, { ramp: ['#08080c', '#14141c', '#26262e', '#3a3a46', '#56566a'] }); K.spots.push([fx + 3, sy - 22, ['#ffe14d', '#20d6c7', '#f78acb', '#ff9f43'][k]]); }
+    // macetas con flores a los pies de las torres
+    PFArch.pots(pb, sx - 26, ground - 6, 2, 71); PFArch.pots(pb, sx + sw + 4, ground - 6, 2, 73);
+  }
+  function sampleTable(pb, x, yb) {
+    const Wd = PFK.P32(PFArch.WOOD);
+    PFInfra.box3q(pb, x, yb, 56, 3, 10, { ramp: PFArch.WOOD });
+    for (const lx of [x + 2, x + 52]) for (let q = 0; q < 10; q++) { PFK.put(pb, lx, yb + q - 9, Wd[2]); }
+    // tubos de ensayo, microscopio, frascos con muestras de agua, anemómetro de latas
+    for (let i = 0; i < 6; i++) { const tx = x + 6 + i * 4; for (let q = 0; q < 7; q++) PFK.put(pb, tx, yb - 4 - q, U(q < 3 ? ['#20d6c7', '#86e36f', '#ffe14d', '#c244a2', '#56e5ff', '#ff9f43'][i] : '#d8eef4')); }
+    const mx = x + 36; for (let q = 0; q < 10; q++) PFK.put(pb, mx, yb - 4 - q, U('#3a3a46')); PFInfra.box3q(pb, mx - 3, yb - 3, 8, 2, 3, { ramp: PFInfra.STEEL }); PFK.put(pb, mx + 1, yb - 14, U('#56566a')); PFK.put(pb, mx + 2, yb - 13, U('#8a8a9a'));
+    const ax = x + 48; for (let q = 0; q < 16; q++) PFK.put(pb, ax, yb - 4 - q, U('#9aa4b8')); for (const [dx, dy] of [[-4, 0], [4, 0], [0, -2]]) PFArch.blob(pb, ax + dx, yb - 20 + dy, 1.6, '#d8dce6');
+  }
+  function endingCorner(pb, x, yb, E) {
+    const Wd = PFK.P32(PFArch.WOOD);
+    if (E === 'pacto') {
+      // tablero de decisiones pendientes con notas de colores
+      for (const px of [x + 8, x + 84]) for (let y = yb - 70; y < yb; y++) for (let k = 0; k < 4; k++) PFK.put(pb, px + k, y, Wd[k === 1 ? 5 : 3]);
+      PFInfra.box3q(pb, x, yb - 16, 96, 54, 4, { ramp: PFArch.WOOD });
+      const NC = ['#ffe14d', '#ff9a8a', '#a6f4ff', '#c2f58e'];
+      for (let i = 0; i < 12; i++) { const nx = x + 6 + (i % 6) * 15, ny = yb - 64 + Math.floor(i / 6) * 22 + (i % 2) * 2; for (let yy = 0; yy < 12; yy++) for (let xx = 0; xx < 11; xx++) PFK.put(pb, nx + xx, ny + yy, U(yy === 0 ? shadeTo(NC[i % 4], 0.3) : yy === 11 || xx === 10 ? shadeTo(NC[i % 4], -0.25) : NC[i % 4])); for (let q = 0; q < 3; q++) PFK.put(pb, nx + 2, ny + 3 + q * 3, U('#3a2a40')), PFK.put(pb, nx + 3 + q, ny + 3 + q * 3, U('#3a2a40')); PFK.put(pb, nx + 5, ny + 1, U('#e83b41')); }
+      PFSigns.post(pb, x + 100, yb + 2, [{ text: 'DECISIONES PENDIENTES' }], 51, { font: 'tiny' });
+    } else if (E === 'tecnica') {
+      // pancarta de la comunidad sobre dos postes: «¿QUIÉN DECIDE?»
+      for (const px of [x + 4, x + 100]) for (let y = yb - 74; y < yb; y++) for (let k = 0; k < 4; k++) PFK.put(pb, px + k, y, Wd[k === 1 ? 5 : 3]);
+      for (let yy = 0; yy < 26; yy++) for (let xx = 0; xx < 92; xx++) PFK.put(pb, x + 8 + xx, yb - 72 + yy + Math.round(Math.sin(xx * 0.08) * 1), U(yy < 2 ? '#ff6b6b' : yy > 23 ? '#d8c8b8' : '#fff4e4'));
+      PFK.text(pb, '¿QUIÉN DECIDE?', x + 54 - Math.round(PFK.measure('¿QUIÉN DECIDE?', {}) / 2), yb - 64, '#c8283a', {});
+      for (let i = 0; i < 6; i++) PFArch.blob(pb, x + 14 + i * 14, yb - 4, 2, ['#20d6c7', '#ffe14d', '#ff6b6b'][i % 3]);
+    } else if (E === 'deuda') {
+      // vivero de manglar: cajas con plantones y cartel del plan de reparación
+      for (let k = 0; k < 4; k++) {
+        const cx = x + k * 26;
+        PFArch.crate(pb, cx, yb, 22, 10, 7);
+        for (let q = 0; q < 4; q++) { const px = cx + 3 + q * 5, ph = 8 + ((q + k) % 3) * 3; for (let s = 0; s < ph; s++) PFK.put(pb, px, yb - 10 - s, U(s < 3 ? '#6a4a2a' : '#3a7a3a')); F().leaf(pb, px, yb - 10 - ph, -Math.PI / 2 - 0.6, 5, 3, PFK.P32(RAMP.foliageR), 4); F().leaf(pb, px, yb - 10 - ph, -Math.PI / 2 + 0.6, 5, 3, PFK.P32(RAMP.foliageR), 3); }
+      }
+      PFSigns.post(pb, x + 108, yb + 2, [{ text: 'RESTAURAR EL MANGLAR' }], 53, { font: 'tiny' });
+    } else {
+      // muro MOSAICO VIVO: teselas de datos comunitarios en cerámica
+      PFInfra.box3q(pb, x, yb, 104, 58, 6, { ramp: PFArch.CREAM || ['#4a3a2a', '#7a6a52', '#a8967a', '#cfc0a2', '#ece0c6', '#fff6e4'] });
+      const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a', '#8d6bff', '#f78acb'];
+      for (let yy = 0; yy < 48; yy += 4) for (let xx = 0; xx < 96; xx += 4) { const c = cols[Math.floor(hash2(xx, yy, 5) * cols.length)]; for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) PFK.put(pb, x + 4 + xx + a, yb - 54 + yy + b, U(a === 0 && b === 0 ? shadeTo(c, 0.3) : a === 2 || b === 2 ? shadeTo(c, -0.25) : c)); }
+      PFSigns.post(pb, x + 110, yb + 2, [{ text: 'MOSAICO VIVO' }], 55, { font: 'tiny' });
+    }
+  }
+  function fishCrates(pb, x, yb) {
+    for (let k = 0; k < 3; k++) {
+      const cx = x + k * 22 - (k === 2 ? 11 : 0), cy = yb - (k === 2 ? 12 : 0);
+      PFArch.crate(pb, cx, cy, 20, 10, 6, { label: '#1283bf' });
+      for (let q = 0; q < 4; q++) { const fx = cx + 3 + q * 4, fy = cy - 12; for (let s = 0; s < 4; s++) PFK.put(pb, fx + s, fy + (s === 3 ? 0 : 1), U(s === 0 ? '#d2dbb7' : '#8ca18b')); PFK.put(pb, fx + 4, fy, U('#497c8a')); }
+    }
+  }
+  function nets(pb, x, yb) {
+    // red de pesca tendida en un caballete
+    const Wd = PFK.P32(PFArch.WOOD);
+    for (const px of [x, x + 28]) for (let y = yb - 34; y < yb; y++) { PFK.put(pb, px, y, Wd[4]); PFK.put(pb, px + 1, y, Wd[2]); }
+    for (let xx = 0; xx < 28; xx++) for (let yy = 0; yy < 26; yy++) { const sag = Math.round(Math.sin(xx / 28 * Math.PI) * 4); if ((xx + yy) % 4 === 0 || (xx - yy + 40) % 4 === 0) PFK.put(pb, x + 1 + xx, yb - 32 + yy + sag, U('#5a7a6a')); }
+    for (let k = 0; k < 4; k++) PFArch.blob(pb, x + 4 + k * 7, yb - 30 + (k % 2) * 3, 1.6, '#ff9f43');
+  }
+  function railing(pb, x0, x1, yb) {
+    const S = PFK.P32(['#2a3040', '#4a5268', '#6a7690', '#9aa6c0', '#cfd8ec']);
+    for (let x = x0; x < x1; x++) { PFK.put(pb, x, yb - 22, S[4]); PFK.put(pb, x, yb - 21, S[2]); PFK.put(pb, x, yb - 11, S[3]); if ((x - x0) % 12 === 0) for (let y = yb - 22; y < yb; y++) { PFK.put(pb, x, y, S[3]); PFK.put(pb, x + 1, y, S[1]); } }
+  }
+  return { pf, labels, props, propsFront, renderBack, renderMidFx, K };
+})();
+
+/* ===== 19r_scb_lv09.js ===== */
+/* =====================================================================
+   19r_scb_lv09.js — Acabado del plano jugable del Nivel 9 (salón del
+   consejo) al estándar del kit PF: reflejos horneados de los accesorios
+   en el mármol pulido (3/4), alfombra de pasillo con cenefa dorada en el
+   vestíbulo, postes de latón con cordón de terciopelo, vitrinas con
+   objetos de la historia de SYNARA (cartucho de membrana, primer sensor,
+   libro de actas, maqueta de la cúpula), atril y quiosco de consulta.
+   Solo arte: la línea de paso (292), plataformas y escaleras no cambian.
+   SCBL9.finish(pb, world, back, gy, D)  → llamado al final de LEVELS[9].props
+   ===================================================================== */
+const SCBL9 = (() => {
+  const K = PFK;
+  const BRASS = ['#3a2408', '#6a4610', '#a8761c', '#d8a838', '#f4d470', '#fff4c8'];
+  const VELV = ['#3a0610', '#6a0c1c', '#9a1828', '#c8303a', '#e85a5a'];
+  const GLASS = ['#1a3048', '#2a5070', '#4a7a9a', '#8ab8d0', '#d8f0fa'];
+  const P = (r) => K.P32(r);
+  /** Reflejos de los accesorios sobre el suelo pulido (eje en la base de apoyo yb = back + 2) */
+  function reflect(pb, x0, x1, back, gy, o = {}) {
+    const a0 = o.a ?? 0.26, tint = U(o.tint || '#2a2050');
+    for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+      const b = back(x), yb = b + 2, g = gy(x), depth = g - yb;
+      if (depth < 3) continue;
+      for (let k = 1; k < depth; k++) {
+        const sy = yb - k - 1, dy = yb + k - 1; if (sy < 0 || dy >= g) continue;
+        const src = pb.data[sy * pb.w + x]; if (!(src >>> 24)) continue;
+        const di = dy * pb.w + x, dst = pb.data[di]; if (!(dst >>> 24)) continue;
+        // reflejo algo más oscuro y frío, con ondulación mínima de las vetas
+        const a = a0 * (1 - k / depth) * (hash2(x >> 2, dy, 17) < 0.12 ? 0.6 : 1);
+        pb.data[di] = K.mixU(dst, K.mixU(src, tint, 0.3), a);
+      }
+    }
+  }
+  /** Alfombra de pasillo sobre el mármol (banda en 3/4 con cenefa dorada y flecos) */
+  function runner(pb, x0, x1, back, gy) {
+    const V_ = P(VELV), G = P(BRASS);
+    for (let x = x0; x < x1; x++) {
+      const b = back(x), g = gy(x), y0 = b + 5, y1 = g - 4;
+      for (let y = y0; y < y1; y++) {
+        const edge = y === y0 || y === y1 - 1, gold = y === y0 + 1 || y === y1 - 2;
+        let c = edge ? V_[0] : gold ? G[(x % 6 < 3) ? 3 : 4] : V_[2 + (((x >> 3) + (y >> 1)) % 5 === 0 ? 1 : 0) - (y > y1 - 4 ? 1 : 0)];
+        if (!edge && !gold && (x % 16 === 0)) c = V_[1];
+        pb.data[y * pb.w + x] = c;
+      }
+      if (x % 3 === 0 && (x === x0 || x === x1 - 1 || x < x0 + 1)) for (let y = y0; y < y1; y++) K.put(pb, x, y, G[2]);
+    }
+    for (const ex of [x0, x1 - 1]) for (let y = back(ex) + 5; y < gy(ex) - 4; y += 2) { K.put(pb, ex, y, G[4]); K.put(pb, ex + (ex === x0 ? -1 : 1), y, G[2]); }
+  }
+  /** Postes de latón con cordón de terciopelo que cuelga entre ellos */
+  function stanchions(pb, x0, x1, yb, step = 30) {
+    const G = P(BRASS), V_ = P(VELV), h = 26;
+    const posts = []; for (let x = x0; x <= x1; x += step) posts.push(x);
+    for (let i = 0; i + 1 < posts.length; i++) {
+      const a = posts[i], b = posts[i + 1];
+      for (let x = a + 2; x < b; x++) { const t = (x - a) / (b - a), y = yb - h + 4 + Math.round(Math.sin(t * Math.PI) * 6); K.put(pb, x, y, V_[3]); K.put(pb, x, y + 1, V_[1]); if (t > 0.2 && t < 0.8 && x % 5 === 0) K.put(pb, x, y - 1, V_[4]); }
+    }
+    for (const x of posts) {
+      // base en disco, fuste con franja especular, remate esférico
+      K.ellipseFn(pb, x + 1, yb - 1, 4, 1.6, (nx, ny) => G[ny < -0.2 ? 4 : nx > 0.4 ? 1 : 2]);
+      for (let y = yb - h; y < yb - 1; y++) { K.put(pb, x, y, G[4]); K.put(pb, x + 1, y, G[3]); K.put(pb, x + 2, y, G[1]); }
+      K.ellipseFn(pb, x + 1, yb - h - 1, 2.2, 2.2, (nx, ny) => G[nx < -0.2 && ny < -0.2 ? 5 : nx > 0.3 ? 2 : 4]);
+    }
+  }
+  /** Vitrina de cristal sobre peana de madera con un objeto de la historia */
+  function vitrine(pb, x, yb, w, kind, label) {
+    const Wd = P(PFBM.WOODH), Gl = P(GLASS), G = P(BRASS), h = 30, ph = 30, d = 8, dx = 5, dy = 4;
+    // peana (frente, costado, tapa)
+    PFInfra.box3q(pb, x, yb, w, ph, d, { ramp: PFBM.WOODH });
+    for (let xx = x + 2; xx < x + w - 2; xx++) { K.put(pb, xx, yb - ph + 3, G[3]); K.put(pb, xx, yb - 3, G[2]); }
+    const top = yb - ph - dy;
+    // objeto dentro (antes del cristal)
+    const cx = x + Math.round(w / 2) + 2, cy = top - 4;
+    if (kind === 'membrane') { for (let yy = 0; yy < 20; yy++) for (let xx = -4; xx <= 4; xx++) K.put(pb, cx + xx, cy - yy, U(xx === -4 ? '#e8f2f6' : xx > 2 ? '#31506f' : yy % 4 === 0 ? '#7aa6c4' : '#b6d4e4')); for (let xx = -5; xx <= 5; xx++) { K.put(pb, cx + xx, cy - 20, U('#427ca5')); K.put(pb, cx + xx, cy, U('#092647')); } }
+    else if (kind === 'sensor') { for (let yy = 0; yy < 14; yy++) { K.put(pb, cx, cy - yy, U('#9aa4b8')); K.put(pb, cx + 1, cy - yy, U('#5a6278')); } PFInfra.box3q(pb, cx - 4, cy - 14, 10, 7, 3, { ramp: PFInfra.STEEL }); K.put(pb, cx - 2, cy - 18, U('#56e5ff')); K.put(pb, cx + 2, cy - 18, U('#ff6b6b')); }
+    else if (kind === 'book') { for (let yy = 0; yy < 6; yy++) for (let xx = -8; xx <= 8; xx++) K.put(pb, cx + xx, cy - yy - Math.round(Math.abs(xx) * 0.15), U(yy === 5 ? '#fff4de' : xx === 0 ? '#8a5e14' : yy > 2 ? '#f2e4d6' : '#7a1a1a')); for (let k = 0; k < 4; k++) K.put(pb, cx - 6 + k * 3, cy - 4, U('#5a3826')); }
+    else { K.ellipseFn(pb, cx, cy - 7, 8, 7, (nx, ny) => U(ny > 0.2 ? '#cfc0a2' : nx < -0.2 && ny < -0.2 ? '#e8f8ff' : '#7ab8d8')); for (let xx = -9; xx <= 9; xx++) K.put(pb, cx + xx, cy - 1, U('#a8967a')); }
+    // caja de cristal: frente translúcido, aristas, reflejo diagonal
+    for (let yy = top - h; yy < top; yy++) for (let xx = x + 1; xx < x + w - 1; xx++) { const c = K.get(pb, xx, yy); K.put(pb, xx, yy, c >>> 24 ? K.mixU(c, Gl[3], 0.18) : (Gl[1] & 0x00ffffff | 0x44000000) >>> 0); }
+    for (let yy = top - h; yy < top; yy++) { K.put(pb, x + 1, yy, Gl[4]); K.put(pb, x + w - 2, yy, Gl[2]); }
+    for (let xx = x + 1; xx < x + w - 1; xx++) { K.put(pb, xx, top - h, Gl[4]); K.put(pb, xx + dx, top - h - dy, Gl[3]); }
+    for (let q = 0; q <= dx; q++) { K.put(pb, x + w - 2 + q, top - h - Math.round(q * dy / dx), Gl[3]); K.put(pb, x + 1 + q, top - h - Math.round(q * dy / dx), Gl[4]); }
+    for (let yy = top - h - dy; yy < top - dy; yy++) K.put(pb, x + w - 2 + dx, yy, Gl[2]);
+    for (let k = 0; k < Math.min(w, h) - 6; k++) { K.put(pb, x + 5 + k, top - 4 - k, Gl[4]); if (k % 3) K.put(pb, x + 8 + k, top - 4 - k, Gl[3]); }
+    // placa con el rótulo
+    const lw = Math.min(w - 6, PFK.measure(label, { font: 'tiny' }) + 6), lx = x + Math.round((w - lw) / 2);
+    for (let yy = 0; yy < 9; yy++) for (let xx = 0; xx < lw; xx++) K.put(pb, lx + xx, yb - ph + 8 + yy, G[yy === 0 ? 5 : yy === 8 ? 1 : 3]);
+    K.text(pb, label, lx + 3, yb - ph + 10, U('#3a2408'), { font: 'tiny' });
+    PFB.contact(pb, x + w / 2, yb, w / 2 + 4, 2);
+    return { glint: [x + w - 6, top - h + 3] };
+  }
+  /** Atril de madera con micrófono y hoja de actas */
+  function lectern(pb, x, yb) {
+    const Wd = P(PFBM.WOODH);
+    PFInfra.box3q(pb, x, yb, 22, 34, 8, { ramp: PFBM.WOODH });
+    for (let xx = 0; xx < 26; xx++) for (let q = 0; q < 3; q++) K.put(pb, x - 2 + xx, yb - 36 - q + Math.round(xx * 0.12), Wd[q === 0 ? 7 : q === 1 ? 5 : 3]);
+    for (let xx = 4; xx < 16; xx++) for (let q = 0; q < 2; q++) K.put(pb, x + xx, yb - 40 - q + Math.round(xx * 0.12), U(q ? '#fff4de' : '#e8dcc8'));
+    for (let q = 0; q < 10; q++) K.put(pb, x + 18 + Math.round(q * 0.3), yb - 38 - q, U('#2a2a34'));
+    K.put(pb, x + 21, yb - 49, U('#56566a')); K.put(pb, x + 22, yb - 49, U('#8a8a9a'));
+    K.text(pb, 'ACTAS', x + 3, yb - 26, U('#ffe08a'), { font: 'tiny' });
+  }
+  /** Quiosco de consulta pública (pantalla vertical con pie) */
+  function kiosk(pb, x, yb) {
+    PFInfra.box3q(pb, x + 4, yb, 10, 30, 6, { ramp: PFBM.ROYAL });
+    PFInfra.box3q(pb, x, yb - 30, 18, 34, 6, { ramp: PFBM.ROYAL });
+    for (let yy = 0; yy < 26; yy++) for (let xx = 0; xx < 12; xx++) K.put(pb, x + 3 + xx, yb - 60 + yy, U(yy < 5 ? '#1c3596' : yy % 6 === 1 && xx > 1 && xx < 10 ? '#8aa4e8' : '#0a1440'));
+    K.text(pb, '?', x + 7, yb - 59, U('#ffe08a'), { font: 'tiny' });
+    return { scr: [x + 3, yb - 53, 12, 18] };
+  }
+  function finish(pb, world, back, gy, D) {
+    // postes y cordones ante la historia y alrededor del gemelo
+    stanchions(pb, 62, 418, back(240) + 2, 32);
+    stanchions(pb, 1384, 1500, back(1440) + 2, 29);
+    // vitrinas con objetos de la historia de SYNARA
+    const v1 = vitrine(pb, 1222, back(1244) + 2, 44, 'membrane', 'MEMBRANA');
+    const v2 = vitrine(pb, 1564, back(1586) + 2, 40, 'sensor', 'SENSOR');
+    const v3 = vitrine(pb, 1960, back(1980) + 2, 40, 'book', 'ACTAS');
+    const v4 = vitrine(pb, 2036, back(2056) + 2, 40, 'dome', 'CÚPULA');
+    for (const v of [v1, v2, v3, v4]) D.glows.push({ x: v.glint[0], y: v.glint[1], r: 3, col: '#e8f8ff', a: 0.35, mode: 'pulse', hz: 0.3 });
+    // atril de actas junto a la mesa y quiosco de consulta junto al muro de evidencias
+    lectern(pb, 584, back(594) + 2);
+    const kq = kiosk(pb, 1264, back(1270) + 2);
+    D.leds.push({ x: kq.scr[0] + 2, y: kq.scr[1] + 2, col: '#56e5ff', hz: 0.6, ph: 3 });
+    // reflejos de todo lo anterior en el mármol (no en la alfombra de la escalinata)
+    reflect(pb, 0, 600, back, gy, { a: 0.24 });
+    reflect(pb, 1100, 2400, back, gy, { a: 0.26 });
+    // alfombra del vestíbulo hacia la escalinata de la mesa (sin reflejo: es tela)
+    runner(pb, 40, 600, back, gy);
+  }
+  return { finish, reflect, runner, stanchions, vitrine, lectern, kiosk };
+})();
+
 /* ===== 1c_bio_coast.js ===== */
 /* =====================================================================
    1c_bio_coast.js — BIOMA COSTA (Nivel 01) con el kit de panorama VISTA.
@@ -35459,6 +36787,8 @@ LEVELS[9] = {
     M.balustrade(pb, 2096, 2300, yb(2200), 30);
     M.grandDoor(pb, 2354, yb(2354), 58, 104, 'NÚCLEO SYNARA');
     D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
+    /* ===== acabado (19r_scb_lv09.js): vitrinas, cordones, atril, quiosco, alfombra y reflejos en el mármol ===== */
+    SCBL9.finish(pb, world, back, gy, D);
     LEVELS[9]._propsMs = Math.round(nowMs() - t0);
   },
   renderMid(g, sc, cam) {
@@ -35669,12 +36999,12 @@ const ChainScene = {
   cell(i) { const slots = [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [3, 1], [0, 2], [3, 2], [0, 3], [1, 3], [2, 3], [3, 3]]; const [c, r] = slots[i]; return [26 + c * 150, 50 + r * 60, 140, 52]; },
   render(g) {
     const t = Game.time;
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
+    SCBK.veil(g, 0, 0, W, H, '#05030f', 0.8);
     // marco de madera y corcho
     frect(g, 14, 14, W - 28, H - 28, '#3a1a10'); frect(g, 16, 16, W - 32, H - 32, '#7e4429'); frect(g, 16, 16, W - 32, 2, '#c97c38');
     frect(g, 20, 34, W - 40, H - 54, '#b8864e');
     for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(g, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
-    fdither(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+    SCBK.veil(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
     drawText(g, 'MURO DE EVIDENCIAS · ¿CÓMO OCURRIÓ?', 28, 21, { color: '#fff6d8', shadow: '#3a1a10' });
     drawText(g, 'Clava los factores que la evidencia respalda. Deja fuera los que los datos contradicen.', W - 28, 23, { font: 'tiny', color: '#ffe08a', align: 'right' });
     // foto central de la crisis
@@ -35682,7 +37012,7 @@ const ChainScene = {
     frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0');
     frect(g, cx + 6, cy + 6, cw - 12, ch - 34, '#0a0c22');
     for (let k = 0; k < 18; k++) { const bx = cx + 10 + k * 15, bh = 10 + (k * 13) % 30; frect(g, bx, cy + ch - 28 - bh, 12, bh, '#1c1f40'); if ((k * 7) % 5 === 0) fpx(g, bx + 4, cy + ch - 26 - bh + 4, '#ff6b6b'); }
-    fdither(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
+    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
     fdisc(g, cx + cw / 2, cy + 30, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 30, 5, '#0a0c22');
     drawText(g, 'APAGÓN DE SYNARA', cx + cw / 2, cy + ch - 22, { color: '#3a1a10', align: 'center' });
     drawText(g, 'No preguntes quién. Pregunta cómo.', cx + cw / 2, cy + ch - 11, { font: 'tiny', color: '#7e4429', align: 'center' });
@@ -35818,7 +37148,7 @@ const Sim09 = makeSim({
     drawText(g, '↑ DÉFICIT (m³/d)', X0 + 4, Y0 - 10, { font: 'tiny', color: '#eab02a' });
     const k = clamp(this.dT / 5, 0, 1), shown = MO_ALTS.filter((a, i) => i / MO_ALTS.length <= k), sid = new Set(shown.map(a => a.id));
     // región dominada por cada punto del frente (arriba y a la derecha)
-    two.filter(a => !a.dominated && sid.has(a.id)).forEach(a => fdither(g, px(a.crit.costo), py(a.crit.deficit) - (py(a.crit.deficit) - Y0), X1 - px(a.crit.costo), py(a.crit.deficit) - Y0, '#3a1a5a', 0.35));
+    two.filter(a => !a.dominated && sid.has(a.id)).forEach(a => SCBK.veil(g, px(a.crit.costo), py(a.crit.deficit) - (py(a.crit.deficit) - Y0), X1 - px(a.crit.costo), py(a.crit.deficit) - Y0, '#3a1a5a', 0.35));
     const front = two.filter(a => !a.dominated && sid.has(a.id)).sort((a, b) => a.crit.costo - b.crit.costo);
     for (let i = 1; i < front.length; i++) { const p0 = front[i - 1], p1 = front[i]; fline(g, px(p0.crit.costo), py(p0.crit.deficit), px(p1.crit.costo), py(p0.crit.deficit), '#86e36f'); fline(g, px(p1.crit.costo), py(p0.crit.deficit), px(p1.crit.costo), py(p1.crit.deficit), '#86e36f'); }
     fline(g, X0 + 14, Y1 - 14, X0 + 5, Y1 - 5, '#86e36f'); fline(g, X0 + 5, Y1 - 5, X0 + 5, Y1 - 9, '#86e36f'); fline(g, X0 + 5, Y1 - 5, X0 + 9, Y1 - 5, '#86e36f'); drawText(g, 'MEJOR', X0 + 16, Y1 - 18, { font: 'tiny', color: '#86e36f' });
@@ -35888,10 +37218,10 @@ const Sim09 = makeSim({
       // columna energética: base de agua esencial + excedente; línea del compromiso de H2
       const cx = bx + 14, cw = 26, base = by + 128, sc = 0.36;
       const wH = 40, sH = Math.round(r.surplus * sc), cH = Math.round(r.commit * sc);
-      frect(g, cx, base - wH, cw, wH, '#1c6fd0'); fdither(g, cx, base - wH, cw, wH, '#56e5ff', 0.2);
+      frect(g, cx, base - wH, cw, wH, '#1c6fd0'); SCBK.veil(g, cx, base - wH, cw, wH, '#56e5ff', 0.2);
       drawText(g, 'AGUA', cx + cw / 2, base - wH / 2 - 3, { font: 'tiny', align: 'center', color: '#fffaf0' });
-      frect(g, cx, base - wH - sH, cw, sH, '#1f854c'); fdither(g, cx, base - wH - sH, cw, sH, '#86e36f', 0.25);
-      if (r.water < 1) { const eat = Math.round((1 - r.water) * wH); fdither(g, cx, base - wH, cw, eat, '#ff4e5d', 0.6); }
+      frect(g, cx, base - wH - sH, cw, sH, '#1f854c'); SCBK.veil(g, cx, base - wH - sH, cw, sH, '#86e36f', 0.25);
+      if (r.water < 1) { const eat = Math.round((1 - r.water) * wH); SCBK.veil(g, cx, base - wH, cw, eat, '#ff4e5d', 0.6); }
       if (r.commit > 0) { const ly = base - wH - cH; for (let xx = cx - 4; xx < cx + cw + 4; xx += 2) fpx(g, xx, ly, '#ffe14d'); drawText(g, 'H2', cx + cw + 6, ly - 3, { font: 'tiny', color: '#ffe14d' }); }
       drawText(g, 'excedente', cx + cw + 6, base - wH - sH / 2 - 3, { font: 'tiny', color: '#86e36f' });
       const ty = base + 6;
@@ -37236,45 +38566,16 @@ const EndingScene = {
     this.id = p.ending || computeEnding(); this.E = ENDINGS[this.id]; this.t = 0; this.st = endingStats();
     this.ps = new Particles(300); Audio2.playMusic('ending');
     this.weak = LearningModel.weakest(3).map(k => MASTERY_LABELS[k]);
+    this.art = SCBEnd.make(this.id);
     GS.s.ending = this.id; GS.save();
   },
-  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.3) this.ps.emit('firefly', Math.random() * W, 60 + Math.random() * 120, 0, 0, 1); },
+  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.12) this.ps.emit('firefly', Math.random() * W, 70 + Math.random() * 80, 0, 0, 1); },
   render(g) {
     const E = this.E, t = this.t, st = this.st;
-    // ilustración: amanecer después de la Calima sobre SYNARA, con las capas de MOSAICO
-    const HZ = 128;
-    for (let y = 0; y < HZ; y++) frect(g, 0, y, W, 1, mixHex('#2a1050', mixHex('#ff9f6a', '#fff0c0', y / HZ), clamp(y / 100, 0, 1)));
-    for (let i = 0; i < 7; i++) fdither(g, 0, 30 + i * 9, W, 3, ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'][i], 0.1);
-    const sx = 470; fdisc(g, sx, HZ - 4, 26, '#ffe8b0'); fdisc(g, sx, HZ - 4, 19, '#fff6d8'); fdisc(g, sx, HZ - 4, 13, '#ffffff');
-    // nubes residuales de la tormenta, iluminadas desde abajo por el amanecer
-    for (let k = 0; k < 3; k++) {
-      const cx = ((k * 230 + 60 + t * 3) % (W + 160)) - 80, cy = 56 + (k % 2) * 16;
-      for (const [dx, dy, r] of [[-18, 4, 8], [-6, -2, 11], [8, 0, 10], [20, 5, 7]]) fdisc(g, cx + dx, cy + dy, r, '#8a4a7a');
-      for (const [dx, dy, r] of [[-18, 6, 6], [-6, 1, 9], [8, 3, 8], [20, 7, 5]]) fdisc(g, cx + dx, cy + dy + 2, r, '#b8607a');
-      frect(g, cx - 26, cy + 11, 54, 2, '#ffb08a'); fdither(g, cx - 28, cy + 13, 58, 2, '#ffd8a0', 0.5);
-    }
-    // ciudad en dos planos, más baja junto al sol
-    for (let layer = 0; layer < 2; layer++) {
-      const col = layer ? '#2e2050' : '#5a4278', top = layer ? '#4a3a7a' : '#7a62a0';
-      for (let x = -4, k = layer * 50; x < W; k++) {
-        const bw = 8 + (hash1(k, 5) * 14 | 0), near = Math.abs(x + bw / 2 - 470) < 70;
-        const bh = near ? 4 + (hash1(k, 6) * 5 | 0) : (layer ? 8 : 14) + (hash1(k, 6) * (layer ? 22 : 18) | 0);
-        frect(g, x, HZ - bh, bw, bh, col); frect(g, x, HZ - bh, bw, 1, top);
-        if (layer) for (let j = 0; j < 3; j++) if (hash1(k, j + 9) > 0.5) fpx(g, x + 2 + j * 3, HZ - bh + 3 + (j % 2) * 4, '#ffd86a');
-        x += bw + (layer ? 2 : 1);
-      }
-    }
-    // núcleo de SYNARA con anillos de MOSAICO
-    const cx = 110, ch = 84;
-    for (let y = HZ - ch; y < HZ; y++) { const ww = 4 + Math.round((y - (HZ - ch)) / 9); frect(g, cx - ww, y, ww * 2, 1, y % 9 < 2 ? '#7ae0d0' : '#e8dcc0'); frect(g, cx + ww - 2, y, 2, 1, '#b8a888'); }
-    for (let i = 0; i < 5; i++) { const ry = HZ - ch + 14 + i * 9 + Math.sin(t * 1.5 + i) * 2; fdither(g, cx - 34 + i * 3, ry, 68 - i * 6, 3, E.cols[i % 3], 0.55); }
-    fdisc(g, cx, HZ - ch - 4, 4, '#ffffff'); fdither(g, cx - 10, HZ - ch - 14, 20, 20, E.cols[0], 0.2 + 0.1 * Math.sin(t * 3));
-    // mar con reflejos del sol
-    for (let y = HZ; y < 164; y++) frect(g, 0, y, W, 1, mixHex('#3a2a6a', '#14103a', (y - HZ) / 36));
-    for (let y = HZ + 1; y < 164; y += 2) { const ww = 30 - (y - HZ) * 0.4 + Math.sin(t * 2 + y) * 4; frect(g, sx - ww / 2, y, ww, 1, (y % 4) ? '#ffe8b0' : '#ffb08a'); }
-    for (let i = 0; i < 30; i++) { const xx = (i * 37 + t * 10) % W, yy = HZ + 3 + (i * 7) % 32; frect(g, xx, yy, 4, 1, '#6a5a9a'); }
-    frect(g, cx - 2, HZ + 2, 4, 24, '#e8dcc0'); fdither(g, cx - 6, HZ + 2, 12, 24, '#7ae0d0', 0.3);
-    frect(g, 0, 164, W, H - 164, '#0e0a24');
+    // ilustración cinematográfica del final (kit VISTA + primer plano con personajes): 19n_scb_ending.js
+    if (!this.art || this.art.id !== this.id) this.art = SCBEnd.make(this.id);
+    this.art.draw(g, t);
+    frect(g, 0, 164, W, H - 164, '#04142e');
     this.ps.render(g);
     // título del final
     drawText(g, 'FINAL', W / 2, 16, { align: 'center', font: 'tiny', color: '#fff6d8', shadow: '#2a1050' });
@@ -37311,60 +38612,19 @@ LEVELS[11] = {
   ground: [[0, 292], [1500, 292]],
   terrain: [{ x0: 0, x1: 1500, mat: 'plaza' }],
   cam: { look: 50, vy: 0.66 },
-  props(pb, world) {
-    const gy = 292, E = GS.s.ending || 'pacto';
-    ART.bunting(pb, 20, 170, 700, 176, 14, ['#ff6b6b', '#ffe14d', '#20d6c7', '#86e36f', '#f78acb'], 2);
-    ART.bunting(pb, 700, 176, 1400, 168, 14, ['#ffe14d', '#20d6c7', '#ff9f43', '#86e36f'], 5);
-    // puestos de la primera cosecha con cestas
-    const crops = ['maiz', 'frijol', 'ahuyama', 'tomate', 'aji', 'sorgo', 'nopal'];
-    for (let k = 0; k < 3; k++) {
-      const x = 120 + k * 120;
-      ART.stall(pb, x, gy, 70, { c1: ['#ff6b6b', '#20d6c7', '#ffb93b'][k], c2: '#fffaf0', h: 44 });
-      for (let j = 0; j < 4; j++) { const bx = x + 8 + j * 15; pb.ellipse(bx + 5, gy - 18, 6, 3, '#a87028'); pb.ellipse(bx + 5, gy - 20, 5, 2, ['#ffe14d', '#ff6b6b', '#86e36f', '#ff9f43'][(j + k) % 4]); }
-    }
-    for (let k = 0; k < 7; k++) ART.crop(pb, 500 + k * 18, gy, crops[k], 1, 70 + k, 0);
-    ART.dripLine(pb, 496, 626, gy - 1, 9);
-    drawSign(pb, 560, gy, 'PARCELA ESCOLAR', '#33a552');
-    // panel público de SYNARA 2.0
-    ART.bigScreen(pb, 720, gy, 170, 90);
-    drawSign(pb, 900, gy, 'PANEL PÚBLICO', '#56e5ff');
-    // laboratorio abierto a estudiantes
-    pb.rect(1000, gy - 70, 150, 70, '#1c3a5a'); pb.rect(1000, gy - 70, 150, 3, '#56e5ff');
-    for (let k = 0; k < 3; k++) { pb.rect(1012 + k * 46, gy - 58, 34, 24, '#0a1440'); pb.rect(1012 + k * 46, gy - 58, 34, 2, '#86e36f'); }
-    drawSign(pb, 1075, gy - 70, 'LABORATORIO ABIERTO', '#86e36f');
-    // variaciones según el final
-    if (E === 'pacto') { pb.rect(1190, gy - 64, 80, 52, '#8a5e14'); pb.rect(1192, gy - 62, 76, 48, '#fff4de'); for (let k = 0; k < 8; k++) pb.rect(1196 + (k % 4) * 18, gy - 58 + Math.floor(k / 4) * 22, 14, 14, ['#ffe14d', '#ff9a8a', '#a6f4ff', '#c2f58e'][k % 4]); pb.rect(1228, gy - 12, 4, 12, '#5a3826'); drawSign(pb, 1230, gy - 64, 'DECISIONES PENDIENTES', '#ff9f43'); }
-    if (E === 'tecnica') { pb.rect(1180, gy - 70, 100, 30, '#fffaf0'); pb.rect(1180, gy - 70, 100, 3, '#ff6b6b'); pb.rect(1184, gy - 40, 3, 40, '#5a3826'); pb.rect(1273, gy - 40, 3, 40, '#5a3826'); drawSign(pb, 1230, gy - 70, '¿QUIÉN DECIDE?', '#ff6b6b'); }
-    if (E === 'deuda') { for (let k = 0; k < 4; k++) { pb.rect(1180 + k * 26, gy - 14, 22, 14, '#8a5e14'); ART.mangrove(pb, 1191 + k * 26, gy - 14, 14, 9 + k); } drawSign(pb, 1230, gy - 30, 'RESTAURACIÓN DEL MANGLAR', '#1f854c'); }
-    if (E === 'mosaico') { for (let k = 0; k < 6; k++) pb.rect(1180 + k * 16, gy - 40, 14, 14, ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'][k]); drawSign(pb, 1228, gy - 40, 'MOSAICO VIVO', '#1f854c'); }
-    drawSign(pb, 1440, gy, 'MUELLE · MAR', '#1283bf');
-  },
+  /* plano jugable con kit PF al atardecer (19q_scb_lv11.js): mismo suelo, actores y guion */
+  pf: SCBL11.pf,
+  labels: SCBL11.labels,
+  props(pb, world) { SCBL11.props(pb, world); },
+  propsFront(pb, world) { SCBL11.propsFront(pb, world); },
+  renderBack(g, sc, cam) { SCBL11.renderBack(g, sc, cam); },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
+    SCBL11.renderMidFx(g, sc, cam);
     // pantalla: SYNARA 2.0 (el título que no cabe) → MOSAICO proyecta al final
     const x = 722 - ox, y = 292 - 118 - oy;
     if (x < -180 || x > W + 10) return;
-    frect(g, x, y, 166, 86, '#05081d');
-    if (S.mosaicProj) {
-      const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'];
-      for (let i = 0; i < 7; i++) fdither(g, x + 2, y + 2 + i * 11, 158, 9, cols[i], 0.3);
-      ['INCERTIDUMBRE: VISIBLE', 'ALTERNATIVAS: 4', 'DECISIÓN: PENDIENTE', 'DE DELIBERACIÓN'].forEach((s2, i) => drawText(g, s2, x + 81, y + 14 + i * 14, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#05081d' }));
-    } else if (S.title2 === 2) {
-      drawText(g, 'SYNARA 2.0', x + 81, y + 14, { align: 'center', color: '#56e5ff' });
-      drawTextBlock(g, 'NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA', x + 8, y + 32, 146, { font: 'tiny', color: '#ffe14d', align: 'center', lineH: 8 });
-      for (let i = 0; i < 3; i++) frect(g, x + 20 + i * 44, y + 58, 34, 14, ['#1f854c', '#2c63c0', '#bc3e92'][i]);
-      drawText(g, 'AGUA', x + 37, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' }); drawText(g, 'ENERGÍA', x + 81, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' }); drawText(g, 'SALMUERA', x + 125, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' });
-    } else if (S.title2 === 1) {
-      // el título no cabe: desborda la pantalla
-      const msg = 'SYNARA 2.0 — NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA';
-      g.save(); g.beginPath(); g.rect(x - 34, y - 6, 166 + 68, 98); g.clip();
-      drawTitleText(g, msg, x + 6 - ((t * 30) % 40), y + 30, 2, ['#fff6d8', '#ffe14d', '#ff9f43'], { shadow: '#05081d' });
-      g.restore();
-    } else {
-      for (let i = 0; i < 4; i++) frect(g, x + 10, y + 12 + i * 16, 60 + ((i * 23 + Math.floor(t * 2)) % 80), 6, ['#86e36f', '#56e5ff', '#ffe14d', '#f78acb'][i]);
-      drawText(g, 'PANEL PÚBLICO · EN VIVO', x + 81, y + 72, { font: 'tiny', align: 'center', color: '#a6f4ff' });
-    }
-    fdither(g, x, y, 166, 86, '#ffffff', 0.03);
+    SCBEpi.drawScreen(g, S, x, y, t); // 19p_scb_epi.js: panel en vivo · título que desborda · SYNARA 2.0 · MOSAICO
   },
   setup(sc) {
     const S = sc.state, E = GS.s.ending || 'pacto';
@@ -37418,7 +38678,7 @@ async function epilogueFinale(sc) {
   Game.transition(() => { Game.setScene(BlankScene, {}); Game.push(CreditsScene, { final: true, onDone: () => Game.setScene(PostCreditsScene, {}) }); }, '#05030f', 1.2);
 }
 
-const BlankScene = { enter() { }, update() { }, render(g) { frect(g, 0, 0, W, H, '#05030f'); } };
+const BlankScene = { enter() { }, update() { }, render(g) { SCBEpi.drawBlank(g, Game.time); } };
 
 /* ---------------------------------------------------------------------
    Poscréditos: una variable desconocida en el vivero
@@ -37428,6 +38688,7 @@ const PostCreditsScene = {
     this.t = 0; this.i = 0; this.ps = new Particles(120); Audio2.playMusic('oasis');
     this.lines = [['kiru', 'Amaya.'], ['amaya', '¿Qué ocurre?'], ['kiru', 'El sensor del vivero reporta una variable desconocida.'], ['amaya', '¿La eliminaste?'], ['kiru', 'Preparé té.']];
     this.lt = 0;
+    this.art = SCBPost.make();
   },
   update(dt) {
     this.t += dt; this.lt += dt; this.ps.update(dt);
@@ -37438,29 +38699,9 @@ const PostCreditsScene = {
   },
   render(g) {
     const t = this.t;
-    // noche en el vivero
-    for (let y = 0; y < H; y++) frect(g, 0, y, W, 1, mixHex('#05081d', '#1a1a4a', y / H));
-    for (let i = 0; i < 60; i++) fpx(g, hash1(i, 1) * W, hash1(i, 2) * 160, (Math.floor(t * 2 + i) % 7) ? '#cfd6f0' : '#ffffff');
-    fdisc(g, 520, 60, 12, '#fff6d8'); fdisc(g, 525, 57, 11, '#1a1a4a');
-    // colinas con las luces de Aridia a lo lejos
-    for (let x = 0; x < W; x += 2) { const hh = 26 + Math.round(12 * Math.sin(x * 0.013) + 6 * Math.sin(x * 0.041)); frect(g, x, 270 - hh, 2, hh, '#141a3a'); }
-    for (let i = 0; i < 40; i++) { const lx = (i * 97) % W, ly = 270 - 10 - (i * 13) % 18; fpx(g, lx, ly, (Math.floor(t + i) % 9) ? '#ffd86a' : '#ff9f43'); }
-    for (let k = 0; k < 3; k++) { const tx = 80 + k * 240; frect(g, tx - 1, 200, 3, 70, '#2a2a5a'); fdisc(g, tx, 200, 3, '#56e5ff'); }
-    frect(g, 0, 270, W, H - 270, '#0e1a12'); fdither(g, 0, 270, W, 8, '#1f3a24', 0.5);
-    for (let x = 6; x < W; x += 11) { const hh = 2 + (x * 7) % 4; frect(g, x, 270 - hh, 1, hh, '#1f5a34'); fpx(g, x + 1, 270 - hh + 1, '#2f7a44'); }
-    // farol junto a Amaya
-    frect(g, 178, 196, 2, 74, '#3a3a5a'); frect(g, 176, 196, 6, 2, '#5a5a7a'); fdisc(g, 179, 194, 3, '#ffe8a0'); PFK.drawGlow(g, 179, 194, 30, '#ffd86a', 0.35);
-    // casa de sombra
-    frect(g, 300, 178, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 178, 3, 92, '#2a3a2a'); fdither(g, 300, 182, 200, 88, '#1a2a1a', 0.5);
-    for (let k = 0; k < 8; k++) { const x = 312 + k * 23, hh = 12 + (k * 5) % 10; frect(g, x, 270 - hh, 2, hh, '#1f854c'); fpx(g, x - 1, 270 - hh, '#4ccb70'); fpx(g, x + 2, 270 - hh + 2, '#4ccb70'); }
-    // sensor con la alarma
-    frect(g, 456, 226, 2, 44, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 224, 3, on ? '#ffe14d' : '#6a5a10'); if (on) PFK.drawGlow(g, 457, 224, 14, '#ffe14d', 0.4);
-    // Amaya y KIRU
-    drawChar(g, 'amaya', 'idle', t, 220, 270, 1, { expr: this.i >= 4 ? 'smile' : 'surprised' });
-    drawChar(g, 'kiru', 'idle', t, 260, 270, -1, {});
-    // taza de té con vapor
-    frect(g, 225, 238, 7, 6, '#fff6d8'); frect(g, 232, 239, 2, 3, '#fff6d8'); frect(g, 225, 243, 7, 1, '#cfc4a8'); for (let i = 0; i < 3; i++) fpx(g, 228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0'); // taza en la mano de Amaya (sprite de 74 px)
-    this.ps.render(g);
+    // noche en el vivero (19o_scb_post.js): cielo estrellado, invernadero con luz cálida, faroles, luciérnagas
+    if (!this.art) this.art = SCBPost.make();
+    this.art.draw(g, t, { amayaExpr: this.i >= 4 ? 'smile' : 'surprised' });
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {
       const sp = SPEAKERS[L[0]];
