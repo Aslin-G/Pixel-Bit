@@ -136,8 +136,8 @@ const CreditsScene = {
   enter(p) { this.t = 0; this.final = !!p.final; this.onDone = p.onDone; if (this.final) Audio2.playMusic('ending'); },
   update(dt) { this.t += dt * (Input.down('fast') || Input.down('confirm') ? 4 : 1); if (Input.pressed('cancel') || (this.final && this.t > 70)) { Game.pop(); this.onDone && this.onDone(); } },
   render(g) {
-    frect(g, 0, 0, W, H, '#0a0718');
-    for (let i = 0; i < 100; i++) fpx(g, hash1(i, 3) * W, (hash1(i, 4) * H + this.t * 4 * (0.3 + hash1(i, 5))) % H, '#5a6fb0');
+    // Aridia de noche (19e_sca_cards.js): cielo estrellado, ciudad iluminada, Amaya y KIRU en el acantilado
+    SCACredits.render(g, Game.time);
     const lines = [
       ['t', 'ARIDIA NEXUS'], ['s', 'LA CIUDAD QUE BEBÍA EL MAR'], ['', ''],
       ['h', 'Diseño, programación, pixel art procedural, música y sonido'], ['', 'Generados con código para este proyecto: Canvas 2D y Web Audio, sin recursos externos.'], ['', ''],

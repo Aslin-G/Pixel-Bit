@@ -229,7 +229,7 @@ const GameplayScene = {
     const rects = [];
     // cinta de capítulo (sin caja que oscurezca el cielo)
     const ct = this.chapterCard.t;
-    if (ct < 4.2) UIK.chapterRibbon(g, this.chapterCard.title || '', this.chapterCard.sub || '', ct < 0.5 ? ct / 0.5 : ct > 3.4 ? (4.2 - ct) / 0.8 : 1, 66);
+    if (ct < 4.2) SCACards.chapterCard(g, this.levelId, this.chapterCard.title || '', this.chapterCard.sub || '', ct < 0.5 ? ct / 0.5 : ct > 3.4 ? (4.2 - ct) / 0.8 : 1, ct);
     // bloque de retrato: retrato enmarcado + AMAYA + 7 corazones + energía + Nv.
     if ((this._rankT = (this._rankT || 0) + Game.dt) > 0.5) { this._rankT = 0; GS.checkRank(); }
     const hurt = P && P.hurtT > 0, rankUp = GS.rankUpT != null && Game.time - GS.rankUpT < 2.2;

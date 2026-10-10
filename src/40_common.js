@@ -33,7 +33,7 @@ function completeLevel(sc, extra = {}) {
 
 const LevelCompleteScene = {
   overlay: true,
-  enter(p) { this.id = p.level; this.t = 0; this.onDone = p.onDone; Audio2.sfx('unlock'); Audio2.playMusic('ending'); this.ps = new Particles(300); },
+  enter(p) { this.id = p.level; this.t = 0; this.onDone = p.onDone; Audio2.sfx('unlock'); Audio2.playMusic('ending'); this.ps = new Particles(300); this.banner = SCACards.captureBanner(typeof GameplayScene !== 'undefined' ? GameplayScene : null); },
   update(dt) {
     this.t += dt; this.ps.update(dt);
     // recompensa sobria: destellos de cristal y luciérnagas, sin confeti
@@ -41,10 +41,12 @@ const LevelCompleteScene = {
   },
   render(g) {
     const M = LEVEL_META[this.id], lp = GS.lp(this.id);
-    UIK.scrim(g, 0.7);
+    SCACards.completeBackdrop(g, this.t);
     this.ps.render(g);
     const x = 70, y = 22, w = W - 140, h = H - 44;
     UIK.panel(g, x, y, w, h, 'tech');
+    // franja ilustrada con el panorama del capítulo detrás del título
+    SCACards.drawBanner(g, this.banner, x + 16, y + 21, w - 32, 34, this.t);
     UIK.badge(g, 'star', x - 3, y - 3, 22, 'tech');
     drawText(g, M.chapter + ' COMPLETADO', x + 28, y + 7, { font: 'bold', color: '#ffd23a' });
     frect(g, x + 22, y + 18, w - 28, 1, '#12305a'); frect(g, x + 22, y + 19, w - 28, 1, '#0b2a58');
