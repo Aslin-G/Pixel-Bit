@@ -237,6 +237,7 @@ const SCATitleArt = (() => {
         { x: Aq.potable.x - 2, y: L + Aq.potable.y - 22, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
       );
       A.brineX = P.brine.x; A.intakeX = P.intake.x;
+      A.labels.push({ x: P.brine.x - 34, y: WY + 54, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine' });
     }, {
       dyn: (g) => {
         const t = Game.time;

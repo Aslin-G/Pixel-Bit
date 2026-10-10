@@ -356,7 +356,7 @@ const SCAIntro = (() => {
     for (let y = 0; y < H; y++) for (let x = 0; x < sky.w; x++) sky.data[y * sky.w + x] = R[V.band(y / H * 0.9, R.length, x, y, 0.04, 3)];
     B.sky = sky.toCanvas();
     // pared del fondo: paneles con nervios y ventanal nocturno con estrellas y la ciudad iluminada
-    const winLights = [];
+    const winLights = [], trays = [], strips = [], cone = V.lightCone(30, 70, 120, '#9fe6ff', 0.18);
     B.vplane(0.15, 0, H, (pb, w, h) => {
       const P = V.P32(['#06122a', '#0a1a3a', '#0e244a', '#14305c', '#1c3e70', '#2a5288']);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -383,7 +383,10 @@ const SCAIntro = (() => {
         for (let q = 0; q < bh / 5; q++) winLights.push([x + 1 + r.int(0, bw - 2), wy1 - bh + 2 + r.int(0, bh - 4)]);
         x += bw + r.int(0, 4);
       }
-    }, { dyn: (g, cam, L) => { const [ox, oy] = B.vofs(L, cam), t = T(); g.fillStyle = '#ffd88a'; for (let i = 0; i < winLights.length; i++) if ((i * 7 + Math.floor(t * 0.5)) % 9) { const [x, y] = winLights[i]; g.fillRect(x + ox, y + oy, 1, 1); } } });
+      // bandejas de cables y tiras de luz en el techo
+      for (const [y, x0, x1] of [[10, 0, w], [20, 20, w - 20]]) { const T2 = V.cableTray(pb, x0, x1, y, { k: 0.2, hang: 10 }); trays.push(T2.flow); }
+      for (const lx of [40, 140, 520, 620]) strips.push(V.lightStrip(pb, lx, lx + 40, 34, '#9fe6ff'));
+    }, { dyn: (g, cam, L) => { const [ox, oy] = B.vofs(L, cam), t = T(); g.fillStyle = '#ffd88a'; for (let i = 0; i < winLights.length; i++) if ((i * 7 + Math.floor(t * 0.5)) % 9) { const [x, y] = winLights[i]; g.fillRect(x + ox, y + oy, 1, 1); } V.drawStrips(g, strips, ox, oy, t, { col: '#e6fdff', speed: 40 }); for (const F of trays) V.drawFlow(g, F, ox, oy, t, { col: '#56e5ff', speed: 30, gap: 11 }); g.globalCompositeOperation = 'lighter'; for (const [x0] of strips) { g.globalAlpha = 0.5; g.drawImage(cone, x0 + ox - 10, 35 + oy); } g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; } });
     // el núcleo de SYNARA (tambor con cúpula de vidrio y franja cian) y bastidores de datos
     let core = null; const racks = [];
     B.vplane(0.4, 30, 260, (pb, w, h) => {
