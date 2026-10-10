@@ -7,108 +7,299 @@
 /** Conductividad aproximada del permeado (µS/cm) a partir de TDS (g/L) — factor 0,55 mg/L por µS/cm */
 const tdsToEC = (gL) => gL * 1000 / 0.55;
 
+/* ---------- arte del plano jugable (kit PF + PFAPlant), anclas para lo dinámico ---------- */
+const LV2_ANCH = { leds: [], lamps: [], screens: [] };
+/** Colectores en la galería de servicio bajo el forjado (corte que muestra lo invisible) */
+const LV2_GAL = { brine: 322, perm: 334, feed: 346 };
+const LV2_FLOWS = [];
+const LV2_GALFLOWS = [];
+
 LEVELS[2] = {
-  id: 2, title: 'El Laberinto Osmótico', chapter: 'CAPÍTULO 02', biome: 'plant', music: 'plant', width: 2600, height: 360,
+  id: 2, title: 'El Laberinto Osmótico', chapter: 'CAPÍTULO 02', biome: 'plant', music: 'plant', width: 2600, height: 400,
   ambience: { hum: 0.7, sea: 0.1, bubbles: 0.3 },
   portraits: ['amaya', 'kiru', 'naira', 'dante', 'operador'],
   spawn: { x: 60, y: 290 },
   checkpoints: { control: { x: 1460, y: 290 }, cabinet: { x: 2080, y: 290 } },
   ground: [[0, 290], [2600, 290]],
   terrain: [{ x0: 0, x1: 2600, mat: 'metal' }],
+  /* Mismas plataformas (x, y, w); su arte se dibuja con los accesorios (tubo transitable, descansillos,
+     pasarela de trenes y suelo de la sala de control) */
   platforms: [
-    { x: 268, y: 262, w: 44, type: 'pipe' }, { x: 318, y: 240, w: 30, type: 'metal' },
-    { x: 690, y: 222, w: 570, type: 'metal' },
-    { x: 1420, y: 214, w: 230, type: 'metal' },
-    { x: 1760, y: 248, w: 60, type: 'metal' }, { x: 1850, y: 226, w: 70, type: 'metal' },
+    { x: 268, y: 262, w: 44, type: 'pipe', baked: true, art: 'none' }, { x: 318, y: 240, w: 30, type: 'metal', baked: true, art: 'none' },
+    { x: 690, y: 222, w: 570, type: 'metal', baked: true, art: 'none' },
+    { x: 1420, y: 214, w: 230, type: 'metal', baked: true, art: 'none' },
+    { x: 1760, y: 248, w: 60, type: 'metal', baked: true, art: 'none' }, { x: 1850, y: 226, w: 70, type: 'metal', baked: true, art: 'none' },
   ],
-  ladders: [{ x: 700, y0: 222, y1: 290 }, { x: 1250, y0: 222, y1: 290 }, { x: 1430, y0: 214, y1: 290 }],
-  cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
-  props(pb, world) {
-    const gy = 290;
-    // filtros de cartucho (pretratamiento fino)
-    for (let k = 0; k < 4; k++) { ART.tank(pb, 112 + k * 26, gy, 16, 54, RAMP.steelW, { band: '#1aa894', label: true }); pb.rect(116 + k * 26, gy - 62, 8, 4, '#345a78'); }
-    drawSign(pb, 160, gy - 66, 'CARTUCHOS 5 µM', '#1491aa');
-    ART.pipe(pb, 100, gy - 30, 220, gy - 30, 3, 'seawater');
-    // bombas de alta presión y recuperadores de energía
-    for (let k = 0; k < 3; k++) ART.hpPump(pb, 360 + k * 70, gy);
-    drawSign(pb, 470, gy - 40, 'ALTA PRESIÓN', '#8d6bff');
-    // recuperador (estación del minijuego)
-    pb.rect(586, gy - 46, 40, 46, '#c8d8e8'); pb.rect(586, gy - 46, 40, 3, '#ffffff'); pb.rect(622, gy - 46, 4, 46, '#8396ba');
-    pb.ellipse(606, gy - 26, 12, 12, '#345a78'); pb.ellipse(606, gy - 26, 9, 9, '#c8a860'); pb.ellipse(606, gy - 26, 3, 3, '#263442');
-    drawSign(pb, 606, gy - 48, 'ERD', '#8e2a80');
-    // colectores: alimentación (azul), permeado (cian), concentrado (violeta)
-    ART.pipe(pb, 220, gy - 30, 690, gy - 30, 3, 'seawater');
-    ART.pipe(pb, 680, gy - 12, 1300, gy - 12, 2, 'water');
-    ART.pipe(pb, 690, gy - 52, 1290, gy - 52, 2, 'brine');
-    ART.pipe(pb, 1290, gy - 52, 2560, gy - 52, 2, 'brine');
-    // trenes de membranas A, B y C (dos niveles)
-    for (let k = 0; k < 3; k++) {
-      const tx = 712 + k * 190;
-      ART.roRack(pb, tx, gy - 4, 4, true, { tubeW: 120 });
-      ART.roRack(pb, tx, 222, 4, true, { tubeW: 120 });
-      drawSign(pb, tx + 70, 222 - 52, 'TREN ' + 'ABC'[k], k === 1 ? '#d8343c' : '#1491aa');
-    }
-    // etiquetas de bloqueo en el tren B (aislado por LIMEN)
-    for (let i = 0; i < 6; i++) { const x = 920 + i * 20; pb.rect(x, gy - 40, 5, 8, '#ff4e5d'); pb.set(x + 2, gy - 38, '#fffaf0'); }
-    for (let i = 0; i < 14; i++) pb.set(910 + i * 9, gy - 2 - (i % 3), '#c4fbff');
-    // tanque de permeado y contactor de calcita (remineralización)
-    ART.tank(pb, 1300, gy, 34, 70, RAMP.steelW, { band: '#56e5ff', label: true, ladder: true });
-    ART.tank(pb, 1346, gy, 20, 46, ['#4a3a2a', '#6a5a4a', '#8a7a6a', '#b0a090', '#d0c4b0', '#ece4d6', '#ffffff'], { band: '#c8a860' });
-    drawSign(pb, 1356, gy - 48, 'CALCITA', '#a08060');
-    // sala de control elevada con ventanales
-    const cx = 1420;
-    pb.rect(cx, 130, 230, 84, '#dfe4f2'); pb.rect(cx, 130, 230, 4, '#5b6f96'); pb.rect(cx + 226, 130, 4, 84, '#8a94b8');
-    for (let k = 0; k < 4; k++) { pb.rect(cx + 10 + k * 54, 142, 46, 34, '#1a2a4a'); pb.rect(cx + 10 + k * 54, 142, 46, 2, '#6aa0b4'); pb.line(cx + 14 + k * 54, 170, cx + 30 + k * 54, 146, '#2a4a6a'); }
-    pb.rect(cx - 4, 210, 238, 4, '#345a78');
-    drawSign(pb, cx + 115, 130, 'CONTROL OI', '#8d6bff');
-    for (let x = cx + 4; x < cx + 226; x += 6) pb.vline(x, 200, 210, '#98c6d2');
-    // área de limpieza CIP y dosificación de antiincrustante
-    for (let k = 0; k < 3; k++) ART.tank(pb, 1700 + k * 44, gy, 30, 56 - k * 6, RAMP.steelW, { band: k === 2 ? '#86e36f' : '#ff9f43', label: true, ladder: k === 0 });
-    drawSign(pb, 1760, gy - 62, 'LIMPIEZA CIP', '#ff9f43');
-    ART.tank(pb, 1840, gy, 14, 24, RAMP.steelW, { band: '#b49cff' }); drawSign(pb, 1848, gy - 26, 'ANTIINCRUST.', '#5a44a8');
-    // armario del controlador de despacho
-    const dx = 2180;
-    pb.rect(dx, gy - 86, 50, 86, '#1d2a48'); pb.rect(dx, gy - 86, 50, 3, '#477a94'); pb.rect(dx + 46, gy - 86, 4, 86, '#0a1030');
-    for (let r = 0; r < 8; r++) { pb.rect(dx + 4, gy - 80 + r * 9, 38, 6, '#263442'); for (let k = 0; k < 5; k++) pb.set(dx + 8 + k * 6, gy - 78 + r * 9, ['#86e36f', '#56e5ff', '#ffe14d', '#86e36f', '#ff4e5d'][(r + k) % 5]); }
-    drawSign(pb, dx + 25, gy - 88, 'DESPACHO', '#5a44a8');
-    // salida hacia los canales de concentrado
-    pb.rect(2520, gy - 70, 50, 70, '#3a3460'); pb.rect(2524, gy - 66, 42, 66, '#140d26'); pb.rect(2520, gy - 74, 50, 4, '#8d6bff');
-    drawSign(pb, 2470, gy, 'CANALES DE SALMUERA', '#8e2a80');
+  ladders: [{ x: 700, y0: 222, y1: 290, look: 'steel' }, { x: 1250, y0: 222, y1: 290, look: 'steel' }, { x: 1430, y0: 214, y1: 290, look: 'steel' }],
+  /* Cámara: el mundo crece 40 px hacia abajo (forjado en corte con la galería de colectores) */
+  cam: { look: 50, vy: 0.6 },
+  pf: {
+    terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 12, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
+    /** Oclusores de interior en el primer plano (f 1,3): pilares en I, haces de tubos y cadenas de polipasto */
+    fg: [
+      { kind: 'aRail', x: 120, w: 220, h: 56, seed: 1 },
+      { kind: 'aPipes', x: 760, w: 240, h: 46, y: -4, top: true, seed: 2 },
+      { kind: 'aElbow', x: 1180, w: 150, h: 84, r: 12, seed: 3 },
+      { kind: 'aChain', x: 1600, h: 104, y: -6, top: true, seed: 4 },
+      { kind: 'aPipes', x: 1930, w: 260, h: 46, y: -4, top: true, seed: 5 },
+      { kind: 'aRail', x: 2330, w: 200, h: 56, seed: 6 },
+      { kind: 'aChain', x: 2760, h: 92, y: -6, top: true, seed: 7 },
+      { kind: 'aElbow', x: 3020, w: 150, h: 84, r: 12, seed: 8 },
+    ],
+    decorateFace(pb, world) { LEVELS[2].gallery(pb, world); },
   },
-  decorate(pb, world) {
-    // franjas de seguridad, rejillas de drenaje y charcos en el piso técnico
-    for (let x = 0; x < world.w; x++) { const on = (x >= 680 && x < 1300) || (x >= 1690 && x < 1870); if (on) { pb.set(x, 292, ((x >> 2) & 1) ? '#ffe14d' : '#263442'); pb.set(x, 293, ((x >> 2) & 1) ? '#c8a020' : '#1d2a48'); } }
-    for (let x = 140; x < world.w; x += 260) { pb.rect(x, 300, 26, 6, '#1d2a48'); for (let k = 2; k < 26; k += 3) pb.vline(x + k, 301, 305, '#477a94'); }
-    for (const x of [820, 1080, 1760]) { pb.ellipse(x, 296, 14, 2, '#6aa0b4'); pb.hline(x - 8, x + 4, 295, '#cfe8ee'); }
+  /** Etiquetas científicas en el mundo (orden del proceso de izquierda a derecha) */
+  labels: [
+    { x: 158, y: 196, title: 'CARTUCHOS 5 µm', sub: 'Pretratamiento fino', kind: 'water', ax: 158, ay: 214 },
+    { x: 462, y: 206, title: 'BOMBAS DE ALTA PRESIÓN', sub: '≈ 60 bar', kind: 'tech', ax: 462, ay: 230 },
+    { x: 610, y: 186, title: 'ERD', sub: 'Recupera presión', kind: 'brine', ax: 610, ay: 206 },
+    { x: 776, y: 136, title: 'TREN A', sub: 'Membranas OI', kind: 'water', ax: 776, ay: 150 },
+    { x: 966, y: 136, title: 'TREN B', sub: (sc) => sc.state.trainBOn ? 'En línea' : 'AISLADO', kind: 'alert', ax: 966, ay: 150 },
+    { x: 1156, y: 136, title: 'TREN C', sub: 'Membranas OI', kind: 'water', ax: 1156, ay: 150 },
+    { x: 1318, y: 184, title: 'AGUA PERMEADA', sub: '(Producto)', kind: 'water', ax: 1318, ay: 196 },
+    { x: 1376, y: 224, title: 'CALCITA', sub: 'Remineraliza', kind: 'green', ax: 1372, ay: 234 },
+    { x: 1535, y: 86, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 92 },
+    { x: 1756, y: 208, title: 'LIMPIEZA CIP', sub: 'Solo si el flujo cae', kind: 'tech', ax: 1752, ay: 222 },
+    { x: 2104, y: 196, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
+    { x: 2203, y: 176, title: 'DESPACHO', sub: 'Controlador', kind: 'tech', ax: 2203, ay: 192 },
+    { x: 2548, y: 160, title: 'SALMUERA', sub: '(Rechazo) → canales', kind: 'brine', ax: 2546, ay: 178 },
+    { x: 1100, y: 344, title: 'GALERÍA DE COLECTORES', sub: 'salmuera · permeado · alimentación', kind: 'tech', ax: 1100, ay: 352 },
+  ],
+  /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
+  props(pb, world) {
+    const t0 = nowMs();
+    PFTerrain.surface(pb, world);
+    const P = PFAPlant, I = PFInfra, A = PFArch, K = PFK, G = 290, fb = G - 12;
+    const N = LV2_ANCH; N.leds = []; N.lamps = []; N.screens = []; LV2_FLOWS.length = 0;
+    const flow = (pts, kind, rate) => LV2_FLOWS.push({ pts, kind, rate });
+    const U_ = (c) => U(c);
+    /* ---- suelo: pasillo pintado, rejillas de drenaje, charcos con reflejo, rótulos ---- */
+    for (let x = 0; x < 2600; x++) if ((x % 22) < 12) { K.put(pb, x, G - 19, U_('#d8a020')); K.put(pb, x + 1, G - 18, U_('#a87414')); }
+    for (const x of [86, 340, 650, 1010, 1270, 1690, 1925, 2290, 2500]) for (let r = 0; r < 5; r++) for (let k = 0; k < 22; k++) K.put(pb, x + k + Math.round(r * 0.7), G - 10 - r, U_(r === 0 ? '#0a1426' : (k % 3 === 0 ? '#0e1a2c' : '#48607a')));
+    for (const [x, w] of [[470, 30], [880, 22], [1196, 26], [1840, 34], [2410, 24]]) K.ellipseFn(pb, x, G - 6, w / 2, 2.2, (nx, ny) => ny < -0.2 ? U_('#d0e6f0') : U_('#a8c8dc'));
+    P.stencil(pb, 372, G - 15, 'ZONA DE ALTA PRESIÓN', '#f0c040');
+    P.stencil(pb, 1700, G - 15, 'QUÍMICOS · USAR EPI', '#f0c040');
+    /* ===== 1. ENTRADA DESDE EL PRETRATAMIENTO (0–100) ===== */
+    // muro de la nave con el paso desde el pretratamiento (vano de 92 px con corredor en penumbra)
+    for (let y = 96; y < G - 2; y++) for (let x = 0; x < 52; x++) { const inDoor = x > 6 && x < 46 && y > G - 104; if (inDoor) { const k = clamp((y - (G - 104)) / 100, 0, 1); K.put(pb, x, y, K.mixU(U_('#0a1426'), U_('#1e3a5a'), (1 - Math.abs(x - 26) / 22) * 0.6 * (1 - k * 0.5))); continue; } K.put(pb, x, y, U_(['#8c92a0', '#c8ccd2', '#dcdee2', '#c8ccd2', '#aeb2bc', '#aeb2bc', '#8c92a0', '#8c92a0', '#6a7080', '#6a7080', '#4a5060', '#3a4050'][Math.min(11, x < 7 ? x + 2 : x > 45 ? 11 - (x - 46) : 5)] )); }
+    for (let x = 6; x <= 46; x++) { K.put(pb, x, G - 105, U_('#f2efea')); K.put(pb, x, G - 104, U_('#4f4d51')); }
+    for (let y = G - 104; y < G - 2; y++) { K.put(pb, 6, y, U_('#4f4d51')); K.put(pb, 46, y, U_('#f2efea')); }
+    for (let x = 8; x < 46; x += 3) K.put(pb, x, G - 96, U_('#fff6d8'));
+    P.hangSign(pb, 4, G - 124, '← PRETRATAMIENTO', '#7aaad6', { top: G - 128 });
+    P.pallet(pb, 50, fb + 2, { n: 2, label: '5 µm' });
+    P.extinguisher(pb, 2, fb + 2);
+    for (let y = G - 74; y < G - 4; y++) { K.put(pb, 80, y, U_('#94a8c8')); K.put(pb, 81, y, U_('#26324c')); }
+    P.rect(pb, 72, G - 84, 26, 14, U_('#e8f0f8')); P.hline(pb, 72, 97, G - 84, U_('#1e52a2'));
+    P.sign(pb, 73, G - 82, 'helmet'); P.sign(pb, 81, G - 82, 'goggles'); P.sign(pb, 89, G - 82, 'ear');
+    // alimentación pretratada (acero + azul claro) que entra por el muro
+    I.pipe(pb, [[0, 262], [106, 262]], 4, 'pre', { flange: 24, supports: 32, supportTo: () => fb + 2 });
+    I.box3q(pb, 30, 268, 12, 12, 4, { ramp: P.FRAME }); P.rect(pb, 32, 258, 8, 4, U_('#06122a'));
+    I.valve(pb, 92, 262);
+    flow([[0, 262], [104, 262]], 'pre', 0.8);
+    /* ===== 2. FILTROS DE CARTUCHO (100–230) ===== */
+    I.box3q(pb, 102, fb + 6, 116, 4, 12, { ramp: PFTerrain.CONC, skew: 0.6 });
+    I.pipe(pb, [[104, 262], [214, 262]], 3, 'pre', { flange: 26 });
+    let cart;
+    for (let k = 0; k < 4; k++) cart = P.cartridge(pb, 122 + k * 26, fb + 2, { r: 9, h: 46 });
+    I.pipe(pb, [[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 3, 'pre', { flange: 18 });
+    flow([[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 'pre', 0.8);
+    PFTerrain.railing(pb, 104, 214, G - 6, 18);
+    /* ===== 3. COLECTOR DE ASPIRACIÓN TRANSITABLE Y MANÓMETROS (230–360) ===== */
+    P.pipeDeck(pb, 268, 312, 262, fb + 4, 'pre');
+    flow([[270, 268], [312, 268]], 'pre', 0.8);
+    for (const [gx, a] of [[282, -0.5], [302, 0.4]]) { P.vline(pb, gx, 252, 261, U_('#948e91')); P.vline(pb, gx + 1, 252, 261, U_('#4f4d51')); K.ellipseFn(pb, gx + 0.5, 247.5, 5.5, 5.5, (nx, ny, d) => d > 0.7 ? U_(nx + ny < 0 ? '#f2efea' : '#4f4d51') : d > 0.55 ? U_('#2a282e') : U_('#fbfbf6')); for (let k = 0; k < 6; k++) { const aa = -2.4 + k * 0.96; K.put(pb, Math.round(gx + 0.5 + Math.cos(aa) * 3.6), Math.round(247.5 + Math.sin(aa) * 3.6), U_('#2a282e')); } }
+    I.pipe(pb, [[312, 268], [338, 268], [338, 256]], 3, 'pre', { flange: 0 });
+    P.landing(pb, 318, 240, 30, fb + 4, { d: 7, railH: 26 });
+    I.valve(pb, 334, 234);
+    /* ===== 4. BOMBAS DE ALTA PRESIÓN (350–570) ===== */
+    I.pipe(pb, [[338, fb - 9], [566, fb - 9]], 3, 'pre', { flange: 30 }); // colector de aspiración (detrás)
+    const pumps = [];
+    for (let k = 0; k < 3; k++) pumps.push(P.pumpSkid(pb, 354 + k * 72, fb, { len: 62, motor: k === 1 ? P.BLUEP : P.GREEN }));
+    const HPY = 200;
+    for (const pp of pumps) { I.pipe(pb, [[pp.dis[0], pp.dis[1] + 2], [pp.dis[0], HPY]], 3, 'pre', { flange: 0 }); flow([[pp.dis[0], pp.dis[1]], [pp.dis[0], HPY]], 'pre', 1); N.leds.push({ x: pp.led[0], y: pp.led[1], col: '#3fe0a0', hz: 1.4, ph: pp.led[0] * 0.03 }); }
+    I.pipe(pb, [[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 4, 'pre', { flange: 26 });
+    flow([[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 'pre', 1.2);
+    for (const pp of pumps) { I.gauge(pb, pp.dis[0] - 10, HPY - 8, 3, -0.2); P.vline(pb, pp.dis[0] - 10, HPY - 5, HPY - 4, U_('#4f4d51')); P.rect(pb, pp.dis[0] - 3, HPY + 8, 7, 4, U_('#e2404a')); P.hline(pb, pp.dis[0] - 3, pp.dis[0] + 3, HPY + 8, U_('#f87a7a')); }
+    PFTerrain.railing(pb, 350, 572, G - 4, 16);
+    P.sign(pb, 352, G - 62, 'warn'); P.sign(pb, 362, G - 62, 'ear');
+    P.cone(pb, 642, G - 6); P.toolbox(pb, 342, G - 7, '#bc2430');
+    /* ===== 5. RECUPERADOR DE ENERGÍA (580–640) ===== */
+    const E = P.erd(pb, 584, fb);
+    LV2_ANCH.erd = E.rotor; N.leds.push(...E.leds);
+    I.pipe(pb, [[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 2, 'pre', { flange: 0 }); // salida AP de la alimentación al colector
+    flow([[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 'pre', 0.9);
+    I.pipe(pb, [[594, fb - 10], [594, G - 2]], 2, 'brine', { flange: 0 }); // salmuera de baja presión hacia la galería
+    flow([[594, fb - 10], [594, G - 2]], 'brine', 0.8);
+    I.box3q(pb, 648, fb - 2, 10, 14, 4, { ramp: P.FRAME }); P.rect(pb, 650, fb - 14, 6, 4, U_('#06122a')); N.screens.push([650, fb - 14, 6, 4, '#3fe0a0']);
+    /* ===== 6. TRENES DE OI A·B·C CON PASARELA (690–1260) ===== */
+    const trains = [];
+    for (let k = 0; k < 3; k++) trains.push(P.roRack(pb, 712 + k * 190, fb, { len: 112, rows: 3, r: 5, isolated: k === 1, tag: 'ABC'[k] + '1' }));
+    // montantes de alimentación/permeado entre el nivel bajo y la pasarela (detrás del tablero)
+    for (const tr of trains) { I.pipe(pb, [[tr.ends[0] + 2, tr.top + 2], [tr.ends[0] + 2, 214]], 2, 'pre', { flange: 0 }); }
+    P.catwalk(pb, 690, 1260, 222, fb + 4, { d: 9, span: 95, railH: 30 });
+    const up = [];
+    for (let k = 0; k < 3; k++) up.push(P.roRack(pb, 712 + k * 190, 217, { len: 112, rows: 4, r: 5, isolated: k === 1, tag: 'ABC'[k] + '2' }));
+    // colector elevado de concentrado AP (grafito) hacia el ERD
+    const BRY = 140;
+    for (const tr of up) I.pipe(pb, [[tr.ends[1] - 9, tr.top + 1], [tr.ends[1] - 9, BRY]], 2, 'brine', { flange: 0 });
+    I.pipe(pb, [[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 3, 'brine', { flange: 30, supports: 0 });
+    flow([[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 'brine', 1);
+    for (let x = 640; x < 1240; x += 120) { P.vline(pb, x, 96, BRY - 4, U_('#485c80')); P.hline(pb, x - 3, x + 3, BRY - 4, U_('#26324c')); }
+    for (let k = 0; k < 3; k++) {
+      const lo = trains[k], hi = up[k], on = k !== 1;
+      N.leds.push(...lo.leds, ...hi.leds);
+      if (on) { flow([[hi.permX, hi.top + 4], [hi.permX, G - 2]], 'product', (sc) => 0.6 + (sc.state.trainsOn ?? 2) * 0.25); flow([[hi.ends[1] - 9, hi.top + 1], [hi.ends[1] - 9, BRY]], 'brine', 0.9); }
+    }
+    // luminarias bajo la pasarela (halo dinámico)
+    for (let x = 740; x < 1240; x += 95) { P.rect(pb, x, 229, 10, 2, U_('#4f4d51')); P.hline(pb, x + 1, x + 8, 231, U_('#fff6d8')); N.lamps.push([x + 5, 232, '#fff0c8', 9]); }
+    /* ===== 7. TANQUE DE PERMEADO Y CONTACTOR DE CALCITA (1270–1410) ===== */
+    I.pipe(pb, [[1290, G - 2], [1290, fb - 40], [1300, fb - 40]], 3, 'product', { flange: 0 });
+    flow([[1290, G - 2], [1290, fb - 40], [1300, fb - 40]], 'product', 0.9);
+    const tk = P.tankV(pb, 1320, fb + 2, 17, 72, { glass: true, ladder: true, rail: true, plate: 'PERMEADO', band: ['#06303e', '#0a5a72', '#119ab8', '#22c8e4', '#6de1f1', '#d0f4f8'], bands: [{ y: 12, h: 3 }, { y: 58, h: 2 }] });
+    LV2_ANCH.tank = tk.glass;
+    I.pipe(pb, [[1338, fb - 12], [1360, fb - 12]], 2, 'product', { flange: 0 });
+    const cal = P.tankV(pb, 1374, fb + 2, 11, 50, { ramp: ['#3a3026', '#5a4c3e', '#7c6c5a', '#a08e78', '#c2b29a', '#dcceb6', '#ece2ce', '#f8f2e4', '#ffffff'], band: ['#3a2a10', '#6a5020', '#a07a34', '#c8a04a', '#e6c46a', '#f6e0a0'], plate: 'CaCO₃', plateCol: '#6a5020', legs: 4 });
+    I.pipe(pb, [[1386, cal.top + 6], [1398, cal.top + 6], [1398, G - 2]], 2, 'product', { flange: 0 });
+    flow([[1386, cal.top + 6], [1398, cal.top + 6], [1398, G - 2]], 'product', 0.8);
+    /* ===== 8. SALA DE CONTROL ELEVADA Y CCM BAJO ELLA (1420–1650) ===== */
+    const mcc = P.cabinets(pb, 1448, fb + 2, 8, { w: 22, h: 54, d: 7, seed: 21, kinds: ['screen', 'leds', 'meter', 'leds', 'screen', 'leds', 'meter', 'leds'] });
+    N.leds.push(...mcc.leds); for (const s of mcc.screens) N.screens.push([...s, '#56e5ff']);
+    const cr = P.controlRoom(pb, 1420, 214, 230, { ceil: 102, floorY: fb + 4 });
+    LV2_ANCH.cr = cr; for (const l of cr.lamps) N.lamps.push([l[0], l[1] + 2, '#fff8e0', 11]);
+    // mobiliario de la sala: consola con monitores, silla, archivador, planta y reloj
+    I.box3q(pb, 1440, 210, 50, 30, 8, { ramp: ['#1a2236', '#28344e', '#3a4a6a', '#54688c', '#7a90b4', '#a8bcd8'], skew: 0.7 });
+    for (const mx of [1444, 1460, 1476]) { P.rect(pb, mx, 166, 13, 10, U_('#1a2236')); P.rect(pb, mx + 1, 167, 11, 8, U_('#06122a')); P.vline(pb, mx + 6, 176, 179, U_('#3a4a6a')); N.screens.push([mx + 2, 168, 9, 6, mx === 1460 ? '#ff9f43' : '#56e5ff']); }
+    for (let k = 0; k < 9; k++) K.put(pb, 1452 + k * 3, 182, U_('#7a90b4'));
+    I.box3q(pb, 1492, 210, 12, 4, 4, { ramp: ['#141418', '#26262e', '#3a3a46', '#56566a'] }); P.vline(pb, 1497, 196, 206, U_('#26262e')); I.box3q(pb, 1491, 196, 14, 12, 3, { ramp: ['#141418', '#26262e', '#3a3a46', '#56566a'] });
+    I.box3q(pb, 1562, 210, 18, 34, 6, { ramp: A.WHITE, skew: 0.7 }); for (const yy of [184, 194, 204]) P.hline(pb, 1566, 1575, yy, U_('#7e7686'));
+    A.planter(pb, 1626, 210, 16, { kind: 'agave', seed: 5 });
+    K.ellipseFn(pb, 1600, 124, 4.5, 4.5, (nx, ny, d) => d > 0.6 ? U_('#26324c') : U_('#f4f6f2')); K.put(pb, 1600, 122, U_('#141418')); K.put(pb, 1601, 124, U_('#141418'));
+    /* ===== 9. LIMPIEZA CIP Y ANTIINCRUSTANTE (1690–1930) ===== */
+    for (const [cx, r, h, band] of [[1712, 17, 88, '#ff9f43'], [1752, 16, 80, '#ff9f43'], [1792, 15, 72, '#86e36f']]) {
+      const bb = band === '#86e36f' ? ['#08301a', '#0e5a2a', '#1a8a3a', '#46b85a', '#86e36f', '#c8f5b0'] : ['#3a1a04', '#7a3a0a', '#c0601a', '#ef8a2c', '#ff9f43', '#ffd0a0'];
+      P.tankV(pb, cx, fb + 2, r, h, { ramp: I.STEEL, band: bb, ladder: cx === 1712, rail: cx === 1712, plate: cx === 1790 ? 'NaOH' : cx === 1752 ? 'ÁCIDO' : 'CIP', plateCol: '#3a1a04' });
+    }
+    I.pipe(pb, [[1726, fb - 20], [1820, fb - 20]], 2, 'steel', { flange: 16 });
+    P.landing(pb, 1760, 248, 60, fb + 4, { d: 7, railH: 28 });
+    P.dosing(pb, 1824, fb + 2, { col: '#b49cff', label: 'AI' });
+    P.pumpSkid(pb, 1862, fb + 2, { len: 40, motor: P.BLUEP });
+    P.landing(pb, 1850, 226, 70, fb + 4, { d: 7, railH: 28 });
+    P.cartridge(pb, 1910, fb + 2, { r: 6, h: 30 });
+    /* ===== 10. BOMBEO DE AGUA PRODUCTO Y ANALIZADORES EN LÍNEA (1930–2170) ===== */
+    I.pipe(pb, [[1938, G - 2], [1938, fb - 30], [2050, fb - 30]], 3, 'product', { flange: 22 });
+    flow([[1938, G - 2], [1938, fb - 30], [2050, fb - 30]], 'product', 0.9);
+    const pp2 = [P.pumpSkid(pb, 1950, fb, { len: 46, motor: P.BLUEP }), P.pumpSkid(pb, 2004, fb, { len: 46, motor: P.BLUEP })];
+    I.pipe(pb, [[pp2[0].dis[0] + 2, pp2[0].dis[1] + 2], [pp2[0].dis[0] + 2, 196], [2168, 196], [2168, 96]], 3, 'product', { flange: 24 });
+    I.pipe(pb, [[pp2[1].dis[0] + 2, pp2[1].dis[1] + 2], [pp2[1].dis[0] + 2, 196]], 3, 'product', { flange: 0 });
+    flow([[pp2[0].dis[0] + 2, pp2[0].dis[1]], [pp2[0].dis[0] + 2, 196], [2168, 196], [2168, 96]], 'product', 1);
+    P.rect(pb, 2120, 186, 40, 8, U_('#0c2650')); K.text(pb, 'A RED', 2124, 187, U_('#d0f4f8'), { font: 'tiny' });
+    const an = P.analyzers(pb, 2068, fb + 2, 72); LV2_ANCH.an = an.screens;
+    /* ===== 11. CONTROLADOR DE DESPACHO (2178–2290) ===== */
+    P.tray(pb, 2160, 2600, 118, 18);
+    const rc = P.rackCab(pb, 2178, fb + 2, 50, 86); N.leds.push(...rc.leds); LV2_ANCH.beacon = rc.beacon;
+    for (let y = 118; y < fb - 86; y++) { K.put(pb, 2196, y, U_('#141418')); K.put(pb, 2198, y, U_('#c8562a')); K.put(pb, 2200, y, U_('#1e52a2')); }
+    const c2 = P.cabinets(pb, 2234, fb + 2, 2, { w: 22, h: 66, d: 9, ramp: ['#03060e', '#0a1428', '#121e38', '#1c2c4c', '#2a4064', '#3e5a86', '#5a7aa8'], seed: 33, kinds: ['leds', 'screen'] });
+    N.leds.push(...c2.leds); for (const s of c2.screens) N.screens.push([...s, '#f27ee6']);
+    /* ===== 12. ALMACÉN DE MEMBRANAS Y TALLER (2280–2510) ===== */
+    P.pallet(pb, 2284, fb + 2, { n: 3, label: 'OI 8"' });
+    // banco de autopsia de membranas: elemento desenrollado con ensuciamiento marrón sobre la mesa de taller
+    A.castShadow(pb, 2396, fb + 2, 54, 10, -0.22);
+    for (const lx of [2396, 2444]) { P.vline(pb, lx, fb - 26, fb + 1, U_('#948e91')); P.vline(pb, lx + 1, fb - 26, fb + 1, U_('#4f4d51')); }
+    P.hline(pb, 2397, 2444, fb - 8, U_('#716f76'));
+    I.box3q(pb, 2392, fb - 26, 58, 4, 10, { ramp: A.WOOD, skew: 0.6 });
+    for (let k = 0; k < 40; k++) for (let r = 0; r < 6; r++) K.put(pb, 2400 + k + Math.round(r * 0.6), fb - 31 - r, U_(((k * 7 + r * 3) % 11) < 3 ? '#8a6a3a' : (r % 2 ? '#e8e4da' : '#f6f2ea')));
+    P.vesselH(pb, 2404, 2436, fb - 42, 4, { port: false });
+    P.toolbox(pb, 2420, fb - 30, '#2c6cc6'); P.bucket(pb, 2408, fb + 2, '#ff9f43');
+    P.eyewash(pb, 2454, fb + 2); P.extinguisher(pb, 2474, fb + 2);
+    /* ===== 13. SALIDA HACIA LOS CANALES DE SALMUERA (2510–2600) ===== */
+    I.pipe(pb, [[2506, G - 2], [2506, 170], [2600, 170]], 4, 'brine', { flange: 26 });
+    flow([[2506, G - 2], [2506, 170], [2600, 170]], 'brine', 1);
+    const dr = P.rollDoor(pb, 2526, fb + 2, 44, 98, { open: 0.58 }); LV2_ANCH.door = dr.mouth;
+    P.sign(pb, 2531, fb - 106, 'exit');
+    for (let y = 96; y < G - 2; y++) for (let k = 0; k < 14; k++) K.put(pb, 2586 + k, y, U_(['#3a4050', '#4a5060', '#6a7080', '#8c92a0', '#aeb2bc', '#c8ccd2', '#dcdee2', '#c8ccd2', '#aeb2bc', '#aeb2bc', '#8c92a0', '#8c92a0', '#6a7080', '#4a5060'][k]));
+    /* ===== objetos sueltos (densidad de microdetalle) ===== */
+    P.cart(pb, 1046, fb + 4); P.stepLadder(pb, 868, fb + 4, 38); P.bucket(pb, 1196, fb + 4, '#2c6cc6');
+    P.hoseReel(pb, 1830, fb - 40); P.cone(pb, 1408, G - 6); P.toolbox(pb, 1798, G - 8, '#f0bc2c'); P.bucket(pb, 1704, G - 6, '#3fe0a0');
+    A.aframe(pb, 2120, G - 6, 'MOJADO'); P.cart(pb, 2142, fb + 4); P.hoseReel(pb, 2492, fb - 2, '#c8562a');
+    for (const x of [252, 656, 1268, 1676, 2166]) P.sign(pb, x, 136, 'warn');
+    /* ===== conductos, rótulos de zona, bandejas y luminarias colgantes en toda la nave ===== */
+    P.duct(pb, 0, 2600, 82, 7, { top: 40, diff: 130 });
+    for (const [x, txt, col] of [[110, 'ZONA 1 · CARTUCHOS', '#7aaad6'], [380, 'ZONA 2 · ALTA PRESIÓN', '#4a8ee2'], [1268, 'ZONA 4 · POSTRATAMIENTO', '#48d4f0'], [1690, 'ZONA 5 · CIP', '#ff9f43'], [1960, 'ZONA 6 · AGUA PRODUCTO', '#48d4f0'], [2260, 'ZONA 7 · DESPACHO', '#f27ee6']]) P.hangSign(pb, x, 132, txt, col, { top: 90 });
+    P.hangSign(pb, 820, 100, 'ZONA 3 · TRENES DE OSMOSIS INVERSA', '#11bedd', { top: 90 });
+    P.tray(pb, 0, 680, 108, 12); P.tray(pb, 1262, 1418, 108, 12); P.tray(pb, 1652, 2160, 108, 12);
+    for (const x of [120, 300, 480, 1300, 1760, 1990]) { P.vline(pb, x, 96, 118, U_('#2a282e')); P.rect(pb, x - 7, 118, 15, 3, U_('#4f4d51')); P.hline(pb, x - 6, x + 6, 121, U_('#fff6d8')); N.lamps.push([x, 124, '#fff0c8', 12]); }
+    LEVELS[2]._ms = Math.round(nowMs() - t0);
+  },
+  /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno) */
+  gallery(pb, world) {
+    const I = PFInfra, Y = LV2_GAL, G = 290;
+    LV2_GALFLOWS.length = 0;
+    const run = (pts, r, kind, rate) => { I.pipe(pb, pts, r, kind, { flange: 32 }); LV2_GALFLOWS.push({ pts, kind, rate }); };
+    // soportes de los colectores colgados del forjado
+    for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < Y.feed + 6; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 5, Y.perm + 4, Y.feed + 5]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U('#26324c')); }
+    // alimentación AP: bajante del colector de bombas → trenes
+    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'pre', 1.1);
+    for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'pre', { flange: 0 });
+    // permeado (cian luminoso): trenes → tanque; producto remineralizado → bombas de producto
+    run([[840, G + 4], [840, Y.perm], [1290, Y.perm], [1290, G + 4]], 3, 'product', 0.9);
+    for (const x of [1220]) I.pipe(pb, [[x, G + 4], [x, Y.perm]], 2, 'product', { flange: 0 });
+    I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'pre', { flange: 0 }); // tren B: permeado aislado (sin brillo)
+    run([[1398, G + 4], [1398, Y.perm], [1938, Y.perm], [1938, G + 4]], 3, 'product', 0.9);
+    // salmuera de baja presión: ERD + trenes del nivel bajo → salida a los canales
+    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'brine', 1);
+    for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'brine', { flange: 0 });
+    // bandeja de cables y luces de emergencia en la galería
+    for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 24, U('#354564')); PFK.put(pb, x, G + 25, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 23, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
+    for (let x = 150; x < 2600; x += 320) { for (let k = 0; k < 6; k++) for (let q = 0; q < 3; q++) PFK.put(pb, x + k, G + 30 + q, U(q === 0 ? '#72c69a' : '#1f8a52')); PFK.put(pb, x + 2, G + 31, U('#ffffff')); }
+    for (const x of [760, 1360, 2040]) I.valve(pb, x, Y.perm);
+    // rótulos estarcidos en el muro de la galería
+    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#a8d0f0', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
   },
   propsFront(pb, world) {
-    // barandas delanteras de la pasarela
-    for (let x = 690; x < 1260; x += 10) pb.vline(x, 208, 222, '#98c6d2');
-    pb.hline(690, 1259, 208, '#cfe8ee');
+    const G = 290, K = PFK;
+    // rampas pasacables y mangueras en el borde del forjado (lejos del centro del paso)
+    for (const x of [150, 1330, 2470]) for (let k = 0; k < 18; k++) { const hgt = k < 3 || k > 14 ? 1 : 2; for (let y = 0; y < hgt; y++) K.put(pb, x + k, G + 2 - y, U(((k >> 1) & 1) ? '#f0bc2c' : '#1c1c24')); }
+    for (let k = 0; k < 40; k++) K.put(pb, 1716 + k, G + 3 + Math.round(Math.sin(k * 0.3)), U(k % 6 ? '#3a8a3a' : '#62b46e'));
   },
   /* ---------------- dinámico ---------------- */
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, gy = 290 - oy;
-    // flujos visibles: alimentación, permeado y concentrado (distintos colores)
-    const on = S.trainsOn ?? 2;
-    Charts.flow(g, [[220 - ox, gy - 30], [690 - ox, gy - 30]], 'seawater', 0.5 + on * 0.3, 3);
-    Charts.flow(g, [[680 - ox, gy - 12], [1300 - ox, gy - 12]], 'permeate', 0.4 + on * 0.3, 2);
-    Charts.flow(g, [[690 - ox, gy - 52], [2560 - ox, gy - 52]], 'brine', 0.4 + on * 0.3, 2);
-    // tubos de presión del tren B: sin flujo, cristales de LIMEN
-    if (!S.trainBOn) for (let i = 0; i < 4; i++) { const ph = (t * 0.6 + i * 0.25) % 1; fpx(g, 920 + i * 30 - ox, gy - 60 - ph * 20, '#c4fbff'); }
-    // indicadores LED de cada tren
-    for (let k = 0; k < 3; k++) { const x = 712 + k * 190 - ox; const ok = k !== 1 || S.trainBOn; frect(g, x + 2, gy - 58, 4, 3, ok ? ((Math.floor(t * 2 + k) % 2) ? '#86e36f' : '#3a8a3a') : ((Math.floor(t * 4) % 2) ? '#ff4e5d' : '#6a1414')); }
-    // recuperador de energía: rotor girando
-    const rx = 606 - ox, ry = gy - 26;
-    const a = t * (S.erdSync ? 6 : 2.5);
-    for (let k = 0; k < 6; k++) { const aa = a + k * Math.PI / 3; fpx(g, rx + Math.cos(aa) * 7, ry + Math.sin(aa) * 7, k % 2 ? '#8e2a80' : '#1283bf'); }
-    // pantallas de la sala de control
-    for (let k = 0; k < 4; k++) { const x = 1430 + k * 54 - ox, y = 142 - oy; for (let i = 0; i < 5; i++) frect(g, x + 4, y + 6 + i * 5, 6 + ((i * 7 + Math.floor(t * 3) + k) % 26), 1, k === 1 && !S.trainBOn ? '#ff4e5d' : '#56e5ff'); }
-    // armario de despacho: LED de firma
-    frect(g, 2222 - ox, gy - 12, 3, 3, (Math.floor(t * 3) % 2) ? '#f27ee6' : '#3a1a3a');
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, N = LV2_ANCH;
+    // flujos visibles: alimentación, permeado y concentrado (código de colores de corriente)
+    PFDyn.flowsImg(g, sc, LV2_FLOWS);
+    PFInfra.drawLeds(g, sc, N.leds);
+    // tren B aislado: cristales de LIMEN alrededor de las membranas
+    if (!S.trainBOn) for (let i = 0; i < 6; i++) { const ph = (t * 0.6 + i / 6) % 1; fpx(g, Math.round(918 + i * 18 - ox), Math.round(196 - ph * 34 - oy), i % 2 ? '#c4fbff' : '#ffffff'); }
+    // recuperador de energía: rotor cerámico con conductos girando en la mirilla
+    if (N.erd) { const [rx, ry] = N.erd, a = t * (S.erdSync ? 6 : 2.5); for (let k = 0; k < 8; k++) { const aa = a + k * Math.PI / 4; for (let q = 3; q <= 8; q += 2) fpx(g, Math.round(rx - ox + Math.cos(aa) * q), Math.round(ry - oy + Math.sin(aa) * q), k % 2 ? '#c244a2' : '#4a8ee2'); } frect(g, rx - ox - 1, ry - oy - 1, 3, 3, '#d0d4dc'); }
+    // nivel del tanque de permeado en la mirilla
+    if (N.tank) { const [gx, gy0, gw, gh] = N.tank, lv = Math.round(gh * (0.62 + 0.05 * Math.sin(t * 0.4))); frect(g, gx - ox, gy0 + gh - lv - oy, gw, lv, '#48d4f0'); frect(g, gx - ox, gy0 + gh - lv - oy, gw, 1, '#d0f4f8'); }
+    // pantallas: sala de control (tendencias), CCM, consola y armarios
+    for (const [x, y, w, h, col] of N.screens) { const sx = x - ox, sy = y - oy; if (sx < -20 || sx > W + 20) continue; for (let i = 0; i < Math.min(3, h - 1); i++) frect(g, sx, sy + i * 2, 2 + ((i * 5 + Math.floor(t * 3) + x) % Math.max(2, w - 2)), 1, col); }
+    if (N.cr) {
+      for (const [x, y, w, h] of N.cr.screens) {
+        const sx = x - ox, sy = y - oy; if (sx < -60 || sx > W + 20) continue;
+        for (let i = 0; i < w; i += 2) { const v = Math.sin((i + t * 18) * 0.18) * 0.3 + Math.sin((i * 0.07 + t) * 1.3) * 0.2; fpx(g, sx + i, Math.round(sy + h * 0.5 - v * h * 0.6), '#56e5ff'); if (h > 6) fpx(g, sx + i, Math.round(sy + h * 0.8 - v * h * 0.2), S.trainBOn ? '#86e36f' : '#ff9f43'); }
+      }
+      const [mx, my, mw] = N.cr.mimic, k = (t * 0.25) % 1; frect(g, Math.round(mx + 2 + k * (mw - 4) - ox), my + 10 - oy, 2, 3, '#ffffff');
+    }
+    // analizadores en línea: conductividad, pH y boro del permeado
+    if (N.an) { const r = S.ro || ROModel.solve({ P: 60 }); const v = [fmt0(tdsToEC(r.Cp)), '7.9', '0.8']; N.an.forEach(([x, y], i) => drawText(g, v[i], x + 1 - ox, y - oy, { font: 'tiny', color: i === 0 && tdsToEC(r.Cp) > 730 ? '#ff6b6b' : '#3fe0a0' })); }
+    // armario de despacho: LED de firma rosado (pista)
+    if (N.beacon) { const on = (Math.floor(t * 3) % 2) === 0; frect(g, N.beacon[0] - ox, N.beacon[1] - oy, 4, 2, on ? '#f27ee6' : '#3a1a3a'); if (on) PFK.drawGlow(g, N.beacon[0] + 2 - ox, N.beacon[1] + 1 - oy, 6, '#f27ee6', 0.6); }
+    // salida a los canales: resplandor índigo-magenta de la salmuera
+    if (N.door) { const [dx, dy, dw, dh] = N.door; PFK.drawGlow(g, dx + dw / 2 - ox, dy + dh - 6 - oy, 18, '#c244a2', 0.22 + 0.06 * Math.sin(t * 1.7)); }
+    // dron de inspección que recorre los trenes (fauna técnica del interior)
+    if (typeof PFFauna !== 'undefined') { const u = (Math.sin(t * 0.22) + 1) / 2, dxw = 740 + u * 480 - ox, dyw = 118 + Math.sin(t * 1.3) * 6 - oy; if (dxw > -20 && dxw < W + 20) { PFFauna.drawDroneAt(g, dxw, dyw, t, true); if ((Math.floor(t * 2) % 2) === 0) PFK.drawGlow(g, dxw, dyw + 6, 5, '#56e5ff', 0.4); } }
+    // luminarias: halos en anillos
+    PFDyn.glows(g, cam, N.lamps, '#fff0c8', 10, 0.32);
     // vapor de rociado en limpieza CIP
     if (S.cip > 0 && Math.random() < 0.3) sc.world.ps.emit('vapor', 1730 + Math.random() * 100, 230, 0, -20, 1);
+  },
+  /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
+  renderFront(g, sc, cam) {
+    if (cam.y + H < 300) return;
+    PFDyn.flowsImg(g, sc, LV2_GALFLOWS, 14);
+    const t = Game.time; for (const x of [700, 1280, 1860, 2440]) { const sx = x - cam.x; if (sx > -30 && sx < W + 30) PFK.drawGlow(g, sx, 307 - cam.y, 10, '#fff0c8', 0.18 + 0.03 * Math.sin(t + x)); }
   },
   renderGrade(g, sc) { },
   lens(g, sc, cam, k) {
@@ -373,7 +564,7 @@ const ERDGame = {
     if (this.beats >= this.total) { this.done = true; Audio2.sfx(this.hits >= this.need ? 'success' : 'error'); }
   },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.85);
+    PFDyn.veil(g, 0, 0, W, H, "#05030f", 0.85);
     UIK.panel(g, 40, 20, W - 80, H - 40, 'tech');
     UIK.header(g, 40, 20, W - 80, 'RECUPERADOR DE ENERGÍA · intercambiador de presión', 'tech', 'membrane');
     const cx = W / 2 - 80, cy = H / 2 + 6, R = 70;
@@ -523,14 +714,14 @@ const Sim02 = makeSim({
       frect(g, Math.round(x), Math.round(y), 2, 2, ph2 > 0.6 ? '#f888b8' : '#fffaf0');
     }
     // capa de polarización: sal rechazada que se acumula junto a la membrana
-    fdither(g, X0 + 30, fy + fh - 6, LW, 6, '#f888b8', clamp(0.1 + r.R * 0.7, 0, 0.6));
+    PFDyn.veil(g, X0 + 30, fy + fh - 6, LW, 6, "#f888b8", clamp(0.1 + r.R * 0.7, 0, 0.6));
     // moléculas de agua que viajan con la alimentación y atraviesan la membrana
     const nW0 = 40;
     for (let i = 0; i < nW0; i++) { const ph2 = ((t * 0.15 + i / nW0) % 1); fpx(g, X0 + 30 + ph2 * LW, fy + 4 + ((i * 53) % (fh - 8)), '#6cf0db'); }
     // membrana: capas, ensuciamiento e incrustación
     for (let x = 0; x < WW - 60; x++) frect(g, X0 + 30 + x, my, 1, mh, (x % 4) < 2 ? '#8d6bff' : '#5a44a8');
     const foulH = Math.round(clamp(this.foul || 0, 0, 1) * 8);
-    if (foulH) fdither(g, X0 + 30, my - foulH, WW - 60, foulH, '#7a5a2a', 0.7);
+    if (foulH) PFDyn.veil(g, X0 + 30, my - foulH, WW - 60, foulH, "#7a5a2a", 0.7);
     if (r.scaleIdx > 0) for (let i = 0; i < 40 * clamp(r.scaleIdx, 0, 1.5); i++) frect(g, X0 + 30 + (WW - 60) * (0.5 + (i * 0.618 % 0.5)), my - 2 - (i % 3), 2, 2, '#ffffff');
     // canal de permeado
     frect(g, X0 + 30, py, WW - 60, ph, '#0e2b4a');

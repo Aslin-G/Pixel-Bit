@@ -436,6 +436,40 @@ const PFDyn = {
     const L = sc.world.pfLamps; if (!L) return;
     for (const [x, y] of L) { const sx = x - cam.x; if (sx < -12 || sx > W + 12) continue; PFK.drawGlow(g, sx, y - cam.y, 9, '#ffd890', a); }
   },
+  /** Chevrones de flujo como sprites (1 drawImage por chevrón en vez de 4 fillRect).
+      runs: [{pts, kind, rate}] en mundo; mismo aspecto y velocidad que PFInfra.drawFlows */
+  _chev: new Map(),
+  flowsImg(g, sc, runs, gap = 12) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time;
+    for (const run of runs) {
+      const K = PFInfra.PIPES[run.kind] || PFInfra.PIPES.sea;
+      const rate = typeof run.rate === 'function' ? run.rate(sc) : (run.rate ?? 1);
+      if (rate <= 0) continue;
+      let acc = 0;
+      for (let i = 0; i < run.pts.length - 1; i++) {
+        const [x0, y0] = run.pts[i], [x1, y1] = run.pts[i + 1], L = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+        const sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+        if (Math.max(x0, x1) - ox < -8 || Math.min(x0, x1) - ox > W + 8 || Math.max(y0, y1) - oy < -8 || Math.min(y0, y1) - oy > H + 8) { acc += L; continue; }
+        const key = K.chev + '|' + sx + '|' + sy;
+        let c = this._chev.get(key);
+        if (!c) {
+          const pb = new PixelBuffer(5, 5), u = (U(K.chev) & 0xffffff) | (217 << 24);
+          const P = (x, y) => { pb.data[(y + 2) * 5 + x + 2] = u >>> 0; };
+          if (sx) { P(0, -1); P(0, 0); P(0, 1); P(sx, 0); P(-sx, -2); P(-sx, 2); } else { P(-1, 0); P(0, 0); P(1, 0); P(0, sy); P(-2, -sy); P(2, -sy); }
+          c = pb.toCanvas(); this._chev.set(key, c);
+        }
+        const ph = (t * 20 * rate + 1000 - acc) % gap;
+        for (let s = ph; s < L - 2; s += gap) {
+          const cx = Math.round(x0 + sx * s - ox), cy = Math.round(y0 + sy * s - oy);
+          if (cx < -4 || cx > W + 4 || cy < -4 || cy > H + 4) continue;
+          g.drawImage(c, cx - 2, cy - 2);
+        }
+        acc += L;
+      }
+    }
+  },
+  /** Velo translúcido liso (sustituye a fdither: sin tramado) */
+  veil(g, x, y, w, h, col, a) { if (a <= 0) return; g.globalAlpha = clamp(a, 0, 1); g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); g.globalAlpha = 1; },
   /** Halos de una lista [[x,y,col?,r?]] en mundo */
   glows(g, cam, list, col = '#ffd890', r = 8, a = 0.4) {
     for (const p of list) { const sx = p[0] - cam.x; if (sx < -20 || sx > W + 20) continue; PFK.drawGlow(g, sx, p[1] - cam.y, p[3] || r, p[2] || col, a); }
