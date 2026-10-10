@@ -88,6 +88,17 @@ const SCBEnd = (() => {
         if (fx.plume) V.drawPlume(g, fx.plume[0], fx.plume[1], T(), { n: 26, len: 34 });
       },
     });
+    /* ---------- cabos lejanos a la izquierda con faro y barcas ---------- */
+    P(HZ - 30, 50, (pb, w, h) => {
+      const k = 0.22;
+      const C = V.headlands(pb, { seed: 93, k, base: h - 8, yTop: [8, 22], w: [60, 120], gap: [24, 60], x0: -30, x1: 250, end: 0.25, ramp: M.cold ? V.RAMPS.cliff : null });
+      const sp = C.spans[1] || C.spans[0];
+      if (sp) { const lx = Math.round(sp[0] + (sp[1] - sp[0]) * 0.7), ly = C.top[lx] + 1; const L = V.lighthouse(pb, lx, ly, 12, { k }); fx.light = [L.lx, HZ - 30 + L.ly]; }
+      for (const s0 of C.spans) for (let x = s0[0] + 6; x < s0[1] - 8; x += 9) { const y = C.top[x]; if (y < 32000 && hash2(x, 3, 5) < 0.6) V.house(pb, x, y + 1, 5 + (x % 3), 3 + (x % 2), 6100 + x, { k }); }
+      // barcas de pesca fondeadas
+      const HL = V.P32(V.hz(['#3a1a14', '#7a2a1e', '#c84a2a', '#f0e6d8'], k * 0.5));
+      for (const [bx, by] of [[44, h - 3], [120, h - 1], [190, h - 4]]) { for (let q = 0; q < 7; q++) { V.put(pb, bx + q, by, HL[q === 0 || q === 6 ? 1 : 2]); V.put(pb, bx + q + (q > 0 && q < 6 ? 0 : 1), by + 1, HL[0]); } V.put(pb, bx + 3, by - 1, HL[3]); V.put(pb, bx + 3, by - 2, HL[3]); for (let q = 0; q < 4; q++) V.put(pb, bx + 2, by - 1 - q, HL[1]); }
+    }, { tag: 'cape', dyn: (g) => { if (fx.light && Math.floor(Game.time * 1.2) % 3 === 0) V.drawGlow(g, fx.light[0], fx.light[1], 5, '#fff0b0', 0.7); } });
     /* ---------- montañas medias con aerogeneradores ---------- */
     P(34, 86, (pb, w, h) => {
       const r = RNG(63), peaks = [];
@@ -130,23 +141,24 @@ const SCBEnd = (() => {
       },
     });
     /* ---------- colina de ARIDIA: cúpula, torre de SYNARA, terrazas, cascadas ---------- */
-    const CITY_X = 508, TOWER_X = 404;
+    const CITY_X = 560, TOWER_X = 466;
     P(0, 150, (pb, w, h) => {
       const k = 0.08, r = RNG(81);
-      const peaks = [{ x: CITY_X, v: 22, h: 84, w: 150, d: 30, k: 0.8 }, { x: TOWER_X, v: 16, h: 66, w: 90, d: 22, k: 0.85 }, { x: CITY_X + 110, v: 14, h: 64, w: 100, d: 22 }, { x: 330, v: 10, h: 30, w: 70, d: 16 }, { x: 660, v: 14, h: 60, w: 90, d: 20 }];
-      const info = V.relief(pb, { yBase: h - 1, nv: 44, dvy: 0.3, seed: 83, hMax: 90, x0: 280, H: V.massif(peaks, { seed: 83, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 66, h: 76 }, { x: TOWER_X, w: 24, h: 60 }] }), ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1, haze: { col: M.hzc, k0: 0, k: 0.1 }, mist: { col: M.hzc, h: 14, k: 0.3 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegHill, density: 0.13 * M.vegK, maxSlope: 1.1, minY: 60, size: 3 } });
-      const TA = V.carveTerraces(pb, info, { x0: 572, x1: 640, yTop: 88, yBot: 136, stepH: [7, 9], wallK: 0.42, k, seed: 85, kinds: ['rows', 'orchard', 'flowers', 'rows', 'vine'], crop: M.gold > 0.3 ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 600, w: 3, from: 0 }] });
-      const TB = V.carveTerraces(pb, info, { x0: 430, x1: 468, yTop: 100, yBot: 140, stepH: [7, 9], wallK: 0.42, k, seed: 87, kinds: ['rows', 'orchard', 'rows'], falls: [] });
+      const peaks = [{ x: CITY_X, v: 22, h: 84, w: 150, d: 30, k: 0.8 }, { x: TOWER_X, v: 16, h: 62, w: 90, d: 22, k: 0.85 }, { x: 380, v: 12, h: 40, w: 110, d: 18 }, { x: 650, v: 14, h: 60, w: 90, d: 20 }];
+      const info = V.relief(pb, { yBase: h - 1, nv: 44, dvy: 0.3, seed: 83, hMax: 90, x0: 280, H: V.massif(peaks, { seed: 83, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 66, h: 76 }, { x: TOWER_X, w: 24, h: 58 }] }), ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1, haze: { col: M.hzc, k0: 0, k: 0.1 }, mist: { col: M.hzc, h: 14, k: 0.3 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegHill, density: 0.13 * M.vegK, maxSlope: 1.1, minY: 60, size: 3 } });
+      const TA = V.carveTerraces(pb, info, { x0: 360, x1: 430, yTop: 104, yBot: 142, stepH: [7, 9], wallK: 0.42, k, seed: 85, kinds: ['rows', 'orchard', 'flowers', 'rows', 'vine'], crop: M.gold > 0.3 ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 396, w: 3, from: 0 }] });
+      const TB = V.carveTerraces(pb, info, { x0: 600, x1: 640, yTop: 96, yBot: 140, stepH: [7, 9], wallK: 0.42, k, seed: 87, kinds: ['rows', 'orchard', 'rows'], falls: [] });
       fx.falls.push(...TA.falls, ...TB.falls);
       V.scatterVeg(pb, (x) => (Math.abs(x - CITY_X) < 50 || Math.abs(x - TOWER_X) < 18) ? null : info.top[x] + 1, 290, w, 8101, { k: k + 0.02, gap: Math.round(7 / M.vegK), mix: { tree: 4, shrub: 3, palm: 1 }, ramp: V.RAMPS.vegHill });
-      for (let i = 0; i < 30; i++) { const x = r.pick([r.int(300, 390), r.int(420, 470), r.int(560, 640)]); const y = info.onSurf(x, r.int(4, 16)); if (y == null || y < 60 || y > h - 8 || Math.abs(x - TOWER_X) < 14) continue; V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 8200 + i, { k: k + 0.02 }); }
+      for (let i = 0; i < 30; i++) { const x = r.pick([r.int(300, 440), r.int(480, 520), r.int(600, 640)]); const y = info.onSurf(x, r.int(4, 16)); if (y == null || y < 60 || y > h - 8 || Math.abs(x - TOWER_X) < 14) continue; V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 8200 + i, { k: k + 0.02 }); }
       // torre de SYNARA (en el final mosaico, envuelta en el mosaico de datos comunitarios)
-      const tw = V.synaraTower(pb, TOWER_X, info.top[TOWER_X] + 4, 74, { k: 0.04 });
+      const tw = V.synaraTower(pb, TOWER_X, info.top[TOWER_X] + 4, 70, { k: 0.04 });
       fx.tower = tw;
       if (id === 'mosaico') {
         const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#f78acb', '#ff9f43', '#8d6bff'];
         const yb = info.top[TOWER_X] + 4 - 4;
-        for (let q = 0; q < 4; q++) { const y0 = yb - 14 - q * 13, hw = Math.round(lerp(6, 3, (14 + q * 13) / 74)); SCBK.mosaicTiles(pb, TOWER_X - hw, y0 - 5, hw * 2 + 2, 5, 90 + q, cols); }
+        for (let q = 0; q < 5; q++) { const y0 = yb - 10 - q * 11, hw = Math.round(lerp(6, 3, (10 + q * 11) / 70)); SCBK.mosaicTiles(pb, TOWER_X - hw, y0 - 6, hw * 2 + 3, 6, 90 + q, cols); }
+        fx.orbit = { x: TOWER_X, y: yb - 40, cols };
       }
       if (id === 'tecnica') { const yb = info.top[TOWER_X] + 4; const FN = U('#8a94ac'); for (let x = TOWER_X - 22; x < TOWER_X + 24; x++) { V.put(pb, x, yb - 1, FN); if (x % 3 === 0) for (let q = 2; q < 6; q++) V.put(pb, x, yb - q, FN); V.put(pb, x, yb - 6, FN); } }
       // ciudad de ARIDIA sobre la meseta
@@ -181,6 +193,15 @@ const SCBEnd = (() => {
         if (tw) V.drawPulse(g, tw.glows, 0, 0, t, id === 'mosaico' ? '#ffe14d' : M.cold ? '#a8f0ff' : '#5ae8f0', id === 'deuda' ? 0.2 : 0.4, 0.2, 1.6);
         if (tw && Math.floor(t * 1.5) % 2) { g.fillStyle = id === 'deuda' ? '#ffb04a' : '#ff6a5a'; g.fillRect(tw.beacon[0], tw.beacon[1] - 1, 1, 1); }
         for (const [x, y] of fx.beacons) if (Math.floor(t * 2) % 2) V.drawGlow(g, x, y, 3, '#ff6a40', 0.8);
+        if (fx.orbit) {
+          const O = fx.orbit;
+          for (let i = 0; i < 14; i++) {
+            const a = t * 0.8 + i * TAU / 14, ry = 4 + (i % 3) * 3, x = O.x + Math.cos(a) * (16 + (i % 2) * 5), y = O.y - i * 2.2 + Math.sin(a) * ry * 0.4;
+            if (Math.sin(a) < -0.2 && Math.abs(x - O.x) < 6) continue; // detrás de la torre
+            g.fillStyle = O.cols[i % O.cols.length]; g.globalAlpha = 0.6 + 0.4 * Math.sin(a); g.fillRect(Math.round(x), Math.round(y), 2, 2);
+          }
+          g.globalAlpha = 1;
+        }
         V.drawFauna(g, fx.fauna, 0, 0, t);
       },
     });
@@ -205,10 +226,19 @@ const SCBEnd = (() => {
       },
     });
     /* ---------- primer plano: cornisa columnar, palmera, follaje ---------- */
-    const topF = (x) => x < 196 ? 150 - Math.round(Math.sin(x * 0.03) * 2) + (x > 150 ? Math.round((x - 150) * 0.12) : 0) : 156 + (x - 196) * 0.5;
+    const topF = (x) => x < 196 ? 146 - Math.round(Math.sin(x * 0.03) * 2) + (x > 150 ? Math.round((x - 150) * 0.16) : 0) : 153 + (x - 196) * 0.55;
     const fg = new PixelBuffer(W, IH);
-    const ledgeTop = SCBK.ledge(fg, 0, 236, topF, IH, { seed: 5, ramp: M.cold ? ['#1e1a28', '#2e2838', '#463a48', '#5e4c56', '#7a6268', '#967c7c', '#b0989a', '#c8b4b0', '#dccac4'] : RAMP.rockWarmR, grass: M.dust ? ['#3a2a10', '#5e4318', '#8a6526', '#b48a3a', '#d8b25a', '#f0d68a'] : RAMP.grassR, lip: 4 });
-    const gy = (x) => ledgeTop[Math.max(0, Math.min(235, Math.round(x)))] + 1;
+    // cornisa de primer plano con el terreno del plano jugable (PFTerrain: acantilado columnar en 3/4)
+    const ground = new Int16Array(W + 1).fill(9999);
+    for (let x = 0; x < 236; x++) ground[x] = Math.round(topF(x));
+    const rockR = M.cold ? ['#1e1a28', '#2e2838', '#463a48', '#5e4c56', '#7a6268', '#967c7c', '#b0989a', '#c8b4b0', '#dccac4']
+      : M.dust ? ['#2a120a', '#3e1c10', '#562816', '#6a361c', '#8e5228', '#ac6c36', '#c48a4a', '#dcaa6a', '#ecc898'] : RAMP.rockWarmR;
+    const world = { def: { pf: { terrain: [{ x0: 0, x1: 236, surf: 'grass', face: 'cliff', ramp: rockR, ledges: false, ledgePlants: false, lip: M.cold ? '#dcd8e0' : '#fde3a8' }] } }, w: W, h: IH, ground, platforms: [], water: [] };
+    const surfPB = new PixelBuffer(W, IH);
+    PFTerrain.surface(surfPB, world);
+    const terrC = PFTerrain.render(world);
+    const ledgeTop = ground;
+    const gy = (x) => ledgeTop[Math.max(0, Math.min(235, Math.round(x)))] - 3;
     if (M.dust) PFFlora.scatter(fg, gy, 4, 220, 41, { mix: { dry: 5, agave: 1 }, gap: 12 });
     else PFFlora.scatter(fg, gy, 4, 220, 41, { mix: M.cold ? { tuft: 4, agave: 2 } : { tuft: 4, flowers: 3, lupine: 1, hibiscus: 1 }, gap: 12 });
     PFFlora.palm(fg, 20, gy(20), 96, 10, 77, M.dust ? { ramp: ['#1a1408', '#2e240c', '#4a3a14', '#6a5420', '#8a7030', '#a88a44', '#c4a45a', '#dcc070'] } : {});
@@ -219,14 +249,16 @@ const SCBEnd = (() => {
     if (M.mangrove) {
       const DW = V.P32(['#2a2420', '#4a403a', '#6a5e56', '#8a7e74', '#a89c90']);
       for (let i = 0; i < 4; i++) {
-        const bx = 252 + i * 22, by = 132;
-        for (let q = -3; q <= 3; q++) for (let s = 0; s < 6; s++) V.put(fg, bx + q * 2 + Math.round(q * s * 0.3), by - s, DW[1 + (s & 1)]);
-        for (let s = 0; s < 14; s++) V.put(fg, bx, by - 6 - s, DW[2 + (s % 3 === 0 ? 1 : 0)]);
-        for (const [dx, dy] of [[-5, -16], [4, -18], [-3, -21], [6, -14]]) V.line(fg, bx, by - 14, bx + dx, by + dy, () => DW[3]);
+        const bx = 226 + i * 18, by = 150 + (i & 1) * 3;
+        for (let q = -3; q <= 3; q++) for (let s = 0; s < 8; s++) { V.put(fg, bx + q * 2 + Math.round(q * (8 - s) * 0.35), by - s, DW[1 + (s & 1)]); V.put(fg, bx + q * 2 + Math.round(q * (8 - s) * 0.35) + 1, by - s, DW[0]); }
+        for (let s = 0; s < 16; s++) { V.put(fg, bx, by - 8 - s, DW[3]); V.put(fg, bx + 1, by - 8 - s, DW[1]); }
+        for (const [dx, dy] of [[-7, -28], [6, -30], [-4, -33], [9, -24], [2, -36]]) { V.line(fg, bx, by - 20, bx + dx, by + dy, () => DW[4]); V.line(fg, bx + 1, by - 20, bx + dx + 1, by + dy, () => DW[1]); }
+        // agua turbia con espuma de salmuera al pie de las raíces
+        for (let xx = -9; xx < 10; xx++) { V.put(fg, bx + xx, by + 1, U(xx % 3 ? '#8a6a7a' : '#c08ab0')); V.put(fg, bx + xx, by + 2, U('#5a4a62')); }
       }
     }
     SCBK.grade(fg, M.cold ? { sat: 0.8, tint: '#8aa8d0', tintK: 0.08 } : M.dust ? { sat: 0.86, tint: '#c89060', tintK: 0.1 } : { sat: 1.05 });
-    const fgC = fg.toCanvas();
+    const fgC = fg.toCanvas(), surfC = surfPB.toCanvas();
     // tablero de decisiones pendientes (pacto) / caja de plantones (deuda) / mosaico (mosaico), horneados aparte
     const props = new PixelBuffer(W, IH);
     if (M.board) {
@@ -257,6 +289,7 @@ const SCBEnd = (() => {
         g.save(); g.beginPath(); g.rect(0, 0, W, IH); g.clip();
         B.render(g, { x: 0, y: V.CAMY });
         if (M.dust) { V.drawSand(g, 24, t, 5, { y0: 40, y1: 150, col: '#f0c890', wind: 0.6 }); }
+        g.drawImage(surfC, 0, 0); g.drawImage(terrC, 0, 0);
         g.drawImage(fgC, 0, 0);
         g.drawImage(propsC, 0, 0);
         for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, op);
