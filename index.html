@@ -22360,8 +22360,10 @@ const SCAIntro = (() => {
     V.stars(sky, { n: 40, y1: 60, seed: 3 });
     B.sky = sky.toCanvas();
     // muro de la Calima en el horizonte
-    const wall = V.stormWall(W + 40, 150, { seed: 9, pal: V.DUST.pal, tint: '#a85a3a', rim: '#ffb070', rim2: '#e08850' });
-    B.vplane(0.04, HZ - 140, 150, (pb) => V.blit(pb, wall, 0, 0));
+    const wall = V.stormWall(W + 40, 200, { seed: 9, pal: V.DUST.pal, tint: '#a85a3a', rim: '#ffb070', rim2: '#e08850', wMin: 190, wMax: 320, hK0: 0.6, hK1: 0.8 });
+    B.vplane(0.04, HZ - 186, 200, (pb) => { V.blit(pb, wall, 0, 0); for (let i = 0; i < pb.data.length; i++) { const c = pb.data[i]; if (c >>> 24) pb.data[i] = (V.mixU(c, U('#7a3442'), 0.28 + 0.2 * ((i / pb.w | 0) / pb.h)) & 0xffffff | (c & 0xff000000)) >>> 0; } });
+    const wall2 = V.stormWall(W + 40, 110, { seed: 21, pal: V.DUST.pal, tint: '#8a4a3a', rim: '#f09060', rim2: '#c06848', wMin: 120, wMax: 200 });
+    B.vplane(0.07, HZ - 96, 110, (pb) => { V.blit(pb, wall2, 0, 0); for (let i = 0; i < pb.data.length; i++) { const c = pb.data[i]; if (c >>> 24) pb.data[i] = (V.mixU(c, U('#5a2a3a'), 0.35) & 0xffffff | (c & 0xff000000)) >>> 0; } });
     const veil = V.dustVeil(W + 40, 90, { seed: 4, a0: 0.1, a1: 0.5 });
     // mesas lejanas en contraluz
     B.vplane(0.1, HZ - 30, 34, (pb, w, h) => V.mesas(pb, { seed: 17, ramp: ['#2a1430', '#3a1a3a', '#4e2240', '#64304a', '#7a3e52', '#96505a', '#b4685e', '#d8885e'], yBase: h - 1, hMin: 8, hMax: 24 }));
@@ -22403,9 +22405,12 @@ const SCAIntro = (() => {
       post(g, cam, t) {
         const ox = -Math.round(cam.x);
         // ojos de MIRAGE en el muro (dos brasas que se encienden despacio) y velo de polvo que avanza
-        const ex = 470 - Math.round(cam.x * 0.04), ey = HZ - 92, on = 0.5 + 0.5 * Math.sin(t * 0.9);
-        V.drawGlow(g, ex, ey, 9, '#ff7a3a', 0.25 + on * 0.35); V.drawGlow(g, ex + 30, ey + 2, 9, '#ff7a3a', 0.25 + on * 0.35);
-        g.fillStyle = '#ffe0a0'; g.fillRect(ex - 2, ey, 4, 1); g.fillRect(ex + 28, ey + 2, 4, 1);
+        const ex = 452 - Math.round(cam.x * 0.04), ey = HZ - 74, on = 0.5 + 0.5 * Math.sin(t * 0.9);
+        V.drawGlow(g, ex, ey, 12, '#ff7a3a', 0.25 + on * 0.4); V.drawGlow(g, ex + 40, ey + 2, 12, '#ff7a3a', 0.25 + on * 0.4);
+        g.fillStyle = '#ffe0a0'; g.fillRect(ex - 3, ey, 6, 1); g.fillRect(ex - 2, ey + 1, 4, 1); g.fillRect(ex + 37, ey + 2, 6, 1); g.fillRect(ex + 38, ey + 3, 4, 1);
+        // relámpagos secos dentro del muro (cada ~3,7 s)
+        const lu = t % 3.7;
+        if (lu < 0.16) { const lx = 200 + Math.round(hash1(Math.floor(t / 3.7), 3) * 360) - Math.round(cam.x * 0.04); let y = HZ - 150, x = lx; g.fillStyle = '#fff0d0'; for (let q = 0; q < 14; q++) { const nx = x + Math.round((hash1(q, Math.floor(t / 3.7)) - 0.5) * 8); g.fillRect(Math.min(x, nx), y, Math.abs(nx - x) + 1, 1); g.fillRect(nx, y, 1, 5); x = nx; y += 5; } V.drawGlow(g, lx, HZ - 120, 30, '#ffb070', 0.35); }
         V.drawVeil(g, veil, HZ - 50, t * 14, 0.5);
         V.drawBloom(g, SUN.x - cam.x * 0.02, SUN.y, 34, '#ffc080', 0.22, t);
         // Amaya y KIRU miran el horizonte desde la cresta
