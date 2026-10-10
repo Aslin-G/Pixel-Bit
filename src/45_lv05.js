@@ -7,84 +7,146 @@
 
 const WIND_TURBINES = [760, 900, 1040, 1180];
 
+/* ---------- anclas del plano jugable (kit PF + PFAWind) ---------- */
+const LV5_ANCH = { hubs: [], leds: [], lamps: [], cups: [] };
+/** Arenisca rosada de los acantilados eólicos (rampa del acantilado columnar del kit PF) */
+const LV5_ROCK = ['#260a12', '#3e1420', '#58202c', '#702e36', '#9a4c4e', '#bc6c64', '#d88c78', '#f0b490', '#fcd8b4'];
+
 LEVELS[5] = {
-  id: 5, title: 'Las Torres de Brisa', chapter: 'CAPÍTULO 05', biome: 'windcliffs', music: 'wind', width: 3000, height: 360,
+  id: 5, title: 'Las Torres de Brisa', chapter: 'CAPÍTULO 05', biome: 'windcliffs', music: 'wind', width: 3000, height: 420, fallY: 420,
   ambience: { wind: 0.9, sea: 0.4, birds: 0.5 },
   portraits: ['amaya', 'kiru', 'dante', 'nimbo', 'naira'],
   spawn: { x: 60, y: 280 },
   checkpoints: { station: { x: 1640, y: 262 }, edge: { x: 2240, y: 250 } },
   ground: [[0, 280], [300, 276], [420, 270], [428, 430, 'lin'], [620, 430], [628, 262, 'lin'], [1300, 252], [1308, 430, 'lin'], [1560, 430], [1568, 262, 'lin'], [1900, 262], [2100, 254], [2400, 248], [2700, 252], [3000, 246]],
   terrain: [{ x0: 0, x1: 3000, mat: 'grassland' }],
-  platforms: [{ x: 500, y: 226, w: 40, type: 'rock' }, { x: 1420, y: 210, w: 44, type: 'rock' }, { x: 1720, y: 200, w: 120, type: 'metal' }],
-  ladders: [{ x: 1730, y0: 200, y1: 262 }],
+  platforms: [{ x: 500, y: 226, w: 40, type: 'rock', baked: true }, { x: 1420, y: 210, w: 44, type: 'rock', baked: true }, { x: 1720, y: 200, w: 120, type: 'metal', baked: true, art: 'none' }],
+  ladders: [{ x: 1730, y0: 200, y1: 262, look: 'steel' }],
   wind: [
     { x: 432, y: 120, w: 186, h: 320, fx: 40, fy: -170 },
     { x: 1312, y: 120, w: 246, h: 320, fx: 70, fy: -150 },
   ],
-  cam: { look: 60, vy: 0.66 },
-  decorate(pb, world) {
-    // bordes de acantilado gris perla con estratos
-    for (const [x0, x1] of [[420, 428], [620, 628], [1300, 1308], [1560, 1568]]) for (let x = x0 - 6; x < x1 + 6; x++) for (let y = 250; y < 360; y++) if (pb.alpha(x, y) && ((y + x) % 7 === 0)) pb.set(x, y, '#94a6b4');
+  /* Cámara: el mundo crece 60 px hacia abajo (acantilados de estratos y gargantas hasta el mar) */
+  cam: { look: 60, vy: 0.6 },
+  pf: {
+    terrain: [
+      { x0: 0, x1: 424, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true },
+      { x0: 424, x1: 624, surf: 'void', face: 'void', hard: true },
+      { x0: 624, x1: 1304, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true },
+      { x0: 1304, x1: 1564, surf: 'void', face: 'void', hard: true },
+      { x0: 1564, x1: 3000, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true },
+    ],
+    /** Primer plano: matas costeras con altramuces en los bordes inferiores */
+    fg: [
+      { kind: 'clump', x: -30, w: 140, h: 92, seed: 5, spikes: 4, leaves: 11 },
+      { kind: 'clump', x: 700, w: 110, h: 70, seed: 7, spikes: 3, leaves: 8 },
+      { kind: 'clump', x: 1500, w: 130, h: 86, seed: 9, spikes: 5, leaves: 10 },
+      { kind: 'clump', x: 2300, w: 120, h: 80, seed: 11, spikes: 4, leaves: 9 },
+      { kind: 'clump', x: 3100, w: 140, h: 92, seed: 13, spikes: 5, leaves: 12 },
+      { kind: 'clump', x: 3700, w: 130, h: 84, seed: 15, spikes: 4, leaves: 10 },
+    ],
+    fauna: { eagle: { x0: 400, x1: 2600, y: 60 }, gulls: [{ x: 520, y: 150, n: 4 }, { x: 1420, y: 140, n: 5 }, { x: 2480, y: 110, n: 4 }] },
   },
-  /* ---------------- accesorios estáticos ---------------- */
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 520, y: 186, title: 'CORRIENTE ASCENDENTE', sub: 'El viento sube por el acantilado', kind: 'water', ax: 520, ay: 214 },
+    { x: 832, y: 214, title: 'AEROGENERADOR', sub: (sc) => fmt0(sc.state.parkStopped ? 0 : WindModel.power(sc.state.wind ?? 11)) + ' kW · curva de potencia', kind: 'tech', ax: 816, ay: 226 },
+    { x: 1112, y: 214, title: 'ESTELA', sub: 'Detrás de cada rotor el viento es más lento', kind: 'water', ax: 1100, ay: 150 },
+    { x: 1436, y: 168, title: 'GARGANTA', sub: 'Planea con la Vela de Brisa', kind: 'water', ax: 1440, ay: 206 },
+    { x: 1810, y: 132, title: 'LIDAR EÓLICO', sub: 'Mide el viento a distancia', kind: 'tech', ax: 1824, ay: 176 },
+    { x: 2420, y: 74, title: 'MÁSTIL AGUAS ARRIBA', sub: (sc) => fmt(sc.state.wind ?? 11, 1) + ' m/s', kind: 'tech', ax: 2420, ay: 92 },
+    { x: 2496, y: 176, title: 'AVES MARINAS', sub: 'Rutas de vuelo', kind: 'green', ax: 2496, ay: 196 },
+  ],
+  /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
+    const t0 = nowMs();
     const gy = (x) => world.groundAt(x);
-    for (let x = 10; x < 420; x += 13) ART.grass(pb, x, gy(x), 3 + (x % 3), x, RAMP.mangrove);
-    // estación meteorológica de Nimbo con cometas en tierra
-    pb.rect(220, gy(220) - 40, 50, 40, '#f6fcf6'); pb.rect(220, gy(220) - 40, 50, 3, '#e34ad8'); pb.rect(230, gy(220) - 30, 12, 10, '#1a2a4a');
-    pb.vline(262, gy(220) - 70, gy(220) - 40, '#c8d8e8'); for (const [dx, c] of [[-6, '#e34ad8'], [6, '#56e5ff']]) { pb.disc(262 + dx, gy(220) - 70, 2, c); }
-    drawSign(pb, 150, gy(150), 'ESTACIÓN NIMBO', '#e34ad8');
-    // meseta con aerogeneradores (bases)
-    for (const x of WIND_TURBINES) { pb.rect(x - 7, gy(x) - 4, 14, 4, '#94a6b4'); pb.rect(x - 5, gy(x) - 6, 10, 2, '#b8c6d0'); }
-    drawSign(pb, 700, gy(700), 'PARQUE EÓLICO NORTE', '#1e4aa8');
-    // estación meteorológica 2 (laboratorio de Dante)
-    const sx = 1700;
-    pb.rect(sx, 200, 170, 62, '#f6fcf6'); pb.rect(sx, 200, 170, 4, '#8ff5c8'); pb.rect(sx + 166, 200, 4, 62, '#b8c6d0');
-    for (let k = 0; k < 4; k++) { pb.rect(sx + 10 + k * 40, 212, 28, 18, '#1a2a4a'); pb.rect(sx + 10 + k * 40, 212, 28, 2, '#6aa0b4'); }
-    pb.vline(sx + 150, 120, 200, '#c8d8e8'); pb.rect(sx + 140, 130, 20, 3, '#e8f0f4'); pb.ellipse(sx + 150, 120, 6, 3, '#f6fcf6');
-    drawSign(pb, sx + 85, 200, 'METEOROLOGÍA', '#1e4aa8');
-    // borde de acantilado: mástil aguas arriba y control del parque
-    pb.rect(2340, gy(2340) - 46, 40, 46, '#e8f0f4'); pb.rect(2340, gy(2340) - 46, 40, 3, '#e34ad8'); pb.rect(2346, gy(2340) - 38, 28, 14, '#0a1030');
-    drawSign(pb, 2360, gy(2360) - 46, 'CONTROL PARQUE', '#e34ad8');
-    for (let x = 2450; x < 3000; x += 30) ART.grass(pb, x, gy(x), 3, x, RAMP.mangrove);
-    drawSign(pb, 2940, gy(2940), 'BÓVEDA DE CARGA', '#2c63c0');
+    const segs = PFTerrain.surface(pb, world);
+    const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
+    const Wn = PFAWind, P = PFAPlant, F = PFFlora, A = PFArch, K = PFK, r = RNG(5005);
+    const N = LV5_ANCH; N.hubs = []; N.leds = []; N.lamps = []; N.cups = [];
+    // gargantas: pared del fondo en penumbra, mar con espuma al pie y farallones bajo las plataformas de roca
+    Wn.gorge(pb, 420, 630, 254, 420, { seed: 3, ramp: LV5_ROCK, stacks: [[503, 234, 34]] });
+    Wn.gorge(pb, 1300, 1570, 250, 420, { seed: 7, ramp: LV5_ROCK, stacks: [[1424, 218, 36]] });
+    // vegetación de cumbre: aulagas floridas, armerias, altramuces y matas peinadas por el viento
+    const veg = (x0, x1, sd) => {
+      F.scatter(pb, (x) => back(x) + 2, x0, x1, sd, { gap: 12, mix: { tuft: 5, flowers: 2, lupine: 1, bush: 1 } });
+      for (let x = x0 + r.int(10, 40); x < x1 - 20; x += r.int(40, 90)) { if (hash2(x, 1, sd) < 0.5) Wn.windBush(pb, x, back(x) + 6, 20 + r.int(0, 10), 12 + r.int(0, 6), x); else Wn.thrift(pb, x, back(x) + 6, x); }
+    };
+    veg(0, 410, 501); veg(640, 1290, 503); veg(1580, 3000, 505);
+    /* ===== 1. ESTACIÓN DEL CAPITÁN NIMBO (0–420) ===== */
+    const ks = Wn.kiteStation(pb, 212, gy(212) - 6); N.ks = ks;
+    for (let k = 0; k < 4; k++) { const kx = 150 + k * 9, ky = gy(150) - 30; K.polyFill(pb, [[kx, ky], [kx + 4, ky + 6], [kx, ky + 14], [kx - 4, ky + 6]], U(['#e34ad8', '#56e5ff', '#ffe14d', '#ff8a3a'][k])); for (let q = 0; q < 10; q++) K.put(pb, kx + (q % 2), ky + 14 + q, U('#fffaf0')); }
+    A.crate(pb, 134, gy(134) - 6, 18, 12, 6, { label: '#e34ad8' }); A.barrel(pb, 292, gy(292) - 8, { r: 6, h: 18 });
+    PFSigns.post(pb, 110, gy(110) - 2, [{ text: 'ESTACIÓN NIMBO' }, { text: 'PARQUE EÓLICO' }], 51, { font: 'tiny' });
+    for (const [x, h] of [[372, 18], [394, 14]]) for (let k = 0; k < h; k++) K.put(pb, x, gy(x) - 6 - k, U('#c8d8e8'));
+    /* ===== 2. MESETA DEL PARQUE EÓLICO NORTE (628–1300) ===== */
+    WIND_TURBINES.forEach((x, i) => { const T = Wn.turbine(pb, x, gy(x) - 6, { h: 158, n: i + 1 }); N.hubs.push(T.hub); N.leds.push({ x: T.led[0], y: T.led[1], col: '#ff3a3a', hz: 0.8, ph: i * 0.4 }); });
+    // camino de servicio y cableado enterrado entre turbinas (arquetas)
+    for (const x of [830, 970, 1110]) { PFInfra.box3q(pb, x, gy(x) - 10, 14, 3, 6, { ramp: PFTerrain.CONC }); K.put(pb, x + 6, gy(x) - 15, U('#2a282e')); }
+    PFSigns.post(pb, 660, gy(660) - 2, [{ text: 'PARQUE EÓLICO NORTE' }], 53, { font: 'tiny' });
+    A.bench(pb, 1240, gy(1240) - 8, 30);
+    /* ===== 3. LABORATORIO METEOROLÓGICO DE DANTE (1568–1900) ===== */
+    const lb = Wn.lab(pb, 1690, gy(1690) - 6, 160, { h: 118, deckY: 200, deckX0: 1720, deckX1: 1840 });
+    N.lidar = lb.lidar; N.labScr = lb.screens; for (const l of lb.lamps) N.lamps.push([l[0], l[1], '#e8fff4', 9]);
+    P.pallet(pb, 1600, gy(1600) - 6, { n: 2, label: 'SENSOR' }); P.toolbox(pb, 1650, gy(1650) - 8, '#bc2430');
+    /* ===== 4. BORDE DEL ACANTILADO: CONTROL DEL PARQUE, MÁSTIL Y AVES (2100–2700) ===== */
+    const ch = Wn.controlHut(pb, 2334, gy(2334) - 6); N.ctrl = ch.screen;
+    const ms = Wn.mast(pb, 2420, gy(2420) - 8, 168); N.cups.push(...ms.cups); N.leds.push({ x: ms.light[0], y: ms.light[1], col: '#ff3a3a', hz: 0.7 });
+    Wn.birdHide(pb, 2456, gy(2456) - 6);
+    for (let x = 2200; x < 2300; x += 8) { const y = gy(x) - 4; for (let k = 0; k < 14; k++) K.put(pb, x, y - k, U(k % 4 ? '#94602e' : '#6e421e')); }
+    for (let x = 2200; x < 2300; x++) { K.put(pb, x, gy(x) - 14, U('#b88044')); K.put(pb, x, gy(x) - 9, U('#94602e')); }
+    /* ===== 5. HACIA LA BÓVEDA DE CARGA (2700–3000) ===== */
+    PFSigns.post(pb, 2924, gy(2924) - 2, [{ text: 'BÓVEDA DE CARGA' }], 57, { font: 'tiny' });
+    for (const x of [2760, 2830, 2890]) if (typeof rockPile === 'function') rockPile(pb, x, back(x) + 6, 18, 8, x);
+    LEVELS[5]._ms = Math.round(nowMs() - t0);
   },
-  propsFront(pb, world) { for (let x = 0; x < 3000; x += 5) if ((x * 7) % 5 < 2 && world.groundAt(x) < 300) ART.grass(pb, x, world.groundAt(x) + 2, 2, x, RAMP.mangrove); },
+  propsFront(pb, world) {
+    const gy = (x) => world.groundAt(x), F = PFFlora;
+    for (let x = 0; x < 3000; x += 17) if ((x * 7) % 5 < 2 && gy(x) < 300) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (const x of [96, 700, 1240, 1640, 2160, 2780]) if (gy(x) < 300) PFAWind.thrift(pb, x, gy(x) + 4, x);
+  },
   /* ---------------- dinámico ---------------- */
   renderBack(g, sc, cam) {
-    const S = sc.state, t = Game.time;
-    // abismos: bruma en bandas translúcidas (sin tramado) sobre el mar del panorama, rociones y espuma al fondo
-    const MIST = ['#f2f6fa', '#dce6ee', '#c4d4e2', '#a8c0d6', '#8cacca'];
-    for (const [x0, x1] of [[420, 628], [1300, 1568]]) {
-      const sx = x0 - cam.x, sw = x1 - x0;
-      if (sx > W || sx + sw < 0) continue;
-      for (let i = 0; i < 5; i++) { g.globalAlpha = 0.55 - i * 0.09; frect(g, sx, 250 + i * 14 - cam.y, sw, 14, MIST[i]); }
-      g.globalAlpha = 0.22; for (let i = 0; i < 6; i++) frect(g, sx + ((t * 10 + i * 40) % sw), 276 - cam.y + i * 6, 40, 3, '#ffffff');
-      g.globalAlpha = 1;
-      for (let x = 0; x < sw; x += 3) fpx(g, sx + x, H - 12 - cam.y + Math.round(Math.sin(x * 0.2 + t * 2)), '#e4f6fc');
-    }
+    const t = Game.time;
     // cometas del Capitán Nimbo (sprites VISTA) atadas a la estación
-    const kites = [0, 1, 2].map(i => ({ x: 240 + i * 26, y: 120 + i * 18, col: ['#e34ad8', '#56e5ff', '#ffe14d'][i], sp: 0.8, ph: i, tail: 10 }));
-    for (let i = 0; i < 3; i++) { const K = kites[i]; fline(g, K.x - cam.x + Math.sin(t * 0.8 + i) * 10, K.y - cam.y + 5 + Math.sin(t * 1.1 + i * 2) * 5, 262 - cam.x, 210 - cam.y, '#fffaf0'); }
+    const kites = [0, 1, 2].map(i => ({ x: 240 + i * 26, y: 110 + i * 18, col: ['#e34ad8', '#56e5ff', '#ffe14d'][i], sp: 0.8, ph: i, tail: 10 }));
+    for (let i = 0; i < 3; i++) { const K = kites[i]; fline(g, K.x - cam.x + Math.sin(t * 0.8 + i) * 10, K.y - cam.y + 5 + Math.sin(t * 1.1 + i * 2) * 5, 270 - cam.x, 186 - cam.y, '#fffaf0'); }
     VISTA.drawKites(g, kites, -cam.x, -cam.y, t);
   },
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, w = sc.world;
+    const S = sc.state, t = Game.time, w = sc.world, N = LV5_ANCH;
     S.ang = S.ang || 0;
     const v = S.wind ?? 11;
     const rot = S.parkStopped ? 0 : clamp(WindModel.power(v) / 500, 0, 1) * 3.5 + (v > 3 ? 0.6 : 0);
     S.ang += rot * Game.dt;
-    for (const x of WIND_TURBINES) {
-      const sx = x - cam.x; if (sx < -80 || sx > W + 80) continue;
-      ART.turbine(g, sx, w.groundAt(x) - cam.y - 4, 110, S.ang + x * 0.01, { col: '#ffffff', shade: '#c8d8e8', tips: true, stopped: S.parkStopped });
+    // gargantas: niebla en bandas translúcidas que sube con la corriente, espuma al pie
+    const MIST = ['#f2f6fa', '#dce6ee', '#c4d4e2', '#a8c0d6'];
+    for (const [x0, x1] of [[424, 624], [1304, 1564]]) {
+      const sx = x0 - cam.x, sw = x1 - x0;
+      if (sx > W || sx + sw < 0) continue;
+      for (let i = 0; i < 4; i++) { g.globalAlpha = 0.22 - i * 0.04; frect(g, sx, 372 - i * 22 - cam.y + Math.round(Math.sin(t * 0.5 + i) * 3), sw, 20, MIST[i]); }
+      g.globalAlpha = 0.5; for (let i = 0; i < 8; i++) { const ph = (t * 0.35 + i / 8) % 1; frect(g, sx + ((i * 47 + Math.floor(t * 6)) % (sw - 20)), Math.round(390 - ph * 150 - cam.y), 1, 6, '#ffffff'); }
+      g.globalAlpha = 1;
+      for (let x = 0; x < sw; x += 4) fpx(g, sx + x, Math.round(395 - cam.y + Math.sin(x * 0.2 + t * 2)), '#e4f6fc');
     }
+    // rotores grandes (tira de 12 cuadros) delante de las góndolas
+    if (!this._rot) this._rot = PFAWind.rotor(50);
+    for (const [hx, hy] of N.hubs) { const sx = hx - cam.x; if (sx < -70 || sx > W + 70) continue; PFAWind.drawRotor(g, this._rot, sx, hy - cam.y, S.ang + hx * 0.01); }
+    PFInfra.drawLeds(g, sc, N.leds);
     // estelas visibles: líneas de viento ralentizadas detrás de cada turbina
-    if (sc.lensT > 0 || S.showWake) for (const x of WIND_TURBINES) for (let k = 0; k < 6; k++) { const ph = (t * 0.8 + k / 6) % 1; const xx = x + 20 + ph * 120 - cam.x, yy = w.groundAt(x) - 114 - cam.y + Math.sin(ph * 6 + k) * (4 + ph * 14); fpx(g, xx, yy, '#ffffff'); }
+    if (sc.lensT > 0 || S.showWake) for (const [hx, hy] of N.hubs) for (let k = 0; k < 6; k++) { const ph = (t * 0.8 + k / 6) % 1; const xx = hx + 20 + ph * 120 - cam.x, yy = hy - cam.y + Math.sin(ph * 6 + k) * (4 + ph * 18); fpx(g, xx, yy, '#ffffff'); }
     // anemómetros desplegados: cazoletas girando
-    for (const id of ['anemo1', 'anemo2', 'anemo3']) { const st = w.find(id); if (!st || !st.done) continue; const ax = st.x - cam.x, ay = w.groundAt(st.x) - cam.y; frect(g, ax, ay - 40, 1, 40, '#c8d8e8'); const a = t * (2 + v * 0.3); for (let k = 0; k < 3; k++) { const aa = a + k * TAU / 3; fdisc(g, ax + Math.cos(aa) * 5, ay - 42 + Math.sin(aa) * 2, 1.5, '#e34ad8'); } frect(g, ax - 3, ay - 34, 7, 2, '#56e5ff'); }
-    // pantalla de control del parque
-    const cx = 2346 - cam.x, cy = w.groundAt(2340) - 38 - cam.y;
-    drawText(g, fmt(v, 1) + ' m/s', cx + 14, cy + 4, { font: 'tiny', align: 'center', color: v >= 25 ? '#ff4e5d' : '#8ff5c8' });
+    for (const id of ['anemo1', 'anemo2', 'anemo3']) { const st = w.find(id); if (!st || !st.done) continue; const ax = st.x - cam.x, ay = w.groundAt(st.x) - cam.y; frect(g, ax, ay - 40, 1, 40, '#c8d8e8'); const a = t * (2 + v * 0.3); for (let k = 0; k < 3; k++) { const aa = a + k * TAU / 3; fpx(g, Math.round(ax + Math.cos(aa) * 4), Math.round(ay - 42 + Math.sin(aa) * 1.5), '#e34ad8'); } }
+    // mástil aguas arriba: cazoletas de cada altura
+    for (const [cx, cy] of N.cups) { const a = t * (2 + v * 0.3) + cx; for (let k = 0; k < 3; k++) { const aa = a + k * TAU / 3; fpx(g, Math.round(cx + Math.cos(aa) * 3 - cam.x), Math.round(cy + Math.sin(aa) - cam.y), '#ffffff'); } }
+    // LIDAR: pulso láser hacia el viento entrante (barrido)
+    if (N.lidar) { const [lx, ly] = N.lidar, k = (t * 1.5) % 1; g.globalAlpha = 0.5 * (1 - k); fline(g, lx - cam.x, ly - cam.y, lx - cam.x - 140 * k, ly - cam.y - 90 * k, '#7ff0ff'); g.globalAlpha = 1; fpx(g, lx - cam.x, ly - cam.y, '#d0f4f8'); }
+    // pantallas: estación de Nimbo, laboratorio y control del parque
+    if (N.ks) { const [x, y, ww] = N.ks.screen; for (let i = 0; i < 3; i++) frect(g, x - cam.x + 2, y - cam.y + 3 + i * 4, 4 + ((i * 7 + Math.floor(t * 3)) % (ww - 6)), 1, '#8ff5c8'); }
+    if (N.labScr) for (const [x, y, ww, hh] of N.labScr) { const sx = x - cam.x; if (sx < -30 || sx > W + 10) continue; for (let i = 0; i < ww; i += 2) fpx(g, sx + i, Math.round(y - cam.y + hh * 0.5 - Math.sin((i + t * 20) * 0.2) * hh * 0.3), '#8ff5c8'); }
+    PFDyn.glows(g, cam, N.lamps, '#e8fff4', 9, 0.25);
+    if (N.ctrl) { const [x, y, ww] = N.ctrl; drawText(g, fmt(v, 1) + ' m/s', x - cam.x + ww / 2, y - cam.y + 5, { font: 'tiny', align: 'center', color: v >= 25 ? '#ff4e5d' : '#8ff5c8' }); }
   },
   lens(g, sc, cam, k) {
     const S = sc.state, ox = cam.x, oy = cam.y, w = sc.world;
