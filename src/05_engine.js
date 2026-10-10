@@ -136,6 +136,11 @@ const Game = {
   renderToasts(g) {
     // avisos abajo a la derecha, apilados hacia arriba; en el mapa quedan sobre la tira de capítulos
     let y = (typeof WorldMapScene !== 'undefined' && this.top() === WorldMapScene) ? H - 92 : H - 28;
+    // una escena con panel inferior (diálogo) publica su borde superior: los avisos suben por encima
+    const top = this.top();
+    if (top && top.panelTopFrame === this.frame && typeof top.panelTop === 'number') y = Math.min(y, Math.round(top.panelTop) - 24);
+    // en modo táctil los avisos quedan por encima de los botones virtuales
+    if (typeof Touch !== 'undefined' && Touch.enabledFor && Touch.enabledFor(top)) y = Math.min(y, H - 96);
     for (const t of this.toasts) {
       const a = t.t < 0.25 ? t.t / 0.25 : t.t > t.dur - 0.4 ? (t.dur - t.t) / 0.4 : 1;
       const txt = fitText(t.text, 266);

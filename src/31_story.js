@@ -110,7 +110,9 @@ const DialogueScene = {
     // modo globo: el hablante está en pantalla, sin elecciones y con un texto breve
     const ent = (!L.choices && L.mode !== 'portrait' && this.plain.length <= 190) ? this.speakerEntity(L) : null;
     const hint = L.choices ? 'elige una opción' : (L.noSkip ? 'ENTER: seguir' : 'ENTER: seguir · X: saltar');
-    if (ent) { this.renderBubble(g, L, sp, ent, style, shown); UIK.pill(g, W - 6, H - 13, hint, { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' }); }
+    // borde superior del panel inferior en este cuadro: los avisos (Atlas, logros) se apilan encima, no sobre el texto
+    this.panelTopFrame = Game.frame;
+    if (ent) { this.renderBubble(g, L, sp, ent, style, shown); UIK.pill(g, W - 6, H - 13, hint, { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' }); this.panelTop = H - 15; }
     else this.renderCinematic(g, L, sp, style, shown, hint);
   },
   renderBubble(g, L, sp, ent, style, shown) {
@@ -159,6 +161,7 @@ const DialogueScene = {
     const lh = big ? 13 : 12;
     const textH = textHeight(this.full, pw2 - 22, { lineH: lh });
     const boxH = clamp(textH + (sp.name ? 15 : 0) + 22, 44, big ? 120 : 100), boxY = H - boxH - 6;
+    this.panelTop = Math.min(boxY, hasP && side === 'right' ? H - 6 - fw : boxY);
     UIK.panel(g, px, boxY, pw2, boxH, style);
     if (hint) UIK.pill(g, px + pw2 - 9, boxY + 6, hint, { align: 'right', rim: '#2b3b5d', fill: '#041533', color: '#93a6c8' });
     let ty = boxY + 8;
@@ -175,6 +178,7 @@ const DialogueScene = {
       const hs = L.choices.map(c => Math.max(15, wrapText(c, rw).length * 11 + 4));
       const tot = hs.reduce((a, b) => a + b + 3, 0) - 3;
       let cy = boxY - 8 - tot - 12;
+      if (cx > W / 2) this.panelTop = Math.min(this.panelTop, cy - 6);
       UIK.panel(g, cx, cy - 6, cw, tot + 12, style, null, { chamfer: 3, key: false });
       L.choices.forEach((c, k) => {
         const r = Gui.choice(g, 'ch' + k, cx + 6, cy, cw - 12, c, 'ABCDEF'[k] || String(k + 1), {});

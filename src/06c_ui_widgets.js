@@ -423,13 +423,14 @@ UIK.pill = function (g, x, y, text, o = {}) {
 
 /* ---------- Globo de diálogo anclado (cola hacia la cabeza del hablante) ---------- */
 // cola: 'bl' (abajo-izquierda), 'br' (abajo-derecha), 'tl' (arriba-izquierda), 'tr' (arriba-derecha)
-UIK.bubbleCanvas = function (w, h, tail, style = 'tech') {
+UIK.bubbleCanvas = function (w, h, tail, style = 'tech', off = 0) {
   const s = panelStyle(style);
-  return _cacheGet(UIK._shapeCache, 'bub|' + w + '|' + h + '|' + tail + '|' + (s === PANEL_STYLES.hc ? 'hc' : style), () => {
+  return _cacheGet(UIK._shapeCache, 'bub|' + w + '|' + h + '|' + tail + '|' + (s === PANEL_STYLES.hc ? 'hc' : style) + '|' + off, () => {
     const TH = 8, top = tail[0] === 't' ? TH : 0, ch = 3;
     const bw = w, bh = h - TH;
     const left = tail[1] === 'l';
-    const tx0 = left ? 8 : bw - 8 - 10; // base de la cola (10 px de ancho)
+    // base de la cola (10 px de ancho); off la desplaza hacia el centro del globo
+    const tx0 = left ? 8 + off : bw - 8 - 10 - off;
     const inside = (x, y) => {
       const by = y - top;
       if (by >= 0 && by < bh) {
@@ -489,23 +490,27 @@ UIK.speechBubble = function (g, ax, ay, o = {}) {
     }
     return pen;
   };
+  // en juego, la cola también puede ir hacia el centro del globo (el globo se desliza sobre su cola)
+  const offs = wa ? [0, Math.round((w - 36) / 8) * 4, Math.round((w - 36) / 4) * 4].filter((v, i, a) => v >= 0 && a.indexOf(v) === i) : [0];
   for (const tail of order) {
     const left = tail[1] === 'l', up = tail[0] === 'b'; // cola abajo → globo arriba
-    const tipDX = left ? 8 - Math.round(TH * 0.55) + 1 : w - 8 - 1 + Math.round(TH * 0.55) - 1;
-    let bx = Math.round(ax - tipDX);
-    const by = up ? Math.round(ay - h) : Math.round(ay);
-    bx = clamp(bx, 4, W - w - 4);
-    const mis = Math.abs((bx + tipDX) - ax) > 6 ? 10 : 0;
-    // globo encima: si roza el HUD por pocos píxeles puede bajar un poco sobre la coronilla del hablante
-    for (const nudge of up && wa ? [0, 4, 8] : [0]) {
-      const r = { x: bx, y: by + nudge, w, h };
-      cands.push({ tail, r, pen: score(r) + mis + nudge * 2 + cands.length * 2 });
+    for (const off of offs) {
+      const tipDX = left ? 8 + off - Math.round(TH * 0.55) + 1 : w - 8 - off - 1 + Math.round(TH * 0.55) - 1;
+      let bx = Math.round(ax - tipDX);
+      const by = up ? Math.round(ay - h) : Math.round(ay);
+      bx = clamp(bx, 4, W - w - 4);
+      const mis = Math.abs((bx + tipDX) - ax) > 6 ? 10 : 0;
+      // globo encima: si roza el HUD por pocos píxeles puede bajar un poco sobre la coronilla del hablante
+      for (const nudge of up && wa ? [0, 4, 8] : [0]) {
+        const r = { x: bx, y: by + nudge, w, h };
+        cands.push({ tail, off, r, pen: score(r) + mis + nudge * 2 + off / 6 + cands.length * 0.5 });
+      }
     }
   }
   cands.sort((a, b) => a.pen - b.pen);
   const C = cands[0];
   const r = C.r; r.y = clamp(r.y, minY, maxY - h);
-  const cv = UIK.bubbleCanvas(w, h, C.tail, o.style || 'tech');
+  const cv = UIK.bubbleCanvas(w, h, C.tail, o.style || 'tech', C.off || 0);
   g.drawImage(cv, r.x, r.y);
   const s = panelStyle(o.style || 'tech');
   const ty = r.y + (C.tail[0] === 't' ? TH : 0);

@@ -271,6 +271,8 @@ const GameplayScene = {
       for (const [ic, key, on] of slots) { UIK.toolSlot(g, sx, 78, ic, key, on); sx += 21; }
     }
     if (def.hud) def.hud(g, this);
+    // en modo táctil los botones virtuales cuentan como HUD: etiquetas, globos y lente los esquivan
+    if (Input.touchMode && this.touchControls) for (const b of Touch.layout()) rects.push({ x: Math.round(b.x - b.r - 2), y: Math.round(b.y - b.r - 2), w: Math.round(2 * b.r + 4), h: Math.round(2 * b.r + 4) });
     UIK._hudRects = rects;
   },
 };

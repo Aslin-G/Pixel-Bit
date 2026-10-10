@@ -1679,6 +1679,11 @@ const Game = {
   renderToasts(g) {
     // avisos abajo a la derecha, apilados hacia arriba; en el mapa quedan sobre la tira de capítulos
     let y = (typeof WorldMapScene !== 'undefined' && this.top() === WorldMapScene) ? H - 92 : H - 28;
+    // una escena con panel inferior (diálogo) publica su borde superior: los avisos suben por encima
+    const top = this.top();
+    if (top && top.panelTopFrame === this.frame && typeof top.panelTop === 'number') y = Math.min(y, Math.round(top.panelTop) - 24);
+    // en modo táctil los avisos quedan por encima de los botones virtuales
+    if (typeof Touch !== 'undefined' && Touch.enabledFor && Touch.enabledFor(top)) y = Math.min(y, H - 96);
     for (const t of this.toasts) {
       const a = t.t < 0.25 ? t.t / 0.25 : t.t > t.dur - 0.4 ? (t.dur - t.t) / 0.4 : 1;
       const txt = fitText(t.text, 266);
@@ -2988,13 +2993,14 @@ UIK.pill = function (g, x, y, text, o = {}) {
 
 /* ---------- Globo de diálogo anclado (cola hacia la cabeza del hablante) ---------- */
 // cola: 'bl' (abajo-izquierda), 'br' (abajo-derecha), 'tl' (arriba-izquierda), 'tr' (arriba-derecha)
-UIK.bubbleCanvas = function (w, h, tail, style = 'tech') {
+UIK.bubbleCanvas = function (w, h, tail, style = 'tech', off = 0) {
   const s = panelStyle(style);
-  return _cacheGet(UIK._shapeCache, 'bub|' + w + '|' + h + '|' + tail + '|' + (s === PANEL_STYLES.hc ? 'hc' : style), () => {
+  return _cacheGet(UIK._shapeCache, 'bub|' + w + '|' + h + '|' + tail + '|' + (s === PANEL_STYLES.hc ? 'hc' : style) + '|' + off, () => {
     const TH = 8, top = tail[0] === 't' ? TH : 0, ch = 3;
     const bw = w, bh = h - TH;
     const left = tail[1] === 'l';
-    const tx0 = left ? 8 : bw - 8 - 10; // base de la cola (10 px de ancho)
+    // base de la cola (10 px de ancho); off la desplaza hacia el centro del globo
+    const tx0 = left ? 8 + off : bw - 8 - 10 - off;
     const inside = (x, y) => {
       const by = y - top;
       if (by >= 0 && by < bh) {
@@ -3054,23 +3060,27 @@ UIK.speechBubble = function (g, ax, ay, o = {}) {
     }
     return pen;
   };
+  // en juego, la cola también puede ir hacia el centro del globo (el globo se desliza sobre su cola)
+  const offs = wa ? [0, Math.round((w - 36) / 8) * 4, Math.round((w - 36) / 4) * 4].filter((v, i, a) => v >= 0 && a.indexOf(v) === i) : [0];
   for (const tail of order) {
     const left = tail[1] === 'l', up = tail[0] === 'b'; // cola abajo → globo arriba
-    const tipDX = left ? 8 - Math.round(TH * 0.55) + 1 : w - 8 - 1 + Math.round(TH * 0.55) - 1;
-    let bx = Math.round(ax - tipDX);
-    const by = up ? Math.round(ay - h) : Math.round(ay);
-    bx = clamp(bx, 4, W - w - 4);
-    const mis = Math.abs((bx + tipDX) - ax) > 6 ? 10 : 0;
-    // globo encima: si roza el HUD por pocos píxeles puede bajar un poco sobre la coronilla del hablante
-    for (const nudge of up && wa ? [0, 4, 8] : [0]) {
-      const r = { x: bx, y: by + nudge, w, h };
-      cands.push({ tail, r, pen: score(r) + mis + nudge * 2 + cands.length * 2 });
+    for (const off of offs) {
+      const tipDX = left ? 8 + off - Math.round(TH * 0.55) + 1 : w - 8 - off - 1 + Math.round(TH * 0.55) - 1;
+      let bx = Math.round(ax - tipDX);
+      const by = up ? Math.round(ay - h) : Math.round(ay);
+      bx = clamp(bx, 4, W - w - 4);
+      const mis = Math.abs((bx + tipDX) - ax) > 6 ? 10 : 0;
+      // globo encima: si roza el HUD por pocos píxeles puede bajar un poco sobre la coronilla del hablante
+      for (const nudge of up && wa ? [0, 4, 8] : [0]) {
+        const r = { x: bx, y: by + nudge, w, h };
+        cands.push({ tail, off, r, pen: score(r) + mis + nudge * 2 + off / 6 + cands.length * 0.5 });
+      }
     }
   }
   cands.sort((a, b) => a.pen - b.pen);
   const C = cands[0];
   const r = C.r; r.y = clamp(r.y, minY, maxY - h);
-  const cv = UIK.bubbleCanvas(w, h, C.tail, o.style || 'tech');
+  const cv = UIK.bubbleCanvas(w, h, C.tail, o.style || 'tech', C.off || 0);
   g.drawImage(cv, r.x, r.y);
   const s = panelStyle(o.style || 'tech');
   const ty = r.y + (C.tail[0] === 't' ? TH : 0);
@@ -29750,7 +29760,9 @@ const DialogueScene = {
     // modo globo: el hablante está en pantalla, sin elecciones y con un texto breve
     const ent = (!L.choices && L.mode !== 'portrait' && this.plain.length <= 190) ? this.speakerEntity(L) : null;
     const hint = L.choices ? 'elige una opción' : (L.noSkip ? 'ENTER: seguir' : 'ENTER: seguir · X: saltar');
-    if (ent) { this.renderBubble(g, L, sp, ent, style, shown); UIK.pill(g, W - 6, H - 13, hint, { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' }); }
+    // borde superior del panel inferior en este cuadro: los avisos (Atlas, logros) se apilan encima, no sobre el texto
+    this.panelTopFrame = Game.frame;
+    if (ent) { this.renderBubble(g, L, sp, ent, style, shown); UIK.pill(g, W - 6, H - 13, hint, { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' }); this.panelTop = H - 15; }
     else this.renderCinematic(g, L, sp, style, shown, hint);
   },
   renderBubble(g, L, sp, ent, style, shown) {
@@ -29799,6 +29811,7 @@ const DialogueScene = {
     const lh = big ? 13 : 12;
     const textH = textHeight(this.full, pw2 - 22, { lineH: lh });
     const boxH = clamp(textH + (sp.name ? 15 : 0) + 22, 44, big ? 120 : 100), boxY = H - boxH - 6;
+    this.panelTop = Math.min(boxY, hasP && side === 'right' ? H - 6 - fw : boxY);
     UIK.panel(g, px, boxY, pw2, boxH, style);
     if (hint) UIK.pill(g, px + pw2 - 9, boxY + 6, hint, { align: 'right', rim: '#2b3b5d', fill: '#041533', color: '#93a6c8' });
     let ty = boxY + 8;
@@ -29815,6 +29828,7 @@ const DialogueScene = {
       const hs = L.choices.map(c => Math.max(15, wrapText(c, rw).length * 11 + 4));
       const tot = hs.reduce((a, b) => a + b + 3, 0) - 3;
       let cy = boxY - 8 - tot - 12;
+      if (cx > W / 2) this.panelTop = Math.min(this.panelTop, cy - 6);
       UIK.panel(g, cx, cy - 6, cw, tot + 12, style, null, { chamfer: 3, key: false });
       L.choices.forEach((c, k) => {
         const r = Gui.choice(g, 'ch' + k, cx + 6, cy, cw - 12, c, 'ABCDEF'[k] || String(k + 1), {});
@@ -30184,6 +30198,8 @@ const GameplayScene = {
       for (const [ic, key, on] of slots) { UIK.toolSlot(g, sx, 78, ic, key, on); sx += 21; }
     }
     if (def.hud) def.hud(g, this);
+    // en modo táctil los botones virtuales cuentan como HUD: etiquetas, globos y lente los esquivan
+    if (Input.touchMode && this.touchControls) for (const b of Touch.layout()) rects.push({ x: Math.round(b.x - b.r - 2), y: Math.round(b.y - b.r - 2), w: Math.round(2 * b.r + 4), h: Math.round(2 * b.r + 4) });
     UIK._hudRects = rects;
   },
 };
