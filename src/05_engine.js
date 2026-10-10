@@ -110,7 +110,8 @@ const Game = {
     g.setTransform(1, 0, 0, 1, 0, 0);
     // escenas: se dibujan desde la más baja opaca
     let start = 0;
-    for (let i = this.scenes.length - 1; i >= 0; i--) { if (!this.scenes[i].overlay) { start = i; break; } }
+    // (una escena «overlay» que declara opaque:true cubre toda la pantalla: lo de debajo no se dibuja)
+    for (let i = this.scenes.length - 1; i >= 0; i--) { const sc = this.scenes[i]; if (!sc.overlay || sc.opaque) { start = i; break; } }
     // solo la escena superior recibe el puntero (los controles de las de abajo se dibujan inertes)
     for (let i = start; i < this.scenes.length; i++) { Gui.inputScene = i === this.scenes.length - 1; g.save(); try { this.scenes[i].render(g); } finally { g.restore(); } }
     Gui.inputScene = true;

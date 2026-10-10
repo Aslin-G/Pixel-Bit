@@ -350,7 +350,43 @@ function wrapText(text, maxW, font = 'main') {
  * Dibuja texto pixel. opts: color, shadow, outline, align('left'|'center'|'right'), font, scale, max (nº de caracteres visibles)
  * Retorna ancho dibujado.
  */
+/* Caché de texto estático (STYLE LOCK §15: ≤600 blits pequeños por cuadro). Una línea que se repite en cuadros
+   consecutivos se compone una vez en un lienzo (todas sus pasadas: contorno, sombra y relleno) y luego se dibuja
+   con un único blit. El texto parcial de la máquina de escribir (max < longitud) y el que cambia en cada cuadro
+   (cifras en vivo) no llegan a cachearse: hace falta verlo dos veces. LRU de FIXUI_TEXT.cap entradas. */
+const FIXUI_TEXT = { map: new Map(), seen: new Map(), cap: 700, on: true };
 function drawText(g, text, x, y, opts = {}) {
+  const fname = opts.font || 'main';
+  const font = FONTS[fname];
+  const scale = opts.scale || 1;
+  const str = String(text);
+  if (FIXUI_TEXT.on && str.length > 1 && (opts.max == null || opts.max >= str.length)) {
+    const key = fname + '|' + scale + '|' + (opts.color || '') + '|' + (opts.shadow || '') + '|' + (opts.outline || '') + '|' + str;
+    const T = FIXUI_TEXT;
+    let c = T.map.get(key);
+    if (!c && (T.seen.get(key) || 0) >= 1) {
+      // segunda vez que se ve: se compone en su lienzo
+      const tw = font.measure(str) * scale, pad = 2 * scale;
+      c = makeCanvas(Math.max(1, Math.ceil(tw) + pad * 2 + scale), font.cellH * scale + pad * 2 + scale);
+      c.tw = tw; c.pad = pad;
+      drawTextRaw(c.g, str, pad, pad + ((font.top || 0) + (font.shift || 0)) * scale, Object.assign({}, opts, { align: null, max: Infinity }));
+      T.map.set(key, c); T.seen.delete(key);
+      if (T.map.size > T.cap) { let n = T.map.size - T.cap + 64; for (const k of T.map.keys()) { T.map.delete(k); if (--n <= 0) break; } }
+    } else if (c) { T.map.delete(key); T.map.set(key, c); }
+    if (c) {
+      let cx = Math.round(x);
+      if (opts.align === 'center') cx = Math.round(x - c.tw / 2);
+      else if (opts.align === 'right') cx = Math.round(x - c.tw);
+      g.drawImage(c, cx - c.pad, Math.round(y) - ((font.top || 0) + (font.shift || 0)) * scale - c.pad);
+      return c.tw;
+    }
+    T.seen.set(key, 1);
+    if (T.seen.size > 4000) T.seen.clear();
+  }
+  return drawTextRaw(g, str, x, y, opts);
+}
+/** Dibujo directo glifo a glifo (sin caché) */
+function drawTextRaw(g, text, x, y, opts = {}) {
   const font = FONTS[opts.font || 'main'];
   const color = opts.color || '#fffaf0';
   const scale = opts.scale || 1;

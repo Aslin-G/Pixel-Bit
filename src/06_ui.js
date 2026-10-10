@@ -502,6 +502,34 @@ const Gui = {
 };
 
 /* ---------- Gráficos científicos pixel ---------- */
+/** Tira punteada prerenderizada (1 px de grueso, un punto cada «step» px): una rejilla = un blit por línea */
+const FIXUI_dotStrips = new Map();
+function FIXUI_dots(g, x, y, len, step, col, vertical = false) {
+  len = Math.max(1, Math.round(len));
+  const k = len + '|' + step + '|' + col + '|' + (vertical ? 1 : 0);
+  let c = FIXUI_dotStrips.get(k);
+  if (!c) {
+    if (FIXUI_dotStrips.size > 160) FIXUI_dotStrips.clear();
+    c = vertical ? makeCanvas(1, len) : makeCanvas(len, 1);
+    c.g.fillStyle = col;
+    for (let i = 0; i < len; i += step) vertical ? c.g.fillRect(0, i, 1, 1) : c.g.fillRect(i, 0, 1, 1);
+    FIXUI_dotStrips.set(k, c);
+  }
+  g.drawImage(c, Math.round(x), Math.round(y));
+}
+/** Columnas de 1 px [x, yTop, yBot] → rectángulos: columnas contiguas con el mismo tramo salen juntas
+ * (una columna repetida, como la frontera entre tramos, se sigue dibujando dos veces, igual que antes) */
+function FIXUI_columns(g, cols, col) {
+  g.fillStyle = col;
+  let i = 0;
+  while (i < cols.length) {
+    const [x0, a, b] = cols[i];
+    let j = i + 1;
+    while (j < cols.length && cols[j][0] === cols[j - 1][0] + 1 && cols[j][1] === a && cols[j][2] === b) j++;
+    if (b > a) g.fillRect(Math.round(x0), Math.round(a), j - i, Math.round(b - a));
+    i = j;
+  }
+}
 const Charts = {
   /** Pozo hundido: tinta, relleno oscuro, fila superior en sombra y borde inferior/derecho iluminado */
   frame(g, x, y, w, h, bg = '#020e26') {
@@ -528,14 +556,15 @@ const Charts = {
     const ny = o.yTicks ?? 4;
     for (let i = 0; i <= ny; i++) {
       const v = yMin + (yMax - yMin) * i / ny, yy = Y(v);
-      for (let xx = cx; xx < cx + cw; xx += 3) fpx(g, xx, yy, '#12305a');
-      drawText(g, o.yFmt ? o.yFmt(v) : fmt(v, Math.abs(yMax - yMin) < 5 ? 1 : 0), cx - 3, yy - 2, { font: 'tiny', color: '#93a6c8', align: 'right' });
+      FIXUI_dots(g, cx, yy, cw, 3, '#12305a');
+      // la unidad del eje (yLabel) ocupa el sitio de la marca superior: no se imprimen una sobre otra
+      if (!(o.yLabel && i === ny)) drawText(g, o.yFmt ? o.yFmt(v) : fmt(v, Math.abs(yMax - yMin) < 5 ? 1 : 0), cx - 3, yy - 2, { font: 'tiny', color: '#93a6c8', align: 'right' });
     }
     const nx = o.xTicks ?? 6;
     for (let i = 0; i <= nx; i++) {
       const v = xMin + (xMax - xMin) * i / nx, xx = X(v);
-      for (let yy = cy; yy < cy + chh; yy += 3) fpx(g, xx, yy, '#0e2850');
-      drawText(g, o.xFmt ? o.xFmt(v) : fmt(v, 0), xx, cy + chh + 2, { font: 'tiny', color: '#93a6c8', align: 'center' });
+      FIXUI_dots(g, xx, cy, chh, 3, '#0e2850', true);
+      if (!(o.xLabel && i === nx)) drawText(g, o.xFmt ? o.xFmt(v) : fmt(v, 0), xx, cy + chh + 2, { font: 'tiny', color: '#93a6c8', align: 'center' });
     }
     // banda (incertidumbre / límite)
     if (o.bands) for (const b of o.bands) {
@@ -544,31 +573,34 @@ const Charts = {
       if (b.x0 != null) { const x0 = X(b.x0), x1 = X(b.x1); frect(g, x0, cy, x1 - x0 + 1, chh, b.color); }
       g.globalAlpha = 1;
       if (b.lo && b.hi) { // banda por serie
+        const cols = [];
         for (let i = 0; i < b.lo.length - 1; i++) {
           const xa = X(i), xb = X(i + 1);
           for (let xx = xa; xx <= xb; xx++) {
             const t = (xx - xa) / Math.max(1, xb - xa);
             const lo = lerp(b.lo[i], b.lo[i + 1], t), hi = lerp(b.hi[i], b.hi[i + 1], t);
             const ya = Y(hi), yb = Y(lo);
-            g.globalAlpha = clamp((b.level ?? 0.35) * 0.8, 0.08, 0.6); frect(g, xx, ya, 1, yb - ya + 1, b.color); g.globalAlpha = 1;
+            cols.push([xx, ya, yb + 1]);
           }
         }
+        g.globalAlpha = clamp((b.level ?? 0.35) * 0.8, 0.08, 0.6); FIXUI_columns(g, cols, b.color); g.globalAlpha = 1;
       }
     }
-    if (o.hlines) for (const hl of o.hlines) { const yy = Y(hl.v); for (let xx = cx; xx < cx + cw; xx += 2) fpx(g, xx, yy, hl.color); if (hl.label) drawText(g, hl.label, cx + cw - 2, yy - 7, { font: 'tiny', color: hl.color, align: 'right' }); }
-    if (o.vlines) for (const vl of o.vlines) { const xx = X(vl.v); for (let yy = cy; yy < cy + chh; yy += 2) fpx(g, xx, yy, vl.color); if (vl.label) drawText(g, vl.label, xx + 2, cy + 1, { font: 'tiny', color: vl.color }); }
+    if (o.hlines) for (const hl of o.hlines) { const yy = Y(hl.v); FIXUI_dots(g, cx, yy, cw, 2, hl.color); if (hl.label) drawText(g, hl.label, cx + cw - 2, yy - 7, { font: 'tiny', color: hl.color, align: 'right' }); }
+    if (o.vlines) for (const vl of o.vlines) { const xx = X(vl.v); FIXUI_dots(g, xx, cy, chh, 2, vl.color, true); if (vl.label) drawText(g, vl.label, xx + 2, cy + 1, { font: 'tiny', color: vl.color }); }
     // series
     series.forEach((s, si) => {
       const P = pts[si];
       if (s.area) {
+        const cols = [], base = Y(Math.max(yMin, 0));
         for (let i = 0; i < P.length - 1; i++) {
           const xa = X(P[i][0]), xb = X(P[i + 1][0]);
           for (let xx = xa; xx <= xb; xx++) {
             const t = (xx - xa) / Math.max(1, xb - xa);
-            const yy = Y(s.step ? P[i][1] : lerp(P[i][1], P[i + 1][1], t));
-            g.globalAlpha = clamp((s.areaLevel ?? 0.35) * 0.75, 0.08, 0.6); frect(g, xx, yy, 1, Y(Math.max(yMin, 0)) - yy, s.color); g.globalAlpha = 1;
+            cols.push([xx, Y(s.step ? P[i][1] : lerp(P[i][1], P[i + 1][1], t)), base]);
           }
         }
+        g.globalAlpha = clamp((s.areaLevel ?? 0.35) * 0.75, 0.08, 0.6); FIXUI_columns(g, cols, s.color); g.globalAlpha = 1;
       }
       for (let i = 0; i < P.length - 1; i++) {
         const xa = X(P[i][0]), ya = Y(P[i][1]), xb = X(P[i + 1][0]), yb = Y(P[i + 1][1]);

@@ -157,19 +157,30 @@ function spriteFromMap(rows, pal, scale = 1) {
 /** Dibuja rectángulo en contexto con coordenadas enteras */
 function frect(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
 function fpx(g, x, y, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), 1, 1); }
-/** Línea de píxeles en contexto (Bresenham) */
+/** Línea de píxeles en contexto (Bresenham). Mismos píxeles que el trazo punto a punto, pero los tramos
+ * consecutivos en la misma fila (o columna) salen en un solo fillRect (presupuesto STYLE LOCK §15). */
 function fline(g, x0, y0, x1, y1, col) {
   g.fillStyle = col;
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  const horiz = dx >= -dy;
   let err = dx + dy, guard = 0;
+  let rx = x0, ry = y0, rl = 1;
+  const flush = () => {
+    if (horiz) g.fillRect(sx > 0 ? rx : rx - rl + 1, ry, rl, 1);
+    else g.fillRect(rx, sy > 0 ? ry : ry - rl + 1, 1, rl);
+  };
   for (; ;) {
-    g.fillRect(x0, y0, 1, 1);
     if ((x0 === x1 && y0 === y1) || ++guard > 4000) break;
     const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x0 += sx; }
-    if (e2 <= dx) { err += dx; y0 += sy; }
+    let nx = x0, ny = y0;
+    if (e2 >= dy) { err += dy; nx += sx; }
+    if (e2 <= dx) { err += dx; ny += sy; }
+    if (horiz ? ny === y0 : nx === x0) rl++;
+    else { flush(); rx = nx; ry = ny; rl = 1; }
+    x0 = nx; y0 = ny;
   }
+  flush();
 }
 /** Círculo relleno pixelado en contexto */
 function fdisc(g, cx, cy, r, col) {

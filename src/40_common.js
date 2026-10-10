@@ -99,6 +99,8 @@ function simBackdrop() {
 function makeSim(def) {
   return Object.assign({
     overlay: true,
+    // el fondo de laboratorio cubre toda la pantalla: la escena de juego de debajo no se redibuja (FIXUI M1)
+    opaque: true,
     enter(p) {
       this.p = p; this.onDone = p.onDone; this.gp = p.gameplay; this.t = 0; this.phase = p.phase || def.phases[0];
       this.hints = 0; this.attempts = 0; this.safeErr = null; this.msg = null; this.result = {}; this.startT = nowMs(); this.paused = false; this.speed = 1;
@@ -166,13 +168,14 @@ function makeSim(def) {
       // mensaje de KIRU (u otro guía) como globo con cola hacia su busto
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
-        const bx = 6, by = H - 40;
-        UIK.frame(g, bx, by, 34, 34, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
-        const bust = UIK.bust(sp.portrait || 'kiru', 'smile');
-        // recorte 1:1 de la cara (sin reescalar el arte)
-        const cx0 = Math.round(bust.width / 2 - 13), cy0 = Math.max(0, Math.round(bust.height * 0.12));
-        g.drawImage(bust, cx0, cy0, 26, 26, bx + 4, by + 4, 26, 26);
-        UIK.speechBubble(g, bx + 34, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
+        const bx = 6, by = H - 44;
+        UIK.frame(g, bx, by, 38, 38, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+        const pid = sp.portrait || 'kiru', bust = UIK.bust(pid, 'smile');
+        // recorte 1:1 centrado en la cara (sin reescalar el arte): el visor y los ojos de KIRU, la cara de un humano
+        const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
+        const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
+        g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
+        UIK.speechBubble(g, bx + 38, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);

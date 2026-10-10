@@ -412,19 +412,30 @@ function spriteFromMap(rows, pal, scale = 1) {
 /** Dibuja rectángulo en contexto con coordenadas enteras */
 function frect(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
 function fpx(g, x, y, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), 1, 1); }
-/** Línea de píxeles en contexto (Bresenham) */
+/** Línea de píxeles en contexto (Bresenham). Mismos píxeles que el trazo punto a punto, pero los tramos
+ * consecutivos en la misma fila (o columna) salen en un solo fillRect (presupuesto STYLE LOCK §15). */
 function fline(g, x0, y0, x1, y1, col) {
   g.fillStyle = col;
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  const horiz = dx >= -dy;
   let err = dx + dy, guard = 0;
+  let rx = x0, ry = y0, rl = 1;
+  const flush = () => {
+    if (horiz) g.fillRect(sx > 0 ? rx : rx - rl + 1, ry, rl, 1);
+    else g.fillRect(rx, sy > 0 ? ry : ry - rl + 1, 1, rl);
+  };
   for (; ;) {
-    g.fillRect(x0, y0, 1, 1);
     if ((x0 === x1 && y0 === y1) || ++guard > 4000) break;
     const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x0 += sx; }
-    if (e2 <= dx) { err += dx; y0 += sy; }
+    let nx = x0, ny = y0;
+    if (e2 >= dy) { err += dy; nx += sx; }
+    if (e2 <= dx) { err += dx; ny += sy; }
+    if (horiz ? ny === y0 : nx === x0) rl++;
+    else { flush(); rx = nx; ry = ny; rl = 1; }
+    x0 = nx; y0 = ny;
   }
+  flush();
 }
 /** Círculo relleno pixelado en contexto */
 function fdisc(g, cx, cy, r, col) {
@@ -916,7 +927,43 @@ function wrapText(text, maxW, font = 'main') {
  * Dibuja texto pixel. opts: color, shadow, outline, align('left'|'center'|'right'), font, scale, max (nº de caracteres visibles)
  * Retorna ancho dibujado.
  */
+/* Caché de texto estático (STYLE LOCK §15: ≤600 blits pequeños por cuadro). Una línea que se repite en cuadros
+   consecutivos se compone una vez en un lienzo (todas sus pasadas: contorno, sombra y relleno) y luego se dibuja
+   con un único blit. El texto parcial de la máquina de escribir (max < longitud) y el que cambia en cada cuadro
+   (cifras en vivo) no llegan a cachearse: hace falta verlo dos veces. LRU de FIXUI_TEXT.cap entradas. */
+const FIXUI_TEXT = { map: new Map(), seen: new Map(), cap: 700, on: true };
 function drawText(g, text, x, y, opts = {}) {
+  const fname = opts.font || 'main';
+  const font = FONTS[fname];
+  const scale = opts.scale || 1;
+  const str = String(text);
+  if (FIXUI_TEXT.on && str.length > 1 && (opts.max == null || opts.max >= str.length)) {
+    const key = fname + '|' + scale + '|' + (opts.color || '') + '|' + (opts.shadow || '') + '|' + (opts.outline || '') + '|' + str;
+    const T = FIXUI_TEXT;
+    let c = T.map.get(key);
+    if (!c && (T.seen.get(key) || 0) >= 1) {
+      // segunda vez que se ve: se compone en su lienzo
+      const tw = font.measure(str) * scale, pad = 2 * scale;
+      c = makeCanvas(Math.max(1, Math.ceil(tw) + pad * 2 + scale), font.cellH * scale + pad * 2 + scale);
+      c.tw = tw; c.pad = pad;
+      drawTextRaw(c.g, str, pad, pad + ((font.top || 0) + (font.shift || 0)) * scale, Object.assign({}, opts, { align: null, max: Infinity }));
+      T.map.set(key, c); T.seen.delete(key);
+      if (T.map.size > T.cap) { let n = T.map.size - T.cap + 64; for (const k of T.map.keys()) { T.map.delete(k); if (--n <= 0) break; } }
+    } else if (c) { T.map.delete(key); T.map.set(key, c); }
+    if (c) {
+      let cx = Math.round(x);
+      if (opts.align === 'center') cx = Math.round(x - c.tw / 2);
+      else if (opts.align === 'right') cx = Math.round(x - c.tw);
+      g.drawImage(c, cx - c.pad, Math.round(y) - ((font.top || 0) + (font.shift || 0)) * scale - c.pad);
+      return c.tw;
+    }
+    T.seen.set(key, 1);
+    if (T.seen.size > 4000) T.seen.clear();
+  }
+  return drawTextRaw(g, str, x, y, opts);
+}
+/** Dibujo directo glifo a glifo (sin caché) */
+function drawTextRaw(g, text, x, y, opts = {}) {
   const font = FONTS[opts.font || 'main'];
   const color = opts.color || '#fffaf0';
   const scale = opts.scale || 1;
@@ -1653,7 +1700,8 @@ const Game = {
     g.setTransform(1, 0, 0, 1, 0, 0);
     // escenas: se dibujan desde la más baja opaca
     let start = 0;
-    for (let i = this.scenes.length - 1; i >= 0; i--) { if (!this.scenes[i].overlay) { start = i; break; } }
+    // (una escena «overlay» que declara opaque:true cubre toda la pantalla: lo de debajo no se dibuja)
+    for (let i = this.scenes.length - 1; i >= 0; i--) { const sc = this.scenes[i]; if (!sc.overlay || sc.opaque) { start = i; break; } }
     // solo la escena superior recibe el puntero (los controles de las de abajo se dibujan inertes)
     for (let i = start; i < this.scenes.length; i++) { Gui.inputScene = i === this.scenes.length - 1; g.save(); try { this.scenes[i].render(g); } finally { g.restore(); } }
     Gui.inputScene = true;
@@ -2349,6 +2397,34 @@ const Gui = {
 };
 
 /* ---------- Gráficos científicos pixel ---------- */
+/** Tira punteada prerenderizada (1 px de grueso, un punto cada «step» px): una rejilla = un blit por línea */
+const FIXUI_dotStrips = new Map();
+function FIXUI_dots(g, x, y, len, step, col, vertical = false) {
+  len = Math.max(1, Math.round(len));
+  const k = len + '|' + step + '|' + col + '|' + (vertical ? 1 : 0);
+  let c = FIXUI_dotStrips.get(k);
+  if (!c) {
+    if (FIXUI_dotStrips.size > 160) FIXUI_dotStrips.clear();
+    c = vertical ? makeCanvas(1, len) : makeCanvas(len, 1);
+    c.g.fillStyle = col;
+    for (let i = 0; i < len; i += step) vertical ? c.g.fillRect(0, i, 1, 1) : c.g.fillRect(i, 0, 1, 1);
+    FIXUI_dotStrips.set(k, c);
+  }
+  g.drawImage(c, Math.round(x), Math.round(y));
+}
+/** Columnas de 1 px [x, yTop, yBot] → rectángulos: columnas contiguas con el mismo tramo salen juntas
+ * (una columna repetida, como la frontera entre tramos, se sigue dibujando dos veces, igual que antes) */
+function FIXUI_columns(g, cols, col) {
+  g.fillStyle = col;
+  let i = 0;
+  while (i < cols.length) {
+    const [x0, a, b] = cols[i];
+    let j = i + 1;
+    while (j < cols.length && cols[j][0] === cols[j - 1][0] + 1 && cols[j][1] === a && cols[j][2] === b) j++;
+    if (b > a) g.fillRect(Math.round(x0), Math.round(a), j - i, Math.round(b - a));
+    i = j;
+  }
+}
 const Charts = {
   /** Pozo hundido: tinta, relleno oscuro, fila superior en sombra y borde inferior/derecho iluminado */
   frame(g, x, y, w, h, bg = '#020e26') {
@@ -2375,14 +2451,15 @@ const Charts = {
     const ny = o.yTicks ?? 4;
     for (let i = 0; i <= ny; i++) {
       const v = yMin + (yMax - yMin) * i / ny, yy = Y(v);
-      for (let xx = cx; xx < cx + cw; xx += 3) fpx(g, xx, yy, '#12305a');
-      drawText(g, o.yFmt ? o.yFmt(v) : fmt(v, Math.abs(yMax - yMin) < 5 ? 1 : 0), cx - 3, yy - 2, { font: 'tiny', color: '#93a6c8', align: 'right' });
+      FIXUI_dots(g, cx, yy, cw, 3, '#12305a');
+      // la unidad del eje (yLabel) ocupa el sitio de la marca superior: no se imprimen una sobre otra
+      if (!(o.yLabel && i === ny)) drawText(g, o.yFmt ? o.yFmt(v) : fmt(v, Math.abs(yMax - yMin) < 5 ? 1 : 0), cx - 3, yy - 2, { font: 'tiny', color: '#93a6c8', align: 'right' });
     }
     const nx = o.xTicks ?? 6;
     for (let i = 0; i <= nx; i++) {
       const v = xMin + (xMax - xMin) * i / nx, xx = X(v);
-      for (let yy = cy; yy < cy + chh; yy += 3) fpx(g, xx, yy, '#0e2850');
-      drawText(g, o.xFmt ? o.xFmt(v) : fmt(v, 0), xx, cy + chh + 2, { font: 'tiny', color: '#93a6c8', align: 'center' });
+      FIXUI_dots(g, xx, cy, chh, 3, '#0e2850', true);
+      if (!(o.xLabel && i === nx)) drawText(g, o.xFmt ? o.xFmt(v) : fmt(v, 0), xx, cy + chh + 2, { font: 'tiny', color: '#93a6c8', align: 'center' });
     }
     // banda (incertidumbre / límite)
     if (o.bands) for (const b of o.bands) {
@@ -2391,31 +2468,34 @@ const Charts = {
       if (b.x0 != null) { const x0 = X(b.x0), x1 = X(b.x1); frect(g, x0, cy, x1 - x0 + 1, chh, b.color); }
       g.globalAlpha = 1;
       if (b.lo && b.hi) { // banda por serie
+        const cols = [];
         for (let i = 0; i < b.lo.length - 1; i++) {
           const xa = X(i), xb = X(i + 1);
           for (let xx = xa; xx <= xb; xx++) {
             const t = (xx - xa) / Math.max(1, xb - xa);
             const lo = lerp(b.lo[i], b.lo[i + 1], t), hi = lerp(b.hi[i], b.hi[i + 1], t);
             const ya = Y(hi), yb = Y(lo);
-            g.globalAlpha = clamp((b.level ?? 0.35) * 0.8, 0.08, 0.6); frect(g, xx, ya, 1, yb - ya + 1, b.color); g.globalAlpha = 1;
+            cols.push([xx, ya, yb + 1]);
           }
         }
+        g.globalAlpha = clamp((b.level ?? 0.35) * 0.8, 0.08, 0.6); FIXUI_columns(g, cols, b.color); g.globalAlpha = 1;
       }
     }
-    if (o.hlines) for (const hl of o.hlines) { const yy = Y(hl.v); for (let xx = cx; xx < cx + cw; xx += 2) fpx(g, xx, yy, hl.color); if (hl.label) drawText(g, hl.label, cx + cw - 2, yy - 7, { font: 'tiny', color: hl.color, align: 'right' }); }
-    if (o.vlines) for (const vl of o.vlines) { const xx = X(vl.v); for (let yy = cy; yy < cy + chh; yy += 2) fpx(g, xx, yy, vl.color); if (vl.label) drawText(g, vl.label, xx + 2, cy + 1, { font: 'tiny', color: vl.color }); }
+    if (o.hlines) for (const hl of o.hlines) { const yy = Y(hl.v); FIXUI_dots(g, cx, yy, cw, 2, hl.color); if (hl.label) drawText(g, hl.label, cx + cw - 2, yy - 7, { font: 'tiny', color: hl.color, align: 'right' }); }
+    if (o.vlines) for (const vl of o.vlines) { const xx = X(vl.v); FIXUI_dots(g, xx, cy, chh, 2, vl.color, true); if (vl.label) drawText(g, vl.label, xx + 2, cy + 1, { font: 'tiny', color: vl.color }); }
     // series
     series.forEach((s, si) => {
       const P = pts[si];
       if (s.area) {
+        const cols = [], base = Y(Math.max(yMin, 0));
         for (let i = 0; i < P.length - 1; i++) {
           const xa = X(P[i][0]), xb = X(P[i + 1][0]);
           for (let xx = xa; xx <= xb; xx++) {
             const t = (xx - xa) / Math.max(1, xb - xa);
-            const yy = Y(s.step ? P[i][1] : lerp(P[i][1], P[i + 1][1], t));
-            g.globalAlpha = clamp((s.areaLevel ?? 0.35) * 0.75, 0.08, 0.6); frect(g, xx, yy, 1, Y(Math.max(yMin, 0)) - yy, s.color); g.globalAlpha = 1;
+            cols.push([xx, Y(s.step ? P[i][1] : lerp(P[i][1], P[i + 1][1], t)), base]);
           }
         }
+        g.globalAlpha = clamp((s.areaLevel ?? 0.35) * 0.75, 0.08, 0.6); FIXUI_columns(g, cols, s.color); g.globalAlpha = 1;
       }
       for (let i = 0; i < P.length - 1; i++) {
         const xa = X(P[i][0]), ya = Y(P[i][1]), xb = X(P[i + 1][0]), yb = Y(P[i + 1][1]);
@@ -30426,6 +30506,8 @@ function simBackdrop() {
 function makeSim(def) {
   return Object.assign({
     overlay: true,
+    // el fondo de laboratorio cubre toda la pantalla: la escena de juego de debajo no se redibuja (FIXUI M1)
+    opaque: true,
     enter(p) {
       this.p = p; this.onDone = p.onDone; this.gp = p.gameplay; this.t = 0; this.phase = p.phase || def.phases[0];
       this.hints = 0; this.attempts = 0; this.safeErr = null; this.msg = null; this.result = {}; this.startT = nowMs(); this.paused = false; this.speed = 1;
@@ -30493,13 +30575,14 @@ function makeSim(def) {
       // mensaje de KIRU (u otro guía) como globo con cola hacia su busto
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
-        const bx = 6, by = H - 40;
-        UIK.frame(g, bx, by, 34, 34, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
-        const bust = UIK.bust(sp.portrait || 'kiru', 'smile');
-        // recorte 1:1 de la cara (sin reescalar el arte)
-        const cx0 = Math.round(bust.width / 2 - 13), cy0 = Math.max(0, Math.round(bust.height * 0.12));
-        g.drawImage(bust, cx0, cy0, 26, 26, bx + 4, by + 4, 26, 26);
-        UIK.speechBubble(g, bx + 34, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
+        const bx = 6, by = H - 44;
+        UIK.frame(g, bx, by, 38, 38, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+        const pid = sp.portrait || 'kiru', bust = UIK.bust(pid, 'smile');
+        // recorte 1:1 centrado en la cara (sin reescalar el arte): el visor y los ojos de KIRU, la cara de un humano
+        const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
+        const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
+        g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
+        UIK.speechBubble(g, bx + 38, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);
