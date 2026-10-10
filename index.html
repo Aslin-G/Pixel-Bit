@@ -28752,7 +28752,12 @@ const NumericScene = {
   render(g) {
     UIK.scrim(g, 0.68);
     const x = 120, w = W - 240;
-    UIK.panel(g, x, 40, w, H - 80, 'tech');
+    // el panel se ajusta al contenido (teclado y, si hay, el comentario): sin franja vacía abajo
+    const fbT = this.fb ? (this.fb.ok ? '{g}Correcto.{/} ' + this.prob.steps + ' ≈ ' + fmt(this.prob.ans, 2) + ' ' + this.prob.unit : '{o}Revisa:{/} tu valor ' + fmt(this.fb.v, 2) + ' no coincide. Pista: ' + this.prob.steps.split('=')[0] + '… revisa unidades.') : '';
+    const fbH = this.fb ? Math.min(H - 110 - 164, textHeight(fbT, w - 164) + 12) : 0;
+    const ph = Math.max(228, this.fb ? 164 + fbH : 0) - 40 + 34;
+    this.panelBottom = 40 + ph;
+    UIK.panel(g, x, 40, w, ph, 'tech');
     UIK.header(g, x, 40, w, 'CÁLCULO · ' + this.C.title, 'tech', 'chart');
     const th = drawTextBlock(g, this.prob.text, x + 12, 66, w - 24, { color: UI_INK.body });
     UIK.pill(g, x + 12, Math.max(94, 68 + th), 'DATOS SIMULADOS PARA FINES EDUCATIVOS', { rim: '#ff8a7a', fill: '#3a0c1c', color: '#ffd8d0' });
@@ -28767,7 +28772,7 @@ const NumericScene = {
       UIK.panel(g, x + 136, 164, w - 148, Math.min(H - 110 - 164, textHeight(t, w - 164) + 12), this.fb.ok ? 'green' : 'alert', null, { chamfer: 2, key: false, spark: false });
       drawTextBlock(g, t, x + 142, 170, w - 160, { color: this.fb.ok ? '#eafff6' : '#ffe8e4' });
     }
-    if (Gui.button(g, 'cls', x + w - 92, H - 66, 80, 18, this.fb && this.fb.ok ? 'Continuar' : 'Cerrar', { style: this.fb && this.fb.ok ? 'good' : 'ghost' })) this.close();
+    if (Gui.button(g, 'cls', x + w - 92, 40 + ph - 26, 80, 18, this.fb && this.fb.ok ? 'Continuar' : 'Cerrar', { style: this.fb && this.fb.ok ? 'good' : 'ghost' })) this.close();
     Gui.end();
   },
 };
@@ -28777,15 +28782,32 @@ const NumericScene = {
    ===================================================================== */
 const DebateScene = {
   overlay: true,
-  enter(p) { this.D = p.debate; this.onDone = p.onDone; this.step = 0; this.pos = -1; this.arg = -1; this.trade = -1; this.score = 0; this.t0 = nowMs(); this.order = RNG(this.D.id.length * 97).shuffle(this.D.args.map((_, i) => i)); },
+  enter(p) {
+    this.D = p.debate; this.onDone = p.onDone; this.step = 0; this.pos = -1; this.arg = -1; this.trade = -1; this.score = 0; this.t0 = nowMs(); this.order = RNG(this.D.id.length * 97).shuffle(this.D.args.map((_, i) => i));
+    // franja con el panorama del capítulo actual (o el último visitado) como contexto del debate
+    this.banner = (typeof SCACards !== 'undefined' && typeof GameplayScene !== 'undefined' && GameplayScene.backdrop) ? SCACards.captureBanner(GameplayScene) : null;
+  },
+  /** Alto del contenido del paso actual (mismas medidas que Gui.choice) */
+  measure(w) {
+    const D = this.D, chH = (l) => Math.max(15, wrapText(l, (w - 24) - 18 - 14).length * 11 + 4);
+    let h = textHeight(D.prompt, w - 24) + 6;
+    if (this.step === 0) h += 14 + D.positions.reduce((a, ps) => a + chH(ps) + 3, 0);
+    else if (this.step === 1) h += textHeight('{c}Posición:{/} ' + D.positions[this.pos] + '. {y}2. ¿Qué argumento la sostiene MEJOR con evidencia?{/}', w - 24) + 3 + this.order.reduce((a, k) => a + chH(D.args[k][0]) + 2, 0);
+    else if (this.step === 2) h += 14 + D.tradeoffs.reduce((a, t) => a + chH(t) + 3, 0) + 24;
+    else h += 70;
+    return h;
+  },
   update() { },
   render(g) {
     const D = this.D;
     UIK.scrim(g, 0.7);
     const x = 40, w = W - 80;
-    UIK.panel(g, x, 20, w, H - 40, 'tech');
-    UIK.header(g, x, 20, w, 'DEBATE ARGUMENTADO · ' + D.title, 'tech', 'scale');
-    let y = 44;
+    const bnH = this.banner ? 40 : 0;
+    const ph = clamp(24 + bnH + this.measure(w) + 34, 150, H - 20), py = Math.max(10, Math.round(H / 2 - ph / 2));
+    UIK.panel(g, x, py, w, ph, 'tech');
+    UIK.header(g, x, py, w, 'DEBATE ARGUMENTADO · ' + D.title, 'tech', 'scale');
+    if (this.banner) SCACards.drawBanner(g, this.banner, x + 12, py + 25, w - 24, 34, Game.time);
+    let y = py + 24 + bnH;
     y += drawTextBlock(g, D.prompt, x + 12, y, w - 24, { color: '#d5dcf5' }) + 6;
     Gui.begin();
     if (this.step === 0) {
@@ -28804,7 +28826,7 @@ const DebateScene = {
       const fh = textHeight(t, w - 48) + 12;
       UIK.panel(g, x + 12, y, w - 24, fh, q === 2 && this.trade >= 0 ? 'green' : q < 0 ? 'alert' : 'sheet', null, { chamfer: 2, key: false, spark: false });
       drawTextBlock(g, t, x + 20, y + 6, w - 40, { color: UI_INK.body }); y += fh + 8;
-      if (Gui.button(g, 'ok', x + w / 2 - 60, H - 52, 120, 20, 'Continuar', { style: 'good' })) { Game.pop(); this.onDone && this.onDone(this.score >= 2); }
+      if (Gui.button(g, 'ok', x + w / 2 - 60, py + ph - 30, 120, 20, 'Continuar', { style: 'good' })) { Game.pop(); this.onDone && this.onDone(this.score >= 2); }
     }
     Gui.end();
   },
