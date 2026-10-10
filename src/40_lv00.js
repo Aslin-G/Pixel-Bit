@@ -348,185 +348,240 @@ const NexusSim = makeSim({
    NIVEL 00 — escena de juego
    ===================================================================== */
 LEVELS[0] = {
-  id: 0, title: 'El Mapa del Nexo', chapter: 'CAPÍTULO 00', biome: 'plaza', music: 'festival', width: 2500, height: 360,
+  id: 0, title: 'El Mapa del Nexo', chapter: 'CAPÍTULO 00', biome: 'plaza', music: 'festival', width: 2500, height: 420, fallY: 420,
   ambience: { wind: 0.25, birds: 0.5, sea: 0.15 },
   portraits: ['amaya', 'kiru', 'naira', 'dante', 'eliana', 'limen', 'alma', 'nimbo'],
   spawn: { x: 70, y: 288 },
   checkpoints: { blackout: { x: 1240, y: 280 } },
   ground: [[0, 288], [380, 288], [400, 284], [900, 284], [930, 280], [1720, 280], [1760, 284], [2120, 284], [2320, 276], [2500, 272]],
   terrain: [{ x0: 0, x1: 400, mat: 'stone' }, { x0: 400, x1: 1490, mat: 'plaza' }, { x0: 1490, x1: 1650, mat: 'grassland' }, { x0: 1650, x1: 2120, mat: 'plaza' }, { x0: 2120, x1: 2500, mat: 'sand' }],
+  /* Mismas plataformas (x, y, w); solo cambia su arte: cajas y tarima horneadas en 3/4, escenario y
+     rellano del núcleo dibujados como accesorios (art 'none'). */
   platforms: [
-    { x: 250, y: 270, w: 22, type: 'crate' }, { x: 272, y: 256, w: 20, type: 'crate' }, { x: 300, y: 270, w: 22, type: 'crate' },
-    { x: 640, y: 246, w: 64, type: 'wood' },
-    { x: 980, y: 262, w: 200, type: 'wood', post: 18 },
-    { x: 1880, y: 262, w: 80, type: 'metal' },
+    { x: 250, y: 270, w: 22, type: 'crate', baked: true, art: 'crate3q', h: 18 }, { x: 272, y: 256, w: 20, type: 'crate', baked: true, art: 'crate3q', h: 16 }, { x: 300, y: 270, w: 22, type: 'crate', baked: true, art: 'crate3q', h: 18 },
+    { x: 640, y: 246, w: 64, type: 'wood', baked: true, art: 'woodDeck', d: 9 },
+    { x: 980, y: 262, w: 200, type: 'wood', post: 18, baked: true, art: 'none' },
+    { x: 1880, y: 262, w: 80, type: 'metal', baked: true, art: 'none' },
   ],
   windSpin: () => (LEVELS[0]._spin ?? 1.3),
-  cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
+  /* Cámara: el mundo crece 60 px hacia abajo (muro de sillares, acequia y empedrado en 3/4) */
+  cam: { look: 50, vy: 0.6 },
+  /* ---------------- plano jugable con kit PF ---------------- */
+  pf: {
+    terrain: [
+      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
+      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false },
+      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
+      { x0: 2120, x1: 2500, surf: 'path', face: 'cliff', depth: 16 },
+    ],
+    /** Oclusores del primer plano (f 1,3): buganvillas y macetones en los bordes, guirnaldas arriba */
+    fg: [
+      { kind: 'garland', x: -30, y: -6, w: 330, h: 40, seed: 3, top: true },
+      { kind: 'clump', x: -20, w: 130, h: 90, seed: 5, spikes: 3, leaves: 12 },
+      { kind: 'bougain', x: 520, w: 120, h: 76, seed: 9 },
+      { kind: 'garland', x: 980, y: -8, w: 300, h: 44, seed: 7, top: true },
+      { kind: 'bougain', x: 1380, w: 130, h: 80, seed: 11 },
+      { kind: 'clump', x: 1980, w: 120, h: 84, seed: 13, spikes: 4, leaves: 10 },
+      { kind: 'garland', x: 2240, y: -6, w: 280, h: 40, seed: 15, top: true },
+      { kind: 'bougain', x: 2700, w: 140, h: 86, seed: 17 },
+      { kind: 'clump', x: 3080, w: 130, h: 90, seed: 19, spikes: 5, leaves: 12 },
+    ],
+    fauna: { gulls: [{ x: 500, y: 70, n: 3 }, { x: 1500, y: 60, n: 4 }, { x: 2300, y: 80, n: 3 }], drones: [{ x: 1200, y: 120, r: 30 }, { x: 1900, y: 90, r: 36 }] },
+  },
+  /** Etiquetas científicas en el mundo (WorldLabels) */
+  labels: [
+    { x: 1268, y: 150, title: 'PÉRGOLA FV', sub: (sc) => (sc.state.dark ? 0 : sc.state.active ? 210 : 140) + ' kW', kind: 'solar', ax: 1268, ay: 162 },
+    { x: 1356, y: 214, title: 'BATERÍA', sub: (sc) => fmt0((sc.state.soc ?? 0.55) * 100) + ' % (kWh)', kind: 'tech', ax: 1356, ay: 228 },
+    { x: 1437, y: 174, title: 'PRIMER AGUA', sub: 'Tanque de agua tratada', kind: 'water', ax: 1437, ay: 188 },
+    { x: 1570, y: 214, title: 'RIEGO POR GOTEO', sub: (sc) => sc.state.irrig && !sc.state.dark ? 'Activo' : 'Cerrado', kind: 'green', ax: 1570, ay: 250 },
+    { x: 1702, y: 196, title: 'ELECTROLIZADOR', sub: 'Agua + energía → H₂ + O₂', kind: 'green', ax: 1700, ay: 230 },
+    { x: 2000, y: 150, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1962, ay: 160 },
+  ],
+  /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
     const gy = (x) => world.groundAt(x);
-    // aula-laboratorio al aire libre (pabellón)
-    const ax = 10, ay = gy(10);
-    pb.rect(ax, ay - 76, 210, 6, '#20d6c7'); pb.hline(ax, ax + 209, ay - 76, '#7ff0dc'); pb.rect(ax, ay - 70, 210, 2, '#138078');
-    for (let k = 0; k < 210; k += 10) pb.set(ax + k + 5, ay - 69, '#ffe14d');
-    for (const px of [ax + 4, ax + 200]) { pb.rect(px, ay - 70, 5, 70, '#e8dcc0'); pb.rect(px + 3, ay - 70, 2, 70, '#b8ac98'); }
-    // pizarra con el nexo dibujado a tiza
-    pb.rect(ax + 26, ay - 60, 88, 40, '#1f4a3a'); pb.rect(ax + 24, ay - 62, 92, 2, '#8a5a3c'); pb.rect(ax + 24, ay - 20, 92, 2, '#8a5a3c');
-    const chalk = '#e6f4ea';
-    for (const [cx, cy] of [[40, 48], [62, 48], [84, 48], [104, 40], [104, 54], [62, 30], [84, 30]]) pb.ellipseOutline(ax + cx, ay - cy, 5, 3, chalk);
-    pb.line(ax + 45, ay - 48, ax + 57, ay - 48, '#56e5ff'); pb.line(ax + 67, ay - 48, ax + 79, ay - 48, '#56e5ff'); pb.line(ax + 89, ay - 48, ax + 99, ay - 41, '#56e5ff'); pb.line(ax + 89, ay - 48, ax + 99, ay - 53, '#56e5ff');
-    pb.line(ax + 62, ay - 33, ax + 62, ay - 45, '#ffe14d'); pb.line(ax + 84, ay - 33, ax + 84, ay - 45, '#ffe14d');
-    // mesas de trabajo, prototipos y plantas
-    for (const tx of [ax + 128, ax + 164]) { pb.rect(tx, ay - 18, 30, 3, '#b07a50'); pb.rect(tx + 2, ay - 15, 2, 15, '#6e452e'); pb.rect(tx + 26, ay - 15, 2, 15, '#6e452e'); }
-    pb.rect(ax + 132, ay - 26, 10, 8, '#345a78'); pb.rect(ax + 133, ay - 25, 8, 5, '#56e5ff'); pb.rect(ax + 146, ay - 24, 6, 6, '#c8d8e8');
-    ART.tank(pb, ax + 168, ay - 18, 8, 10, RAMP.steelW, { band: '#20d6c7' }); ART.crop(pb, ax + 186, ay - 18, 'aji', 1, 4);
-    ART.pvRow(pb, ax + 30, ay - 78, 150, 5, { tilt: 6, depth: 6 });
-    // cajas del tutorial
-    ART.crate(pb, 330, gy(330), 14, 10, '#c08a50');
-    // calle del festival: puestos
-    ART.stall(pb, 420, gy(420), 64, { c1: '#ff6b6b', goods: 'juice', seed: 3 });
-    ART.stall(pb, 720, gy(720), 70, { c1: '#20d6c7', goods: 'arepas', seed: 5 });
-    ART.stall(pb, 860, gy(860), 54, { c1: '#8d6bff', goods: 'crafts', seed: 7 });
-    // turbina decorativa de Dante (poste)
-    pb.rect(556, gy(556) - 44, 3, 44, '#e8f0f4'); pb.rect(552, gy(556) - 3, 11, 3, '#477a94');
-    // fuente de la plaza
-    ART.fountain(pb, 756, gy(780), 48);
-    // escenario del festival
-    const sx = 980;
-    pb.rect(sx, 262, 200, 4, '#8a5a3c'); pb.rect(sx, 266, 200, 14, '#6e452e'); for (let k = 0; k < 200; k += 8) pb.vline(sx + k, 266, 279, '#5a3826');
-    for (let k = 0; k < 200; k += 2) pb.set(sx + k, 266, k % 4 ? '#ffe14d' : '#ff6b6b');
-    pb.rect(sx + 4, 182, 4, 80, '#e8dcc0'); pb.rect(sx + 192, 182, 4, 80, '#e8dcc0');
-    ART.bunting(pb, sx + 6, 184, sx + 194, 184, 10, ['#20d6c7', '#ff6b6b', '#ffe14d', '#8d6bff'], 2);
-    ART.bigScreen(pb, sx + 130, 262, 60, 34);
-    drawSign(pb, sx + 60, 262 - 2, 'FESTIVAL DEL PRIMER AGUA', '#ff6b6b');
-    // instalaciones demostrativas de SYNARA
-    ART.pergolaPV(pb, 1236, gy(1236), 84, 46);
-    ART.batteryContainer(pb, 1336, gy(1336), 56, 30, { col: '#2c63c0' });
-    // tanque transparente del Primer Agua (marco; el agua es dinámica)
-    const tx = 1410, ty = gy(1410);
-    pb.rect(tx, ty - 70, 3, 70, '#cfe8ee'); pb.rect(tx + 47, ty - 70, 3, 70, '#98c6d2'); pb.rect(tx - 2, ty - 72, 54, 3, '#e8f0f4'); pb.rect(tx - 2, ty - 3, 54, 3, '#477a94');
-    for (let k = 1; k < 5; k++) pb.hline(tx + 3, tx + 46, ty - 3 - k * 13, '#4a7aa8');
-    drawSign(pb, tx + 25, ty - 72, 'PRIMER AGUA', '#1491aa');
-    // parcela demostrativa con goteo
-    const fx0 = 1500, fx1 = 1640;
-    for (let x = fx0; x < fx1; x += 4) { const y = gy(x); pb.set(x, y - 1, '#5a3a24'); pb.set(x + 1, y - 2, '#7a4e2e'); }
-    ART.dripLine(pb, fx0, fx1, gy(fx0) - 2, 10);
-    const kinds = ['maiz', 'frijol', 'ahuyama', 'maiz', 'tomate', 'aji', 'frijol', 'maiz', 'ahuyama', 'sorgo', 'aji', 'tomate', 'maiz'];
-    kinds.forEach((k, i) => ART.crop(pb, fx0 + 6 + i * 10, gy(fx0 + 6 + i * 10) - 3, k, 0.95, i * 7 + 1));
-    drawSign(pb, fx0 - 4, gy(fx0), 'PARCELA', '#4ccb70');
-    // electrolizador demostrativo y almacén de H2
-    ART.electrolyzer(pb, 1662, gy(1662), 60, 44);
-    ART.h2tank(pb, 1736, gy(1736) - 22, 46, 8);
-    drawSign(pb, 1700, gy(1700) - 50, 'H2 DEMO', '#22a2b2');
-    // tuberías del circuito demostrativo
-    ART.pipe(pb, 1290, gy(1290) - 6, 1410, gy(1290) - 6, 2, 'water');
-    ART.pipe(pb, 1460, gy(1460) - 6, 1500, gy(1460) - 6, 2, 'water');
-    ART.pipe(pb, 1460, gy(1460) - 50, 1690, gy(1460) - 50, 2, 'water');
-    ART.pipe(pb, 1690, gy(1690) - 50, 1690, gy(1690) - 44, 2, 'water');
-    ART.cable(pb, 1320, gy(1320) - 46, 1364, gy(1364) - 30, 4, '#c8861a');
-    ART.cable(pb, 1392, gy(1392) - 26, 1668, gy(1668) - 66, 12, '#c8861a');
-    // válvula maestra y núcleo SYNARA
-    ART.pipe(pb, 1782, gy(1782) - 12, 1880, gy(1782) - 12, 3, 'water');
-    ART.synaraCore(pb, 1886, gy(1886), 150, { w: 70 });
-    // salida hacia la costa
-    for (let x = 2140; x < 2500; x += 36) { const k = (x * 7) % 5; if (k < 2) ART.palm(pb, x, gy(x), 40 + k * 6, k ? 4 : -4, x); else if (k < 3) ART.agave(pb, x, gy(x), 8); else ART.shrub(pb, x, gy(x) + 1, 5, x); }
-    drawSign(pb, 2440, gy(2440), 'COSTA · TOMA', '#1491aa');
+    const segs = PFTerrain.surface(pb, world);
+    const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
+    const A = PFArch, C = PFCivic, F = PFFlora, I = PFInfra, r = RNG(1001);
+    const K = LV0_ANCH;
+    // detalle del pavimento: tapas de registro y confeti barrido
+    for (const x of [120, 470, 610, 960, 1250, 1600, 1830, 2060]) A.manhole(pb, x, gy(x) - 12);
+    for (let x = 400; x < 2100; x += 3) if (hash2(x, 7, 41) < 0.05) PFK.put(pb, x, gy(x) - 3 - Math.floor(hash2(x, 8, 41) * 16), U(['#ff6b6b', '#ffe14d', '#20d6c7', '#8d6bff', '#ffffff'][Math.floor(hash2(x, 9, 41) * 5)]));
+    /* ===== 1. AULA-LABORATORIO AL AIRE LIBRE (0–235) ===== */
+    A.planter(pb, 0, gy(0) - 14, 12, { kind: 'flowers', seed: 2 });
+    K.pav = C.pavilion(pb, 14, gy(14) - 6, 196);
+    A.bicycle(pb, 214, gy(214) - 8, { col: '#20a0c8' });
+    A.pots(pb, 196, gy(196) - 4, 2, 7);
+    /* ===== 2. CAJAS DEL TUTORIAL Y CARGA (235–400) ===== */
+    A.crate(pb, 272, 288, 20, 16, 7); // apoyo visual de la caja alta
+    A.sack(pb, 334, gy(334) - 4, { col: '#d8c08a' }); A.sack(pb, 346, gy(346) - 6, { col: '#c8b07a' }); A.sack(pb, 340, gy(340) - 12, { col: '#e0cc98' });
+    A.barrel(pb, 238, gy(238) - 6, { r: 6, h: 18 });
+    A.planter(pb, 356, gy(356) - 10, 30, { kind: 'palm', seed: 21, h: 16 });
+    /* ===== 3. CALLE DEL FESTIVAL (400–930) ===== */
+    K.lamps = [];
+    K.lamps.push(A.lamp(pb, 400, gy(400) - 8, { h: 108, arms: 2 }));
+    A.cafeTable(pb, 404, gy(404) - 10, { col: '#20d6c7', seed: 3 });
+    K.stall1 = A.stall(pb, 420, gy(420) - 8, 64, { c1: '#ff6b6b', goods: 'juice', sign: 'JUGOS', seed: 3 });
+    A.aframe(pb, 492, gy(492) - 6, 'JUGO');
+    A.balloonCart(pb, 502, gy(502) - 10);
+    K.turbine = C.miniTurbine(pb, 556, gy(556) - 6, 92);
+    A.crate(pb, 596, gy(596) - 8, 14, 10, 6); A.pots(pb, 612, gy(612) - 6, 2, 13);
+    C.bandstand(pb, 640, 246, 64, gy(640) - 2, { c1: '#20d6c7' });
+    A.lamp(pb, 712, gy(712) - 8, { h: 104, basket: true });
+    K.stall2 = A.stall(pb, 720, gy(720) - 8, 70, { c1: '#20d6c7', goods: 'arepas', sign: 'AREPAS', seed: 5 });
+    K.fountain = A.fountain(pb, 826, gy(826) - 4, 30, { seed: 3 });
+    K.stall3 = A.stall(pb, 862, gy(862) - 8, 54, { c1: '#8d6bff', goods: 'crafts', sign: 'ARTESANÍA', seed: 7 });
+    K.lamps.push(A.lamp(pb, 900, gy(900) - 8, { h: 108, arms: 2 }));
+    A.bench(pb, 922, gy(922) - 8, 34);
+    A.planter(pb, 956, gy(956) - 10, 20, { kind: 'flowers', seed: 9 });
+    /* ===== 4. ESCENARIO DEL FESTIVAL (980–1180) ===== */
+    K.stage = C.stage(pb, 980, 1180, 262, gy(1080), { screen: { x: 1096, y: 168, w: 76, h: 46 } });
+    /* ===== 5. CIRCUITO DEMOSTRATIVO SYNARA (1190–1500) ===== */
+    K.lamps.push(A.lamp(pb, 1186, gy(1186) - 8, { h: 108, arms: 2 }));
+    A.planter(pb, 1196, gy(1196) - 10, 22, { kind: 'agave', seed: 23 });
+    K.pergola = C.pergolaPV(pb, 1226, gy(1226) - 6, 84);
+    K.bess = C.bess(pb, 1322, gy(1322) - 4, 66, 40);
+    K.tank = C.glassTank(pb, 1412, gy(1412) - 2, 50, 84);
+    K.lamps.push(A.lamp(pb, 1420 + 64, gy(1484) - 8, { h: 104, arms: 1 }));
+    // tuberías del circuito: permeado → tanque, tanque → riego, tanque → electrolizador; cable de potencia
+    I.pipe(pb, [[1296, gy(1296) - 9], [1414, gy(1296) - 9]], 2, 'product', { flange: 18, supports: 30, supportTo: (x) => gy(x) - 3 });
+    I.pipe(pb, [[1462, gy(1462) - 9], [1500, gy(1462) - 9], [1500, gy(1500) - 14]], 2, 'product', { flange: 0 });
+    I.pipe(pb, [[1462, gy(1462) - 56], [1690, gy(1462) - 56], [1690, gy(1690) - 48]], 2, 'product', { flange: 22, supports: 46, supportTo: (x) => gy(x) - 4 });
+    for (let x = 1392; x <= 1668; x++) { const t = (x - 1392) / 276, yy = Math.round(lerp(gy(1392) - 26, gy(1668) - 66, t) + Math.sin(t * Math.PI) * 12); PFK.put(pb, x, yy, U('#141418')); PFK.put(pb, x, yy + 1, U('#3a3420')); if (x % 23 === 0) { PFK.put(pb, x, yy - 1, U('#ffd84a')); PFK.put(pb, x, yy + 2, U('#ffd84a')); } }
+    /* ===== 6. PARCELA DEMOSTRATIVA CON GOTEO (1490–1650) ===== */
+    K.bed = C.raisedBed(pb, 1500, 1640, gy(1500) - 4, { kinds: ['maiz', 'frijol', 'ahuyama', 'maiz', 'tomate', 'aji', 'frijol', 'maiz', 'ahuyama', 'tomate', 'aji', 'maiz', 'frijol'] });
+    F.scatter(pb, (x) => back(x) + 3, 1490, 1650, 51, { gap: 9, mix: { tuft: 4, flowers: 2, fern: 1 } });
+    PFSigns.post(pb, 1486, gy(1486) - 2, [{ text: 'PARCELA' }], 31, { font: 'tiny' });
+    /* ===== 7. HIDRÓGENO DEMOSTRATIVO Y NÚCLEO (1650–2120) ===== */
+    K.ely = C.electrolyzer(pb, 1662, gy(1662) - 4);
+    C.h2Bullet(pb, 1748, gy(1748) - 4, 48, 9);
+    I.pipe(pb, [[1800, gy(1800) - 16], [1880, gy(1800) - 16]], 3, 'product', { flange: 14, supports: 26, supportTo: (x) => gy(x) - 3 });
+    I.box3q(pb, 1835, gy(1840) - 12, 11, 9, 4, { ramp: I.STEEL });
+    K.core = C.core(pb, 1886, gy(1886), 70, 176, { landing: 262 });
+    A.planter(pb, 1972, gy(1972) - 8, 26, { kind: 'palm', seed: 41, h: 16 });
+    // puesto de cometas del Capitán Nimbo
+    K.flag = A.flagpole(pb, 2040, gy(2040) - 8, 118);
+    A.crate(pb, 2000, gy(2000) - 8, 16, 12, 6, { label: '#20d6c7' });
+    for (let k = 0; k < 3; k++) { const kx = 2002 + k * 5, ky = gy(2002) - 26 - k * 3; PFK.polyFill(pb, [[kx, ky], [kx + 4, ky + 5], [kx, ky + 12], [kx - 4, ky + 5]], U(['#ff6b6b', '#ffe14d', '#8d6bff'][k])); }
+    A.bench(pb, 2072, gy(2072) - 8, 34);
+    A.planter(pb, 2100, gy(2100) - 10, 18, { kind: 'flowers', seed: 43 });
+    /* ===== 8. SENDERO HACIA LA COSTA (2120–2500) ===== */
+    F.scatter(pb, (x) => back(x) + 2, 2120, 2500, 61, { gap: 9, mix: { tuft: 5, bush: 3, agave: 2, flowers: 2, fern: 1, lupine: 1, dry: 2 } });
+    for (const [x, h, l] of [[2150, 76, -6], [2230, 62, 5], [2330, 84, -7], [2470, 70, 6]]) F.palm(pb, x, back(x) + 2, h, l, x);
+    F.tree(pb, 2392, back(2392) + 3, 58, 63, { wide: 1.05 });
+    for (let x = 2160; x < 2500; x += 50 + r.int(0, 30)) if (typeof rockPile === 'function') rockPile(pb, x, back(x) + 5, 14 + r.int(0, 10), 6 + r.int(0, 4), x + 3);
+    F.hibiscusBush(pb, 2420, gy(2420) - 5, 20, 14, 65);
+    PFSigns.post(pb, 2432, gy(2432) - 7, [{ text: 'COSTA · TOMA' }, { text: 'PLAZA', dir: -1 }], 23, { font: 'tiny' });
   },
+  /** Primer plano a ras de suelo (delante de los pies) */
   propsFront(pb, world) {
-    for (let x = 2120; x < 2500; x += 9) if ((x * 13) % 5 < 2) ART.grass(pb, x, world.groundAt(x) + 2, 2, x, RAMP.leaf);
-    for (let x = 1500; x < 1640; x += 7) ART.grass(pb, x, world.groundAt(x) + 2, 1, x, RAMP.moss);
+    const gy = (x) => world.groundAt(x), F = PFFlora;
+    for (let x = 2126; x < 2500; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (let x = 1496; x < 1648; x += 13) F.tuft(pb, x, gy(x) + 2, 6, 6, x + 1);
+    // macetas de geranios en el bordillo (lejos del centro del camino)
+    for (const x of [6, 386, 916, 1192, 1476, 2112]) PFArch.pots(pb, x, gy(x) + 4, 1, x);
   },
   /* ---------------- dinámico ---------------- */
   // el panorama sabe si hay apagón (la torre de SYNARA pasa a baliza roja)
   skyFx(g, sc) { if (sc.backdrop) sc.backdrop.power = sc.state && sc.state.dark ? 0 : 1; },
   renderBack(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
-    // guirnaldas de luces sobre la calle (se apagan con el apagón)
-    if (!this._lights) { this._lights = []; for (const [x0, x1] of [[400, 640], [640, 900], [1180, 1420]]) { const pts = []; for (let i = 0; i <= x1 - x0; i++) { const tt = i / (x1 - x0); pts.push([x0 + i, 214 + Math.sin(tt * Math.PI) * 18]); } this._lights.push(pts); } }
+    // guirnaldas de luces sobre la calle, colgadas de las farolas (se apagan con el apagón)
+    if (!this._lights) { this._lights = []; for (const [x0, x1, ya, yb] of [[400, 640, 178, 158], [704, 900, 158, 178], [1186, 1484, 178, 182]]) { const pts = []; for (let i = 0; i <= x1 - x0; i++) { const tt = i / (x1 - x0); pts.push([x0 + i, lerp(ya, yb, tt) + Math.sin(tt * Math.PI) * 16]); } this._lights.push(pts); } }
     for (const pts of this._lights) {
       if (pts[0][0] - ox > W + 40 || pts[pts.length - 1][0] - ox < -40) continue;
-      for (let i = 0; i < pts.length; i += 2) fpx(g, pts[i][0] - ox, pts[i][1] - oy, '#5a3826');
+      g.fillStyle = '#3a2a22';
+      for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0] - ox, Math.round(pts[i][1] - oy), 1, 1);
       drawStringLights(g, pts.map(p => [p[0] - ox, p[1] - oy]), t, !S.dark);
     }
   },
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world;
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world, K = LV0_ANCH;
     const gy = (x) => w.groundAt(x) - oy;
-    // turbina decorativa de Dante
-    ART.turbine(g, 557 - ox, gy(556) - 2, 42, t * (S.dark ? 0.2 : 2.4), { col: '#ffffff', shade: '#c8d8e8', tips: true });
-    // fuente: chorros (se detienen con el apagón)
-    const fcx = 780 - ox, fcy = gy(780);
-    if (!S.dark) for (let i = 0; i < 14; i++) { const ph = (t * 1.4 + i / 14) % 1; const a = (i / 14 - 0.5) * 1.6; fpx(g, fcx + Math.sin(a) * ph * 14, fcy - 32 - Math.sin(ph * Math.PI) * 10, i % 3 ? '#a6f4ff' : '#ffffff'); }
+    // aerogenerador decorativo de Dante: rotor en tira (luces de colores en las palas)
+    if (K.turbine) { if (!this._rot) this._rot = VISTA.rotor(30); const [hx, hy] = K.turbine.hub; VISTA.drawRotor(g, this._rot, hx - ox, hy - oy, t * (S.dark ? 0.2 : 2.4)); if (!S.dark) for (let k = 0; k < 3; k++) { const a = t * 2.4 + k * TAU / 3; fpx(g, Math.round(hx - ox + Math.cos(a) * 24), Math.round(hy - oy + Math.sin(a) * 24), ['#ff6b6b', '#ffe14d', '#20d6c7'][k]); } }
+    // fuente: chorros desde las tazas (se detienen con el apagón)
+    if (K.fountain && !S.dark) for (const [jx, jy] of K.fountain.jets) for (let i = 0; i < 10; i++) { const ph = (t * 1.4 + i / 10) % 1, a = (i / 10 - 0.5) * 1.8; fpx(g, Math.round(jx - ox + Math.sin(a) * ph * 12), Math.round(jy - oy - 6 - Math.sin(ph * Math.PI) * 7), i % 3 ? '#a6f4ff' : '#ffffff'); }
     // pantalla del escenario
-    const scx = 1110 - ox, scy = 262 - 30 - 34 - oy;
-    this.drawScreen(g, S, scx + 2, scy + 2, 56, 30, t);
+    if (K.stage) { const s = K.stage.screen; this.drawScreen(g, S, s.x - ox, s.y - oy, s.w, s.h, t); }
+    // focos del escenario
+    if (K.stage && !S.dark) for (const [fx, fy, col] of K.stage.spots) { const on = Math.sin(t * 2 + fx * 0.1) > -0.4; if (on) PFK.drawGlow(g, fx - ox, fy + 2 - oy, 6, col, 0.55); }
     // pérgola FV: destellos cuando SYNARA está activo
-    if (S.active && !S.dark) for (let i = 0; i < 3; i++) { const k = (t * 0.6 + i * 0.33) % 1; fpx(g, 1240 + k * 80 - ox, gy(1236) - 49 + Math.round(k * 4), '#ffffff'); }
+    if (K.pergola && S.active && !S.dark) { const [px, py, pw, ph] = K.pergola.cells; for (let i = 0; i < 3; i++) { const k = (t * 0.5 + i * 0.33) % 1; fpx(g, Math.round(px + k * pw - ox + 6), Math.round(py + ph * (0.3 + 0.2 * i) - oy), '#ffffff'); } }
     // estado de carga de la batería
-    drawSOCStrip(g, 1344 - ox, gy(1336) - 40, 40, S.soc ?? 0.55, t, S.active && !S.dark ? 1 : 0);
-    // tanque Primer Agua: nivel, ondas y burbujas
-    const tx = 1413 - ox, tb = gy(1410) - 3, lvl = Math.round(clamp(S.tank ?? 0.12, 0, 1) * 64);
-    for (let y = 0; y < lvl; y++) { const k = y / 64; frect(g, tx, tb - y, 44, 1, k > 0.9 ? '#7ff0dc' : rampDither(['#0d3168', '#1063a6', '#1283bf', '#16a6cf', '#20d6c7'], 1 - k * 0.8 + 0.1, 0, y)); }
-    if (lvl > 1) { for (let x = 0; x < 44; x++) fpx(g, tx + x, tb - lvl + Math.round(Math.sin(x * 0.4 + t * 3)), '#c6fff2'); }
-    if (S.tankIn > 0.01 && !S.dark) for (let i = 0; i < 6; i++) { const ph = (t * 0.8 + i / 6) % 1; fpx(g, tx + 6 + i * 6, tb - ph * lvl, '#ffffff'); }
-    fdither(g, tx, tb - 64, 44, 64 - lvl, '#c6fff2', 0.08);
-    // flujos visibles del circuito demostrativo (agua por tuberías identificables)
-    if (S.active) {
-      const on = !S.dark;
-      Charts.flow(g, [[1296 - ox, gy(1290) - 6], [1410 - ox, gy(1290) - 6]], 'permeate', on && S.tankIn > 0.01 ? 1 : 0, 2);
-      Charts.flow(g, [[1460 - ox, gy(1460) - 6], [1500 - ox, gy(1460) - 6]], 'water', on && S.irrig ? 1 : 0, 2);
-      Charts.flow(g, [[1460 - ox, gy(1460) - 50], [1690 - ox, gy(1460) - 50]], 'water', on ? (S.elyRate || 0) : 0, 2);
-      Charts.flow(g, [[1392 - ox, gy(1392) - 26], [1668 - ox, gy(1668) - 66]], 'power', on ? 0.6 + (S.elyRate || 0) * 0.4 : 0, 1);
+    if (K.bess) drawSOCStrip(g, K.bess.soc[0] - ox, K.bess.soc[1] - oy, K.bess.soc[2], S.soc ?? 0.55, t, S.active && !S.dark ? 1 : 0);
+    // tanque Primer Agua: nivel en bandas, ondas y burbujas (sin tramado)
+    if (K.tank) {
+      const [ix, iy, iw, ih] = K.tank.inner, tx = ix - ox, tb = iy + ih - oy, lvl = Math.round(clamp(S.tank ?? 0.12, 0, 1) * (ih - 2));
+      const BANDS = ['#0d3168', '#10508e', '#1268a8', '#1283bf', '#169ccc', '#1ab4d4', '#20d6c7'];
+      for (let y = 0; y < lvl; y += 4) { const k = clamp(Math.round((y / ih) * 6), 0, 6); frect(g, tx, tb - y - 4, iw, Math.min(4, lvl - y), BANDS[k]); }
+      if (lvl > 1) { frect(g, tx, tb - lvl, iw, 1, '#7ff0dc'); for (let x = 0; x < iw; x += 2) fpx(g, tx + x, tb - lvl - 1 + Math.round(Math.sin(x * 0.4 + t * 3)), '#c6fff2'); }
+      if (S.tankIn > 0.01 && !S.dark) for (let i = 0; i < 6; i++) { const ph = (t * 0.8 + i / 6) % 1; fpx(g, tx + 5 + i * 7, Math.round(tb - ph * lvl), '#ffffff'); }
+      // reflejo del vidrio (dos franjas)
+      g.globalAlpha = 0.35; frect(g, tx + 4, iy - oy + 2, 2, ih - 6, '#ffffff'); frect(g, tx + 8, iy - oy + 2, 1, ih - 6, '#ffffff'); g.globalAlpha = 1;
     }
+    // flujos visibles del circuito demostrativo (permeado cian, electricidad amarilla)
+    if (S.active) PFInfra.drawFlows(g, sc, LV0_FLOWS);
     // goteo de la parcela
-    drawDrips(g, 1500 - ox, 1640 - ox, gy(1500) - 2, t, S.active && S.irrig && !S.dark, 10);
-    // electrolizador: burbujas H2/O2 y luz del rectificador
-    const ex = 1662 - ox, ey = gy(1662) - 4;
-    if (S.active && !S.dark) { drawGasBubbles(g, ex + 8, ey - 6, 22, 14, t, clamp(S.elyRate || 0, 0, 2) * 0.5); drawGasBubbles(g, ex + 39, ey - 30, 6, 16, t, clamp(S.elyRate || 0, 0, 2) * 0.6); }
-    frect(g, ex + 8, ey - 22 - 18, 3, 2, S.active && !S.dark ? ((S.elyRate || 0) > 1.4 ? ((Math.floor(t * 8) % 2) ? '#ff4e5d' : '#ffb93b') : '#86e36f') : '#3a1a20');
-    // válvula maestra
-    const vx = 1840 - ox, vy = gy(1782) - 12;
-    const ang = (S.valveClosed ? 1 : 0) * Math.PI * 0.5 + (S.valveAnim || 0) * 6;
-    fdisc(g, vx, vy - 9, 6, '#ff4e5d'); fdisc(g, vx, vy - 9, 4, '#a82c40');
-    for (let k = 0; k < 4; k++) { const a = ang + k * Math.PI / 2; fline(g, vx, vy - 9, vx + Math.cos(a) * 6, vy - 9 + Math.sin(a) * 6, '#ff9a8a'); }
-    frect(g, vx - 1, vy - 4, 3, 4, '#477a94');
-    // puerta del núcleo sellada
-    if (S.sealed) {
-      const dx = 1886 + 35 - 9 - ox, dy = gy(1886) - 40;
-      frect(g, dx, dy, 18, 22, '#2a0c18'); for (let k = 0; k < 22; k += 3) frect(g, dx, dy + k, 18, 1, (Math.floor(t * 4 + k) % 2) ? '#ff4e5d' : '#6a1414');
-      frect(g, dx + 7, dy + 8, 4, 5, '#ffe14d');
+    if (K.bed) drawDrips(g, 1500 + 5 - ox, 1640 - ox, K.bed.dripY - oy, t, S.active && S.irrig && !S.dark, 10);
+    // electrolizador: burbujas H2/O2 en las celdas y separadores, luz del rectificador
+    if (K.ely) {
+      const [cx, cy, cw, ch] = K.ely.cells;
+      if (S.active && !S.dark) { drawGasBubbles(g, cx - ox, cy + ch - oy, cw, ch, t, clamp(S.elyRate || 0, 0, 2) * 0.6); drawGasBubbles(g, K.ely.sepH2[0] - 3 - ox, K.ely.sepH2[1] + 18 - oy, 6, 16, t, clamp(S.elyRate || 0, 0, 2) * 0.6); }
+      const [lx, ly] = K.ely.led, on = S.active && !S.dark;
+      frect(g, lx - ox, ly - oy, 3, 2, on ? ((S.elyRate || 0) > 1.4 ? ((Math.floor(t * 8) % 2) ? '#ff4e5d' : '#ffb93b') : '#86e36f') : '#3a1a20');
+      if (on) PFK.drawGlow(g, lx + 1 - ox, ly + 1 - oy, 4, (S.elyRate || 0) > 1.4 ? '#ff4e5d' : '#86e36f', 0.5);
     }
-    // corona del núcleo: brillo
-    const cx = 1886 + 35 - ox, cy = gy(1886) - 150 - 4;
-    if (!S.dark) fdither(g, cx - 10, cy - 20, 20, 24, '#c4fbff', 0.18 + 0.1 * Math.sin(t * 2));
-    else if ((Math.floor(t * 3) % 4) === 0) fdither(g, cx - 10, cy - 20, 20, 24, '#ff4e5d', 0.2);
+    // válvula maestra
+    const vx = 1840 - ox, vy = gy(1840) - 22;
+    const ang = (S.valveClosed ? 1 : 0) * Math.PI * 0.5 + (S.valveAnim || 0) * 6;
+    frect(g, vx, vy - 4, 1, 4, '#4f4d51');
+    fdisc(g, vx, vy - 8, 6, '#ff4e5d'); fdisc(g, vx, vy - 8, 4, '#a82c40');
+    for (let k = 0; k < 4; k++) { const a = ang + k * Math.PI / 2; fline(g, vx, vy - 8, vx + Math.cos(a) * 6, vy - 8 + Math.sin(a) * 6, '#ff9a8a'); }
+    fpx(g, vx - 2, vy - 12, '#ffd0c8');
+    // puerta del núcleo sellada
+    if (K.core && S.sealed) {
+      const [dx0, dy0, dw, dh] = K.core.door, dx = dx0 - ox, dy = dy0 - oy;
+      frect(g, dx, dy, dw, dh, '#2a0c18'); for (let k = 0; k < dh; k += 4) frect(g, dx, dy + k, dw, 1, (Math.floor(t * 4 + k) % 2) ? '#ff4e5d' : '#6a1414');
+      frect(g, dx + dw / 2 - 2, dy + dh / 2 - 4, 5, 7, '#ffe14d');
+    }
+    // corona del núcleo: halo en anillos (sin tramado)
+    if (K.core) { const [cx, cy] = K.core.crown; if (!S.dark) PFK.drawGlow(g, cx - ox, cy - oy, 16, '#c4fbff', 0.32 + 0.12 * Math.sin(t * 2)); else if ((Math.floor(t * 3) % 4) === 0) PFK.drawGlow(g, cx - ox, cy - oy, 16, '#ff4e5d', 0.4); const [bx, by] = K.core.beacon; if (Math.floor(t * 2) % 2) { frect(g, bx - ox - 1, by - oy, 3, 2, S.dark ? '#ff4e5d' : '#3fe0a0'); PFK.drawGlow(g, bx - ox, by - oy + 1, 5, S.dark ? '#ff4e5d' : '#3fe0a0', 0.6); } }
+    // bandera y cometas de Nimbo
+    if (K.flag) { const fx = K.flag.fx - ox, fy = K.flag.fy - oy; for (let i = 0; i < 18; i++) { const wv = Math.round(Math.sin(t * 6 - i * 0.5) * (i / 18) * 2.5); frect(g, fx + i, fy + wv, 1, 11, i % 6 < 3 ? '#20d6c7' : '#ffffff'); if (i > 6 && i < 11) frect(g, fx + i, fy + 4 + wv, 1, 3, '#ffe14d'); } }
+    VISTA.drawKites(g, LV0_KITES, -ox, -oy, t);
+    PFInfra.drawLeds(g, sc, LV0_LEDS);
   },
   drawScreen(g, S, x, y, w, h, t) {
     frect(g, x, y, w, h, '#0a1030');
     if (S.dark) {
-      if (S.minimumsFlash > 0 || (Math.floor(t * 2.3) % 9) === 0) { frect(g, x, y, w, h, '#100618'); drawText(g, 'MINIMUMS', x + w / 2, y + 8, { font: 'tiny', align: 'center', color: '#f27ee6' }); drawText(g, 'SATISFIED', x + w / 2, y + 16, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
-      else for (let i = 0; i < 6; i++) frect(g, x + ((i * 17 + Math.floor(t * 40)) % w), y + ((i * 7) % h), 6, 1, '#2a1a3a');
+      if (S.minimumsFlash > 0 || (Math.floor(t * 2.3) % 9) === 0) { frect(g, x, y, w, h, '#100618'); drawText(g, 'MINIMUMS', x + w / 2, y + h / 2 - 8, { font: 'tiny', align: 'center', color: '#f27ee6' }); drawText(g, 'SATISFIED', x + w / 2, y + h / 2 + 2, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
+      else for (let i = 0; i < 8; i++) frect(g, x + ((i * 17 + Math.floor(t * 40)) % w), y + ((i * 7) % h), 6, 1, '#2a1a3a');
       return;
     }
+    // barrido de líneas de la pantalla LED
+    g.globalAlpha = 0.25; for (let yy = 1; yy < h; yy += 3) frect(g, x, y + yy, w, 1, '#1a2a5a'); g.globalAlpha = 1;
     if (!S.active) {
       const k = (Math.sin(t * 2) + 1) / 2;
-      drawText(g, 'SYNARA', x + w / 2, y + 6, { font: 'tiny', align: 'center', color: '#56e5ff' });
-      frect(g, x + 8, y + 16, Math.round((w - 16) * (0.3 + 0.7 * k)), 3, '#20d6c7');
-      drawText(g, '1ER AGUA', x + w / 2, y + 22, { font: 'tiny', align: 'center', color: '#ffe14d' });
+      drawText(g, 'SYNARA', x + w / 2, y + 9, { font: 'bold', align: 'center', color: '#56e5ff' });
+      frect(g, x + 10, y + 24, Math.round((w - 20) * (0.3 + 0.7 * k)), 3, '#20d6c7');
+      drawText(g, '1ER AGUA', x + w / 2, y + 32, { font: 'tiny', align: 'center', color: '#ffe14d' });
       return;
     }
     // mapa vivo del nexo en miniatura (flujos contradictorios durante la anomalía)
-    const nodes = [[8, 8], [24, 8], [40, 8], [48, 20], [24, 22], [8, 22]];
+    const nodes = [[10, 12], [28, 12], [46, 12], [62, 26], [38, 32], [14, 32]];
     const cols = ['#56e5ff', '#56e5ff', S.anomaly ? '#ff4e5d' : '#56e5ff', '#d8fff8', '#ffe14d', '#86e36f'];
     for (let i = 0; i < nodes.length - 1; i++) { const [ax, ay] = nodes[i], [bx, by] = nodes[i + 1]; const ph = (t * 2 + i * 0.3) % 1; fline(g, x + ax, y + ay, x + bx, y + by, '#1d346c'); fpx(g, x + lerp(ax, bx, ph), y + lerp(ay, by, ph), cols[i]); }
     for (const [nx, ny] of nodes) frect(g, x + nx - 1, y + ny - 1, 3, 3, '#fffaf0');
-    if (S.anomaly) drawText(g, 'H2 ↑  TQ =', x + 2, y + h - 7, { font: 'tiny', color: (Math.floor(t * 4) % 2) ? '#ff4e5d' : '#ffe14d' });
+    if (S.anomaly) drawText(g, 'H2 ↑  TQ =', x + 4, y + h - 8, { font: 'tiny', color: (Math.floor(t * 4) % 2) ? '#ff4e5d' : '#ffe14d' });
   },
   renderFront(g, sc, cam) {
     const S = sc.state, t = Game.time;
-    // molinos de papel en manos de los niños
-    for (const id of ['kid1', 'kid2']) { const a = sc.world.find(id); if (a && !a.hidden) drawPaperWindmill(g, Math.round(a.x - cam.x + a.facing * 7), Math.round(a.y - cam.y - 34), t * (S.dark ? 0.5 : 6), id === 'kid1' ? '#ff6b6b' : '#8d6bff'); }
+    // molinos de papel en manos de los niños (a la altura de la mano de un niño ≈ 52 px)
+    for (const id of ['kid1', 'kid2']) { const a = sc.world.find(id); if (a && !a.hidden) drawPaperWindmill(g, Math.round(a.x - cam.x + a.facing * 8), Math.round(a.y - cam.y - 38), t * (S.dark ? 0.5 : 6), id === 'kid1' ? '#ff6b6b' : '#8d6bff'); }
+    // caños del muro: gotas que bajan por el chorro y destellos en la acequia; faroles de pared
+    PFDyn.wallWater(g, sc, cam, !S.dark);
+    PFDyn.wallLamps(g, sc, cam, S.dark ? 0.9 : 0.35);
     // confeti durante la celebración
     if (S.party > 0 && Math.random() < 0.6) sc.world.ps.emit('confetti', cam.x + Math.random() * W, cam.y - 4, 0, 30, 1);
   },
@@ -554,8 +609,8 @@ LEVELS[0] = {
     lensTag(g, 1500 - ox, 250 - oy, 'Riego ' + fmt(v.irr, 1) + ' m³/h' + rec, v.irr > 0 ? '#86e36f' : '#ff9a8a', 'plant');
     lensTag(g, 1640 - ox, 206 - oy, 'H2 ' + fmt(v.h2, 1) + ' kg/h' + rec, v.h2 > 1 ? '#ff9a8a' : '#d8fff8', 'h2');
     lensTag(g, 1760 - ox, 240 - oy, 'Válvula maestra: ' + (S.valveClosed ? 'CERRADA' : 'abierta'), S.valveClosed ? '#ff4e5d' : '#c2f58e', 'warn');
-    Charts.flow(g, [[1460 - ox, gy(1460) - 50], [1690 - ox, gy(1460) - 50]], 'water', S.anomaly || S.dark ? 1.4 : 0.6, 3);
-    Charts.flow(g, [[1296 - ox, gy(1290) - 6], [1410 - ox, gy(1290) - 6]], 'permeate', 1, 3);
+    Charts.flow(g, [[1462 - ox, gy(1462) - 56], [1690 - ox, gy(1462) - 56]], 'water', S.anomaly || S.dark ? 1.4 : 0.6, 3);
+    Charts.flow(g, [[1296 - ox, gy(1296) - 9], [1414 - ox, gy(1296) - 9]], 'permeate', 1, 3);
     Charts.flow(g, [[1392 - ox, gy(1392) - 26], [1668 - ox, gy(1668) - 66]], 'power', 1, 2);
     if (S.dark && !S.lensSeen && sc.player.x > 1200 && sc.player.x < 1800) { S.lensT = (S.lensT || 0) + Game.dt; if (S.lensT > 1.6) { S.lensSeen = true; sc.run(() => lensInsight(sc)); } }
   },
@@ -671,6 +726,19 @@ LEVELS[0] = {
   ],
 };
 function w0(sc) { return sc.world; }
+/* ---------------- anclas y datos animados del plano (kit PF) ---------------- */
+const LV0_ANCH = {};
+const LV0_FLOWS = [
+  { pts: [[1296, 271], [1414, 271]], kind: 'product', rate: (sc) => sc.state.tankIn > 0.01 && !sc.state.dark ? 1 : 0 },
+  { pts: [[1462, 271], [1500, 271], [1500, 266]], kind: 'product', rate: (sc) => sc.state.irrig && !sc.state.dark ? 0.8 : 0 },
+  { pts: [[1462, 224], [1690, 224], [1690, 232]], kind: 'product', rate: (sc) => sc.state.dark ? 0 : (sc.state.elyRate || 0) },
+  { pts: [[1800, 268], [1880, 268]], kind: 'product', rate: (sc) => sc.state.valveClosed || sc.state.dark ? 0 : 0.6 },
+];
+const LV0_LEDS = [
+  { x: 1332, y: 266, col: '#3fe0a0', hz: 1.2 }, { x: 1335, y: 266, col: '#3fe0a0', hz: 1.6, ph: 0.3 }, { x: 1338, y: 266, col: '#ffd84a', hz: 0.8 },
+  { x: 1268, y: 248, col: '#56e5ff', hz: 1.4 }, { x: 1680, y: 230, col: '#3fe0a0', hz: 1.1 }, { x: 1950, y: 210, col: '#56e5ff', hz: 1.3 },
+];
+const LV0_KITES = [{ x: 2010, y: 112, col: '#ff6b6b', sp: 0.6, ph: 0, tail: 1 }, { x: 2070, y: 92, col: '#ffe14d', sp: 0.8, ph: 1.4, tail: 1 }, { x: 2120, y: 126, col: '#8d6bff', sp: 0.5, ph: 2.6, tail: 1 }];
 
 /* ---------------- piezas del guion del nivel 00 ---------------- */
 async function speechScene(sc) {
