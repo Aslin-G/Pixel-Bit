@@ -15,83 +15,208 @@ const PV_STRINGS = [
 ];
 const PV_KWP = 1000;
 
+/* ---------- anclas del plano jugable (kit PF + PFASolar) ---------- */
+const LV4_ANCH = { strings: {}, leds: [], lamps: [], screens: [] };
+
 LEVELS[4] = {
-  id: 4, title: 'Las Dunas Fotónicas', chapter: 'CAPÍTULO 04', biome: 'pvdunes', music: 'dunes', width: 2800, height: 360,
+  id: 4, title: 'Las Dunas Fotónicas', chapter: 'CAPÍTULO 04', biome: 'pvdunes', music: 'dunes', width: 2800, height: 420, fallY: 420,
   ambience: { wind: 0.45, birds: 0.15, hum: 0.2 },
   portraits: ['amaya', 'kiru', 'naira', 'dante', 'cobre', 'mirage'],
   spawn: { x: 60, y: 286 },
   checkpoints: { dispatch: { x: 2160, y: 270 } },
   ground: [[0, 286], [200, 280], [340, 288], [1160, 288], [1220, 282], [1520, 282], [1600, 266], [1760, 258], [1900, 270], [2100, 270], [2300, 262], [2560, 256], [2800, 250]],
   terrain: [{ x0: 0, x1: 340, mat: 'dune' }, { x0: 340, x1: 1160, mat: 'sand' }, { x0: 1160, x1: 1520, mat: 'stone' }, { x0: 1520, x1: 2800, mat: 'dune' }],
+  /* Mismas plataformas (x, y, w): pasarelas de mantenimiento sobre las crestas y altillo del taller (arte en props) */
   platforms: [
-    { x: 1610, y: 236, w: 84, type: 'metal' }, { x: 1720, y: 214, w: 84, type: 'metal' }, { x: 1830, y: 230, w: 84, type: 'metal' },
-    { x: 1270, y: 236, w: 60, type: 'metal' },
+    { x: 1610, y: 236, w: 84, type: 'metal', baked: true, art: 'none' }, { x: 1720, y: 214, w: 84, type: 'metal', baked: true, art: 'none' }, { x: 1830, y: 230, w: 84, type: 'metal', baked: true, art: 'none' },
+    { x: 1270, y: 236, w: 60, type: 'metal', baked: true, art: 'none' },
   ],
-  cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
-  props(pb, world) {
-    const gy = (x) => world.groundAt(x);
-    for (let x = 20; x < 320; x += 30) ART.grass(pb, x, gy(x), 3, x, RAMP.leaf);
-    drawSign(pb, 240, gy(240), 'CAMPO SOLAR 1 MWp', '#c8861a');
-    // hileras FV por string (con suciedad, costras y sombra)
-    for (const s of PV_STRINGS) {
-      const y = gy(s.x) - 6;
-      for (let k = 0; k < 2; k++) ART.pvRow(pb, s.x - 60 + k * 64, y, 58, s.x + k, { tilt: 9, depth: 12, soil: s.soil + s.crust });
-      // caja de string
-      pb.rect(s.x + 66, y - 20, 10, 14, '#e8f0f4'); pb.rect(s.x + 66, y - 20, 10, 2, '#1491aa'); pb.set(s.x + 70, y - 15, '#86e36f');
-      if (s.crust) for (let i = 0; i < 18; i++) pb.set(s.x - 50 + i * 6, y - 5 - (i % 4) * 2, '#fffaf0');
-      if (s.shade) { // lona arrastrada por el viento sobre la hilera
-        pb.poly([[s.x - 40, y - 14], [s.x + 4, y - 18], [s.x + 10, y - 2], [s.x - 30, y]], '#c8861a');
-        pb.line(s.x - 40, y - 14, s.x + 4, y - 18, '#ffe14d'); pb.set(s.x - 14, y - 10, '#8a5a1a');
-      }
-    }
-    // taller de mantenimiento con inversores
-    const tx = 1180;
-    pb.rect(tx, 200, 320, 82, '#f2e2c4'); pb.rect(tx, 200, 320, 5, '#c9622e'); pb.rect(tx + 314, 200, 6, 82, '#d8bc96');
-    ART.pvRow(pb, tx + 10, 198, 300, 8, { tilt: 5, depth: 6 });
-    for (let k = 0; k < 4; k++) { const ix = tx + 20 + k * 44; pb.rect(ix, 236, 30, 46, '#e8f0f4'); pb.rect(ix, 236, 30, 3, '#1491aa'); pb.rect(ix + 4, 244, 22, 10, '#102a43'); for (let j = 0; j < 4; j++) pb.hline(ix + 4, ix + 25, 258 + j * 4, '#a9bbd6'); }
-    pb.rect(tx + 200, 226, 50, 56, '#3a2018'); pb.rect(tx + 204, 230, 42, 52, '#5a3424');
-    drawSign(pb, tx + 160, 200, 'TALLER · INVERSORES', '#c9622e');
-    // robot de limpieza en seco
-    pb.rect(tx + 270, 268, 26, 10, '#ffe14d'); pb.rect(tx + 270, 268, 26, 2, '#fff09a'); pb.disc(tx + 274, 279, 3, '#263442'); pb.disc(tx + 292, 279, 3, '#263442'); pb.rect(tx + 266, 262, 34, 4, '#20d6c7');
-    // hileras en las crestas (pasarelas)
-    for (const [x, y] of [[1610, 236], [1720, 214], [1830, 230]]) ART.pvRow(pb, x, y - 1, 82, x, { tilt: 8, depth: 10 });
-    // contenedores de baterías y subestación
-    ART.batteryContainer(pb, 1940, gy(1940), 70, 34, { col: '#2c63c0' }); ART.batteryContainer(pb, 2016, gy(2016), 70, 34, { col: '#2c63c0' });
-    for (let k = 0; k < 3; k++) { pb.rect(2100 + k * 12, gy(2100) - 30, 4, 30, '#98c6d2'); pb.rect(2096 + k * 12, gy(2100) - 30, 12, 3, '#cfe8ee'); }
-    // quiosco de despacho
-    const kx = 2180;
-    pb.rect(kx, gy(kx) - 70, 90, 70, '#e8f0f4'); pb.rect(kx, gy(kx) - 70, 90, 4, '#8d6bff'); pb.rect(kx + 86, gy(kx) - 70, 4, 70, '#a9bbd6');
-    pb.rect(kx + 10, gy(kx) - 58, 70, 30, '#0a1030'); pb.rect(kx + 10, gy(kx) - 58, 70, 2, '#6aa0b4');
-    drawSign(pb, kx + 45, gy(kx) - 70, 'DESPACHO SOLAR', '#8d6bff');
-    for (let x = 2320; x < 2800; x += 40) { const k = (x * 3) % 5; if (k < 2) ART.cactus(pb, x, gy(x) + 1, 20 + k * 6, x); else if (k < 4) ART.agave(pb, x, gy(x), 8); }
-    drawSign(pb, 2740, gy(2740), 'TORRES DE BRISA', '#7ccaf4');
+  /* Cámara: el mundo crece 60 px hacia abajo (laderas de duna en 3/4 con la zanja de cables CC en corte) */
+  cam: { look: 50, vy: 0.6 },
+  pf: {
+    terrain: [
+      { x0: 0, x1: 340, surf: 'dune', face: 'sandcut', depth: 16, seed: 3 },
+      { x0: 340, x1: 1160, surf: 'track', face: 'sandcut', depth: 18, trench: [352, 1150], seed: 5 },
+      { x0: 1160, x1: 1520, surf: 'paving', face: 'cliff', depth: 16, seed: 7, ledges: false, ledgePlants: false },
+      { x0: 1520, x1: 2800, surf: 'dune', face: 'sandcut', depth: 16, seed: 9 },
+    ],
+    /** Primer plano oscuro del desierto: chumberas y matas secas en el borde inferior */
+    fg: [
+      { kind: 'aDesert', x: -20, w: 150, h: 84, seed: 1, side: -1 },
+      { kind: 'aDesert', x: 640, w: 130, h: 70, seed: 2, side: 1 },
+      { kind: 'aDesert', x: 1330, w: 150, h: 86, seed: 3, side: -1 },
+      { kind: 'aDesert', x: 2080, w: 140, h: 78, seed: 4, side: 1 },
+      { kind: 'aDesert', x: 2780, w: 160, h: 90, seed: 5, side: -1 },
+      { kind: 'aDesert', x: 3360, w: 150, h: 84, seed: 6, side: 1 },
+    ],
+    decorateFace(pb, world) { PFASolar.decorateDunes(pb, world, world.def.pf.terrain, 4401); },
+    fauna: { eagle: { x0: 300, x1: 2500, y: 70 }, drones: [{ x: 760, y: 150, r: 60 }, { x: 2040, y: 130, r: 40 }] },
   },
-  propsFront(pb, world) { for (let x = 0; x < 340; x += 6) if ((x * 7) % 4 === 0) ART.grass(pb, x, world.groundAt(x) + 2, 2, x, RAMP.leaf); },
-  /* ---------------- dinámico ---------------- */
-  renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world;
-    const gy = (x) => w.groundAt(x) - oy;
-    // sombras de nubes reales sobre las hileras (reducen la potencia)
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 86, y: 166, title: 'PIRANÓMETRO', sub: (sc) => 'GHI ' + fmt0(1000 * (1 - (sc.backdrop.cloudShadowAt ? sc.backdrop.cloudShadowAt(86) : 0) * 0.7)) + ' W/m²', kind: 'solar', ax: 74, ay: 206 },
+    { x: 520, y: 192, title: 'STRINGS FV', sub: 'Módulos en serie (CC)', kind: 'solar', ax: 520, ay: 222 },
+    { x: 1300, y: 150, title: 'INVERSORES', sub: 'CC → CA', kind: 'tech', ax: 1300, ay: 160 },
+    { x: 1762, y: 164, title: 'SEGUIDORES', sub: 'Giran con el sol', kind: 'solar', ax: 1762, ay: 186 },
+    { x: 1978, y: 206, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0.62) * 100) + ' % SOC', kind: 'tech', ax: 1978, ay: 222 },
+    { x: 2124, y: 178, title: 'SUBESTACIÓN', sub: 'Eleva la tensión', kind: 'tech', ax: 2122, ay: 198 },
+    { x: 2224, y: 148, title: 'DESPACHO SOLAR', sub: (sc) => fmt0(LEVELS[4].fieldPower(sc.state, sc)) + ' kW', kind: 'solar', ax: 2224, ay: 164 },
+    { x: 2580, y: 200, title: 'CERCAS DE ARENA', sub: 'Fijan las dunas', kind: 'green', ax: 2580, ay: 236 },
+    { x: 700, y: 328, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 700, ay: 334 },
+  ],
+  /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
+  props(pb, world) {
+    const t0 = nowMs();
+    const gy = (x) => world.groundAt(x);
+    const segs = PFTerrain.surface(pb, world);
+    const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
+    const S = PFASolar, P = PFAPlant, I = PFInfra, A = PFArch, C = PFCivic, F = PFFlora, K = PFK, r = RNG(4004);
+    const N = LV4_ANCH; N.strings = {}; N.leds = []; N.lamps = []; N.screens = [];
+    // tendido eléctrico del campo al fondo (rompe el cielo con verticales y catenarias)
+    S.powerLine(pb, [350, 610, 870, 1130, 1560, 1860, 2140], (x) => back(x) + 2, 112);
+    /* ===== 1. ENTRADA Y ESTACIÓN METEOROLÓGICA (0–340) ===== */
+    S.fence(pb, 0, 300, (x) => back(x) + 3);
+    F.scatter(pb, (x) => back(x) + 2, 0, 320, 401, { gap: 14, mix: { dry: 4, tuft: 1, agave: 1 }, ramp: PFFlora.DRY });
+    const met = S.meteo(pb, 76, gy(76) - 8); N.met = met;
+    S.cactus(pb, 22, gy(22) - 6, 42, 11); S.opuntia(pb, 140, gy(140) - 5, 1, 12); S.dryBush(pb, 180, gy(180) - 4, 22, 12, 13);
+    S.stones(pb, 110, gy(110) - 3, 18, 14); S.stones(pb, 262, gy(262) - 3, 14, 15);
+    PFSigns.post(pb, 226, gy(226) - 2, [{ text: 'CAMPO SOLAR 1 MWp' }, { text: 'TALLER' }], 41, { font: 'tiny' });
+    // puerta del cercado
+    for (const gx of [300, 330]) { for (let y = gy(gx) - 44; y < gy(gx) - 4; y++) { K.put(pb, gx, y, U('#d2d6dc')); K.put(pb, gx + 1, y, U('#6c7280')); } }
+    for (let x = 302; x < 330; x++) { K.put(pb, x, gy(x) - 40, U('#b2b6c0')); K.put(pb, x, gy(x) - 22, U('#8e94a2')); if ((x - 302) % 6 === 0) for (let y = gy(x) - 40; y < gy(x) - 22; y++) K.put(pb, x, y, U('#8e94a2')); }
+    /* ===== 2. CAMPO FV: 6 STRINGS DE MESAS FIJAS (340–1160) ===== */
     for (const s of PV_STRINGS) {
-      const sh = sc.backdrop.cloudShadowAt(s.x);
-      s.cloud = sh;
-      // sombra sin tramado: núcleo y bordes suaves en dos niveles de alfa (STYLE LOCK §1)
-      if (sh > 0.05) { g.globalAlpha = sh * 0.32; frect(g, s.x - 62 - ox, gy(s.x) - 20, 128, 16, '#3a2a5a'); g.globalAlpha = sh * 0.16; frect(g, s.x - 66 - ox, gy(s.x) - 21, 136, 18, '#3a2a5a'); g.globalAlpha = 1; }
-      // destellos del sol en módulos limpios
-      if (sh < 0.2 && !S.dirty?.[s.id] && ((Math.floor(t * 2) + s.x) % 7) === 0) fpx(g, s.x - 40 + ((t * 40) % 100) - ox, gy(s.x) - 15, '#ffffff');
+      const tabs = [];
+      for (let k = 0; k < 2; k++) { const tx = s.x - 64 + k * 64, yb = Math.round(Math.max(back(tx), back(tx + 60)) + 10); tabs.push(Object.assign(S.pvTable(pb, tx, yb, 60, { low: 14, ph: 40, sk: 12, seed: s.x + k }), { x: tx, yb })); }
+      N.strings[s.id] = tabs;
+      // placa del string sobre la hinca y conducto CC hasta la caja
+      const px = s.x - 60, py = tabs[0].yb - 30;
+      P.rect(pb, px, py, 11, 7, U('#f4f6f8')); P.hline(pb, px, px + 10, py, U('#c8861a')); K.text(pb, s.id.toUpperCase(), px + 2, py + 1, U('#2a1404'), { font: 'tiny' });
+      for (let x = s.x + 56; x < s.x + 70; x++) { K.put(pb, x, gy(x) - 4, U('#141418')); K.put(pb, x, gy(x) - 3, U('#3a3a44')); }
+      S.dryBush(pb, s.x + 2, gy(s.x) - 4, 14, 8, s.x);
+    }
+    for (let x = 352; x < 1150; x += 26 + r.int(0, 20)) if (hash2(x, 3, 9) < 0.5) S.stones(pb, x, back(x) + 4, 10 + r.int(0, 8), x); else F.tuft(pb, x, back(x) + 4, 8, 6, x, PFFlora.DRY);
+    /* ===== 3. TALLER DE INVERSORES EN CORTE (1160–1520) ===== */
+    const ws = S.workshop(pb, 1186, 1468, 282, { roof: 164, doorX: 1424 });
+    for (const l of ws.lamps) N.lamps.push([l[0], l[1], '#fff0c8', 11]);
+    // altillo de repuestos (plataforma 1270/236) con módulos apilados y barandilla
+    P.landing(pb, 1270, 236, 60, 278, { d: 6, railH: 24 });
+    for (let k = 0; k < 4; k++) I.box3q(pb, 1276 + k * 2, 230 - k * 4, 34, 4, 6, { ramp: ['#0c1838', '#1b3366', '#335a98', '#6e98d0', '#d2d6dc'], skew: 0.7 });
+    const invs = [S.inverter(pb, 1196, 280, { label: 'INV-1' }), S.inverter(pb, 1230, 280, { label: 'INV-2' }), S.inverter(pb, 1282, 280, { w: 20, h: 28 }), S.inverter(pb, 1306, 280, { w: 20, h: 28, hot: true }), S.inverter(pb, 1342, 280, { label: 'INV-3' }), S.inverter(pb, 1376, 280, { label: 'INV-4' })];
+    for (const v of invs) { N.screens.push([...v.screen, '#3fe0a0']); N.leds.push({ x: v.led[0], y: v.led[1], col: '#3fe0a0', hz: 1, ph: v.led[0] * 0.1 }); }
+    N.hot = invs[3].vent;
+    // banco de trabajo y herramientas, módulo de repuesto apoyado, extintor
+    I.box3q(pb, 1408, 280, 14, 30, 6, { ramp: A.WOOD }); P.toolbox(pb, 1410, 248, '#bc2430');
+    for (let k = 0; k < 2; k++) S.pvTable(pb, 1444 + k * 4, 279, 16, { low: 0, ph: 40, sk: 2, piles: 2, seed: 50 + k });
+    P.extinguisher(pb, 1458, 280);
+    // cables CC que entran por la canaleta del suelo y CA que salen hacia la subestación
+    for (let x = 1188; x < 1468; x++) { K.put(pb, x, 270, U('#2a2a30')); if (x % 9 === 0) K.put(pb, x, 269, U('#a8202a')); }
+    // patio: robot de limpieza aparcado, depósito de agua de limpieza
+    S.robot(pb, 1478, 276); S.waterTank(pb, 1486, 248);
+    K.text(pb, '150 L', 1488, 224, U('#0c2650'), { font: 'tiny' });
+    /* ===== 4. CRESTAS CON SEGUIDORES Y PASARELAS (1520–1920) ===== */
+    F.scatter(pb, (x) => back(x) + 2, 1520, 1940, 451, { gap: 16, mix: { dry: 4, agave: 1 }, ramp: PFFlora.DRY });
+    N.trackers = [];
+    for (const [x, y] of [[1610, 236], [1720, 214], [1830, 230]]) {
+      for (let k = 0; k < 2; k++) { const tx = x - 6 + k * 46, tb = Math.round(back(tx + 20) + 8); N.trackers.push(S.tracker(pb, tx, tb, 42, { ang: 0.1, h: tb - (y - 40), seed: tx })); }
+      P.landing(pb, x, y, 84, Math.round(gy(x + 42)) - 2, { d: 6, railH: 16 });
+    }
+    S.sandFence(pb, 1530, 1600, (x) => back(x) + 6, { seed: 21 });
+    /* ===== 5. BATERÍAS, SUBESTACIÓN Y DESPACHO (1920–2300) ===== */
+    N.bess = [C.bess(pb, 1940, gy(1940) - 4, 70, 34), C.bess(pb, 2016, gy(2016) - 4, 70, 34)];
+    const tr = S.transformerBig(pb, 2098, gy(2098) - 4); N.ins = tr.glows;
+    // línea aérea hacia la red
+    for (let y = 120; y < gy(2168) - 4; y++) { K.put(pb, 2168, y, U('#6c7280')); K.put(pb, 2169, y, U('#2e323c')); }
+    P.hline(pb, 2156, 2182, 128, U('#4c5260')); for (const ix of [2158, 2168, 2180]) { K.put(pb, ix, 126, U('#c8562a')); K.put(pb, ix, 125, U('#e8805a')); }
+    for (let x = 2120; x < 2168; x++) K.put(pb, x, Math.round(lerp(208, 126, (x - 2120) / 48) + Math.sin((x - 2120) / 48 * Math.PI) * 6), U('#2a2a30'));
+    const kk = S.kiosk(pb, 2180, gy(2180) - 6, 92, 96); N.kiosk = kk.screen;
+    A.bench(pb, 2276, gy(2276) - 8, 30);
+    /* ===== 6. DUNAS VIVAS HACIA LAS TORRES DE BRISA (2300–2800) ===== */
+    S.sandFence(pb, 2310, 2470, (x) => back(x) + 5, { seed: 31, bury: 0.35 });
+    S.sandFence(pb, 2520, 2700, (x) => back(x) + 4, { seed: 33, bury: 0.2 });
+    F.scatter(pb, (x) => back(x) + 2, 2300, 2800, 461, { gap: 12, mix: { dry: 4, tuft: 2, agave: 2 }, ramp: PFFlora.DRY });
+    for (const [x, h, sd] of [[2336, 46, 1], [2498, 36, 2], [2652, 52, 3], [2740, 30, 4]]) S.cactus(pb, x, back(x) + 8, h, sd);
+    for (const [x, s] of [[2390, 1], [2560, 0.8], [2706, 1.1]]) S.opuntia(pb, x, back(x) + 10, s, x);
+    for (const x of [2440, 2610]) S.dryBush(pb, x, gy(x) - 4, 24, 13, x);
+    for (const x of [2370, 2530, 2680]) S.stones(pb, x, gy(x) - 3, 16, x);
+    N.pump = S.windPump(pb, 2596, back(2596) + 4, 118);
+    // manga de viento: apunta hacia las Torres de Brisa
+    for (let y = gy(2722) - 70; y < gy(2722) - 4; y++) { K.put(pb, 2722, y, U('#d2d6dc')); K.put(pb, 2723, y, U('#6c7280')); }
+    N.sock = [2724, gy(2722) - 68];
+    PFSigns.post(pb, 2744, gy(2744) - 2, [{ text: 'TORRES DE BRISA' }], 47, { font: 'tiny' });
+    LEVELS[4]._ms = Math.round(nowMs() - t0);
+  },
+  propsFront(pb, world) {
+    const gy = (x) => world.groundAt(x), F = PFFlora;
+    for (let x = 8; x < 340; x += 19) if ((x * 7) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 6, x, PFFlora.DRY);
+    for (let x = 1530; x < 2800; x += 27) if ((x * 13) % 7 < 2) F.tuft(pb, x, gy(x) + 3, 7, 6, x, PFFlora.DRY);
+    for (const x of [360, 610, 890, 1140]) PFASolar.stones(pb, x, gy(x) + 4, 10, x);
+  },
+  /* ---------------- dinámico ---------------- */
+  /** Capas dinámicas de cada string (polvo, costras y lona) según el estado actual */
+  overlay(s, st) {
+    const key = s.id + '|' + Math.round(st.soil * 20) + '|' + (st.crust > 0 ? 1 : 0) + '|' + (st.shade > 0 ? 1 : 0);
+    this._ov = this._ov || new Map();
+    let o = this._ov.get(key); if (o) return o;
+    const tabs = LV4_ANCH.strings[s.id]; if (!tabs) return null;
+    const x0 = tabs[0].x - 2, y0 = tabs[0].quad[2][1] - 6, w = 150, h = 64, pb = new PixelBuffer(w, h);
+    for (const T of tabs) {
+      const [[ax, ay], , [cx2, cy2], [dx2]] = T.quad; const ph = ay - cy2, sk = dx2 - ax, tw = T.quad[1][0] - ax;
+      for (let yy = cy2 + 1; yy < ay - 1; yy++) { const v = (ay - yy) / ph, off = Math.round(v * sk); for (let xx = ax + off + 1; xx < ax + tw + off; xx++) {
+        const d = PFK.cl(xx, yy, 3, 41 + s.x) * (1.2 - v * 0.8);
+        if (st.soil > 0.03 && d < st.soil * 1.6) PFK.blend(pb, xx - x0, yy - y0, U('#c89a5c'), clamp(st.soil * 1.6 - d + 0.2, 0, 0.7));
+        if (st.crust > 0 && hash2(xx >> 1, yy >> 1, 71 + s.x) < st.crust * 0.12) PFK.put(pb, xx - x0, yy - y0, U('#f4f0e6'));
+      } }
+    }
+    if (st.shade > 0) { // lona ocre arrastrada por el viento sobre parte de la hilera, con pliegues y cuerda
+      const T = tabs[0], [[ax, ay], , , [dx2, dy2]] = T.quad;
+      PFK.polyFill(pb, [[ax + 18 - x0, ay - 2 - y0], [ax + 58 - x0, ay - 4 - y0], [dx2 + 52 - x0, dy2 + 6 - y0], [dx2 + 14 - x0, dy2 + 10 - y0]], (xx, yy) => U(((xx + yy * 0.5) % 9) < 2 ? '#8a5a1a' : ((xx * 3 + yy) % 11) < 3 ? '#e0a040' : '#c8861a'));
+      for (let k = 0; k < 30; k++) PFK.put(pb, ax + 18 + k - x0, Math.round(ay - 2 - y0 + Math.sin(k * 0.3)), U('#5a3a10'));
+    }
+    o = { c: pb.toCanvas(), x: x0, y: y0 };
+    if (this._ov.size > 40) this._ov.clear();
+    this._ov.set(key, o); return o;
+  },
+  renderMid(g, sc, cam) {
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world, N = LV4_ANCH;
+    const gy = (x) => w.groundAt(x) - oy;
+    for (const s of PV_STRINGS) {
+      const st = (S.strings || {})[s.id] || s, tabs = N.strings[s.id];
+      if (!tabs || s.x + 80 - ox < -20 || s.x - 80 - ox > W + 20) { s.cloud = sc.backdrop.cloudShadowAt(s.x); continue; }
+      // suciedad, costras y lona según el estado (la limpieza se ve)
+      const ov = this.overlay(s, st); if (ov) g.drawImage(ov.c, ov.x - ox, ov.y - oy);
+      // sombras de nubes reales sobre las mesas (reducen la potencia): paralelogramo sin tramado
+      const sh = sc.backdrop.cloudShadowAt(s.x); s.cloud = sh;
+      if (sh > 0.05) for (const T of tabs) { const q = T.quad; g.globalAlpha = sh * 0.42; g.fillStyle = '#1a1440'; for (let yy = q[2][1]; yy <= q[0][1]; yy += 2) { const v = (q[0][1] - yy) / (q[0][1] - q[2][1]); g.fillRect(Math.round(q[0][0] + v * (q[3][0] - q[0][0]) - ox), yy - oy, 61, 2); } g.globalAlpha = 1; }
+      // destello del sol que recorre los módulos limpios
+      if (sh < 0.2 && st.soil < 0.1) { const T = tabs[Math.floor(t * 0.5 + s.x) % 2], q = T.quad, k = (t * 0.6 + s.x * 0.01) % 1; const xx = Math.round(lerp(q[3][0], q[2][0], k) - ox), yy = q[3][1] + 6 - oy; frect(g, xx, yy, 2, 1, '#ffffff'); fpx(g, xx + 1, yy + 1, '#d6ecff'); }
       // indicador de corriente en la caja
       const I = this.stringCurrent(s, S);
       frect(g, s.x + 68 - ox, gy(s.x) - 24, 6, 2, I > 0.8 ? '#86e36f' : I > 0.55 ? '#ffe14d' : '#ff4e5d');
     }
-    // robot de limpieza en movimiento
-    if (S.robotX != null) { const rx = S.robotX - ox, ry = gy(S.robotX) - 10; frect(g, rx, ry, 20, 6, '#ffe14d'); frect(g, rx - 2, ry - 3, 24, 3, '#20d6c7'); for (let i = 0; i < 4; i++) fpx(g, rx + Math.random() * 20, ry - 4 - Math.random() * 4, '#f2c14e'); }
+    // seguidores: brillo del motor y LED
+    if (N.trackers) for (const T of N.trackers) { const [hx, hy] = T.hub; if (hx - ox > -10 && hx - ox < W + 10 && (Math.floor(t * 1.5 + hx) % 3) === 0) fpx(g, hx - ox, hy - oy, '#3fe0a0'); }
+    // inversores: pantallas, LED y aire caliente del inversor recalentado
+    PFInfra.drawLeds(g, sc, N.leds);
+    for (const [x, y, ww, hh, col] of N.screens) { const sx = x - ox; if (sx < -20 || sx > W + 20) continue; for (let i = 0; i < 2; i++) frect(g, sx, y - oy + 1 + i * 2, 2 + ((i * 5 + Math.floor(t * 2) + x) % (ww - 2)), 1, col); }
+    if (N.hot && !(GS.lp(4).side || {}).inverter) { const [vx, vy] = N.hot; PFK.drawGlow(g, vx - 8 - ox, vy + 12 - oy, 10, '#ff7a3a', 0.28 + 0.08 * Math.sin(t * 3)); for (let i = 0; i < 4; i++) { const ph = (t * 0.8 + i / 4) % 1; fpx(g, Math.round(vx - 10 + Math.sin(ph * 9 + i) * 2 - ox), Math.round(vy - ph * 18 - oy), '#ffd0a0'); } }
+    PFDyn.glows(g, cam, N.lamps, '#fff0c8', 10, 0.3);
+    // robot de limpieza en movimiento (cepillo turquesa y polvo)
+    if (S.robotX != null) { const rx = S.robotX - ox, ry = gy(S.robotX) - 12; frect(g, rx, ry, 22, 7, '#f0bc2c'); frect(g, rx, ry, 22, 1, '#fff2a8'); frect(g, rx - 2, ry - 4, 26, 3, '#1aa894'); frect(g, rx - 2, ry - 4, 26, 1, '#9cecdc'); fpx(g, rx + 4, ry + 7, '#1c1c24'); fpx(g, rx + 17, ry + 7, '#1c1c24'); for (let i = 0; i < 4; i++) fpx(g, rx + Math.random() * 22, ry - 5 - Math.random() * 5, '#f2c14e'); }
     // SOC de las baterías y estado del despacho
-    drawSOCStrip(g, 1948 - ox, gy(1940) - 42, 56, S.soc ?? 0.62, t, 1);
-    drawSOCStrip(g, 2024 - ox, gy(2016) - 42, 56, S.soc ?? 0.62, t, 1);
-    const kx = 2190 - ox, ky = gy(2180) - 56;
-    if (S.mirageScreen) { for (let i = 0; i < 6; i++) frect(g, kx + 2 + ((i * 11 + Math.floor(t * 20)) % 60), ky + 2 + i * 4, 8, 1, (i % 2) ? '#f27ee6' : '#56e5ff'); drawText(g, 'PICO ★', kx + 34, ky + 10, { font: 'tiny', align: 'center', color: '#ffe14d' }); }
-    else { drawText(g, fmt0(this.fieldPower(S, sc)) + ' kW', kx + 34, ky + 10, { font: 'tiny', align: 'center', color: '#ffe14d' }); }
+    if (N.bess) for (const B of N.bess) drawSOCStrip(g, B.soc[0] - ox, B.soc[1] - oy, B.soc[2], S.soc ?? 0.62, t, 1);
+    if (N.ins) for (const [x, y] of N.ins) if ((Math.floor(t * 2 + x) % 5) === 0) PFK.drawGlow(g, x - ox, y - oy, 4, '#a8e0ff', 0.5);
+    if (N.kiosk) {
+      const [kx0, ky0, kw, kh] = N.kiosk, kx = kx0 - ox, ky = ky0 - oy;
+      if (S.mirageScreen) { for (let i = 0; i < 8; i++) frect(g, kx + 2 + ((i * 11 + Math.floor(t * 20)) % (kw - 10)), ky + 3 + i * 4, 8, 1, (i % 2) ? '#f27ee6' : '#56e5ff'); drawText(g, 'PICO ★', kx + kw / 2, ky + 12, { font: 'tiny', align: 'center', color: '#ffe14d' }); }
+      else { drawText(g, fmt0(this.fieldPower(S, sc)) + ' kW', kx + kw / 2, ky + 6, { font: 'tiny', align: 'center', color: '#ffe14d' }); for (let i = 0; i < kw - 6; i += 2) { const v = Math.sin((i / (kw - 6)) * Math.PI); fpx(g, kx + 3 + i, Math.round(ky + kh - 4 - v * (kh - 18) * clamp(this.fieldPower(S, sc) / 820, 0, 1)), '#ffe14d'); } }
+    }
+    // estación meteorológica: cazoletas girando
+    if (N.met) { const [cx, cy] = N.met.cups, a = t * 5; for (let k = 0; k < 3; k++) { const aa = a + k * TAU / 3; fpx(g, Math.round(cx + Math.cos(aa) * 4 - ox), Math.round(cy + Math.sin(aa) * 1.5 - oy), '#f4f6f8'); } frect(g, cx - 4 - ox, cy - oy, 9, 1, '#8e94a2'); }
+    // aeromotor: rotor multipala girando con el viento
+    if (N.pump) { const [hx, hy] = N.pump.hub, sx = hx - ox; if (sx > -30 && sx < W + 30) { const a0 = t * 2.2; for (let k = 0; k < 12; k++) { const aa = a0 + k * TAU / 12; for (let q = 3; q < 14; q++) fpx(g, Math.round(sx + Math.cos(aa) * q * 0.45), Math.round(hy - oy + Math.sin(aa) * q), q > 11 ? '#c8562a' : '#d2d6dc'); } frect(g, sx - 1, hy - oy - 1, 3, 3, '#4c5260'); } }
+    // manga de viento ondeando hacia el este
+    if (N.sock) { const [sx0, sy0] = N.sock; for (let i = 0; i < 16; i++) { const wv = Math.round(Math.sin(t * 7 - i * 0.6) * (i / 16) * 2); frect(g, sx0 + i - ox, sy0 + 1 + Math.round(i * 0.25) + wv - oy, 1, 6 - Math.round(i / 5), (Math.floor(i / 4) % 2) ? '#ffffff' : '#ff6a2a'); } }
   },
   /** corriente relativa del string (0..1) por suciedad, costra, sombra y nubes */
   stringCurrent(s, S) { const st = (S.strings || {})[s.id] || s; return (1 - st.soil) * (1 - st.crust) * (1 - st.shade) * (1 - (s.cloud || 0) * 0.7); },
@@ -363,7 +488,7 @@ const Sim04 = makeSim({
     // área de energía sombreada hasta el cursor (demo)
     if (ph === 'demo' || ph === 'guided') {
       const cx = X0 + 22, cw = CW0 - 26, cy = Y0 + 4, chh = 150 - 14;
-      for (let h = 0; h < (ph === 'demo' ? Math.floor(this.cursor) : 24); h++) { const v = day.pv[h]; const hh = Math.round(v / 900 * chh); fdither(g, cx + h * cw / 24, cy + chh - hh, Math.ceil(cw / 24), hh, '#ffe14d', 0.35); }
+      for (let h = 0; h < (ph === 'demo' ? Math.floor(this.cursor) : 24); h++) { const v = day.pv[h]; const hh = Math.round(v / 900 * chh); PFDyn.veil(g, cx + h * cw / 24, cy + chh - hh, Math.ceil(cw / 24), hh, '#ffe14d', 0.35); }
       let acc = 0; for (let h = 0; h < Math.floor(ph === 'demo' ? this.cursor : 24); h++) acc += day.pv[h];
       drawText(g, 'Energía acumulada: ' + fmt0(acc) + ' kWh', X0 + 30, Y0 + 154, { color: '#ffe14d' });
     }
