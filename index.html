@@ -21702,7 +21702,14 @@ const SCATitleArt = (() => {
       dyn: (g) => {
         const t = Game.time;
         for (const [x, y, r] of FX.pglow) V.drawGlow(g, x, y, r, '#48b6ec', 0.35 + 0.2 * Math.sin(t * 2.4 + x));
-        for (const P of FX.perm) V.drawFlow(g, P, 0, 0, t, { col: '#ffffff', speed: 16, gap: 6 });
+        // tubería de permeado: núcleo cian intenso con halo de 1 px y chevrones blancos a 20 px/s (STYLE LOCK §12)
+        for (const P of FX.perm) for (let k = 0; k + 1 < P.length; k++) {
+          const [x0, y0] = P[k], [x1, y1] = P[k + 1], ax = Math.round(Math.min(x0, x1)), ay = Math.round(Math.min(y0, y1)), lw = Math.round(Math.abs(x1 - x0)) + 1, lh = Math.round(Math.abs(y1 - y0)) + 1;
+          g.globalAlpha = 0.3; g.fillStyle = '#7ff0ff'; g.fillRect(ax - 2, ay - 2, lw + 4, lh + 4);
+          g.globalAlpha = 1; g.fillStyle = '#22dbe7'; g.fillRect(ax - 1, ay - 1, lw + 2, lh + 2);
+          g.fillStyle = '#a6f4ff'; if (lw >= lh) g.fillRect(ax - 1, ay - 1, lw + 2, 1); else g.fillRect(ax - 1, ay - 1, 1, lh + 2);
+        }
+        for (const P of FX.perm) V.drawFlow(g, P, 0, 0, t, { col: '#ffffff', speed: 20, gap: 8 });
         V.drawFlow(g, FX.feed, 0, 0, t, { col: '#9cd8f8', speed: 10, gap: 5 });
         for (const [x, y, c] of FX.leds) if (Math.floor(t * 1.6 + x * 0.1) % 2) { g.fillStyle = c; g.fillRect(x, y, 1, 1); }
         SCAKit.foam(g, FX.foam, t);
@@ -21796,17 +21803,25 @@ const SCATitleArt = (() => {
   /** Tuberías sumergidas y pluma de salmuera (sobre el corte submarino) */
   function drawUnderPipes(g, A, t) {
     const bx = A.brineX, ix = A.intakeX;
-    // emisario de salmuera: baja (7 px), codo y tramo por el lecho hasta el difusor
+    // (FIXUI SU-12) emisario de salmuera: baja hasta el lecho y corre por el fondo hasta un difusor de 4 bocas
+    const RY = WY + 42; // tramo horizontal sobre el lecho
     const BR = ['#06081a', '#141a32', '#262c48', '#3a405d', '#555a78', '#7a7e9e', '#262c48'];
-    for (let q = 0; q < 7; q++) { g.fillStyle = BR[[1, 4, 5, 3, 2, 1, 0][q]]; g.fillRect(bx - 3 + q, WY - 6, 1, 24); g.fillRect(bx - 3, WY + 18 + q, 64, 1); }
-    g.fillStyle = '#555a78'; for (let k = 0; k < 4; k++) g.fillRect(bx + 12 + k * 13, WY + 15, 3, 3);
-    g.fillStyle = '#7a7e9e'; g.fillRect(bx - 4, WY + 6, 9, 2);
-    // pluma magenta controlada: partículas que suben, se curvan con la corriente y se diluyen
-    for (let i = 0; i < 28; i++) {
-      const k = i % 4, u = ((t * 0.22 + i / 28) % 1);
-      const px = bx + 13 + k * 13 + u * 24 + Math.sin(i * 1.7 + t * 1.3) * 2, py = WY + 14 - u * 13 + u * u * 18;
-      g.globalAlpha = 0.85 * (1 - u); g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2';
-      g.fillRect(Math.round(px), Math.round(py), u < 0.45 ? 2 : 1, u < 0.25 ? 2 : 1);
+    for (let q = 0; q < 7; q++) { g.fillStyle = BR[[1, 4, 5, 3, 2, 1, 0][q]]; g.fillRect(bx - 3 + q, WY - 6, 1, RY - WY + 6); g.fillRect(bx - 3, RY + q, 66, 1); }
+    g.fillStyle = '#7a7e9e'; g.fillRect(bx - 4, WY + 6, 9, 2); g.fillRect(bx - 4, RY - 10, 9, 2);
+    for (let k = 0; k < 4; k++) { const px = bx + 12 + k * 13; g.fillStyle = '#3a405d'; g.fillRect(px, RY - 4, 3, 4); g.fillStyle = '#7a7e9e'; g.fillRect(px - 1, RY - 5, 5, 1); g.fillStyle = '#e07ecf'; g.fillRect(px + 1, RY - 6, 1, 1); }
+    // capa densa: la salmuera, más pesada que el agua de mar, se extiende pegada al fondo (bandas planas)
+    g.globalAlpha = 0.22; g.fillStyle = '#c244a2'; g.fillRect(bx + 10, RY + 4, 120, 4);
+    g.globalAlpha = 0.14; g.fillRect(bx + 24, RY + 1, 116, 3); g.globalAlpha = 1;
+    // pluma magenta: cada chorro sube por su impulso, se curva con la corriente, cae y se esparce por el lecho
+    for (let i = 0; i < 36; i++) {
+      const k = i % 4, u = ((t * 0.2 + i / 36 + k * 0.07) % 1);
+      const x0 = bx + 13 + k * 13;
+      const rise = Math.sin(Math.PI * Math.min(1, u * 1.7)) * (u < 0.59 ? 11 : 0);
+      const px = x0 + u * 34 + Math.sin(i * 1.7 + t * 1.3) * 1.5;
+      const py = u < 0.59 ? RY - 6 - rise : RY - 2 + (u - 0.59) * 7 + Math.sin(i + t * 2) * 0.8;
+      const sz = u < 0.5 ? 3 : 2, a = 1 - u * 0.75;
+      g.globalAlpha = 0.5 * a; g.fillStyle = '#f7a8e0'; g.fillRect(Math.round(px) - 1, Math.round(py) - 1, sz + 2, sz + 2);
+      g.globalAlpha = a; g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2'; g.fillRect(Math.round(px), Math.round(py), sz, sz);
     }
     g.globalAlpha = 1;
     // toma: tubería azul (5 px) hasta el cabezal con rejilla sobre zapata
