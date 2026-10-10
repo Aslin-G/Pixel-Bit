@@ -148,27 +148,7 @@ LEVELS[11] = {
     // pantalla: SYNARA 2.0 (el título que no cabe) → MOSAICO proyecta al final
     const x = 722 - ox, y = 292 - 118 - oy;
     if (x < -180 || x > W + 10) return;
-    frect(g, x, y, 166, 86, '#05081d');
-    if (S.mosaicProj) {
-      const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'];
-      for (let i = 0; i < 7; i++) fdither(g, x + 2, y + 2 + i * 11, 158, 9, cols[i], 0.3);
-      ['INCERTIDUMBRE: VISIBLE', 'ALTERNATIVAS: 4', 'DECISIÓN: PENDIENTE', 'DE DELIBERACIÓN'].forEach((s2, i) => drawText(g, s2, x + 81, y + 14 + i * 14, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#05081d' }));
-    } else if (S.title2 === 2) {
-      drawText(g, 'SYNARA 2.0', x + 81, y + 14, { align: 'center', color: '#56e5ff' });
-      drawTextBlock(g, 'NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA', x + 8, y + 32, 146, { font: 'tiny', color: '#ffe14d', align: 'center', lineH: 8 });
-      for (let i = 0; i < 3; i++) frect(g, x + 20 + i * 44, y + 58, 34, 14, ['#1f854c', '#2c63c0', '#bc3e92'][i]);
-      drawText(g, 'AGUA', x + 37, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' }); drawText(g, 'ENERGÍA', x + 81, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' }); drawText(g, 'SALMUERA', x + 125, y + 62, { font: 'tiny', align: 'center', color: '#fffaf0' });
-    } else if (S.title2 === 1) {
-      // el título no cabe: desborda la pantalla
-      const msg = 'SYNARA 2.0 — NINGÚN DATO ES RUIDO HASTA ENTENDER SU HISTORIA';
-      g.save(); g.beginPath(); g.rect(x - 34, y - 6, 166 + 68, 98); g.clip();
-      drawTitleText(g, msg, x + 6 - ((t * 30) % 40), y + 30, 2, ['#fff6d8', '#ffe14d', '#ff9f43'], { shadow: '#05081d' });
-      g.restore();
-    } else {
-      for (let i = 0; i < 4; i++) frect(g, x + 10, y + 12 + i * 16, 60 + ((i * 23 + Math.floor(t * 2)) % 80), 6, ['#86e36f', '#56e5ff', '#ffe14d', '#f78acb'][i]);
-      drawText(g, 'PANEL PÚBLICO · EN VIVO', x + 81, y + 72, { font: 'tiny', align: 'center', color: '#a6f4ff' });
-    }
-    fdither(g, x, y, 166, 86, '#ffffff', 0.03);
+    SCBEpi.drawScreen(g, S, x, y, t); // 19p_scb_epi.js: panel en vivo · título que desborda · SYNARA 2.0 · MOSAICO
   },
   setup(sc) {
     const S = sc.state, E = GS.s.ending || 'pacto';
@@ -222,7 +202,7 @@ async function epilogueFinale(sc) {
   Game.transition(() => { Game.setScene(BlankScene, {}); Game.push(CreditsScene, { final: true, onDone: () => Game.setScene(PostCreditsScene, {}) }); }, '#05030f', 1.2);
 }
 
-const BlankScene = { enter() { }, update() { }, render(g) { frect(g, 0, 0, W, H, '#05030f'); } };
+const BlankScene = { enter() { }, update() { }, render(g) { SCBEpi.drawBlank(g, Game.time); } };
 
 /* ---------------------------------------------------------------------
    Poscréditos: una variable desconocida en el vivero
