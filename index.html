@@ -15279,6 +15279,1238 @@ const PFStations = (() => {
   return { draw, drawEcho, body };
 })();
 
+/* ===== 18q_pfb_core.js ===== */
+/* =====================================================================
+   18q_pfb_core.js — Kit PF «B» (niveles 6–10): núcleo compartido.
+   · PFB: rampas de materiales cercanos, sprites con contorno selectivo y
+     luz de borde, sombras de contacto y proyectadas sobre el suelo,
+     puertas/ventanas/placas a escala de personajes de ≈74 px, farolas,
+     bancos, barandillas, vallas, depósitos, luces y pantallas dinámicas.
+   · Extensiones compatibles hacia atrás (sin tocar 18a–18i ni 30/32):
+       PFInfra.PIPES += perm, well, rain, irrig, h2, o2, upw, power, cool
+       PFTerrain.render → PFGround.render si def.pf.kitB
+       PFStage.build    → oclusores frontales nuevos (pillar, cables, rail,
+                          reeds, beam, dark) además de canopy/clump
+       PFWater.*        → agua con style:'pond' (estanque somero 3/4)
+       drawLadder       → escaleras con look:'wood'|'steel' en 3/4
+   ===================================================================== */
+const PFB = (() => {
+  const K = PFK;
+  const R = {
+    SOIL: ['#1c0e07', '#2c170c', '#3f2313', '#55311a', '#6c4124', '#85532e', '#9e683a', '#b98249', '#d29e62', '#e8bd84'],
+    STONE: ['#24120b', '#3d2117', '#583222', '#74452d', '#93603b', '#b07a4c', '#c9955f', '#e0b47a', '#f2d29e', '#fde8c4'],
+    ADOBE: ['#3e1c10', '#5c2c1a', '#7c4026', '#9a5634', '#b66e42', '#cc8752', '#dea266', '#ecbe86', '#f6d8aa', '#fdeccc'],
+    STUCCO: ['#3a2a2a', '#5a4442', '#7c625c', '#9e8478', '#bea592', '#d6c0aa', '#e8d6c0', '#f4e8d6', '#fcf6ea'],
+    WOOD: ['#1a0c06', '#2e170c', '#4a2a14', '#6a4220', '#8a5a2e', '#a87440', '#c89458', '#e2b47a'],
+    WOODG: ['#141008', '#2a2214', '#443624', '#5e4c34', '#7a6648', '#968262', '#b2a07e', '#d0c09e'],
+    METAL: ['#0c0f16', '#171c26', '#252c3a', '#36404f', '#4b5668', '#646f83', '#808ca0', '#a2adbf', '#c8d1de', '#eef3fa'],
+    STEEL: PFInfra.STEEL,
+    GLASS: PFInfra.GLASS,
+    GREEN: ['#0a2a1c', '#114030', '#1a5a42', '#24785a', '#2f9670', '#4cb48a', '#7cd2a8', '#b4ecd0', '#e8fff4'],
+    ROYAL: ['#070c2a', '#0e1a4a', '#16286a', '#203a8c', '#2c50ae', '#4470c8', '#6c94dc', '#a0bcec', '#d4e2fa'],
+    GOLD: ['#3a2004', '#5e360a', '#86521a', '#ae722a', '#d29a3e', '#ecc05a', '#f8de8a', '#fff4c8'],
+    RED: ['#2a0608', '#4e0e12', '#7a1a1c', '#a82a26', '#d04434', '#ec6a4a', '#fc9a72', '#ffcaa8'],
+    CANVAS: ['#2a2018', '#4a3a2c', '#6e5a46', '#96806a', '#bca88e', '#dacab0', '#eee2cc', '#fcf6ea'],
+    DARKFG: ['#04050c', '#080c18', '#0e1626', '#162236', '#22324a', '#34465e', '#4a5e78'],
+  };
+  const LIGHT = '#fff1c8';
+  /** u32 de una rampa (cacheado) */
+  const P = (ramp) => K.P32(ramp);
+  function sprite(w, h) { return new PixelBuffer(Math.max(1, Math.ceil(w)), Math.max(1, Math.ceil(h))); }
+  /** Termina un sprite: contorno selectivo (abajo/derecha/izquierda) + luz de borde arriba-izquierda */
+  function finish(s, o = {}) {
+    if (o.rim !== false) K.rim(s, U(o.rimCol || LIGHT), o.rimK ?? 0.45, -1, -1);
+    if (o.out !== false) K.selOut(s, o.outAmt ?? -0.62, o.sides || 'lrb', o.outHue ?? null);
+    return s;
+  }
+  function stamp(pb, s, x, y, flip = false) { K.blit(pb, s, Math.round(x), Math.round(y), flip); }
+  /** Rect relleno: u32 o fn(x,y) */
+  function rect(pb, x, y, w, h, fn) {
+    x = Math.round(x); y = Math.round(y);
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const u = typeof fn === 'function' ? fn(xx, yy, (xx - x) / Math.max(1, w - 1), (yy - y) / Math.max(1, h - 1)) : fn; if (u) K.put(pb, xx, yy, u); }
+  }
+  /** Oscurece píxeles opacos en un rect (sombra pintada, sin tramado) */
+  function shade(pb, x, y, w, h, amt = -0.25, hue = 235) {
+    x = Math.round(x); y = Math.round(y);
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, amt, hue)); }
+  }
+  /** Sombra de contacto elíptica bajo un objeto (2 anillos) */
+  function contact(pb, cx, y, rx, ry = 2, amt = -0.3) {
+    for (let yy = Math.floor(y - ry); yy <= Math.ceil(y + ry); yy++) for (let xx = Math.floor(cx - rx); xx <= Math.ceil(cx + rx); xx++) {
+      const nx = (xx - cx) / rx, ny = (yy - y) / (ry + 0.01), d = nx * nx + ny * ny; if (d > 1) continue;
+      const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, d < 0.45 ? amt : amt * 0.55, 235));
+    }
+  }
+  /** Sombra proyectada hacia atrás-derecha (luz arriba-izquierda) sobre el suelo ya pintado.
+      Paralelogramo: base (x0..x1, y), se aleja len px a la derecha y sube k·len. */
+  function castR(pb, x0, x1, y, len, o = {}) {
+    const up = o.up ?? 0.42, amt = o.amt ?? -0.26, hue = o.hue ?? 235, yMin = o.yMin ?? -1e9;
+    for (let s = 0; s <= len; s++) {
+      const yy = Math.round(y - s * up); if (yy < yMin) break;
+      const a = s > len * 0.7 ? amt * 0.55 : amt;
+      for (let xx = Math.round(x0 + s); xx <= Math.round(x1 + s); xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, a, hue)); }
+    }
+  }
+  /* ---------- arquitectura a escala de personaje ---------- */
+  /** Puerta con marco, dintel, peldaño y pomo. cols = rampa de la hoja. h ≥ 84 para personajes de 74 px */
+  function door(s, x, yb, w, h, cols = R.WOOD, o = {}) {
+    const D = P(cols), F = P(o.frame || R.STONE);
+    // marco
+    rect(s, x - 3, yb - h - 4, w + 6, h + 4, (xx, yy) => F[xx < x - 1 ? 7 : xx >= x + w + 1 ? 2 : yy < yb - h - 2 ? 8 : 5]);
+    if (o.arch) for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < w; xx++) { const nx = (xx - w / 2 + 0.5) / (w / 2), ny = yy / 8; if (nx * nx + (1 - ny) * (1 - ny) > 1) K.put(s, x + xx, yb - h + yy, 0); }
+    // hoja: tablas o paneles
+    rect(s, x, yb - h, w, h, (xx, yy, u, v) => {
+      if (o.arch) { const nx = (xx - x - w / 2 + 0.5) / (w / 2), ny = (yy - (yb - h)) / 8; if (ny < 1 && nx * nx + (1 - ny) * (1 - ny) > 1) return F[1]; }
+      let k = 4 - Math.round(v * 1.2) + (u < 0.12 ? 1 : 0) - (u > 0.88 ? 1 : 0);
+      if (o.panels) { const pu = ((xx - x) % Math.ceil(w / 2)), pv = ((yy - yb + h) % Math.ceil(h / 3)); if (pu === 1 || pv === 1) k += 1; else if (pu === 0 || pv === 0) k -= 1; }
+      else if ((xx - x) % 5 === 0) k -= 1;
+      if (K.cl(xx, yy, 2, 9) < 0.15) k -= 1;
+      return D[clamp(k, 0, D.length - 1)];
+    });
+    // herrajes y pomo
+    if (!o.panels) for (const hy of [yb - h + 10, yb - 14]) for (let xx = x + 1; xx < x + w - 1; xx++) K.put(s, xx, hy, U('#2a2420'));
+    const kx = o.knobLeft ? x + 3 : x + w - 4; K.put(s, kx, yb - Math.round(h * 0.46), U('#ffe08a')); K.put(s, kx, yb - Math.round(h * 0.46) + 1, U('#7a5a10'));
+    // peldaño
+    rect(s, x - 5, yb - 3, w + 10, 3, (xx, yy) => F[yy === yb - 3 ? 8 : yy === yb - 1 ? 2 : 5]);
+    if (o.open) rect(s, x + 2, yb - h + 2, w - 4, h - 5, (xx, yy, u, v) => U(mixHex('#2a1a10', '#ffcf7a', clamp(0.75 - v * 0.6, 0, 1) * (o.warm ?? 0.7))));
+  }
+  /** Ventana con marco, alféizar y vidrio (cielo o interior cálido iluminado) */
+  function win(s, x, y, w, h, o = {}) {
+    const F = P(o.frame || R.STONE), G = P(o.lit ? ['#5a2a0a', '#8a4a10', '#c8781e', '#f0a83a', '#ffd070', '#fff0b8'] : (o.glass || R.GLASS));
+    rect(s, x - 2, y - 2, w + 4, h + 4, (xx, yy) => F[yy < y - 1 ? 7 : xx >= x + w ? 3 : 5]);
+    rect(s, x, y, w, h, (xx, yy, u, v) => {
+      let k = o.lit ? 4 - Math.round(v * 2) : 2 + Math.round((1 - v) * 1.6 + u * 0.5);
+      if (!o.lit && ((xx - x) + (yy - y)) % 9 === 3) k = 5;
+      if (o.mull !== false && ((xx - x) === Math.floor(w / 2) || (h > 10 && (yy - y) === Math.floor(h / 2)))) return F[o.lit ? 2 : 6];
+      return G[clamp(k, 0, G.length - 1)];
+    });
+    rect(s, x - 3, y + h + 1, w + 6, 2, (xx, yy) => F[yy === y + h + 1 ? 8 : 3]);
+    if (o.shutters) for (const sx of [x - 7, x + w + 3]) rect(s, sx, y - 1, 4, h + 2, (xx, yy) => P(o.shutters)[(yy - y) % 3 === 0 ? 1 : xx === sx ? 4 : 3]);
+  }
+  /** Placa pintada con texto (letra tiny o main), marco y tornillos. Devuelve el ancho */
+  function plaque(s, x, y, text, o = {}) {
+    const font = o.font || 'tiny', tw = K.measure(text, { font, bold: !!o.bold });
+    const w = tw + (o.pad ?? 8), h = o.h ?? (font === 'tiny' ? 11 : 13);
+    const bg = U(o.bg || '#123a1c'), bd = U(o.border || '#7fd060'), dk = U(o.dark || '#06140a');
+    const x0 = Math.round(o.center ? x - w / 2 : x);
+    rect(s, x0 - 1, y - 1, w + 2, h + 2, dk);
+    rect(s, x0, y, w, h, (xx, yy) => (yy === y || xx === x0 || xx === x0 + w - 1 || yy === y + h - 1) ? bd : bg);
+    K.text(s, text, x0 + Math.round((w - tw) / 2), y + Math.round((h - (font === 'tiny' ? 5 : 7)) / 2) + 1, U(o.col || '#f4fff0'), { font, bold: !!o.bold, shadow: o.shadow ? U(o.shadow) : 0 });
+    if (o.screws !== false && h > 9) for (const sx of [x0 + 2, x0 + w - 3]) K.put(s, sx, y + 2, U('#e8e0d0'));
+    return w;
+  }
+  /** Toldo a rayas en 3/4 (vuelo d hacia delante) */
+  function awning(s, x, y, w, d, cols = ['#c8384a', '#fcefe0'], o = {}) {
+    const C = cols.map(c => U(c)), sh = (c) => K.shU(c, -0.3, 15);
+    for (let r = 0; r < d; r++) for (let xx = x - Math.round(r * 0.25); xx < x + w + Math.round(r * 0.25); xx++) {
+      const st = Math.floor((xx - x + 400) / (o.stripe || 6)) % C.length;
+      const c = C[st]; K.put(s, xx, y + r, r > d - 2 ? sh(c) : r < 1 ? K.mixU(c, U('#ffffff'), 0.3) : c);
+    }
+    // faldón festoneado
+    for (let xx = x - Math.round(d * 0.25); xx < x + w + Math.round(d * 0.25); xx++) { const st = Math.floor((xx - x + 400) / (o.stripe || 6)) % C.length; const L = 2 + ((xx - x + 400) % (o.stripe || 6) < 3 ? 1 : 0); for (let k = 0; k < L; k++) K.put(s, xx, y + d + k, sh(C[st])); }
+  }
+  /** Farola alta (≈ 100 px) con brazo; devuelve la posición de la lámpara para el halo dinámico */
+  function lampPost(pb, x, y, h = 96, o = {}) {
+    const S = P(o.ramp || R.METAL);
+    for (let yy = y - h; yy < y; yy++) { K.put(pb, x, yy, S[6]); K.put(pb, x + 1, yy, S[4]); K.put(pb, x + 2, yy, S[2]); }
+    rect(pb, x - 2, y - 6, 7, 6, (xx, yy) => S[xx < x ? 7 : xx > x + 2 ? 2 : 5]);
+    for (let k = 0; k < 4; k++) rect(pb, x - 1 + (k % 2), y - h + 12 + k * 22, 5 - (k % 2) * 2, 1, S[7]);
+    const dir = o.dir ?? 1, ax = x + (dir > 0 ? 3 : -11);
+    for (let k = 0; k < 12; k++) { K.put(pb, x + 1 + dir * k, y - h + Math.round(Math.abs(k - 6) * 0.2), S[6]); K.put(pb, x + 1 + dir * k, y - h + 1 + Math.round(Math.abs(k - 6) * 0.2), S[3]); }
+    const lx = x + 1 + dir * 11;
+    rect(pb, lx - 3, y - h + 1, 7, 3, (xx, yy) => S[yy === y - h + 1 ? 7 : 3]);
+    rect(pb, lx - 2, y - h + 4, 5, 2, U(o.col || '#fff2b0'));
+    return { x: lx, y: y - h + 5, ax };
+  }
+  /** Banco en 3/4 (asiento a 19 px del suelo, para personajes de 74 px) */
+  function bench(pb, x, y, w = 40, o = {}) {
+    const Wd = P(o.ramp || R.WOOD), S = P(R.METAL);
+    const s = sprite(w + 8, 34), b = 30;
+    for (const lx of [3, w - 3]) { rect(s, lx, b - 19, 3, 19, (xx) => S[xx === lx ? 6 : 3]); rect(s, lx + 3, b - 23, 2, 22, S[2]); }
+    // asiento (cara superior 4 px + canto 2 px)
+    for (let r = 0; r < 4; r++) for (let xx = 1 + r; xx < w + 1 + r; xx++) K.put(s, xx, b - 20 - r, Wd[(r % 2 ? 5 : 6) - ((xx % 9) === 0 ? 2 : 0)]);
+    rect(s, 1, b - 20, w, 2, (xx, yy) => Wd[yy === b - 20 ? 4 : 2]);
+    // respaldo
+    for (let k = 0; k < 2; k++) rect(s, 5, b - 32 + k * 5, w, 3, (xx, yy) => Wd[yy === b - 32 + k * 5 ? 6 : 4 - ((xx % 9) === 0 ? 1 : 0)]);
+    finish(s); stamp(pb, s, x - 1, y - b);
+    contact(pb, x + w / 2, y, w / 2 + 2, 2);
+  }
+  /** Barandilla de tubo (≈30 px) con postes; cols de rampa */
+  function rail(pb, x0, x1, y, h = 30, o = {}) {
+    const C = P(o.ramp || ['#2a1e04', '#6a4a0a', '#b08018', '#e8b830', '#ffe080']);
+    for (let x = x0; x <= x1; x++) { K.put(pb, x, y - h, C[4]); K.put(pb, x, y - h + 1, C[2]); K.put(pb, x, y - Math.round(h * 0.5), C[3]); K.put(pb, x, y - Math.round(h * 0.5) + 1, C[1]); }
+    for (let x = x0; x <= x1; x += o.gap || 16) for (let yy = y - h; yy < y; yy++) { K.put(pb, x, yy, C[3]); K.put(pb, x + 1, yy, C[1]); }
+  }
+  /** Valla de madera de postes y travesaños (≈26 px) */
+  function fence(pb, x0, x1, y, o = {}) {
+    const Wd = P(o.ramp || R.WOODG), h = o.h || 26;
+    for (const fy of [y - h + 6, y - 9]) for (let x = x0; x <= x1; x++) { K.put(pb, x, fy, Wd[6]); K.put(pb, x, fy + 1, Wd[4]); K.put(pb, x, fy + 2, Wd[2]); }
+    for (let x = x0; x <= x1; x += o.gap || 22) for (let yy = y - h; yy < y + 1; yy++) { K.put(pb, x, yy, Wd[yy === y - h ? 7 : 5]); K.put(pb, x + 1, yy, Wd[4]); K.put(pb, x + 2, yy, Wd[1]); }
+  }
+  /** Depósito vertical con patas/plinto, bandas, placa con texto opcional. Devuelve {top, cx, r} */
+  function tank(pb, cx, yb, r, h, o = {}) {
+    const C = P(PFTerrain.CONC);
+    if (o.plinth !== false) PFInfra.box3q(pb, cx - r - 4, yb, 2 * r + 9, 5, 6, { ramp: PFTerrain.CONC });
+    castR(pb, cx - r, cx + r, yb - 4, Math.round(h * 0.25), { amt: -0.22, yMin: yb - 18 });
+    const res = PFInfra.cylV(pb, cx, yb - 5, r, h, { ramp: o.ramp, band: o.band, bands: o.bands || [{ y: 6, h: 3 }, { y: h - 8, h: 2 }], dome: o.dome ?? 0.4, ladder: o.ladder, stain: o.stain ?? true, ell: o.ell });
+    if (o.label) plaque(pb, cx - 1, yb - 5 - Math.round(h * 0.55), o.label, { center: true, bg: o.labelBg || '#06203a', border: o.labelBd || '#8ad8f4', col: '#f4fbff' });
+    return { top: res.top, cx, r, yb };
+  }
+  /** Montón de cantos rodados (Worley) dentro de una elipse apoyada en (x,y) */
+  function rocks(pb, x, y, w, h, seed = 1, ramp = RAMP.rockWarmR) {
+    const Pr = K.P32(ramp);
+    for (let yy = Math.round(y - h); yy <= y; yy++) for (let xx = Math.round(x - w / 2); xx <= Math.round(x + w / 2); xx++) {
+      const nx = (xx - x) / (w / 2), ny = (yy - y) / h; if (nx * nx + ny * ny > 1) continue;
+      const u = PFTerrain.boulderPix(xx, yy, seed, Math.max(6, w / 3), Math.max(5, h / 1.6), Pr);
+      if (u !== -1) K.put(pb, xx, yy, u);
+    }
+    contact(pb, x, y + 1, w / 2 + 2, 1.5);
+  }
+  /** Cactus columnar (cardón) con costillas, brazos y espinas */
+  function cactus(pb, x, y, h, seed = 1) {
+    const s = sprite(36, h + 4), C = K.P32(['#0c2016', '#163424', '#224c32', '#326642', '#468254', '#62a068', '#8cc080', '#c0e0a8']), r = RNG(seed), b = h + 2;
+    const col = (cx, y0, y1, rw) => { for (let yy = y0; yy < y1; yy++) for (let k = -rw; k <= rw; k++) { const f = (k + rw) / (2 * rw); let ki = f < 0.15 ? 3 : f < 0.4 ? 6 : f < 0.55 ? 5 : f < 0.8 ? 3 : 1; if ((k + rw) % 3 === 0) ki -= 1; if (yy === y0) ki += 1; K.put(s, cx + k, yy, C[clamp(ki, 0, 7)]); } for (let k = -rw + 1; k < rw; k++) K.put(s, cx + k, y0 - 1, C[Math.abs(k) < rw - 1 ? 7 : 5]); };
+    col(18, b - h, b, 4);
+    const arms = [[r.int(6, 10), b - Math.round(h * 0.55), b - Math.round(h * 0.85)], [r.int(26, 30), b - Math.round(h * 0.4), b - Math.round(h * 0.7)]];
+    for (const [ax, ay, at] of arms) { col(ax, at, ay + 3, 3); for (let xx = Math.min(ax, 18); xx <= Math.max(ax, 18); xx++) for (let k = 0; k < 5; k++) K.put(s, xx, ay + k - 1, C[k === 0 ? 6 : k < 3 ? 4 : 2]); }
+    for (let i = 0; i < h; i += 3) K.put(s, 18 + ((i / 3) % 2 ? 3 : -3), b - h + i, U('#f4f0d0'));
+    if (r() < 0.6) for (let k = 0; k < 3; k++) K.put(s, 16 + k * 2, b - h - 1, U(['#ff6a9a', '#ffe14d', '#ff6a9a'][k]));
+    finish(s, { rimK: 0.5 }); stamp(pb, s, x - 18, y - b);
+    contact(pb, x, y, 7, 1.5);
+  }
+  /* ---------- dinámico: halos, LED, pantallas ---------- */
+  /** list: [{x,y,r,col,a,hz,ph,mode:'steady'|'pulse'|'blink'|'flicker', on:(sc)=>bool}] en mundo */
+  function glows(g, sc, list) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time;
+    for (const L of list) {
+      const x = L.x - ox, y = L.y - oy, r = L.r || 6;
+      if (x < -r || x > W + r || y < -r || y > H + r) continue;
+      if (L.on && !L.on(sc)) continue;
+      let a = L.a ?? 0.5;
+      if (L.mode === 'pulse') a *= 0.65 + 0.35 * Math.sin(t * (L.hz || 1.5) * TAU + (L.ph || 0));
+      else if (L.mode === 'blink') { if (Math.sin(t * (L.hz || 1) * TAU + (L.ph || 0)) < 0) continue; }
+      else if (L.mode === 'flicker') a *= 0.8 + 0.2 * Math.sin(t * 23 + (L.ph || 0)) * Math.sin(t * 7.3);
+      K.drawGlow(g, x, y, r, typeof L.col === 'function' ? L.col(sc) : L.col, a, 'lighter', L.rings || 4);
+      if (L.core) { g.fillStyle = L.core; g.fillRect(Math.round(x) - (L.cs || 0), Math.round(y) - (L.cs || 0), 1 + (L.cs || 0) * 2, 1 + (L.cs || 0) * 2); }
+    }
+  }
+  /** Pantallas animadas: [{x,y,w,h,kind:'bars'|'wave'|'grid'|'text', col, col2}] (mundo) */
+  function screens(g, sc, list) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time;
+    for (const S of list) {
+      const x = Math.round(S.x - ox), y = Math.round(S.y - oy);
+      if (x > W || x + S.w < 0 || y > H || y + S.h < 0) continue;
+      if (S.on && !S.on(sc)) continue;
+      const col = typeof S.col === 'function' ? S.col(sc) : (S.col || '#56e5ff');
+      g.fillStyle = col;
+      if (S.kind === 'bars') { const n = Math.max(2, Math.floor(S.w / 3)); for (let i = 0; i < n; i++) { const hh = Math.max(1, Math.round((0.35 + 0.6 * Math.abs(Math.sin(t * 1.3 + i * 1.7 + S.x))) * (S.h - 1))); g.fillRect(x + i * 3, y + S.h - hh, 2, hh); } }
+      else if (S.kind === 'wave') { for (let i = 0; i < S.w; i++) g.fillRect(x + i, Math.round(y + S.h / 2 + Math.sin(i * 0.5 + t * 3 + S.x) * (S.h / 2 - 1)), 1, 1); if (S.col2) { g.fillStyle = S.col2; for (let i = 0; i < S.w; i += 2) g.fillRect(x + i, Math.round(y + S.h / 2 + Math.cos(i * 0.3 + t * 2) * (S.h / 3)), 1, 1); } }
+      else if (S.kind === 'grid') { for (let i = 0; i < S.w; i += 3) for (let j = 0; j < S.h; j += 3) if (Math.sin(i * 1.3 + j * 2.1 + Math.floor(t * 2)) > 0.3) g.fillRect(x + i, y + j, 2, 2); }
+      else { for (let j = 0; j < S.h; j += 2) g.fillRect(x, y + j, Math.max(1, Math.round(S.w * (0.3 + 0.7 * Math.abs(Math.sin(j * 1.7 + Math.floor(t * 1.5) + S.x))))), 1); }
+    }
+  }
+  /** Marcador de pista (estación 'clue') en 3/4: cristal facetado sobre pedestal pequeño */
+  function drawClue(g, x, y, st) {
+    const t = Game.time, b = Math.round(Math.sin(t * 3) * 1.5), col = st.glow || '#b49cff';
+    frect(g, x - 6, y - 3, 13, 3, '#2a1e44'); frect(g, x - 5, y - 4, 11, 1, '#6a5a9a');
+    K.drawGlow(g, x, y - 20 + b, 12, col, 0.45);
+    g.fillStyle = '#3f2690'; g.beginPath(); g.moveTo(x, y - 30 + b); g.lineTo(x + 5, y - 21 + b); g.lineTo(x, y - 11 + b); g.lineTo(x - 5, y - 21 + b); g.fill();
+    frect(g, x - 3, y - 25 + b, 3, 9, '#b49cff'); frect(g, x, y - 25 + b, 2, 7, '#8d6bff'); frect(g, x - 2, y - 26 + b, 1, 3, '#f4f0ff');
+    for (let k = 0; k < 6; k++) { const a = t * 2 + k * 1.047; fpx(g, x + Math.cos(a) * 11, y - 20 + b + Math.sin(a) * 4, k % 2 ? col : '#f4f0ff'); }
+    if (st.done) frect(g, x - 1, y - 33 + b, 3, 1, '#3fe0a0');
+  }
+  return { R, P, LIGHT, sprite, finish, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
+})();
+
+/* ---------- extensiones compatibles de los kits PF ---------- */
+(function () {
+  // tuberías: nuevos fluidos (código de color STYLE LOCK §12)
+  Object.assign(PFInfra.PIPES, {
+    perm: { ramp: ['#0c2e4a', '#106a8a', '#1ebde3', '#48d4f0', '#6de1f1', '#d0f4f8', '#ffffff'], ink: '#071c30', chev: '#ffffff', glow: '#48d4f0' },
+    upw: { ramp: ['#0a3a5a', '#0e7aa8', '#22c8f0', '#5ae0ff', '#a0f0ff', '#e0fcff', '#ffffff'], ink: '#06203a', chev: '#ffffff', glow: '#5ae0ff' },
+    well: { ramp: ['#2a1a08', '#5a3a12', '#8a5a1e', '#b07a2e', '#cc9a4a', '#e6c07a', '#f8e2b0'], ink: '#1a0e04', chev: '#ffe2a0', glow: null },
+    rain: { ramp: ['#0e2a1a', '#1a4a2c', '#2a6e3e', '#3e9254', '#62b46e', '#9cd896', '#d8f4cc'], ink: '#08180e', chev: '#e0ffd0', glow: null },
+    irrig: { ramp: ['#062a2a', '#0a4e4a', '#12786a', '#1ca08a', '#3cc4a6', '#8ae6cc', '#d8fff0'], ink: '#041a1a', chev: '#d8fff0', glow: '#3cc4a6' },
+    h2: { ramp: ['#062a1a', '#0e4a2e', '#167044', '#22985e', '#3cc47e', '#86e8b4', '#eafff4'], ink: '#03160c', chev: '#ffffff', glow: '#3cc47e' },
+    o2: { ramp: ['#14243a', '#2a4466', '#4a6c96', '#7096c0', '#9cbede', '#cce0f2', '#ffffff'], ink: '#0a1424', chev: '#ffffff', glow: null },
+    power: { ramp: ['#2a1e04', '#5a4208', '#8e6a10', '#c49418', '#ecc030', '#ffe070', '#fff6c0'], ink: '#140e02', chev: '#fff6a0', glow: '#ecc030' },
+    cool: { ramp: ['#0a1a3a', '#12306a', '#1c4c9a', '#2c6cc8', '#4a90e8', '#8ab8f8', '#d8e8ff'], ink: '#060e24', chev: '#e0f0ff', glow: '#4a90e8' },
+    brineB: { ramp: ['#05081a', '#0b0e20', '#12162f', '#2a2c44', '#584f56', '#9485ac', '#b8a8d0'], ink: '#030512', chev: '#e07ecf', glow: null },
+  });
+  // terreno: despacho al renderizador del kit B
+  const baseRender = PFTerrain.render;
+  PFTerrain.render = function (world) {
+    if (world.def.pf && world.def.pf.kitB && typeof PFGround !== 'undefined') return PFGround.render(world);
+    return baseRender(world);
+  };
+  // oclusores frontales nuevos
+  const baseBuild = PFStage.build;
+  PFStage.build = function (sc) {
+    const P = sc.def.pf || {}, all = P.fg || [];
+    const mine = (typeof PFBFront !== 'undefined') ? all.filter(o => PFBFront.kinds[o.kind]) : [];
+    if (!mine.length) return baseBuild(sc);
+    P.fg = all.filter(o => !mine.includes(o));
+    let st;
+    try { st = baseBuild(sc); } finally { P.fg = all; }
+    const t0 = nowMs();
+    for (const o of mine) {
+      const pb = PFBFront.kinds[o.kind](o);
+      st.fg.push({ c: pb.toCanvas(), x: o.x, y: o.y ?? 0, f: o.f || 1.3, w: pb.w, h: pb.h, top: !!o.top || o.kind === 'cables' || o.kind === 'beam', sway: o.sway ?? (o.kind === 'reeds' || o.kind === 'dark' ? 1 : 0), ph: (o.seed || 1) * 0.7 });
+    }
+    st.ms += Math.round(nowMs() - t0);
+    return st;
+  };
+  // agua somera de estanque (style:'pond')
+  if (typeof PFWater !== 'undefined') {
+    const bB = PFWater.build, bBack = PFWater.renderBack, bFront = PFWater.renderFront;
+    PFWater.build = (world, w) => (w.style === 'pond' && typeof PFBPond !== 'undefined') ? PFBPond.build(world, w) : bB(world, w);
+    PFWater.renderBack = (g, sc, Wt) => (Wt && Wt.pond) ? PFBPond.renderBack(g, sc, Wt) : bBack(g, sc, Wt);
+    PFWater.renderFront = (g, sc, Wt) => (Wt && Wt.pond) ? PFBPond.renderFront(g, sc, Wt) : bFront(g, sc, Wt);
+  }
+  // escaleras en 3/4 (look:'wood'|'steel'); el resto sigue con el dibujo base
+  if (typeof drawLadder === 'function') {
+    const baseLadder = drawLadder;
+    const cache = new Map();
+    // eslint-disable-next-line no-global-assign
+    drawLadder = function (g, l, ox, oy) {
+      if (!l.look) return baseLadder(g, l, ox, oy);
+      const key = l.look + '|' + (l.y1 - l.y0);
+      let c = cache.get(key);
+      if (!c) {
+        const h = Math.round(l.y1 - l.y0) + 4, s = PFB.sprite(18, h), Wd = PFB.P(l.look === 'steel' ? PFB.R.METAL : PFB.R.WOOD);
+        for (let y = 0; y < h; y++) { for (const [x, k] of [[1, 6], [2, 4], [3, 2], [14, 5], [15, 3], [16, 1]]) PFK.put(s, x, y, Wd[clamp(k + (l.look === 'steel' ? 2 : 0), 0, Wd.length - 1)]); }
+        for (let y = 4; y < h - 2; y += 7) { for (let x = 4; x < 14; x++) { PFK.put(s, x, y, Wd[l.look === 'steel' ? 8 : 6]); PFK.put(s, x, y + 1, Wd[l.look === 'steel' ? 4 : 3]); } PFK.put(s, 4, y + 2, Wd[1]); }
+        PFB.finish(s, { rimK: 0.3 });
+        c = s.toCanvas(); cache.set(key, c);
+      }
+      const x = Math.round(l.x - ox), y0 = Math.round(l.y0 - oy);
+      if (x < -20 || x > W + 20) return;
+      g.drawImage(c, x - 9, y0 - 2);
+    };
+  }
+})();
+
+/* ===== 18r_pfb_ground.js ===== */
+/* =====================================================================
+   18r_pfb_ground.js — Suelo del plano jugable del kit B (niveles 6–10).
+   Opt-in: def.pf = { kitB: true, terrain: [{x0,x1,surf,face,depth,...}] }
+   · PFGround.surface(pb, world) → caras superiores (detrás de la línea de
+     paso): soil, path, grass, sand, metal, grate, tile, street, deck.
+     Filas que se acortan hacia el fondo, labio iluminado, reflejos
+     (s.refl: [{x,w,col,k}]) en suelos pulidos.
+   · PFGround.render(world) → caras frontales (bajo la línea de paso):
+       terrace  — muros de piedra seca escalonados con bancales inferiores,
+                  canal de riego turquesa y corte de suelo al pie
+       soilcut  — corte de suelo con horizontes, raíces y piedras
+       sandstone— estratos de arenisca cálida con fisuras y barniz
+       metal    — canto de forjado: franja de seguridad, viga remachada,
+                  bandejas de cable y conductos bajo el suelo
+       concrete — zócalo de hormigón con encofrado, berenjenos y manchas
+       hall     — canto de mármol con moldura dorada y arcadas inferiores
+       curb     — bordillo de granito, muro de contención con imbornales
+     y las plataformas con baked:true según p.look (deck, grate, ledge,
+     none). def.pf.decorateFace(pb, world, segs) permite añadir detalle.
+   · PFBFront.kinds: oclusores frontales (pillar, cables, rail, reeds,
+     beam, dark) para PFStage.
+   · PFBPond: estanque somero en 3/4 (style:'pond').
+   ===================================================================== */
+const PFGround = (() => {
+  const K = PFK;
+  const SOILT = ['#24130a', '#36200f', '#4c2f18', '#634020', '#7b532a', '#946836', '#ad7f44', '#c69956', '#ddb46e', '#f0d090'];
+  const GRASS = ['#1e2c0a', '#2e420e', '#425c12', '#5a7618', '#76921e', '#94ac2a', '#b4c43a', '#d2d856', '#ece67a'];
+  const METALT = ['#12161e', '#1c222c', '#28303c', '#36404e', '#485364', '#5e6a7e', '#7a8698', '#9ca8b8', '#c2ccd8', '#e8eef6'];
+  const STREET = ['#2a1a14', '#3e2a22', '#56402f', '#6e5440', '#886a52', '#a28466', '#ba9e7e', '#d2b896', '#e8d2b2'];
+  const SANDT = PFTerrain.SANDF;
+  const DECKW = ['#1e1008', '#341e10', '#4e2e18', '#6a4222', '#86582e', '#a2703c', '#bc8a4e', '#d4a666', '#e8c488'];
+
+  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16 }[s.surf] || 14); }
+  function segAt(segs, x) { for (const s of segs) if (x >= s.x0 && x < s.x1) return s; return segs[segs.length - 1]; }
+  function prep(world) {
+    const P = world.def.pf || {};
+    return (P.terrain || []).map((s, i) => Object.assign({ seed: 211 + i * 41 }, s));
+  }
+  function backEdge(s, x, gy) {
+    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck'].includes(s.surf);
+    return gy - D - (flat ? 0 : Math.round((K.vn(x * 0.07, 0, s.seed) - 0.5) * 6));
+  }
+  /** Filas en perspectiva: índice de fila y posición dentro de la fila para dz (1 = frente) */
+  function rowOf(dz, D, n) {
+    // filas que se acortan hacia el fondo (progresión geométrica)
+    let acc = 0, h = Math.max(2, Math.round(D / (n * 0.7))), i = 0;
+    while (i < 40) { const hh = Math.max(1, Math.round(h * Math.pow(0.82, i))); if (dz - 1 < acc + hh) return [i, dz - 1 - acc, hh]; acc += hh; i++; }
+    return [i, 0, 1];
+  }
+  /** Reflejos verticales en suelos pulidos */
+  function reflect(s, x, y, u, t) {
+    if (!s.refl) return u;
+    for (const r of s.refl) {
+      const dx = Math.abs(x - r.x); if (dx > r.w) continue;
+      const k = (r.k ?? 0.35) * (1 - dx / r.w) * (0.5 + t * 0.5);
+      u = K.mixU(u, U(r.col), clamp(k, 0, 0.8));
+    }
+    return u;
+  }
+  function surfPix(s, x, y, gy, D, back) {
+    const dz = gy - y, t = dz / D;
+    switch (s.surf) {
+      case 'soil': case 'path': {
+        const S = K.P32(s.surf === 'soil' ? SOILT : (s.ramp || SANDT));
+        if (dz === 1) return S[S.length - 1];
+        if (dz === 2) return S[S.length - 2];
+        if (y - back < 2) return S[2];
+        let tt = 0.74 - t * 0.3 + (K.vn(x * 0.09, y * 0.3, 21) - 0.5) * 0.22 + (K.cl(x, y, 2, 22) - 0.5) * 0.12;
+        if (s.surf === 'soil') { const [ri, rp] = rowOf(dz, D, 5); if (rp === 0) tt -= 0.14; else if (rp === 1) tt += 0.06; }
+        else if (t > 0.25 && t < 0.62) tt += 0.06; // sendero gastado
+        const hh = hash2(x, y, 23);
+        if (hh < 0.03) return S[clamp(Math.round(tt * 9) + 2, 0, S.length - 1)];
+        if (hh > 0.985) return S[1];
+        return S[clamp(Math.round(tt * (S.length - 1)), 1, S.length - 1)];
+      }
+      case 'grass': {
+        const G = K.P32(GRASS);
+        if (dz === 1) return G[7];
+        let tt = 0.78 - t * 0.35 + (K.cl(x, y, 2, 61) - 0.5) * 0.36 + (K.vn(x * 0.05, y * 0.2, 62) - 0.5) * 0.2;
+        const hh = hash2(x, y, 63);
+        if (hh < 0.012) return U(['#ffe14d', '#f47a90', '#b49cff', '#fff6e0'][Math.floor(hh * 333) % 4]);
+        // sendero de tierra que serpentea por el centro
+        if (s.trail) { const c = D * 0.5 + Math.sin(x * 0.03 + s.seed) * D * 0.18; if (Math.abs(dz - c) < D * 0.2 + (K.cl(x, y, 2, 64) - 0.5) * 2) { const S = K.P32(SOILT); return S[clamp(Math.round(6 - t * 2 + (K.cl(x, y, 2, 65) - 0.5) * 2), 2, 8)]; } }
+        return G[clamp(Math.round(tt * 8), 1, 8)];
+      }
+      case 'sand': {
+        const S = K.P32(SANDT);
+        if (dz === 1) return S[9];
+        let tt = 0.9 - t * 0.22 + (K.vn(x * 0.05, y * 0.3, 31) - 0.5) * 0.16;
+        if (((y * 1.6 + Math.sin(x * 0.045 + y * 0.1) * 4) % 5) < 1) tt -= 0.1;
+        return S[clamp(Math.round(tt * 9), 3, 9)];
+      }
+      case 'metal': case 'grate': {
+        const M = K.P32(s.ramp || METALT), n = M.length;
+        if (dz === 1) return M[n - 1];
+        if (dz === 2 && s.stripe !== false) return U('#f0c040');
+        if (dz === 3 && s.stripe !== false) return U((Math.floor((x + y) / 4) % 2) ? '#f0c040' : '#1e1e26');
+        const [ri, rp, rh] = rowOf(dz - 3, D - 3, 4);
+        const pw = Math.max(10, 34 - ri * 5), jx = ((x + ri * 13) % pw + pw) % pw;
+        let k = Math.round(n * 0.5 - t * 1.8 + (hash2(Math.floor((x + ri * 13) / pw), ri, 51) - 0.5) * 1.2);
+        if (rp === 0) k = 1; else if (rp === 1) k += 1;
+        if (jx === 0) k = 1; else if (jx === 1) k += 1;
+        if (s.surf === 'grate') { if ((x % 3 === 0) || (dz % 2 === 0)) k = 1; }
+        else if (((x + dz * 2) % 4) === 0 && rp > 0) k += 1; // relieve de chapa lagrimada
+        if (y - back < 1) k = 1;
+        let u = M[clamp(k, 0, n - 1)];
+        return reflect(s, x, y, u, 1 - t);
+      }
+      case 'tile': {
+        const T = K.P32(s.ramp || STREET), n = T.length;
+        if (dz === 1) return T[n - 1];
+        if (dz === 2 && s.trim) return U(s.trim);
+        const [ri, rp] = rowOf(dz - (s.trim ? 2 : 1), D - 2, 4);
+        const pw = Math.max(12, 40 - ri * 6), jx = ((x + (ri % 2) * (pw >> 1)) % pw + pw) % pw;
+        const cell = Math.floor((x + (ri % 2) * (pw >> 1)) / pw);
+        let k = Math.round(n * 0.62 - t * 2 + ((cell + ri) % 2 && s.checker ? -1.2 : 0) + (K.vn(x * 0.07, y * 0.3, 71) - 0.5) * 0.8);
+        if (rp === 0) k -= 2; else if (jx === 0) k -= 2;
+        let u = T[clamp(k, 0, n - 1)];
+        return reflect(s, x, y, u, 1 - t);
+      }
+      case 'street': {
+        const S = K.P32(s.ramp || STREET), n = S.length;
+        if (dz === 1) return S[n - 1];
+        const [ri, rp] = rowOf(dz, D, 5);
+        const pw = Math.max(6, 16 - ri * 2), off = (ri % 2) * (pw >> 1), jx = ((x + off) % pw + pw) % pw;
+        let k = 5 - Math.round(t * 2) + Math.round((hash2(Math.floor((x + off) / pw), ri, 81) - 0.5) * 2);
+        if (rp === 0 || jx === 0) k = 2; else if (rp === 1 || jx === 1) k += 1;
+        let u = S[clamp(k, 0, n - 1)];
+        if (s.dust) { const d = K.vn(x * 0.02, y * 0.2, 82); if (d > 0.55) u = K.mixU(u, U(s.dust), clamp((d - 0.55) * 2.2, 0, 0.75)); }
+        return u;
+      }
+      case 'deck': {
+        const Dk = K.P32(s.ramp || DECKW), n = Dk.length;
+        if (dz === 1) return Dk[n - 1];
+        const [ri, rp] = rowOf(dz, D, 5);
+        const pl = 30 + (ri % 3) * 7, jx = ((x + ri * 17) % pl + pl) % pl;
+        let k = n - 3 - Math.round(t * 2) + ((K.vn(x * 0.04, ri, 91) - 0.5) * 1.6 | 0);
+        if (rp === 0) k = 1; else if (jx === 0) k = 2;
+        return Dk[clamp(k, 0, n - 1)];
+      }
+    }
+    return 0;
+  }
+  /** Caras superiores → pb (normalmente al principio de props) */
+  function surface(pb, world) {
+    const segs = prep(world), wd = world.w;
+    for (let x = 0; x < wd; x++) {
+      const s = segAt(segs, x), gy = world.ground[x], back = backEdge(s, x, gy), D = gy - back;
+      for (let y = Math.max(0, back); y < gy; y++) { const u = surfPix(s, x, y, gy, D, back); if (u) pb.data[y * pb.w + x] = u; }
+    }
+    // AO al pie de escalones
+    for (let x = 1; x < wd - 1; x++) {
+      const g0 = world.ground[x - 1], g1 = world.ground[x];
+      if (g0 < g1 - 4) for (let k = 0; k < 5; k++) for (let y = g1 - 10; y < g1; y++) { const c = K.get(pb, x + k, y); if (c >>> 24) K.put(pb, x + k, y, K.shU(c, -0.22 + k * 0.04, 235)); }
+      if (g1 < g0 - 4) for (let k = 0; k < 4; k++) for (let y = g0 - 8; y < g0; y++) { const c = K.get(pb, x - 1 - k, y); if (c >>> 24) K.put(pb, x - 1 - k, y, K.shU(c, -0.18 + k * 0.04, 235)); }
+    }
+    return segs;
+  }
+
+  /* ---------- caras frontales ---------- */
+  /** Piedra seca / sillería irregular: devuelve [idPiedra, lx, ly, w, h] o null si es junta */
+  function stoneCell(x, ly, seed, rh = 6, sw = 12) {
+    const row = Math.floor(ly / rh), py = ly - row * rh;
+    const off = Math.floor(hash1(row, seed) * sw);
+    const xx = x + off, col = Math.floor(xx / sw);
+    let b0 = col * sw + Math.floor(hash2(col, row, seed) * (sw * 0.45));
+    let c = col;
+    if (xx < b0) { c = col - 1; b0 = c * sw + Math.floor(hash2(c, row, seed) * (sw * 0.45)); }
+    const b1 = (c + 1) * sw + Math.floor(hash2(c + 1, row, seed) * (sw * 0.45));
+    const px = xx - b0, w = b1 - b0;
+    if (py === rh - 1 || px === 0) return null;
+    return [c * 977 + row * 31, px, py, w, rh - 1];
+  }
+  function wallPix(x, ly, wallH, seed, P, o = {}) {
+    const n = P.length, rh = o.rh || 6, sw = o.sw || 12;
+    if (ly === 0) return P[n - 1];
+    if (ly === 1) return P[n - 2];
+    const st = stoneCell(x, ly - 2, seed, rh, sw);
+    if (!st) return P[1];
+    const [id, px, py, w, h] = st;
+    let k = Math.round(n * 0.55 + (hash1(id, seed + 3) - 0.5) * 2.4);
+    if (py === 0) k += 2; else if (py === h - 1) k -= 2;
+    if (px === 1) k += 1; else if (px >= w - 2) k -= 1;
+    k += Math.round((K.cl(x, ly, 2, seed + id) - 0.5) * 1.2);
+    // sombra bajo el labio y oscurecimiento hacia el pie
+    if (ly < 5) k -= 2 - Math.floor(ly / 3);
+    k -= Math.floor(ly / Math.max(8, wallH)) ;
+    if (o.moss && py === 0 && hash2(x, ly, seed + 9) < 0.35) return U(hash2(x, ly, 4) < 0.5 ? '#5a7618' : '#425c12');
+    return P[clamp(k, 0, n - 1)];
+  }
+  function soilPix(x, d, seed, o = {}) {
+    const S = K.P32(SOILT), n = S.length;
+    // horizontes ondulados: humus (O/A), suelo (B), subsuelo arcilloso con piedras (C)
+    const h1 = 7 + Math.round((K.vn(x * 0.03, 1, seed) - 0.5) * 6), h2 = 24 + Math.round((K.vn(x * 0.02, 2, seed) - 0.5) * 10);
+    let k;
+    if (d < h1) k = 2 + (K.cl(x, d, 2, seed) < 0.3 ? -1 : 0);
+    else if (d < h2) k = 4 + Math.round((K.vn(x * 0.08, d * 0.12, seed + 1) - 0.5) * 2);
+    else k = 6 + Math.round((K.vn(x * 0.05, d * 0.08, seed + 2) - 0.5) * 2) - Math.floor((d - h2) / 30);
+    if (d === h1 || d === h2) k -= 1;
+    // piedras del subsuelo
+    if (d > h2 - 4) { const b = PFTerrain.boulderPix(x, d, seed + 7, 13, 9, K.P32(PFB.R.STONE)); if (b !== -1 && hash2(Math.floor(x / 13), Math.floor(d / 9), seed) < 0.35) return K.shU(b, -0.15, 15); }
+    if (hash2(x, d, seed + 5) < 0.02) k += 2;
+    if (o.wet && d > 4 && d < h2) k -= 1;
+    return S[clamp(k - (d > 70 ? 1 : 0), 0, n - 1)];
+  }
+  function sandstonePix(x, d, seed) {
+    const S = K.P32(PFB.R.STONE), n = S.length;
+    const yy = d + Math.round((K.vn(x * 0.012, 0, seed) - 0.5) * 10);
+    const band = Math.floor(yy / 9), lb = yy - band * 9;
+    let k = 5 + Math.round((hash1(band, seed) - 0.5) * 3) + Math.round((K.vn(x * 0.06, yy * 0.1, seed + 1) - 0.5) * 1.6);
+    if (lb === 0) k -= 2; else if (lb === 1) k += 1;
+    // estratificación cruzada
+    if (((x * 0.35 + yy * 1.1 + band * 7) % 11) < 1 && lb > 2) k -= 1;
+    // fisuras verticales
+    const fx = Math.floor(x / 23), fpos = fx * 23 + Math.floor(hash1(fx, seed + 2) * 18);
+    if (Math.abs(x - fpos) < 1 && hash2(fx, band, seed) < 0.6) k = 1;
+    else if (x - fpos === 1 && hash2(fx, band, seed) < 0.6) k += 1;
+    // barniz del desierto
+    if (K.vn(x * 0.3, d * 0.02, seed + 3) > 0.74) k -= 1;
+    k -= Math.floor(d / 34);
+    return S[clamp(k, 0, n - 1)];
+  }
+  function metalFace(s, x, d) {
+    const M = K.P32(s.ramp || METALT), n = M.length;
+    if (d === 0) return M[n - 1];
+    if (d === 1) return M[n - 2];
+    if (d < 4) return U((Math.floor((x - d) / 5) % 2) ? '#f0c040' : '#1e1e26');
+    if (d < 12) { // viga de canto con remaches
+      let k = n - 3 - (d > 9 ? 2 : 0) - (d === 4 ? -1 : 0);
+      if ((x % 16) === 4 && (d === 6 || d === 9)) k = n - 1;
+      if ((x % 64) === 0) k = 2;
+      return M[clamp(k, 0, n - 1)];
+    }
+    if (d === 12) return M[1];
+    // bajo el forjado: penumbra azulada con vigas IPE, bandeja de cables y conductos
+    const dd = d - 13;
+    let k = 2 - Math.floor(dd / 26);
+    const bx = ((x % (s.bay || 48)) + (s.bay || 48)) % (s.bay || 48);
+    if (bx < 4) k = bx === 0 ? 1 : 3 + (bx === 1 ? 1 : 0); // montante
+    if (dd >= 4 && dd < 8) k = dd === 4 ? 4 : dd === 7 ? 1 : 3; // bandeja de cables
+    if (dd >= 5 && dd < 7 && x % 5 < 3 && bx >= 4) return U(['#c8384a', '#2c6cc8', '#ecc030'][(Math.floor(x / 5) + dd) % 3]);
+    if (dd >= 14 && dd < 18) return K.P32(PFInfra.PIPES[s.pipe || 'cool'].ramp)[[1, 4, 3, 1][dd - 14]];
+    if (dd > 30 && (x % 9) === 0 && (dd % 6) < 3) k += 1; // rejilla de ventilación
+    return M[clamp(k, 0, n - 1)];
+  }
+  function concreteFace(s, x, d) {
+    const C = K.P32(s.ramp || PFTerrain.CONC), n = C.length;
+    if (d === 0) return C[n - 1];
+    if (d === 1) return C[n - 2];
+    const pw = 32, ph = 16, jx = ((x + Math.floor(d / ph) * 16) % pw + pw) % pw, jy = (d - 2) % ph;
+    let k = Math.round(n * 0.55 + (K.vn(x * 0.09, d * 0.09, s.seed) - 0.5) * 2.2 + (K.cl(x, d, 2, 3) - 0.5));
+    if (jx === 0 || jy === 0) k = 2; else if (jy === 1) k += 1;
+    if ((jx === 8 || jx === 24) && (jy === 5 || jy === 11)) k = 1; // berenjenos
+    if (K.vn(x * 0.5, d * 0.03, s.seed + 9) > 0.8 && jy > 1) k -= 1; // chorreones
+    k -= Math.floor(d / 40);
+    return C[clamp(k, 0, n - 1)];
+  }
+  function hallFace(s, x, d) {
+    const T = K.P32(s.ramp || PFB.R.STUCCO), Gd = K.P32(PFB.R.GOLD), n = T.length;
+    if (d === 0) return T[n - 1];
+    if (d < 4) return T[n - 2 - (d === 3 ? 2 : 0)];
+    if (d < 6) return Gd[d === 4 ? 6 : 3];
+    if (d < 7) return Gd[1];
+    // zócalo de piedra con arcadas ciegas
+    const dd = d - 7, aw = s.arch || 40, ax = ((x % aw) + aw) % aw;
+    const cx = aw / 2, inArch = dd > 6 && Math.abs(ax - cx) < aw * 0.32 && (dd > 14 || Math.hypot(ax - cx, (dd - 14) * 1.2) < aw * 0.32);
+    if (inArch) { const R_ = K.P32(s.inner || PFB.R.ROYAL); return R_[clamp(2 - Math.floor(dd / 22) + (Math.abs(ax - cx) < aw * 0.32 - 2 ? 0 : 1), 0, 8)]; }
+    let k = n - 4 - Math.floor(dd / 18) + Math.round((K.vn(x * 0.05, dd * 0.1, 3) - 0.5) * 1.4);
+    if (Math.abs(ax - cx) < aw * 0.32 + 1.5 && dd > 6) k += 1; // moldura del arco
+    if (ax === 0 || ax === 1) k -= 2; // pilastra
+    return T[clamp(k, 0, n - 1)];
+  }
+  function curbFace(s, x, d) {
+    const S = K.P32(s.ramp || PFB.R.STONE), n = S.length;
+    if (d === 0) return S[n - 1];
+    if (d < 5) { let k = n - 2 - d; if ((x % 26) === 0) k = 2; return S[clamp(k, 0, n - 1)]; }
+    if (d === 5) return S[1];
+    const ly = d - 6;
+    const u = wallPix(x, ly + 2, 80, s.seed, S, { rh: 9, sw: 18 });
+    // imbornales
+    if (s.drains) { const dx = ((x % 120) + 120) % 120; if (dx > 40 && dx < 58 && ly > 2 && ly < 12) return U(((dx - 40) % 3 === 0) ? '#5a5658' : '#140e10'); }
+    return K.shU(u, -0.06 * Math.floor(ly / 20), 235);
+  }
+  /** Pila de bancales: niveles de muro + franja de cultivo + corte de suelo */
+  function terracePix(s, x, d) {
+    const tiers = s.tiers || [{ wall: 18, top: 9 }, { wall: 14, top: 8 }];
+    let dd = d;
+    for (let i = 0; i < tiers.length; i++) {
+      const T = tiers[i];
+      const wh = Math.max(4, T.wall + Math.round((K.vn(x * 0.025, i * 3, s.seed) - 0.5) * (T.wave ?? 6)));
+      if (dd < wh) return wallPix(x, dd, wh, s.seed + i * 17, K.P32(T.ramp || s.wallRamp || PFB.R.STONE), { moss: true });
+      dd -= wh;
+      const th = T.top;
+      if (dd < th) {
+        if (T.channel && dd >= th - 3) { const Wc = K.P32(['#065481', '#0a8ab0', '#11bedd', '#3adcf1', '#bde9f2']); return Wc[dd === th - 3 ? 4 : dd === th - 2 ? 2 : 1]; }
+        const S = K.P32(SOILT), rp = dd % 3;
+        let k = 6 - Math.round(dd / th * 2) + (rp === 0 ? -2 : rp === 1 ? 1 : 0) + Math.round((K.cl(x, dd, 2, s.seed) - 0.5) * 1.2);
+        if (dd === 0) k = 3;
+        return S[clamp(k, 0, 9)];
+      }
+      dd -= th;
+    }
+    return soilPix(x, dd, s.seed, { wet: true });
+  }
+  function facePix(s, x, y, gy) {
+    const d = y - gy;
+    switch (s.face) {
+      case 'terrace': return terracePix(s, x, d);
+      case 'soilcut': {
+        if (d === 0) return U(s.lip || '#ddb46e');
+        if (d === 1) return K.P32(SOILT)[7];
+        return soilPix(x, d - 2, s.seed);
+      }
+      case 'sandstone': if (d === 0) return U('#fde3a8'); if (d === 1) return U('#f7c679'); return sandstonePix(x, d, s.seed);
+      case 'metal': return metalFace(s, x, d);
+      case 'concrete': return concreteFace(s, x, d);
+      case 'hall': return hallFace(s, x, d);
+      case 'curb': return curbFace(s, x, d);
+    }
+    return K.P32(SOILT)[4];
+  }
+  /** Lienzo del terreno: caras frontales + plataformas horneadas + decoración */
+  function render(world) {
+    const def = world.def, wd = world.w, hd = world.h;
+    const pb = new PixelBuffer(wd, hd), segs = prep(world);
+    for (let x = 0; x < wd; x++) {
+      const s = segAt(segs, x), gy = world.ground[x];
+      const nearB = segs.some(o => o !== s && (Math.abs(x - o.x0) < 10 || Math.abs(x - o.x1) < 10));
+      for (let y = Math.max(0, gy); y < hd; y++) {
+        let ss = s;
+        if (nearB && s.blend !== false) { const o = segAt(segs, clamp(x + Math.round((K.vn(y * 0.07, 0.5, 13) - 0.5) * 14), 0, wd - 1)); if (o.blend !== false) ss = o; }
+        const u = facePix(ss, x, y, gy);
+        if (u) pb.data[y * wd + x] = u;
+      }
+    }
+    // sombra de contacto en escalones del suelo
+    for (let x = 1; x < wd; x++) {
+      const gl = world.ground[x - 1], gy = world.ground[x];
+      if (gl < gy - 3) for (let y = gl; y < gy + 26; y++) { const c = K.get(pb, x - 1, y); if (c >>> 24) K.put(pb, x - 1, y, K.shU(c, -0.3, 235)); }
+      if (gy < gl - 3) for (let y = gy; y < gl + 26; y++) { const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, U('#fff1c8'), 0.25)); }
+    }
+    for (const s of segs) if (s.face === 'terrace' || s.face === 'soilcut') decorateSoil(pb, world, s);
+    for (const p of world.platforms) if (p.baked) platform(pb, world, p);
+    if (def.pf && def.pf.decorateFace) def.pf.decorateFace(pb, world, segs);
+    return pb.toCanvas();
+  }
+  /** Pasto que cuelga del labio, raíces en el corte, cultivos bajos en los bancales y cascaditas */
+  function decorateSoil(pb, world, s) {
+    const r = RNG(s.seed + 3), G = K.P32(GRASS);
+    for (let x = s.x0; x < s.x1; x++) {
+      const gy = world.ground[x];
+      if (hash2(x, 1, s.seed) < 0.5) { const L = 1 + Math.floor(hash2(x, 2, s.seed) * 4); for (let k = 0; k < L; k++) K.put(pb, x, gy + 1 + k, G[clamp(5 - k, 1, 8)]); }
+    }
+    if (s.face === 'terrace') {
+      const tiers = s.tiers || [{ wall: 18, top: 9 }, { wall: 14, top: 8 }];
+      for (let x = s.x0 + 4; x < s.x1 - 4; x += 7 + r.int(0, 5)) {
+        let d = 0; const gy = world.ground[x];
+        for (let i = 0; i < tiers.length; i++) {
+          const T = tiers[i], wh = Math.max(4, T.wall + Math.round((K.vn(x * 0.025, i * 3, s.seed) - 0.5) * (T.wave ?? 6)));
+          d += wh;
+          const yTop = gy + d + Math.max(2, T.top - (T.channel ? 4 : 1));
+          if (T.crop !== false && hash2(x, i, s.seed + 4) < 0.85) lowCrop(pb, x, yTop, T.crop || ['lettuce', 'bean', 'chard', 'onion'][Math.floor(hash2(x, i, 5) * 4)], x * 7 + i, Math.min(T.wall - 2, 12));
+          d += T.top;
+        }
+      }
+      // cascaditas entre bancales (estáticas; el brillo animado lo pone el nivel)
+      for (const fx of (s.falls || [])) {
+        const gy = world.ground[fx]; let d = 0;
+        for (let i = 0; i < tiers.length; i++) {
+          const T = tiers[i], wh = Math.max(4, T.wall + Math.round((K.vn(fx * 0.025, i * 3, s.seed) - 0.5) * (T.wave ?? 6)));
+          if (i > 0 && tiers[i - 1].channel) for (let y = gy + d - 3; y < gy + d + wh; y++) for (let k = 0; k < 4; k++) K.put(pb, fx + k, y, U(['#bde9f2', '#3adcf1', '#11bedd', '#0a8ab0'][(k + y) % 4 === 0 ? 0 : k]));
+          d += wh + T.top;
+        }
+      }
+    }
+    // raíces en el corte de suelo
+    for (const rx of (s.roots || [])) roots(pb, rx, world.ground[rx] + (s.face === 'terrace' ? 12 : 4), 18 + r.int(0, 18), rx);
+  }
+  /** Sistema radicular: raíz principal y laterales que se ramifican (tonos tierra claros) */
+  function roots(pb, x, y, depth, seed) {
+    const r = RNG(seed), C = [U('#5a3a22'), U('#a07a4e'), U('#c9a46a')];
+    const branch = (x0, y0, a, L, w) => {
+      let xx = x0, yy = y0;
+      for (let i = 0; i < L; i++) {
+        a += (r() - 0.5) * 0.35; xx += Math.cos(a) * 1; yy += Math.sin(a) * 1;
+        K.put(pb, Math.round(xx), Math.round(yy), C[w > 1 ? 1 : 2]);
+        if (w > 1) K.put(pb, Math.round(xx) + 1, Math.round(yy), C[0]);
+        if (L > 6 && r() < 0.08) branch(xx, yy, a + (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.5), L * 0.45, 1);
+      }
+    };
+    branch(x, y, Math.PI / 2, depth, 2);
+    for (let k = 0; k < 4; k++) branch(x, y + 2 + k * 3, Math.PI / 2 + (k % 2 ? -1 : 1) * (0.7 + r() * 0.4), depth * 0.5, 1);
+  }
+  /** Cultivo bajo de bancal inferior (lechuga, frijol, acelga, cebolla) que no supera hMax */
+  function lowCrop(pb, x, y, kind, seed, hMax = 10) {
+    const L = K.P32(RAMP.foliageR), r = RNG(seed);
+    const h = Math.min(hMax, kind === 'bean' ? 9 : kind === 'onion' ? 8 : 6);
+    if (kind === 'lettuce' || kind === 'chard') {
+      const ramp = kind === 'chard' ? ['#1a2a0c', '#2a4a14', '#3e6a1e', '#5a8a2a', '#86b03a', '#b6d45a'] : ['#1e3a10', '#2e5418', '#467a22', '#64a02e', '#8cc43e', '#c0e070'];
+      PFFlora.cluster(pb, x, y - 3, 4, 3, ramp, seed, { density: 0.9, leaf: [2, 3], core: true });
+      if (kind === 'chard') for (let k = 0; k < 3; k++) K.put(pb, x - 1 + k, y - 1, U('#e04a3a'));
+    } else if (kind === 'onion') {
+      for (let k = 0; k < 4; k++) for (let j = 0; j < h; j++) K.put(pb, x - 2 + k + Math.round((k - 1.5) * j * 0.15), y - j, L[clamp(3 + Math.floor(j / 3), 0, 7)]);
+      K.put(pb, x, y, U('#f4e8d6'));
+    } else {
+      PFFlora.cluster(pb, x, y - h * 0.5, 3, h * 0.5, RAMP.foliageR, seed, { density: 0.8, leaf: [2, 3] });
+      if (r() < 0.6) { K.put(pb, x + 2, y - 3, U('#8ab83a')); K.put(pb, x + 2, y - 2, U('#5a8a2a')); }
+    }
+  }
+  /** Geometría de los bancales inferiores en x: [{wallTop, wallH, topY, topH, channel}] (y de mundo) */
+  function tierInfo(s, x, gy) {
+    const tiers = s.tiers || [{ wall: 18, top: 9 }, { wall: 14, top: 8 }], out = [];
+    let d = 0;
+    for (let i = 0; i < tiers.length; i++) {
+      const T = tiers[i], wh = Math.max(4, T.wall + Math.round((K.vn(x * 0.025, i * 3, s.seed) - 0.5) * (T.wave ?? 6)));
+      out.push({ wallTop: gy + d, wallH: wh, topY: gy + d + wh, topH: T.top, channel: !!T.channel });
+      d += wh + T.top;
+    }
+    return out;
+  }
+  /* ---------- plataformas horneadas ---------- */
+  function platform(pb, world, p) {
+    const x = Math.round(p.x), y = Math.round(p.y), w = p.w, look = p.look || ({ wood: 'deck', metal: 'grate', rock: 'ledge' }[p.type] || 'none');
+    if (look === 'none') return;
+    if (look === 'deck') {
+      const Wd = K.P32(p.ramp || DECKW);
+      // pilares hasta el suelo
+      for (let px = x + 4; px < x + w - 2; px += p.postGap || 34) { const gb = world.groundAt(px); for (let yy = y + 5; yy < gb; yy++) { K.put(pb, px, yy, Wd[6]); K.put(pb, px + 1, yy, Wd[4]); K.put(pb, px + 2, yy, Wd[2]); K.put(pb, px + 3, yy, Wd[1]); } for (let k = 0; k < 10 && y + 6 + k < gb; k++) { K.put(pb, px + 4 + k, y + 6 + k, Wd[3]); } }
+      for (let xx = x; xx < x + w; xx++) {
+        for (let yy = y - 4; yy < y; yy++) K.put(pb, xx, yy, Wd[(xx - x + (y - yy) * 3) % 23 === 0 ? 2 : yy === y - 4 ? 5 : 6 - (y - yy) % 2]);
+        K.put(pb, xx, y, Wd[7]); K.put(pb, xx, y + 1, Wd[5]); K.put(pb, xx, y + 2, Wd[4]); K.put(pb, xx, y + 3, Wd[3]); K.put(pb, xx, y + 4, Wd[1]);
+      }
+      if (p.railing) PFB.rail(pb, x + 1, x + w - 2, y - 4, 24, { ramp: ['#1a0c06', '#4a2a14', '#8a5a2e', '#c89458', '#e8c488'], gap: 14 });
+      return;
+    }
+    if (look === 'grate') {
+      const M = K.P32(METALT);
+      for (let xx = x; xx < x + w; xx++) {
+        for (let yy = y - 4; yy < y; yy++) K.put(pb, xx, yy, ((xx % 3 === 0) || ((y - yy) % 2 === 0)) ? M[2] : M[6]);
+        K.put(pb, xx, y - 1, M[8]); K.put(pb, xx, y, M[7]); K.put(pb, xx, y + 1, M[5]); K.put(pb, xx, y + 2, (Math.floor(xx / 4) % 2) ? U('#f0c040') : U('#1e1e26')); K.put(pb, xx, y + 3, M[2]); K.put(pb, xx, y + 4, M[1]);
+      }
+      for (let px = x + 6; px < x + w - 4; px += 40) { const gb = world.groundAt(px); for (let yy = y + 5; yy < gb; yy++) { K.put(pb, px, yy, M[7]); K.put(pb, px + 1, yy, M[4]); K.put(pb, px + 2, yy, M[2]); } }
+      if (p.railing !== false) PFB.rail(pb, x, x + w - 1, y - 5, 22, { gap: 12 });
+      return;
+    }
+    if (look === 'ledge') {
+      const S = K.P32(PFB.R.STONE);
+      for (let xx = x - 2; xx < x + w + 2; xx++) {
+        const dep = 7 + Math.round(Math.sin(clamp((xx - x) / w, 0, 1) * Math.PI) * 5);
+        for (let yy = y - 4; yy < y; yy++) K.put(pb, xx, yy, S[clamp(8 - (y - yy), 5, 9)]);
+        for (let yy = y; yy < y + dep; yy++) K.put(pb, xx, yy, S[clamp(7 - Math.round((yy - y) / dep * 5) + (xx > x + w - 4 ? -2 : 0), 1, 9)]);
+      }
+    }
+  }
+  return { surface, render, segAt, backEdge, depthOf, tierInfo, prep, roots, lowCrop, stoneCell, wallPix, soilPix, SOILT, GRASS, METALT, STREET, DECKW };
+})();
+
+/* ---------- oclusores del plano frontal ---------- */
+const PFBFront = (() => {
+  const K = PFK;
+  const kinds = {
+    /** Columna de interior en contraluz (borde iluminado por el lado de la sala) */
+    pillar(o) {
+      const w = o.w || 40, h = o.h || 360, pb = new PixelBuffer(w, h), C = K.P32(o.ramp || PFB.R.DARKFG), n = C.length;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const f = x / (w - 1);
+        let k = f < 0.08 ? 3 : f < 0.2 ? 2 : f > 0.92 ? 3 : 1;
+        if (o.capital && (y < 14 || (y > 18 && y < 22))) k += 1;
+        if (o.fluted && x % 6 === 0 && y > 22) k -= 1;
+        if (o.lit && f > 0.86) k = n - 2;
+        K.put(pb, x, y, C[clamp(k, 0, n - 1)]);
+      }
+      return pb;
+    },
+    /** Cables y mangueras que cuelgan del techo (catenarias) */
+    cables(o) {
+      const w = o.w || 240, h = o.h || 60, pb = new PixelBuffer(w, h), r = RNG(o.seed || 3);
+      const cols = (o.cols || ['#080a12', '#141a26', '#1e2a3a']).map(c => U(c));
+      for (let i = 0; i < (o.n || 4); i++) {
+        const x0 = r() * w * 0.3, x1 = w * (0.7 + r() * 0.3), sag = h * (0.4 + r() * 0.5), th = 1 + (i % 2);
+        for (let x = Math.floor(x0); x < x1; x++) { const t = (x - x0) / (x1 - x0), y = Math.round(sag * 4 * t * (1 - t)); for (let k = 0; k < th + 1; k++) K.put(pb, x, y + k, cols[k === 0 ? 2 : k === th ? 0 : 1]); }
+      }
+      for (let x = 0; x < w; x++) for (let y = 0; y < 4; y++) K.put(pb, x, y, cols[y === 3 ? 2 : 0]);
+      return pb;
+    },
+    /** Barandilla en primer plano (abajo) */
+    rail(o) {
+      const w = o.w || 200, h = o.h || 46, pb = new PixelBuffer(w, h), C = K.P32(o.ramp || PFB.R.DARKFG);
+      for (let x = 0; x < w; x++) { for (let k = 0; k < 4; k++) K.put(pb, x, 6 + k, C[k === 0 ? 4 : k === 3 ? 0 : 2]); for (let k = 0; k < 3; k++) K.put(pb, x, 24 + k, C[k === 0 ? 3 : 1]); }
+      for (let x = 4; x < w; x += o.gap || 40) for (let y = 6; y < h; y++) for (let k = 0; k < 5; k++) K.put(pb, x + k, y, C[k === 0 ? 4 : k === 4 ? 0 : 2]);
+      return pb;
+    },
+    /** Juncos y eneas oscuros (humedal) */
+    reeds(o) {
+      const w = o.w || 120, h = o.h || 90, pb = new PixelBuffer(w, h), r = RNG(o.seed || 5);
+      const C = K.P32(o.ramp || ['#04080a', '#0a1614', '#12241e', '#1c362a', '#2a4c36', '#3e6646']);
+      for (let i = 0; i < (o.n || Math.round(w / 3)); i++) {
+        const bx = r() * w, bh = h * (0.4 + r() * 0.6), lean = (r() - 0.5) * 14;
+        for (let j = 0; j < bh; j++) { const t = j / bh, x = Math.round(bx + lean * t * t), y = h - 1 - j; K.put(pb, x, y, C[clamp(1 + Math.round(t * 3) + (lean < 0 ? 1 : 0), 0, 5)]); if (t < 0.4) K.put(pb, x + 1, y, C[1]); }
+        if (r() < 0.35) { const tx = Math.round(bx + lean), ty = Math.round(h - 1 - bh); for (let k = 0; k < 7; k++) { K.put(pb, tx, ty + k, U(k < 1 ? '#3a2410' : '#5a3418')); K.put(pb, tx + 1, ty + k, U('#2a1608')); } }
+      }
+      return pb;
+    },
+    /** Viga/conducto horizontal en contraluz arriba */
+    beam(o) {
+      const w = o.w || 320, h = o.h || 22, pb = new PixelBuffer(w, h), C = K.P32(o.ramp || PFB.R.DARKFG);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let k = y < 3 ? 1 : y > h - 3 ? 3 : 2; if (x % 40 < 2) k = 1; if (o.bolts && x % 20 === 10 && (y === 5 || y === h - 6)) k = 4; K.put(pb, x, y, C[k]); }
+      return pb;
+    },
+    /** Follaje oscuro-frío alternativo (hojas de higuera/plátano) */
+    dark(o) { return PFFlora.fgClump(o.w || 110, o.h || 80, o.seed || 1, Object.assign({ spikes: 0, leaves: 10 }, o)); },
+  };
+  return { kinds };
+})();
+
+/* ---------- estanque somero en 3/4 ---------- */
+const PFBPond = (() => {
+  const K = PFK;
+  const WAT = ['#063a4a', '#0a5262', '#0e6c78', '#14888c', '#22a4a0', '#40c0b4', '#76dcc8', '#c4f4e6'];
+  function build(world, w) {
+    const x0 = Math.round(w.x0) - 6, x1 = Math.round(w.x1) + 6, wy = Math.round(w.y), wd = x1 - x0, hh = w.depth3q || 22;
+    const pb = new PixelBuffer(wd, hh), Wt = K.P32(w.ramp || WAT), r = RNG(91);
+    // lámina de agua que se aleja (cara superior) con orilla irregular, reflejo del cielo y hojas de nenúfar
+    for (let x = 0; x < wd; x++) {
+      const e = Math.round(Math.sin(Math.PI * clamp(x / wd, 0, 1)) * 2), back = 2 + Math.round((K.vn((x0 + x) * 0.08, 0, 3) - 0.5) * 3) - e;
+      for (let y = back; y < hh; y++) {
+        const t = (y - back) / (hh - back);
+        let k = 5 - Math.round(t * 3) + (((y * 3 + Math.round(Math.sin((x0 + x) * 0.1) * 2)) % 7) === 0 ? 1 : 0);
+        if (y === back) k = 7;
+        K.put(pb, x, y, Wt[clamp(k, 0, 7)]);
+      }
+      if (x < 4 || x >= wd - 4) for (let y = back; y < hh; y++) K.put(pb, x, y, U(['#5a3a22', '#7a5232', '#9a6e44'][Math.min(2, x < 4 ? x : wd - 1 - x)]));
+    }
+    for (let i = 0; i < Math.round(wd / 16); i++) { const lx = 8 + r() * (wd - 16), ly = 6 + r() * (hh - 12); K.ellipseFn(pb, lx, ly, 3.2, 1.6, (nx, ny, d) => d > 0.8 && nx > 0.3 && Math.abs(ny) < 0.3 ? 0 : U(ny < -0.2 ? '#7aa83c' : '#4f7a22')); if (r() < 0.4) { K.put(pb, Math.round(lx), Math.round(ly) - 1, U('#f6c8e0')); K.put(pb, Math.round(lx) + 1, Math.round(ly) - 1, U('#ffffff')); } }
+    return { pond: true, w, x0, x1, wy, c: pb.toCanvas(), hh };
+  }
+  /** Lámina que se aleja: detrás de las entidades (sustituye la cara superior del suelo en el tramo) */
+  function renderBack(g, sc, Wt) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, x = Wt.x0 - ox; if (x > W || x + (Wt.x1 - Wt.x0) < 0) return;
+    g.drawImage(Wt.c, Math.round(x), Math.round(Wt.wy - oy - Wt.hh + 4));
+    const t = Game.time; g.fillStyle = '#e8fff8';
+    for (let i = 0; i < 7; i++) { const xx = Wt.x0 + 10 + ((i * 37 + t * 9) % (Wt.x1 - Wt.x0 - 20)); g.fillRect(Math.round(xx - ox), Math.round(Wt.wy - oy - 4 - (i % 4) * 4), 2 + (i % 2), 1); }
+  }
+  /** Delante de los pies: solo una franja translúcida fina con ondas */
+  function renderFront(g, sc, Wt) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, xa = Math.max(0, Math.round(Wt.x0 + 6 - ox)), xb = Math.min(W, Math.round(Wt.x1 - 6 - ox)); if (xb <= xa) return;
+    const y = Math.round(Wt.wy - oy), t = Game.time;
+    g.globalAlpha = 0.5; g.fillStyle = '#22a4a0'; g.fillRect(xa, y, xb - xa, 3); g.globalAlpha = 1;
+    g.fillStyle = '#c4f4e6';
+    for (let x = xa; x < xb; x += 5) if (((x + ox + Math.floor(t * 8)) % 15) < 4) g.fillRect(x, y + (Math.floor(x / 5) % 2), 3, 1);
+  }
+  return { build, renderBack, renderFront };
+})();
+
+/* ===== 18s_pfb_agro.js ===== */
+/* =====================================================================
+   18s_pfb_agro.js — Agroecología en el plano jugable (kit B, nivel 8).
+   Cultivos a escala de personajes de ≈74 px (maíz ≈60, sorgo ≈56,
+   tomate entutorado ≈38, ají ≈22, frijol, ahuyama rastrera, nopal ≈44),
+   bancales elevados en 3/4 con hileras que se alejan, goteo con
+   emisores, sensores de suelo, casa-malla, invernadero, banco de semillas
+   de adobe con balcón, pozo con bomba solar, cisterna de lluvia, tanque
+   de mezcla, compostera, colmenas, bebedero, frutales y el cují antiguo.
+   Todo prerenderizado (props) salvo los sprites de cabra (tira).
+   stress 0..1: quema de bordes en hojas viejas (la planta sigue verde).
+   ===================================================================== */
+const PFAgro = (() => {
+  const K = PFK, B = PFB;
+  const LEAF = ['#0e1e08', '#1c3410', '#2c4e16', '#3e6a1c', '#568a24', '#74a830', '#98c442', '#c0dc62', '#e2ee90'];
+  const MAIZE = ['#162a0c', '#24421a', '#365e22', '#4a7a28', '#62962e', '#80b03a', '#a6c850', '#ccdc78'];
+  const DRYL = ['#3a2410', '#6a4a1e', '#a07a34', '#c8a04a', '#e6c46a'];
+  const NOPAL = ['#0e2418', '#1a3a26', '#285636', '#3a7248', '#4f8e5a', '#6eaa6e', '#9ac88a'];
+  const cache = new Map();
+  const leafK = (k, stress, s, seed) => (stress > 0.15 && s > 0.75 && hash1(seed, 7) < stress) ? -1 : k;
+  /** Hoja larga y arqueada (maíz/sorgo): ancho 2→1, cae por gravedad */
+  function blade(pb, x, y, dir, L, P, stress, seed) {
+    let a = -0.9 * dir === 0 ? 0 : (dir > 0 ? -0.7 : -Math.PI + 0.7), xx = x, yy = y;
+    for (let i = 0; i < L; i++) {
+      const t = i / L; a += dir * 0.05 + (dir > 0 ? 0.035 : -0.035) * t * 2.2;
+      xx += Math.cos(a); yy += Math.sin(a);
+      const burnt = stress > 0.15 && t > 0.8 && hash1(seed, 3) < stress + 0.2;
+      const k = burnt ? -1 : clamp(Math.round(5 - t * 2 + (dir < 0 ? 1 : 0)), 1, P.length - 1);
+      const c = k < 0 ? U(DRYL[2 + (i % 2)]) : P[k];
+      K.put(pb, Math.round(xx), Math.round(yy), c);
+      if (t < 0.65) K.put(pb, Math.round(xx), Math.round(yy) + 1, k < 0 ? U(DRYL[1]) : P[Math.max(0, k - 2)]);
+    }
+  }
+  /** Sprite de una planta. Devuelve {s, ox, oy} con ancla en la base */
+  function plant(kind, growth = 1, stress = 0, seed = 1) {
+    const key = kind + '|' + Math.round(growth * 4) + '|' + Math.round(stress * 4) + '|' + (seed % 5);
+    let c = cache.get(key); if (c) return c;
+    const r = RNG(seed * 13 + 7), g = clamp(growth, 0.15, 1);
+    let s, ox, oy;
+    const L = K.P32(LEAF), M = K.P32(MAIZE);
+    if (kind === 'maiz' || kind === 'sorgo') {
+      const h = Math.round((kind === 'maiz' ? 60 : 54) * g), w = 34;
+      s = B.sprite(w, h + 8); ox = 17; oy = h + 4;
+      const sx = 17;
+      for (let y = 0; y < h; y++) { const yy = oy - y; K.put(s, sx, yy, M[5]); K.put(s, sx + 1, yy, M[3]); if (y < h * 0.3) K.put(s, sx - 1, yy, M[2]); if (y % 9 === 0) { K.put(s, sx, yy, M[6]); K.put(s, sx + 1, yy, M[4]); } }
+      // raíces de anclaje
+      for (const dx of [-3, -2, 2, 3]) K.put(s, sx + dx, oy, U('#7a5a2e'));
+      for (let i = 0; i < Math.round(7 * g); i++) {
+        const yy = oy - 6 - i * Math.round(h / 8), dir = i % 2 ? 1 : -1;
+        blade(s, sx + (dir > 0 ? 1 : 0), yy, dir, Math.round((14 + r() * 6) * (1 - i * 0.05) * (0.6 + g * 0.4)), M, i < 2 ? stress : stress * 0.3, seed + i);
+      }
+      if (kind === 'maiz') {
+        if (g > 0.6) { for (let k = 0; k < 7; k++) { K.put(s, sx + (k % 3) - 1, oy - h - k, U(k % 2 ? '#e6c46a' : '#c8a04a')); } K.put(s, sx - 2, oy - h - 2, U('#e6c46a')); K.put(s, sx + 3, oy - h - 3, U('#c8a04a')); }
+        if (g > 0.7) for (const [cy, d] of [[Math.round(h * 0.45), 1], [Math.round(h * 0.6), -1]]) { const yy = oy - cy; for (let k = 0; k < 7; k++) { K.put(s, sx + d * 2, yy + k, M[k < 2 ? 6 : 4]); K.put(s, sx + d * 3, yy + k + 1, M[k < 3 ? 5 : 3]); } K.put(s, sx + d * 2, yy - 1, U('#e8a8a0')); K.put(s, sx + d * 3, yy - 2, U('#f4d0b0')); }
+      } else {
+        // panoja rojiza del sorgo
+        if (g > 0.55) for (let k = 0; k < 9; k++) for (let j = -2; j <= 2; j++) if (Math.abs(j) <= 2 - Math.abs(k - 4) * 0.4) K.put(s, sx + j, oy - h - 8 + k, U(['#6a1a12', '#a8381e', '#d0582a', '#e88a4a'][clamp(2 - j + (k % 2), 0, 3)]));
+      }
+    } else if (kind === 'tomate') {
+      const h = Math.round(38 * g); s = B.sprite(30, h + 6); ox = 15; oy = h + 3;
+      const Wd = K.P32(B.R.WOOD);
+      for (let y = 0; y < h + 2; y++) { K.put(s, 18, oy - y, Wd[5]); K.put(s, 19, oy - y, Wd[3]); }
+      for (let i = 0; i < 4; i++) PFFlora.cluster(s, 15 + (i % 2 ? 4 : -3), oy - 6 - i * Math.round(h / 4.5), 6, 5, i < 1 && stress > 0.3 ? ['#2a2a0c', '#4a4a16', '#6e6a20', '#8a8a2a', '#a6a43a', '#c4c060'] : LEAF, seed + i, { density: 0.7, leaf: [3, 5] });
+      for (let i = 0; i < Math.round(5 * g); i++) { const fx = 9 + Math.round(r() * 12), fy = oy - 8 - Math.round(r() * (h - 12)), big = stress < 0.4 || i % 2; const R_ = ['#5a0a0a', '#a8201a', '#e0402a', '#ff8a6a'], rr = big ? 2 : 1; K.ellipseFn(s, fx, fy, rr + 0.4, rr + 0.4, (nx, ny, d) => U(R_[d < 0.3 && nx < 0 && ny < 0 ? 3 : ny > 0.3 ? 1 : 2])); }
+      for (let y = 6; y < h; y += 9) { K.put(s, 17, oy - y, U('#e8e0d0')); K.put(s, 20, oy - y, U('#e8e0d0')); }
+    } else if (kind === 'aji') {
+      const h = Math.round(24 * g); s = B.sprite(24, h + 6); ox = 12; oy = h + 3;
+      PFFlora.cluster(s, 12, oy - h * 0.45, 8, h * 0.45, ['#0c1c10', '#18331a', '#2a4f22', '#3f6a26', '#5f8a2c', '#8fb03a', '#c4d45a'], seed, { density: 0.8, leaf: [3, 4] });
+      for (let i = 0; i < Math.round(6 * g); i++) { const fx = 6 + Math.round(r() * 12), fy = oy - 4 - Math.round(r() * h * 0.7); for (let k = 0; k < 4; k++) K.put(s, fx, fy + k, U(k === 0 ? '#3a6a1c' : (i % 3 === 0 ? ['#2a5a10', '#4a8a1e', '#6aaa2a'] : ['#7a0a0a', '#c82a1a', '#f05a3a'])[k === 1 ? 2 : 1])); }
+    } else if (kind === 'frijol') {
+      const h = Math.round(20 * g); s = B.sprite(26, h + 6); ox = 13; oy = h + 3;
+      for (let i = 0; i < 6; i++) { const lx = 4 + Math.round(r() * 18), ly = oy - 3 - Math.round(r() * h * 0.8); for (let k = 0; k < 3; k++) K.ellipseFn(s, lx + [0, -3, 3][k], ly + [-2, 1, 1][k], 2.2, 1.7, (nx, ny) => L[clamp(Math.round(5 - nx - ny * 1.5 - (i < 2 && stress > 0.3 && k === 2 ? 3 : 0)), 1, 8)]); }
+      for (let i = 0; i < Math.round(4 * g); i++) { const px = 6 + Math.round(r() * 14), py = oy - 2 - Math.round(r() * h * 0.6); for (let k = 0; k < 5; k++) K.put(s, px + (k > 2 ? 1 : 0), py + k, U(k === 0 ? '#c8d880' : '#86b03a')); }
+      if (g > 0.5) for (let i = 0; i < 3; i++) K.put(s, 6 + i * 6, oy - h + 2 + i, U('#f6f0ff'));
+    } else if (kind === 'ahuyama') {
+      s = B.sprite(40, 22); ox = 20; oy = 19;
+      for (let i = 0; i < 7; i++) { const lx = 4 + Math.round(r() * 32), ly = oy - 2 - Math.round(r() * 10), rr = 4 + r() * 2.5; K.ellipseFn(s, lx, ly, rr, rr * 0.75, (nx, ny, d) => L[clamp(Math.round(5.4 - nx * 1.4 - ny * 1.8 - (d > 0.75 ? 1.5 : 0) + ((Math.atan2(ny, nx) * 2.5 | 0) % 2 ? 0.6 : 0)), 1, 8)]); }
+      for (let x = 2; x < 38; x++) if (hash2(x, 1, seed) < 0.5) K.put(s, x, oy, L[2]);
+      if (g > 0.5) { const fx = 14 + Math.round(r() * 10); K.ellipseFn(s, fx, oy - 3, 5.5, 3.8, (nx, ny, d) => U(['#7a3208', '#c0601a', '#e8862a', '#ffb860'][clamp(Math.round(2.2 - nx - ny * 1.2 + ((Math.abs(nx * 4) | 0) % 2 ? -0.6 : 0)), 0, 3)])); }
+      for (let i = 0; i < 3; i++) { const fx = 6 + i * 12, fy = oy - 9 - (i % 2) * 3; K.put(s, fx, fy, U('#ffe14d')); K.put(s, fx + 1, fy, U('#f0a820')); K.put(s, fx, fy - 1, U('#fff6a0')); }
+    } else if (kind === 'nopal') {
+      const h = Math.round(44 * g); s = B.sprite(40, h + 6); ox = 20; oy = h + 3;
+      const N = K.P32(NOPAL), pads = [[20, 0, 7, 10], [13, 14, 6, 8], [27, 14, 6, 8], [20, 22, 5, 7], [10, 28, 4, 6], [29, 28, 5, 6]];
+      for (const [px, py, rx, ry] of pads.slice(0, Math.round(3 + g * 3))) {
+        const cy = oy - 10 - py * (h / 44);
+        K.ellipseFn(s, px, cy, rx, ry, (nx, ny, d) => N[clamp(Math.round(4 - nx * 1.6 - ny * 1.2 - (d > 0.8 ? 1.4 : 0)), 0, 6)]);
+        for (let k = 0; k < 4; k++) K.put(s, Math.round(px + (hash2(px, k, 2) - 0.5) * rx * 1.4), Math.round(cy + (hash2(py, k, 3) - 0.5) * ry * 1.4), U('#f4f0d0'));
+        if (g > 0.6 && py > 10) for (let k = 0; k < 2; k++) { const tx = px - 3 + k * 5, ty = Math.round(cy - ry); K.ellipseFn(s, tx, ty, 1.8, 1.6, (nx, ny) => U(ny < 0 ? '#ff5a9a' : '#b81a5a')); }
+      }
+    } else if (kind === 'girasol' || kind === 'flor') {
+      const h = Math.round((kind === 'girasol' ? 46 : 18) * g); s = B.sprite(18, h + 8); ox = 9; oy = h + 4;
+      for (let y = 0; y < h; y++) { K.put(s, 9, oy - y, M[4]); if (y % 8 === 4) { K.put(s, 10, oy - y, M[5]); K.put(s, 11, oy - y + 1, M[4]); K.put(s, 7, oy - y - 1, M[3]); } }
+      const fy = oy - h, col = kind === 'girasol' ? ['#a86a08', '#e8b020', '#ffe050'] : [['#7a1a4a', '#d0448a', '#f88ac0'], ['#6a3a8a', '#9a6ad0', '#c9a8f0'], ['#a8501a', '#f0902a', '#ffc860']][seed % 3];
+      const rr = kind === 'girasol' ? 4 : 2;
+      K.ellipseFn(s, 9, fy, rr + 0.5, rr + 0.5, (nx, ny, d) => U(d < 0.3 ? (kind === 'girasol' ? '#4a2a10' : '#ffe14d') : col[ny < -0.2 ? 2 : nx > 0.3 ? 0 : 1]));
+    } else if (kind === 'lechuga' || kind === 'col') {
+      s = B.sprite(16, 12); ox = 8; oy = 10;
+      PFFlora.cluster(s, 8, 6, 6, 4, kind === 'col' ? ['#1a2a3a', '#2a4a4e', '#3e6a62', '#5a8a76', '#80aa8a', '#aacca4'] : ['#1e3a10', '#2e5418', '#467a22', '#64a02e', '#8cc43e', '#c0e070'], seed, { density: 1, leaf: [2, 4] });
+    }
+    if (!s) { s = B.sprite(4, 4); ox = 2; oy = 3; }
+    B.finish(s, { rimK: 0.35, outAmt: -0.55 });
+    c = { s, ox, oy }; cache.set(key, c); return c;
+  }
+  function put(pb, kind, x, y, growth, stress, seed, flip = false) { const P_ = plant(kind, growth, stress, seed); K.blit(pb, P_.s, Math.round(x - P_.ox), Math.round(y - P_.oy), flip); return P_; }
+  /** Línea de goteo: manguera negra con emisores y gota húmeda */
+  function drip(pb, x0, x1, y, gap = 10) {
+    for (let x = x0; x <= x1; x++) { K.put(pb, x, y, U('#141418')); K.put(pb, x, y - 1, U((x % 7) === 0 ? '#4a4a56' : '#26262e')); }
+    for (let x = x0 + 4; x < x1; x += gap) { K.put(pb, x, y - 1, U('#3a8ab0')); K.put(pb, x, y + 1, U('#3e2a1a')); K.put(pb, x - 1, y + 1, U('#4c3220')); K.put(pb, x + 1, y + 1, U('#4c3220')); }
+  }
+  /** Bancal elevado en 3/4: tabla frontal, tierra con hileras, cultivos por fila, goteo y mulch.
+      yb = base frontal (suelo). opts: {rows, depth, board, crops:[kind...], growth, stress, mulch, seed, frame} */
+  function bed(pb, x0, x1, yb, o = {}) {
+    const Wd = K.P32(o.frame || B.R.WOOD), S = K.P32(PFGround.SOILT);
+    const bh = o.board ?? 9, depth = o.depth ?? 16, rows = o.rows ?? 3, sk = 0.35;
+    const yt = yb - bh; // borde superior de la tabla frontal
+    // tierra superior (se aleja)
+    for (let r = 0; r < depth; r++) { const off = Math.round(r * sk), yy = yt - r; for (let x = x0 + off + 1; x < x1 + off - 1; x++) { const rr = r % Math.max(3, Math.round(depth / rows)); let k = 5 - Math.round(r / depth * 2) + (rr === 0 ? -2 : rr === 1 ? 1 : 0) + Math.round((K.cl(x, yy, 2, 4) - 0.5)); if (o.mulch && rr > 1 && hash2(x, yy, 5) < 0.45) { K.put(pb, x, yy, U(hash2(x, yy, 6) < 0.5 ? '#c8a860' : '#a08040')); continue; } K.put(pb, x, yy, S[clamp(k, 1, 8)]); } }
+    // marco: tabla trasera y laterales
+    for (let x = x0 + Math.round(depth * sk); x < x1 + Math.round(depth * sk); x++) { K.put(pb, x, yt - depth, Wd[6]); K.put(pb, x, yt - depth - 1, Wd[4]); }
+    for (let r = 0; r <= depth; r++) { const off = Math.round(r * sk); K.put(pb, x0 + off, yt - r, Wd[6]); K.put(pb, x0 + off + 1, yt - r, Wd[3]); K.put(pb, x1 + off - 1, yt - r, Wd[4]); K.put(pb, x1 + off, yt - r, Wd[2]); }
+    // cultivos por hileras (de atrás hacia delante) con goteo al pie
+    const crops = o.crops || ['maiz', 'frijol', 'ahuyama'], r = RNG(o.seed || 1), drips = [];
+    for (let ri = rows - 1; ri >= 0; ri--) {
+      const ry = yt - Math.round((ri + 0.6) * depth / rows), off = Math.round((yt - ry) * sk);
+      drip(pb, x0 + off + 3, x1 + off - 4, ry + 1, o.gap || 10); drips.push([x0 + off + 7, x1 + off - 4, ry + 2]);
+      const sp = o.spacing || 20;
+      for (let x = x0 + off + 8 + (ri % 2) * Math.round(sp / 2); x < x1 + off - 6; x += sp) {
+        const kind = crops[(Math.floor((x - x0) / sp) + ri) % crops.length];
+        put(pb, kind, x + r.int(-2, 2), ry, (o.growth ?? 1) * (1 - ri * 0.06), o.stress || 0, (o.seed || 1) + x * 3 + ri, r() < 0.5);
+      }
+    }
+    // tabla frontal (delante de los cultivos)
+    for (let y = yt; y < yb; y++) for (let x = x0; x < x1; x++) { let k = 5 - Math.round((y - yt) / bh * 2) + ((x - x0) % 31 === 0 ? -2 : 0) + (y === yt ? 2 : 0) + (y === yb - 1 ? -2 : 0); if (((y - yt) === Math.round(bh / 2)) && (x - x0) % 31 > 0) k -= 1; K.put(pb, x, y, Wd[clamp(k, 0, 7)]); }
+    for (let x = x0 + 3; x < x1; x += 31) { K.put(pb, x, yt + 2, U('#e8e0d0')); K.put(pb, x, yb - 3, U('#e8e0d0')); }
+    B.contact(pb, (x0 + x1) / 2, yb, (x1 - x0) / 2 + 3, 2, -0.28);
+    return { yt, depth, drips };
+  }
+  /** Estaca-sensor de humedad/conductividad con panel solar y LED (el LED vivo lo pinta el nivel) */
+  function sensor(pb, x, y, o = {}) {
+    const s = B.sprite(16, 34), S = K.P32(B.R.STEEL), b = 32;
+    for (let yy = 8; yy < b; yy++) { K.put(s, 7, yy, S[5]); K.put(s, 8, yy, S[2]); }
+    PFInfra.box3q(s, 3, 17, 9, 7, 3, { ramp: ['#14202a', '#24384a', '#3a566e', '#567a94', '#7aa0b8', '#a8c4d4'] });
+    for (let xx = 5; xx < 10; xx++) K.put(s, xx, 12, U('#0a1a2a'));
+    PFInfra.pvPanel(s, 2, 7, 10, 3);
+    K.put(s, 11, 12, U(o.led || '#3fe0a0'));
+    B.finish(s); K.blit(pb, s, x - 8, y - b);
+    B.contact(pb, x, y, 4, 1);
+    return { lx: x + 3, ly: y - b + 12 };
+  }
+  /** Casa-malla: estructura de madera con malla de sombreo negra translúcida y mesas con plantines */
+  function shadeHouse(pb, x, yb, w, h, d = 16) {
+    const s = B.sprite(w + d + 4, h + d + 6), Wd = K.P32(B.R.WOODG), sk = 0.45, dx = Math.round(d * sk), by = h + d + 2;
+    // mesas con bandejas de plantines (al fondo y delante)
+    for (const [ty, sc] of [[by - Math.round(d * 0.6), 0.9], [by - 2, 1]]) {
+      const ox = Math.round((by - ty) * sk);
+      for (let xx = 6 + ox; xx < w - 4 + ox; xx++) { for (let k = 0; k < 3; k++) K.put(s, xx, ty - 16 - k, Wd[k === 2 ? 6 : 4]); }
+      for (let xx = 8 + ox; xx < w - 6 + ox; xx += 5) { PFAgro.put(s, xx % 10 < 5 ? 'lechuga' : 'col', xx + 2, ty - 18, 0.6, 0, xx); }
+      for (const lx of [8 + ox, w - 8 + ox]) for (let yy = ty - 15; yy < ty; yy++) { K.put(s, lx, yy, Wd[5]); K.put(s, lx + 1, yy, Wd[2]); }
+    }
+    // malla: velo oscuro con trama fina sobre el volumen (frente + techo + lateral)
+    const net = (xx, yy, a) => { const c = K.get(s, xx, yy); const m = ((xx + yy) % 2 === 0) ? 0.62 : 0.5; K.put(s, xx, yy, (c >>> 24) ? K.mixU(c, U('#141c18'), m * a) : (((a * 255) << 24) | 0x18201c) >>> 0); };
+    for (let yy = by - h; yy < by; yy++) for (let xx = 0; xx < w; xx++) net(xx, yy, 0.72);
+    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = off; xx < w + off; xx++) net(xx, by - h - 1 - r, 0.82); }
+    PFK.polyFill(s, [[w, by - h], [w + dx, by - h - d], [w + dx, by - d], [w, by]], (xx, yy) => { const c = K.get(s, xx, yy); return (c >>> 24) ? K.mixU(c, U('#0e1410'), 0.7) : U('#1a221e'); });
+    // marcos de madera
+    for (const fx of [0, Math.round(w / 3), Math.round(2 * w / 3), w - 2]) for (let yy = by - h; yy < by; yy++) { K.put(s, fx, yy, Wd[6]); K.put(s, fx + 1, yy, Wd[3]); }
+    for (let xx = 0; xx < w; xx++) { K.put(s, xx, by - h, Wd[7]); K.put(s, xx, by - h + 1, Wd[4]); K.put(s, xx, by - 1, Wd[2]); }
+    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); K.put(s, off, by - h - r, Wd[6]); K.put(s, w - 1 + off, by - h - r, Wd[5]); K.put(s, w + dx - 1, by - r - 1, Wd[3]); }
+    for (let xx = dx; xx < w + dx; xx++) K.put(s, xx, by - h - d, Wd[6]);
+    // puerta abierta (enmarcada, 84 px) — se ve el interior
+    B.finish(s, { rimK: 0.3 }); K.blit(pb, s, x, yb - by);
+    B.castR(pb, x + w, x + w + 4, yb - 1, 14, { amt: -0.2, yMin: yb - 16 });
+  }
+  /** Invernadero de vidrio en 3/4 con bóveda, montantes, plantas dentro y ventana cenital abierta */
+  function greenhouse(pb, x, yb, w, h, d = 18, seed = 3) {
+    const s = B.sprite(w + d + 4, h + d + 24), G = K.P32(['#0e2a2a', '#164242', '#225c5a', '#3a8078', '#6aaca0', '#a6d8cc', '#e0fff8']), S = K.P32(B.R.STEEL);
+    const sk = 0.45, dx = Math.round(d * sk), by = h + d + 20, rv = 12;
+    // interior: plantas que se ven por el vidrio
+    for (let xx = 8; xx < w - 4; xx += 9) PFAgro.put(s, ['tomate', 'aji', 'frijol', 'tomate'][Math.floor(xx / 9) % 4], xx + 2, by - 4, 0.8, 0, seed + xx);
+    // vidrio frontal (tinte verdoso, reflejos diagonales) sobre las plantas
+    for (let yy = by - h; yy < by; yy++) for (let xx = 0; xx < w; xx++) {
+      const c = K.get(s, xx, yy), diag = ((xx + (by - yy)) % 23) < 2;
+      const u = G[clamp(4 - Math.round((yy - by + h) / h * 2) + (diag ? 2 : 0), 0, 6)];
+      K.put(s, xx, yy, (c >>> 24) ? K.mixU(c, u, diag ? 0.6 : 0.38) : K.mixU(u, U('#2a4a3e'), 0.4));
+    }
+    // lateral
+    PFK.polyFill(s, [[w, by - h], [w + dx, by - h - d], [w + dx, by - d], [w, by]], (xx, yy) => G[1 + (((xx + yy) % 19) < 2 ? 2 : 0)]);
+    // bóveda de vidrio
+    for (let r = 0; r <= d + 2; r++) {
+      const bump = Math.round(Math.sin(Math.PI * clamp(r / (d + 2), 0, 1)) * rv), off = Math.round(r * sk);
+      const yy0 = by - h - 1 - r - bump;
+      for (let xx = off; xx < w + off; xx++) { const rib = (xx - off) % 10 === 0; const k = rib ? 6 : r < (d + 2) / 2 ? 4 + (r < 3 ? 1 : 0) : 3; for (let q = 0; q <= 2; q++) K.put(s, xx, yy0 - q, rib ? U('#f4fbff') : G[clamp(k - (q === 2 ? 1 : 0), 0, 6)]); }
+    }
+    // montantes, zócalo y puerta
+    for (let fx = 0; fx < w; fx += 10) for (let yy = by - h; yy < by; yy++) { K.put(s, fx, yy, S[6]); K.put(s, fx + 1, yy, S[3]); }
+    for (let xx = 0; xx < w; xx++) { K.put(s, xx, by - h, S[7]); for (let k = 1; k < 6; k++) K.put(s, xx, by - k, S[k === 5 ? 6 : 3]); }
+    const dxp = Math.round(w * 0.5) - 6;
+    for (let yy = by - Math.min(h, 86); yy < by; yy++) for (let xx = dxp; xx < dxp + 13; xx++) { const c = K.get(s, xx, yy); K.put(s, xx, yy, xx === dxp || xx === dxp + 12 ? S[6] : K.mixU(c >>> 24 ? c : G[2], U('#0a1a14'), 0.4)); }
+    B.finish(s, { rimK: 0.5 }); K.blit(pb, s, x, yb - by);
+    B.castR(pb, x + w, x + w + 4, yb - 1, 16, { amt: -0.2, yMin: yb - 16 });
+  }
+  /** Banco de semillas: adobe de dos alturas, puertas de colores (≥ 86 px), soportal, placa y FV en cubierta.
+      El balcón de madera del nivel (plataforma) queda delante a la altura que diga o.deckY */
+  function seedBank(pb, x, yb, w, h, d = 22, o = {}) {
+    const s = B.sprite(w + d + 10, h + d + 30), A = K.P32(B.R.ADOBE), by = h + d + 26, sk = 0.45, dx = Math.round(d * sk);
+    const wall = (xx, yy, u, v) => { let k = 6 - Math.round(v * 1.6) + Math.round((K.vn(xx * 0.15, yy * 0.1, 3) - 0.5) * 1.4) + Math.round((K.cl(xx, yy, 2, 4) - 0.5) * 0.8); if (yy % 7 === 0 && K.cl(xx, yy, 3, 5) < 0.3) k -= 1; if (u > 0.95) k -= 2; return A[clamp(k, 1, 9)]; };
+    PFInfra.box3q(s, 0, by, w, h, d, { ramp: B.R.ADOBE, front: wall, top: (xx, yy, u, v) => A[clamp(7 - Math.round(v * 2) + ((xx % 6) === 0 ? -1 : 0), 2, 9)], side: (xx, yy) => A[clamp(3 + Math.round((K.cl(xx, yy, 2, 6) - 0.5) * 1.5), 1, 5)] });
+    // pretil con canecillos de madera
+    for (let xx = -2; xx < w + 2; xx++) { K.put(s, xx, by - h, A[9]); K.put(s, xx, by - h + 1, A[7]); }
+    for (let xx = 4; xx < w - 2; xx += 9) for (let k = 0; k < 3; k++) { K.put(s, xx, by - h + 4 + k, U('#4a2a14')); K.put(s, xx + 1, by - h + 4 + k, U('#2e170c')); }
+    // FV en la cubierta
+    for (let k = 0; k < Math.floor((w - 20) / 26); k++) PFInfra.pvPanel(s, 8 + k * 26 + Math.round(d * 0.2), by - h - Math.round(d * 0.4), 20, 6);
+    // ventanas altas con rejas de madera
+    for (let k = 0; k < 4; k++) B.win(s, 12 + k * Math.round((w - 24) / 4), by - h + 12, 12, 12, { frame: B.R.WOOD, shutters: B.R.WOOD });
+    // puertas de colores (granero de variedades): 4 puertas de 88 px como mínimo cuando hay altura
+    const DC = [['#06302e', '#0a4a4a', '#18a294', '#2ac0b0', '#56dcc6', '#a0f0e0'], ['#3a0810', '#6a1424', '#c8384a', '#e0584a', '#ff7a6a', '#ffb0a0'], ['#4a3204', '#7a5a0a', '#d8a428', '#ecc040', '#ffe070', '#fff0b0'], ['#160e3a', '#2a1e6a', '#5a44b8', '#7a64d0', '#a08ef0', '#d0c8ff']];
+    const dh = Math.min(o.doorH || 88, h - 34), dw = 18, gap = Math.round((w - 4 * dw) / 5);
+    for (let k = 0; k < 4; k++) B.door(s, gap + k * (dw + gap), by, dw, dh, DC[k], { arch: true, frame: B.R.ADOBE, panels: true });
+    // placa
+    B.plaque(s, Math.round(w / 2), by - h + 30, 'BANCO DE SEMILLAS', { center: true, font: 'tiny', bold: true, bg: '#5a2c1a', border: '#ecbe86', col: '#fdeccc', h: 12 });
+    // tinajas y sacos al pie
+    for (let k = 0; k < 3; k++) { const jx = 6 + k * 7; K.ellipseFn(s, jx, by - 6, 3.5, 5, (nx, ny) => A[clamp(Math.round(5 - nx * 2 - ny), 1, 9)]); K.put(s, jx, by - 11, A[2]); }
+    B.finish(s, { rimK: 0.5 }); K.blit(pb, s, x, yb - by);
+    B.castR(pb, x + w, x + w + dx, yb - 1, 22, { amt: -0.24, yMin: yb - 18 });
+  }
+  /** Compostera de 3 cajones con capas visibles y horca */
+  function compost(pb, x, y) {
+    const s = B.sprite(62, 30), Wd = K.P32(B.R.WOODG), S = K.P32(PFGround.SOILT), b = 28;
+    for (let k = 0; k < 3; k++) {
+      const bx = 2 + k * 19, fill = [0.9, 0.6, 0.3][k];
+      for (let yy = b - Math.round(18 * fill); yy < b; yy++) for (let xx = bx + 1; xx < bx + 17; xx++) { const layer = Math.floor((yy - b) / 3); K.put(s, xx, yy, k === 0 && yy < b - 14 ? U(['#3a6a1c', '#5a8a24', '#8a6a2e'][((xx + layer) % 3 + 3) % 3]) : S[clamp(3 + (((layer % 2) + 2) % 2) + (hash2(xx, yy, 3) < 0.1 ? 3 : 0), 0, 9)]); }
+      for (let yy = b - 20; yy < b; yy += 5) for (let xx = bx; xx < bx + 18; xx++) { K.put(s, xx, yy, Wd[6]); K.put(s, xx, yy + 1, Wd[4]); K.put(s, xx, yy + 2, Wd[2]); }
+      for (const px of [bx, bx + 17]) for (let yy = b - 22; yy < b; yy++) { K.put(s, px, yy, Wd[5]); }
+    }
+    for (let k = 0; k < 22; k++) K.put(s, 58 - Math.round(k * 0.3), b - 2 - k, U('#8a5a2e'));
+    for (let k = 0; k < 4; k++) for (let j = 0; j < 5; j++) K.put(s, 57 + k - 2, b - 1 - j, U('#9aa0a8'));
+    B.finish(s); K.blit(pb, s, x, y - b);
+    B.contact(pb, x + 30, y, 32, 2);
+  }
+  /** Colmena de cajones (Langstroth) sobre pata */
+  function hive(pb, x, y, seed = 1) {
+    const s = B.sprite(22, 34), b = 32, cols = [['#c8a428', '#e8c440', '#f8e070'], ['#d8d0c0', '#f0e8d8', '#fffaf0'], ['#4a8ab0', '#6aaad0', '#a0d0f0']][seed % 3];
+    for (const lx of [4, 15]) for (let yy = b - 7; yy < b; yy++) K.put(s, lx, yy, U('#4a2a14'));
+    for (let k = 0; k < 3; k++) PFInfra.box3q(s, 2, b - 7 - k * 7, 16, 7, 4, { ramp: ['#3a2a10', '#6a4a1e', cols[0], cols[1], cols[2], '#ffffff'] });
+    PFInfra.box3q(s, 1, b - 28, 18, 2, 5, { ramp: B.R.STEEL });
+    K.put(s, 9, b - 8, U('#140d06')); K.put(s, 10, b - 8, U('#140d06'));
+    B.finish(s); K.blit(pb, s, x - 11, y - b); B.contact(pb, x, y, 10, 2);
+  }
+  /** Frutal (mango/naranjo/guayabo): tronco con ramas y copa de racimos con frutos */
+  function fruitTree(pb, x, y, h, seed, fruit = '#ff9a2a') {
+    const r = RNG(seed), T = K.P32(['#1a0e06', '#2e1a0c', '#4a2c16', '#6a4224', '#8a5c34', '#a87a4e']);
+    const tw = 4;
+    for (let yy = 0; yy < h * 0.42; yy++) for (let k = 0; k < tw; k++) K.put(pb, x - 2 + k + Math.round(Math.sin(yy * 0.08 + seed) * 1.2), y - yy, T[[4, 3, 2, 1][k]]);
+    const cy = y - h * 0.62, rx = h * 0.42, ry = h * 0.3;
+    for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i - 2) * 0.6; K.lineFn(pb, x, y - h * 0.38, x + Math.cos(a) * rx * 0.7, cy + Math.sin(a) * ry * 0.5, () => T[3], 2); }
+    for (let i = 0; i < 6; i++) PFFlora.cluster(pb, x + (r() - 0.5) * rx * 1.3, cy + (r() - 0.5) * ry * 0.9, rx * (0.4 + r() * 0.2), ry * (0.45 + r() * 0.2), RAMP.foliageR, seed + i * 9, { density: 0.55, leaf: [3, 6] });
+    PFFlora.cluster(pb, x - rx * 0.2, cy - ry * 0.4, rx * 0.5, ry * 0.4, RAMP.foliageR, seed + 99, { density: 0.6, leaf: [3, 6], bias: 0.15 });
+    for (let i = 0; i < 12; i++) { const fx = x + (r() - 0.5) * rx * 1.6, fy = cy + (r() - 0.2) * ry; K.ellipseFn(pb, fx, fy, 1.8, 1.8, (nx, ny, d) => U(d < 0.35 && nx < 0 && ny < 0 ? '#fff0c0' : ny > 0.3 ? mixHex(fruit, '#3a1a08', 0.4) : fruit)); }
+    B.contact(pb, x + 4, y, rx * 0.9, 2, -0.25);
+  }
+  /** Cují antiguo: tronco retorcido enorme con raíces, hueco luminoso y ramas horizontales que
+      coinciden con las plataformas del nivel (branches:[{x,y,w}]). Copa amplia y aplanada (acacia). */
+  function cuji(pb, x, y, h, branches, seed = 9) {
+    const r = RNG(seed), T = K.P32(['#140a06', '#24140a', '#3a2212', '#54341c', '#704a28', '#8e6436', '#ae8250', '#cca46c']);
+    // tronco (ensancha en la base) con surcos de corteza
+    for (let yy = 0; yy < h; yy++) {
+      const t = yy / h, w = Math.round(lerp(30, 12, Math.pow(t, 0.6))), cx = x + Math.round(Math.sin(t * 2.4 + seed) * 6);
+      for (let k = 0; k < w; k++) {
+        const f = k / (w - 1); let ki = f < 0.12 ? 5 : f < 0.3 ? 4 : f < 0.6 ? 3 : f < 0.85 ? 2 : 1;
+        if (((k + Math.round(yy * 0.15)) % 5) === 0) ki -= 1;
+        if (K.cl(cx + k, yy, 2, seed) < 0.12) ki += 1;
+        K.put(pb, cx - (w >> 1) + k, y - yy, T[clamp(ki, 0, 7)]);
+      }
+    }
+    // raíces que se abren sobre el suelo
+    for (let i = 0; i < 7; i++) { const dir = i < 3 ? -1 : i > 3 ? 1 : 0, L = 14 + r.int(0, 14); for (let k = 0; k < L; k++) { const xx = x + dir * (8 + k) + (dir === 0 ? r.int(-4, 4) : 0), yy = y - 3 + Math.round(k * 0.18); K.put(pb, xx, yy, T[4]); K.put(pb, xx, yy + 1, T[2]); K.put(pb, xx, yy - 1, T[5 - (k > L * 0.6 ? 1 : 0)]); } }
+    // hueco (el brillo violeta de la memoria de KIRU lo pinta el nivel)
+    K.ellipseFn(pb, x + 2, y - 40, 5, 8, (nx, ny, d) => U(d > 0.7 ? '#24140a' : d > 0.45 ? '#140a06' : '#0a0408'));
+    // ramas hacia las plataformas: gruesas, horizontales, con cara superior iluminada
+    for (const b of branches) {
+      const bx0 = b.x, bx1 = b.x + b.w, by = b.y, from = x + (bx0 > x ? 6 : -6);
+      const xa = Math.min(from, bx0), xb = Math.max(from, bx1);
+      for (let xx = xa; xx <= xb; xx++) {
+        const t = (xx - xa) / Math.max(1, xb - xa), sag = Math.round(Math.sin(t * Math.PI) * 2);
+        const th = Math.round(lerp(9, 5, bx0 > x ? t : 1 - t));
+        const yy0 = by + sag - (xx < bx0 || xx > bx1 ? Math.round((xx < bx0 ? bx0 - xx : xx - bx1) * 0.5) : 0);
+        for (let k = 0; k < th; k++) K.put(pb, xx, yy0 + k, T[k === 0 ? 7 : k === 1 ? 5 : k < th - 1 ? 3 : 1]);
+      }
+    }
+    // copa de acacia: varias masas aplanadas por encima de las ramas
+    const top = y - h - 6;
+    const masses = [[x - 50, top + 10, 46, 16], [x + 10, top - 4, 56, 18], [x + 70, top + 8, 44, 15], [x - 10, top + 22, 40, 12], [x + 60, top + 28, 36, 11]];
+    for (const [mx, my, rx, ry] of masses) { PFFlora.cluster(pb, mx, my, rx, ry, ['#0e1a08', '#1a2c0c', '#2c4614', '#42621c', '#5c7e24', '#7c9a30', '#a0b440', '#c4cc60'], seed + mx, { density: 0.45, leaf: [3, 6], bias: 0.05 }); }
+    for (let i = 0; i < 26; i++) { const fx = x - 80 + r() * 190, fy = top - 6 + r() * 34; K.put(pb, Math.round(fx), Math.round(fy), U(r() < 0.5 ? '#ffe14d' : '#fff6a0')); }
+    B.contact(pb, x + 6, y, 44, 3, -0.3);
+  }
+  /** Pozo con brocal de piedra, bomba solar y salida de tubería ámbar */
+  function well(pb, x, y) {
+    const s = B.sprite(56, 92), St = K.P32(B.R.STONE), b = 90;
+    // brocal cilíndrico de piedra
+    for (let yy = b - 20; yy < b; yy++) for (let xx = 4; xx < 32; xx++) { const st = PFGround.stoneCell(xx, yy - (b - 20), 77, 5, 8); const f = (xx - 4) / 27; let k = st ? 6 - Math.round(f * 3) + (st[2] === 0 ? 1 : 0) + Math.round((hash1(st[0], 3) - 0.5) * 2) : 1; K.put(s, xx, yy, St[clamp(k, 0, 9)]); }
+    K.ellipseFn(s, 18, b - 20, 14, 4, (nx, ny, d) => d < 0.55 ? U(d < 0.3 ? '#0a1418' : '#1a2a2e') : St[ny < 0 ? 8 : 5]);
+    // pórtico y polea
+    const Wd = K.P32(B.R.WOOD);
+    for (const px of [6, 29]) for (let yy = b - 56; yy < b - 18; yy++) { K.put(s, px, yy, Wd[6]); K.put(s, px + 1, yy, Wd[3]); }
+    for (let xx = 4; xx < 33; xx++) { K.put(s, xx, b - 56, Wd[7]); K.put(s, xx, b - 55, Wd[4]); K.put(s, xx, b - 54, Wd[2]); }
+    K.ellipseFn(s, 18, b - 50, 3, 3, (nx, ny, d) => U(d < 0.3 ? '#2a282e' : '#948e91'));
+    for (let yy = b - 47; yy < b - 30; yy++) K.put(s, 18, yy, U('#c8a46a'));
+    PFInfra.box3q(s, 15, b - 26, 7, 5, 2, { ramp: B.R.WOOD });
+    // bomba solar: panel inclinado en mástil + caja de control
+    for (let yy = b - 86; yy < b - 4; yy++) { K.put(s, 44, yy, U('#d3ccc5')); K.put(s, 45, yy, U('#716f76')); }
+    PFInfra.pvPanel(s, 34, b - 80, 22, 8);
+    PFInfra.box3q(s, 38, b - 30, 12, 12, 4, { ramp: ['#14202a', '#24384a', '#3a566e', '#567a94', '#7aa0b8', '#a8c4d4'] });
+    K.put(s, 41, b - 38, U('#3fe0a0')); K.put(s, 44, b - 38, U('#ffd84a'));
+    B.finish(s, { rimK: 0.45 }); K.blit(pb, s, x - 18, y - b);
+    B.contact(pb, x, y, 22, 2);
+    return { pipeY: y - 10, panel: [x + 16, y - 80] };
+  }
+  /** Cisterna de lluvia de ferrocemento con canalón y rebosadero */
+  function cistern(pb, x, y, w = 46, h = 30) {
+    const s = B.sprite(w + 14, h + 18), C = K.P32(PFTerrain.CONC), b = h + 14;
+    const r = Math.round(w / 2), cx = r + 2;
+    for (let i = 0; i < w; i++) { const f = i / (w - 1), k = PFInfra.wallFront ? [1, 4, 6, 7, 6, 5, 5, 4, 3, 2, 2, 1][Math.floor(f * 11.99)] : 4; for (let yy = b - h; yy < b; yy++) { let kk = k + ((yy - b) % 8 === 0 ? -1 : 0); if (yy > b - 10 && K.cl(i, yy, 2, 3) < 0.3) kk -= 1; K.put(s, 2 + i, yy, C[clamp(kk, 0, 7)]); } }
+    K.ellipseFn(s, cx, b - h, r, 5, (nx, ny, d) => d < 0.7 ? U(d < 0.5 ? '#2a6e5a' : '#3e8a70') : C[ny < 0 ? 7 : 4]);
+    for (let xx = cx - 8; xx < cx + 8; xx++) { K.put(s, xx, b - h - 1, U('#5aa08a')); }
+    B.plaque(s, cx, b - Math.round(h * 0.6), 'LLUVIA', { center: true, bg: '#0e3a24', border: '#86e36f', col: '#e8ffe0' });
+    B.finish(s); K.blit(pb, s, x - cx, y - b); B.contact(pb, x, y, r + 3, 2);
+    return { top: y - h - 5 };
+  }
+  /** Cabra a escala (≈30 px de alto): tira de 4 cuadros (paso ×2, pastando ×2) */
+  let GOAT = null;
+  function goatStrip() {
+    if (GOAT) return GOAT;
+    GOAT = PFK.strip(4, 44, 34, (f, i) => {
+      const Wh = K.P32(['#3a2a20', '#6a5444', '#a08c78', '#cfc0aa', '#ece2d0', '#fffaf0']), Br = K.P32(['#1a0e08', '#3a2216', '#5e3a24', '#8a5a36', '#b07c4e']);
+      const graze = i >= 2, step = i % 2;
+      K.ellipseFn(f, 20, 16, 12, 6.5, (nx, ny, d) => Wh[clamp(Math.round(4 - nx * 0.8 - ny * 1.6 - (d > 0.8 ? 1 : 0)), 0, 5)]);
+      // manchas pardas
+      K.ellipseFn(f, 24, 14, 5, 3.5, (nx, ny) => Br[clamp(Math.round(3 - ny * 1.4), 1, 4)]);
+      // patas
+      const legs = [[12, step ? 1 : -1], [16, step ? -1 : 1], [25, step ? 1 : -1], [29, step ? -1 : 1]];
+      for (const [lx, o] of legs) for (let yy = 21; yy < 32; yy++) { K.put(f, lx + (yy > 27 ? o : 0), yy, Wh[yy > 29 ? 0 : 2]); K.put(f, lx + 1 + (yy > 27 ? o : 0), yy, Wh[1]); }
+      // cuello y cabeza
+      const hx = graze ? 36 : 35, hy = graze ? 24 : 6;
+      K.lineFn(f, 30, 13, hx - 2, hy + 3, () => Wh[3], 3);
+      K.ellipseFn(f, hx, hy + 2, 3.8, 3, (nx, ny) => Wh[clamp(Math.round(4 - nx - ny), 1, 5)]);
+      K.put(f, hx + 3, hy + 3, Wh[1]); K.put(f, hx + 1, hy + 1, U('#140d06'));
+      // cuernos y barba
+      for (let k = 0; k < 4; k++) K.put(f, hx - 2 - k, hy - 1 - Math.round(k * 0.6), Br[2]);
+      K.put(f, hx + 1, hy + 6, Wh[2]); K.put(f, hx + 1, hy + 7, Wh[1]);
+      // oreja y cola
+      K.put(f, hx - 3, hy + 1, Br[3]); K.put(f, hx - 4, hy + 2, Br[3]);
+      K.put(f, 8, 11, Wh[4]); K.put(f, 7, 10, Wh[3]);
+      if (graze && step) { K.put(f, hx + 2, hy + 8, U('#5a8a24')); K.put(f, hx + 3, hy + 7, U('#76a830')); }
+      K.selOut(f, -0.6, 'lrbt');
+    });
+    return GOAT;
+  }
+  function drawGoat(g, x, y, t, dir, phase = 0) {
+    const S = goatStrip(), graze = Math.sin(t * 0.4 + phase) > 0.2;
+    const i = graze ? 2 + (Math.floor(t * 2 + phase) % 2) : Math.floor(t * 5 + phase) % 2;
+    PFK.drawStrip(g, S, i, Math.round(x - 22), Math.round(y - 33), dir < 0);
+  }
+  return { plant, put, drip, bed, sensor, shadeHouse, greenhouse, seedBank, compost, hive, fruitTree, cuji, well, cistern, goatStrip, drawGoat, LEAF };
+})();
+
 /* ===== 18z_pf_test.js ===== */
 /* =====================================================================
    18z_pf_test.js — Galería del kit PF para comparar con la referencia.
@@ -26394,72 +27626,204 @@ LEVELS[8] = {
   checkpoints: { hub: { x: 1360, y: 284 }, tree: { x: 2300, y: 276 } },
   ground: [[0, 286], [280, 284], [320, 278], [900, 278], [960, 284], [1300, 284], [1800, 280], [2300, 276], [2600, 270], [2800, 266]],
   terrain: [{ x0: 0, x1: 300, mat: 'sand' }, { x0: 300, x1: 2800, mat: 'grassland' }],
-  water: [{ x0: 1180, x1: 1260, y: 282, tint: '#20d6c7', deep: '#0f6a7a' }],
-  platforms: [{ x: 1010, y: 236, w: 140, type: 'wood' }, { x: 2380, y: 214, w: 70, type: 'wood' }, { x: 2470, y: 188, w: 60, type: 'wood' }],
-  ladders: [{ x: 1020, y0: 236, y1: 284 }],
+  water: [{ x0: 1180, x1: 1260, y: 282, tint: '#20d6c7', deep: '#0f6a7a', pf: true, style: 'pond' }],
+  platforms: [{ x: 1010, y: 236, w: 140, type: 'wood', baked: true, look: 'deck', railing: false, postGap: 46 }, { x: 2380, y: 214, w: 70, type: 'wood', baked: true, look: 'none' }, { x: 2470, y: 188, w: 60, type: 'wood', baked: true, look: 'none' }],
+  ladders: [{ x: 1020, y0: 236, y1: 284, look: 'wood' }],
   cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
-  props(pb, world) {
-    const gy = (x) => world.groundAt(x);
-    for (let x = 20; x < 300; x += 40) ART.cactus(pb, x, gy(x) + 1, 18 + (x % 3) * 5, x);
-    drawSign(pb, 250, gy(250), 'OASIS DE LAS RAÍCES', '#33a552');
-    ART.palm(pb, 330, gy(330), 56, -5, 21); ART.palm(pb, 880, gy(880), 60, 6, 22);
-    // parcelas en terraza con goteo y cultivos asociados (milpa)
-    const plots = [[380, ['maiz', 'frijol', 'ahuyama', 'maiz', 'frijol', 'ahuyama', 'maiz']], [560, ['tomate', 'aji', 'tomate', 'aji', 'tomate', 'aji']], [730, ['sorgo', 'nopal', 'sorgo', 'nopal', 'sorgo']]];
-    for (const [x0, crops] of plots) {
-      // cantero elevado de tierra oscura para contraste
-      for (let x = x0 - 8; x < x0 + 146; x++) for (let y = gy(x0) - 9; y < gy(x0); y++) pb.set(x, y, (y === gy(x0) - 9) ? '#8a5a3c' : rampDither(['#3a2418', '#5a3a24', '#7a4e2e'], (y - gy(x0) + 9) / 9, x, y));
-      for (const px of [x0 - 8, x0 + 145]) pb.vline(px, gy(x0) - 22, gy(x0), '#8a5a3c');
-      pb.rect(x0 - 6, gy(x0) - 3, 150, 3, '#a04a22'); pb.hline(x0 - 6, x0 + 143, gy(x0) - 3, '#c9622e');
-      ART.dripLine(pb, x0, x0 + 140, gy(x0) - 10, 10);
-      crops.forEach((c, i) => ART.crop(pb, x0 + 8 + i * 20, gy(x0) - 9, c, 1, x0 + i));
-      // cobertura (mulch) en la primera parcela
-      if (x0 === 380) for (let x = x0; x < x0 + 140; x += 2) pb.set(x, gy(x0) - 3, (x % 6) ? '#c8a860' : '#a08040');
-    }
-    drawSign(pb, 450, gy(450), 'MILPA', '#33a552'); drawSign(pb, 630, gy(630), 'HUERTA', '#ff4e5d'); drawSign(pb, 800, gy(800), 'SECANO', '#c97c38');
-    // vivero de Alma (casa-malla)
-    ART.shadeHouse(pb, 920, gy(920), 80, 46);
-    for (let k = 0; k < 8; k++) { pb.rect(926 + k * 9, gy(920) - 8, 6, 6, '#c9622e'); ART.crop(pb, 929 + k * 9, gy(920) - 8, ['tomate', 'aji', 'frijol', 'maiz'][k % 4], 0.35, k); }
-    // banco de semillas (adobe con puertas de colores)
-    const bx = 1010;
-    pb.rect(bx, 236, 140, 48, '#d8a070'); pb.rect(bx, 236, 140, 3, '#f2c48a'); pb.rect(bx + 136, 236, 4, 48, '#a06a3a');
-    for (let k = 0; k < 4; k++) { pb.rect(bx + 12 + k * 32, 250, 16, 34, ['#20d6c7', '#ff6b6b', '#ffe14d', '#8d6bff'][k]); pb.rect(bx + 12 + k * 32, 250, 16, 2, '#fffaf0'); }
-    drawSign(pb, bx + 70, 236, 'BANCO DE SEMILLAS', '#c9622e');
-    // nodo hidráulico: pozo 4, tanque de permeado, cisterna de lluvia y mezclador
-    const hx = 1300;
-    pb.rect(hx, gy(hx) - 26, 24, 26, '#8a6a4a'); pb.rect(hx - 2, gy(hx) - 30, 28, 4, '#6a4a2a'); pb.vline(hx + 12, gy(hx) - 56, gy(hx) - 30, '#5a3826'); pb.rect(hx + 4, gy(hx) - 58, 16, 3, '#5a3826');
-    drawSign(pb, hx + 12, gy(hx) - 58, 'POZO 4', '#c97c38');
-    ART.tank(pb, hx + 50, gy(hx), 28, 56, RAMP.steelW, { band: '#56e5ff', label: true });
-    pb.rect(hx + 100, gy(hx) - 22, 44, 22, '#a9bbd6'); pb.rect(hx + 102, gy(hx) - 20, 40, 6, '#20d6c7'); drawSign(pb, hx + 122, gy(hx) - 22, 'CISTERNA', '#33a552');
-    pb.rect(hx + 160, gy(hx) - 40, 30, 40, '#e8f0f4'); pb.rect(hx + 160, gy(hx) - 40, 30, 3, '#86e36f'); drawSign(pb, hx + 175, gy(hx) - 40, 'MEZCLA', '#33a552');
-    ART.pipe(pb, hx + 24, gy(hx) - 10, hx + 160, gy(hx) - 10, 2, 'irrigation');
-    ART.pipe(pb, hx + 190, gy(hx) - 10, hx + 400, gy(hx) - 10, 2, 'irrigation');
-    // pastizal de Doña Celia y corredor de flores
-    for (let x = 1600; x < 2200; x += 6) { const k = hash2(x, 1, 8); if (k < 0.25) { pb.set(x, gy(x) - 3, '#ffe14d'); pb.vline(x, gy(x) - 2, gy(x) - 1, '#33a552'); } else if (k < 0.4) { pb.set(x, gy(x) - 4, '#b49cff'); pb.vline(x, gy(x) - 3, gy(x) - 1, '#33a552'); } }
-    pb.rect(1900, gy(1900) - 10, 40, 10, '#8a6a4a'); pb.rect(1902, gy(1900) - 8, 36, 4, '#20d6c7'); drawSign(pb, 1920, gy(1920) - 10, 'BEBEDERO', '#8a6a4a');
-    // árbol antiguo (cují) donde KIRU abre su memoria
-    const tx = 2420;
-    ART.tree(pb, tx, gy(tx), 120, 9, RAMP.leaf, ['#3a2218', '#5a3826', '#7a5236', '#9a6e4a']);
-    for (let i = 0; i < 6; i++) pb.line(tx - 20 + i * 8, gy(tx), tx - 30 + i * 12, gy(tx) + 6, '#5a3826');
-    drawSign(pb, 2700, gy(2700), 'MESA DEL NEXO', '#2152b5');
+  /* ---------------- plano jugable con kit PF (B) ----------------
+     Suelo en 3/4: arena y arenisca al llegar del desierto → senda de tierra entre bancales elevados
+     (delante, dos bancales inferiores con muros de piedra seca, canal turquesa y cascaditas) →
+     corte de suelo con raíces bajo el vivero y el banco de semillas → estanque → losa de hormigón
+     del nodo hidráulico → pradera con sendero, bancal inferior y corte de suelo → raíces del cují. */
+  pf: {
+    kitB: true,
+    terrain: [
+      { x0: 0, x1: 300, surf: 'sand', face: 'sandstone', depth: 12 },
+      { x0: 300, x1: 905, surf: 'path', face: 'terrace', depth: 16, falls: [362, 548, 716, 884], roots: [400, 452, 590, 640, 760, 820], tiers: [{ wall: 17, top: 10, channel: true, crop: 'lettuce' }, { wall: 14, top: 9, crop: 'bean' }] },
+      { x0: 905, x1: 1172, surf: 'path', face: 'soilcut', depth: 16, roots: [930, 980, 1040, 1100, 1150] },
+      { x0: 1172, x1: 1268, surf: 'grass', face: 'soilcut', depth: 14 },
+      { x0: 1268, x1: 1600, surf: 'path', face: 'concrete', depth: 18 },
+      { x0: 1600, x1: 1960, surf: 'grass', face: 'soilcut', depth: 16, trail: true, roots: [1640, 1700, 1790, 1880, 1930] },
+      { x0: 1960, x1: 2250, surf: 'grass', face: 'terrace', depth: 16, trail: true, falls: [2110], tiers: [{ wall: 20, top: 11, channel: true, crop: 'chard' }] },
+      { x0: 2250, x1: 2610, surf: 'grass', face: 'soilcut', depth: 16, roots: [2330, 2380, 2420, 2440, 2470, 2520] },
+      { x0: 2610, x1: 2800, surf: 'path', face: 'sandstone', depth: 14 },
+    ],
+    fg: [
+      { kind: 'clump', x: -30, w: 150, h: 96, seed: 81, spikes: 3, leaves: 12 },
+      { kind: 'dark', x: 520, w: 120, h: 70, seed: 83, leaves: 9 },
+      { kind: 'reeds', x: 1300, w: 130, h: 92, seed: 85 },
+      { kind: 'clump', x: 1720, w: 120, h: 74, seed: 87, spikes: 5, leaves: 9 },
+      { kind: 'canopy', x: 2350, y: -6, w: 260, h: 78, seed: 89, side: -1, n: 16, vines: 4 },
+      { kind: 'reeds', x: 2700, w: 110, h: 80, seed: 91 },
+      { kind: 'clump', x: 3040, w: 150, h: 92, seed: 93, spikes: 6, leaves: 11 },
+      { kind: 'canopy', x: 3300, y: -6, w: 220, h: 70, seed: 95, side: 1, n: 12, vines: 3 },
+    ],
+    fauna: { drones: [{ x: 1380, y: 120, r: 30 }] },
   },
-  propsFront(pb, world) { for (let x = 300; x < 2800; x += 5) if ((x * 13) % 7 < 2) ART.grass(pb, x, world.groundAt(x) + 2, 2, x, RAMP.leaf); },
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 450, y: 150, title: 'MILPA', sub: 'Maíz · frijol · ahuyama', kind: 'green', ax: 450, ay: 196 },
+    { x: 628, y: 172, title: 'HUERTA', sub: 'Tomate · ají', kind: 'green', ax: 628, ay: 214, when: (sc) => !sc.state.rootsView },
+    { x: 800, y: 150, title: 'SECANO', sub: 'Sorgo · nopal', kind: 'green', ax: 800, ay: 200 },
+    { x: 628, y: 172, title: 'SAL EN LA RAÍZ', sub: 'CE suelo 3,4 dS/m · boro alto', kind: 'alert', ax: 628, ay: 300, when: (sc) => !!sc.state.rootsView },
+    { x: 452, y: 330, title: 'ZONA RADICULAR', sub: 'Humedad + raíces', kind: 'water', ax: 452, ay: 318, when: (sc) => !!sc.state.rootsView },
+    { x: 1300, y: 150, title: 'POZO 4', sub: 'Agua salobre', kind: 'solar', ax: 1300, ay: 196 },
+    { x: 1356, y: 118, title: 'PERMEADO', sub: 'Agua de la planta OI', kind: 'water', ax: 1356, ay: 150 },
+    { x: 1424, y: 196, title: 'CISTERNA', sub: 'Agua de lluvia', kind: 'green', ax: 1424, ay: 226 },
+    { x: 1500, y: 132, title: 'MEZCLA DE RIEGO', sub: (sc) => (sc.state.blend && isFinite(sc.state.blend.ec)) ? ('EC ' + fmt(sc.state.blend.ec, 2) + ' dS/m · SAR ' + fmt(sc.state.blend.sar || 0, 1)) : 'EC · boro · SAR', kind: 'water', ax: 1490, ay: 180 },
+    { x: 1560, y: 190, title: 'COMPOST', sub: 'Materia orgánica', kind: 'green', ax: 1566, ay: 238 },
+    { x: 1760, y: 176, title: 'PASTOREO', sub: 'Ruta de las cabras', kind: 'green', ax: 1760, ay: 236 },
+    { x: 2010, y: 160, title: 'CORREDOR', sub: 'Polinizadores', kind: 'green', ax: 2010, ay: 222 },
+  ],
+  /* ---------------- accesorios estáticos (prerender) ---------------- */
+  props(pb, world) {
+    const t0 = nowMs();
+    const gy = (x) => world.groundAt(x);
+    const segs = PFGround.surface(pb, world);
+    const back = (x) => PFGround.backEdge(PFGround.segAt(segs, x), Math.round(x), gy(x));
+    const F = PFFlora, A = PFAgro, B = PFB, I = PFInfra;
+    const r = RNG(808);
+    /* ===== 1. LINDE DEL DESIERTO (0–300): cardones, agaves, rocas, letrero ===== */
+    for (const [x, h] of [[24, 58], [96, 44], [168, 64], [214, 40]]) B.cactus(pb, x, back(x) + 3, h, x);
+    for (let x = 10; x < 290; x += 26 + r.int(0, 20)) B.rocks(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x);
+    F.scatter(pb, (x) => back(x) + 3, 0, 300, 801, { gap: 12, mix: { dry: 4, agave: 2, tuft: 1 } });
+    F.agave(pb, 60, gy(60) - 4, 12, 802); F.agave(pb, 140, gy(140) - 4, 9, 803);
+    PFSigns.post(pb, 236, gy(236) - 6, [{ text: 'OASIS DE LAS RAÍCES' }, { text: 'MESA DEL NEXO' }, { text: 'DESIERTO', dir: -1 }], 17, { font: 'tiny' });
+    // seto cortavientos (al borde del oasis)
+    for (let x = 268; x < 372; x += 12) F.bush(pb, x, back(x) + 2, 22, 22 + (x % 3) * 4, RAMP.foliageR, x);
+    F.palm(pb, 330, back(330) + 2, 74, -6, 21); F.palm(pb, 882, back(882) + 2, 70, 6, 22);
+    /* ===== 2. BANCALES (380–870): milpa, huerta, secano con goteo y sensores ===== */
+    const plots = [
+      [372, 524, ['maiz', 'frijol', 'ahuyama'], { mulch: true, seed: 11 }],
+      [556, 704, ['tomate', 'aji'], { stress: 0.7, seed: 23, spacing: 18 }],
+      [728, 874, ['sorgo', 'nopal'], { seed: 37, spacing: 24, frame: PFB.R.STONE }],
+    ];
+    LV8_DRIPS.length = 0; LV8_FLOWS.length = 0; LV8_GLOWS.length = 0; LV8_FALLS.length = 0;
+    for (const [x0, x1, crops, o] of plots) {
+      const yb = back(x0) + 3;
+      const bd = A.bed(pb, x0, x1, yb, Object.assign({ crops, depth: 20, board: 10, rows: 3 }, o));
+      LV8_DRIPS.push(...bd.drips);
+    }
+    // sensores de suelo decorativos (el de la huerta es la estación)
+    for (const x of [404, 846]) { const L = A.sensor(pb, x, back(x) - 8); LV8_GLOWS.push({ x: L.lx, y: L.ly, r: 3, col: '#3fe0a0', a: 0.7, mode: 'blink', hz: 0.7, ph: x, core: '#b0ffd8' }); }
+    // cabezal de riego entre milpa y huerta: depósito, filtro de anillas, manómetro
+    const hx = 540, hy = back(hx) + 2;
+    B.tank(pb, hx, hy, 7, 26, { ramp: ['#0a2a2a', '#124444', '#1c6060', '#2a8080', '#4aa8a0', '#8ad0c4', '#d0f4ec'], bands: [{ y: 5, h: 2 }], dome: 0.5 });
+    I.pipe(pb, [[hx + 8, hy - 10], [hx + 16, hy - 10], [hx + 16, hy - 4]], 1, 'irrig', { flange: 0 }); I.gauge(pb, hx + 4, hy - 34, 2, -0.8);
+    for (const [x0, x1] of [[372, 524], [556, 704], [728, 874]]) I.pipe(pb, [[x0 + 2, back(x0) - 16], [x1 - 2, back(x0) - 16]], 1, 'irrig', { flange: 30 });
+    // milpa: espantapájaros y cesta; secano: piedras de lindero
+    lv8Scarecrow(pb, 500, back(500) - 2); lv8Basket(pb, 532, gy(532) - 3);
+    for (const x of [716, 888]) B.rocks(pb, x, back(x) + 4, 12, 6, x);
+    F.scatter(pb, (x) => back(x) + 3, 300, 905, 806, { gap: 9, mix: { tuft: 5, flowers: 2, lupine: 1, fern: 1 } });
+    /* ===== 3. VIVERO DE ALMA (905–1000): casa-malla ===== */
+    A.shadeHouse(pb, 906, back(906) + 2, 92, 62, 18);
+    for (let k = 0; k < 5; k++) { const px = 912 + k * 16; PFB.rect(pb, px, gy(px) - 14, 10, 6, U('#c9622e')); PFB.rect(pb, px, gy(px) - 14, 10, 1, U('#e88a52')); A.put(pb, ['tomate', 'aji', 'frijol', 'girasol', 'aji'][k], px + 5, gy(px) - 14, 0.35, 0, k); }
+    /* ===== 4. BANCO DE SEMILLAS (1006–1156) sobre zócalo de piedra; secadero = plataforma ===== */
+    const sbY = 236;
+    I.box3q(pb, 1004, back(1080) + 4, 152, back(1080) + 4 - sbY, 18, { ramp: PFB.R.STONE, front: (xx, yy) => PFGround.wallPix(xx, yy - sbY, 40, 61, PFK.P32(PFB.R.STONE), { rh: 7, sw: 14 }) });
+    for (let k = 0; k < 5; k++) PFB.rect(pb, 1020 + k * 28, sbY + 10, 8, 4, U('#140a06'));
+    A.seedBank(pb, 1010, sbY - 2, 140, 112, 22);
+    for (let k = 0; k < 6; k++) { const tx = 1036 + k * 18; PFB.rect(pb, tx, sbY - 3, 14, 2, U(['#e8c040', '#c8562a', '#86b03a', '#f4e8d6', '#a03a2a', '#e8a040'][k])); PFB.rect(pb, tx, sbY - 1, 14, 1, U('#4a2a14')); }
+    /* ===== 5. ESTANQUE (1172–1268): juncos, eneas, nenúfares ===== */
+    for (let x = 1166; x < 1276; x += 7) { if (x > 1186 && x < 1256) continue; F.tuft(pb, x, back(x) + 4, 9, 18 + (x % 3) * 6, x, ['#22300e', '#344812', '#4c6418', '#688020', '#88a02a', '#acbc3e', '#d0d460']); }
+    for (const x of [1176, 1262, 1170]) for (let k = 0; k < 9; k++) { PFK.put(pb, x, back(x) - 18 - k, U(k < 1 ? '#3a2410' : '#6a3c1a')); PFK.put(pb, x + 1, back(x) - 18 - k, U('#3a2410')); }
+    /* ===== 6. NODO HIDRÁULICO (1270–1600) ===== */
+    const ny = back(1400) + 2;
+    A.well(pb, 1300, back(1300) + 3);
+    B.tank(pb, 1356, ny, 15, 64, { ramp: PFInfra.STEEL, band: ['#0c2e4a', '#106a8a', '#1ebde3', '#48d4f0', '#6de1f1', '#d0f4f8'], bands: [{ y: 8, h: 3 }, { y: 40, h: 3 }], ladder: true, label: 'PERMEADO' });
+    A.cistern(pb, 1424, ny, 46, 30);
+    B.tank(pb, 1492, ny, 11, 40, { ramp: PFInfra.STEEL, band: ['#062a2a', '#0a4e4a', '#12786a', '#1ca08a', '#3cc4a6', '#8ae6cc'], bands: [{ y: 6, h: 3 }, { y: 26, h: 2 }], label: 'MEZCLA', labelBg: '#062a24', labelBd: '#3cc4a6' });
+    // permeado que llega de SYNARA (desde el fondo) → tanque; tanque → mezcla; pozo → mezcla; cisterna → mezcla
+    I.pipe(pb, [[1328, 150], [1356, 150], [1356, ny - 82]], 2, 'perm', { flange: 18 });
+    I.pipe(pb, [[1372, ny - 22], [1470, ny - 22], [1470, ny - 30], [1481, ny - 30]], 2, 'perm', { flange: 24, supports: 34, supportTo: () => ny - 4 });
+    I.pipe(pb, [[1316, ny - 12], [1478, ny - 12]], 2, 'well', { flange: 26, supports: 40, supportTo: () => ny - 3 });
+    I.pipe(pb, [[1448, ny - 32], [1462, ny - 32], [1462, ny - 38], [1481, ny - 38]], 1, 'rain', { flange: 0 });
+    // salida de agua mezclada → pradera y frutales (hacia el este)
+    I.pipe(pb, [[1503, ny - 16], [1600, ny - 16], [1600, ny - 8], [1960, ny - 8]], 2, 'irrig', { flange: 30, supports: 46, supportTo: (x) => back(x) + 2 });
+    for (const [x, y] of [[1400, ny - 12], [1440, ny - 22], [1520, ny - 16]]) I.valve(pb, x, y);
+    I.gauge(pb, 1388, ny - 30, 3, -0.4); I.gauge(pb, 1470, ny - 48, 3, -1.1);
+    I.cabinet(pb, 1520, ny - 2, 12, 22, 5);
+    const lp = PFB.lampPost(pb, 1276, back(1276) + 2, 92, { dir: 1 });
+    LV8_GLOWS.push({ x: lp.x, y: lp.y, r: 7, col: '#fff2b0', a: 0.35, mode: 'flicker' }, { x: 1356, y: ny - 34, r: 9, col: '#48d4f0', a: 0.28, mode: 'pulse', hz: 0.4 }, { x: 1526, y: ny - 18, r: 3, col: '#3fe0a0', a: 0.7, mode: 'blink', hz: 1.1 }, { x: 1306, y: back(1300) - 35, r: 3, col: '#3fe0a0', a: 0.7, mode: 'blink', hz: 0.9 });
+    LV8_FLOWS.push(
+      { pts: [[1328, 150], [1356, 150], [1356, ny - 82]], kind: 'perm', rate: 0.8 },
+      { pts: [[1372, ny - 22], [1470, ny - 22], [1470, ny - 30], [1481, ny - 30]], kind: 'perm' },
+      { pts: [[1316, ny - 12], [1478, ny - 12]], kind: 'well', rate: 0.7 },
+      { pts: [[1448, ny - 32], [1462, ny - 32], [1462, ny - 38], [1481, ny - 38]], kind: 'rain', rate: 0.5 },
+      { pts: [[1503, ny - 16], [1600, ny - 16], [1600, ny - 8], [1960, ny - 8]], kind: 'irrig' });
+    for (const [x0, x1] of [[372, 524], [556, 704], [728, 874]]) LV8_FLOWS.push({ pts: [[x0 + 2, back(x0) - 16], [x1 - 2, back(x0) - 16]], kind: 'irrig', rate: 0.6 });
+    /* ===== 7. COMPOST e INVERNADERO (1530–1600) ===== */
+    A.greenhouse(pb, 1536, back(1536) - 6, 60, 64, 18, 7);
+    A.compost(pb, 1540, back(1540) + 4);
+    /* ===== 8. PRADERA DE DOÑA CELIA (1600–2250): valla, bebedero, colmenas, flores, frutales ===== */
+    PFB.fence(pb, 1610, 1960, back(1700) - 4, { gap: 24 });
+    F.scatter(pb, (x) => back(x) + 3, 1600, 2250, 811, { gap: 8, mix: { tuft: 5, flowers: 3, lupine: 2, bush: 1 } });
+    // bebedero (abrevadero de piedra con agua)
+    const bx = 1902, by = back(bx) + 4;
+    I.box3q(pb, bx - 22, by, 44, 10, 8, { ramp: PFB.R.STONE });
+    PFB.rect(pb, bx - 20, by - 17, 40, 5, (xx, yy) => U(yy === by - 17 ? '#bde9f2' : (xx + yy) % 7 === 0 ? '#3adcf1' : '#11a0c0'));
+    for (let x = 1980; x < 2240; x += 9) A.put(pb, ['girasol', 'flor', 'flor', 'girasol', 'flor'][Math.floor(x / 9) % 5], x, back(x) + 2, 0.8 + (x % 3) * 0.1, 0, x);
+    for (const [x, sd] of [[2000, 0], [2022, 1], [2044, 2]]) A.hive(pb, x, back(x) + 2, sd);
+    for (const [x, h, f] of [[2096, 70, '#ff9a2a'], [2160, 62, '#ffd83a'], [2226, 74, '#f05a3a']]) A.fruitTree(pb, x, back(x) + 3, h, x, f);
+    /* ===== 9. CUJÍ ANTIGUO (2250–2610) y PUERTA DE EVIDENCIA ===== */
+    F.scatter(pb, (x) => back(x) + 3, 2250, 2610, 812, { gap: 9, mix: { tuft: 5, flowers: 2, fern: 2, bush: 1 } });
+    A.cuji(pb, 2420, back(2420) + 4, 128, [{ x: 2380, y: 214, w: 70 }, { x: 2470, y: 188, w: 60 }], 9);
+    for (const [x, h] of [[2300, 60], [2560, 66]]) F.palm(pb, x, back(x) + 2, h, x % 2 ? 5 : -5, x);
+    /* ===== 10. CAMINO A LA MESA DEL NEXO (2610–2800) ===== */
+    for (let x = 2620; x < 2800; x += 30 + r.int(0, 20)) B.rocks(pb, x, back(x) + 5, 14 + r.int(0, 10), 6 + r.int(0, 4), x);
+    for (const [x, h] of [[2650, 46], [2770, 56]]) B.cactus(pb, x, back(x) + 3, h, x);
+    PFSigns.post(pb, 2690, gy(2690) - 6, [{ text: 'MESA DEL NEXO' }, { text: 'BANCALES', dir: -1 }], 29, { font: 'tiny' });
+    // canales y cascaditas de los bancales inferiores (para el brillo animado)
+    LV8_CHANNELS.fill(-1);
+    for (let x = 0; x < world.w; x++) { const sg = PFGround.segAt(segs, x); if (sg.face !== 'terrace') continue; const ti = PFGround.tierInfo(sg, x, gy(x)); const c = ti.find(q => q.channel); if (c) LV8_CHANNELS[x] = c.topY + c.topH - 3; }
+    for (const sg of segs) if (sg.face === 'terrace') for (const fx of (sg.falls || [])) { const ti = PFGround.tierInfo(sg, fx, gy(fx)); const i = ti.findIndex(q => q.channel); if (i >= 0 && ti[i + 1]) LV8_FALLS.push([fx, ti[i].topY + ti[i].topH - 3, ti[i + 1].topY]); }
+    LEVELS[8]._propsMs = Math.round(nowMs() - t0);
+  },
+  /** Primer plano a ras de suelo: pasto, flores y juncos delante de los pies */
+  propsFront(pb, world) {
+    const gy = (x) => world.groundAt(x), F = PFFlora;
+    for (let x = 6; x < 300; x += 31) F.tuft(pb, x, gy(x) + 3, 7, 6, x + 3, PFFlora.DRY);
+    for (let x = 304; x < 1170; x += 21) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (let x = 1166; x < 1276; x += 9) F.tuft(pb, x, gy(x) + 4, 6, 10, x, ['#22300e', '#344812', '#4c6418', '#688020', '#88a02a', '#acbc3e', '#d0d460']);
+    for (let x = 1604; x < 2610; x += 17) { if ((x * 7) % 4 < 3) F.tuft(pb, x, gy(x) + 3, 7, 8, x + 9); if ((x * 11) % 9 === 0) F.flowerPatch(pb, x, gy(x) + 3, 8, x); }
+  },
   /* ---------------- dinámico ---------------- */
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, w = sc.world, ox = cam.x, oy = cam.y;
     const gy = (x) => w.groundAt(x) - oy;
-    for (const x0 of [380, 560, 730]) drawDrips(g, x0 - ox, x0 + 140 - ox, gy(x0) - 10, t, true, 10);
-    // estrés invisible: con el Mapa de Raíces se ve la sal en el suelo
-    if (S.rootsView) for (const [x0, k] of [[380, 0.3], [560, 0.7], [730, 0.2]]) { for (let x = x0; x < x0 + 140; x += 3) { const d = 4 + Math.round(Math.sin(x * 0.2) * 3) + 10; frect(g, x - ox, gy(x0) + 2, 1, d, '#c9a46a'); if (hash2(x, 3, 1) < k) fpx(g, x - ox, gy(x0) + 6 + (x % 7), '#ffffff'); } }
-    // cabras de Doña Celia
-    for (let i = 0; i < 5; i++) { const gx = 1700 + i * 34 + Math.sin(t * 0.4 + i) * 16 - ox, gyy = gy(1700 + i * 34) ; drawGoat(g, gx, gyy, t + i, i % 2 ? 1 : -1); }
-    // mariposas y abejas en el corredor
-    for (let i = 0; i < 10; i++) { const bx = 1600 + ((t * 20 + i * 61) % 600) - ox, by = gy(1600) - 14 - Math.abs(Math.sin(t * 3 + i)) * 10; fpx(g, bx, by, i % 2 ? '#ffe14d' : '#b49cff'); fpx(g, bx + 1, by - (Math.floor(t * 8 + i) % 2), i % 2 ? '#fff6a0' : '#e0d8ff'); }
-    // brillo del compartimento de KIRU en el árbol
-    if (S.memGlow) VISTA.drawGlow(g, 2420 - ox, gy(2420) - 40, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
-    // flujo de riego por el nodo hidráulico
-    VISTA.flowClip(g, [[1324 - ox, gy(1300) - 10], [1460 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
-    VISTA.flowClip(g, [[1490 - ox, gy(1300) - 10], [1700 - ox, gy(1300) - 10]], 'irrigation', 1, 2);
+    // goteo: gotas que caen de los emisores de cada hilera
+    g.fillStyle = '#9cf0f8';
+    for (const [x0, x1, yb] of LV8_DRIPS) { if (x1 - ox < 0 || x0 - ox > W) continue; for (let x = x0, i = 0; x < x1; x += 10, i++) { const ph = (t * 1.1 + i * 0.37) % 1; if (ph < 0.5) g.fillRect(Math.round(x - ox), Math.round(yb - oy + ph * 4), 1, 1 + (ph > 0.3 ? 1 : 0)); } }
+    // flujos (chevrones): permeado cian, pozo ámbar, lluvia verde, mezcla turquesa
+    PFInfra.drawFlows(g, sc, LV8_FLOWS);
+    PFB.glows(g, sc, LV8_GLOWS);
+    // cabras de Doña Celia (escala de personaje)
+    for (let i = 0; i < 5; i++) { const gx = 1700 + i * 34 + Math.sin(t * 0.25 + i * 1.7) * 16; PFAgro.drawGoat(g, gx - ox, gy(gx) - 2, t + i, Math.cos(t * 0.25 + i * 1.7) >= 0 ? 1 : -1, i * 1.3); }
+    // mariposas y abejas en el corredor y la milpa
+    for (let i = 0; i < 14; i++) { const bx = (i < 9 ? 1980 : 380) + ((t * 18 + i * 61) % (i < 9 ? 260 : 480)) - ox, by = (i < 9 ? gy(2000) - 30 : gy(400) - 46) - Math.abs(Math.sin(t * 3 + i)) * 12; if (bx < -4 || bx > W + 4) continue; const wing = Math.floor(t * 10 + i) % 2; fpx(g, bx, by, i % 3 ? '#ffe14d' : '#f6a0d0'); fpx(g, bx + 1, by - wing, i % 3 ? '#fff6a0' : '#ffe0f0'); fpx(g, bx - 1, by - wing, i % 3 ? '#fff6a0' : '#ffe0f0'); }
+    // brillo del compartimento de KIRU en el cují
+    if (S.memGlow) VISTA.drawGlow(g, 2422 - ox, gy(2420) - 46, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
+  },
+  /** Delante de las entidades: corte de suelo del Mapa de Raíces y brillo de los canales */
+  renderFront(g, sc, cam) {
+    const S = sc.state, t = Game.time, w = sc.world, ox = cam.x, oy = cam.y;
+    // destellos en los canales y cascaditas de los bancales inferiores
+    g.fillStyle = '#e8ffff';
+    const ph = Math.floor(t * 16) % 12;
+    for (let x = Math.max(0, Math.floor(ox) - ((Math.floor(ox) - ph) % 12 + 12) % 12); x < Math.min(w.w, ox + W); x += 12) { const cy = LV8_CHANNELS[x]; if (cy >= 0) g.fillRect(Math.round(x - ox), Math.round(cy - oy), 2, 1); }
+    for (const [fx, y0, y1] of LV8_FALLS) { const x = fx - ox; if (x < -6 || x > W + 6) continue; for (let k = 0; k < 4; k++) { const yy = y0 + ((t * 40 + k * 7) % Math.max(4, y1 - y0)); g.fillRect(Math.round(x + k), Math.round(yy - oy), 1, 2); } g.globalAlpha = 0.5; g.fillRect(Math.round(x - 2), Math.round(y1 - oy - 1), 8, 1); g.globalAlpha = 1; }
+    if (!S.rootsView) return;
+    // Mapa de Raíces: humedad (azul), raíces (claras) y sal acumulada (cristales blancos) bajo cada bancal
+    for (const [x0, x1, salt, dy] of [[372, 524, 0.18, 52], [556, 704, 0.75, 52], [728, 874, 0.12, 52], [1600, 1960, 0.08, 6]]) {
+      const a = Math.max(x0, ox - 2), b = Math.min(x1, ox + W + 2); if (b <= a) continue;
+      for (let x = a; x < b; x += 2) {
+        const y0 = w.groundAt(x) + dy - oy, wet = 10 + Math.round(Math.sin(x * 0.07) * 3);
+        g.globalAlpha = 0.32; g.fillStyle = '#2c8ad8'; g.fillRect(Math.round(x - ox), Math.round(y0 + 4), 2, wet); g.globalAlpha = 1;
+        if (hash2(x, 3, 1) < salt) { g.fillStyle = '#ffffff'; g.fillRect(Math.round(x - ox), Math.round(y0 + 1 + (x % 3)), 1, 1); g.fillStyle = '#f0e8ff'; g.fillRect(Math.round(x - ox) + 1, Math.round(y0 + 2 + (x % 3)), 1, 1); }
+      }
+      // costra salina en la superficie del corte (franja blanca intermitente)
+      if (salt > 0.5) { g.fillStyle = '#f4f0ff'; for (let x = a; x < b; x += 3) if (Math.sin(x * 0.4 + t) > -0.2) g.fillRect(Math.round(x - ox), Math.round(w.groundAt(x) + dy - oy), 2, 1); }
+    }
   },
   lens(g, sc, cam, k) {
     const S = sc.state, ox = cam.x, oy = cam.y, w = sc.world;
@@ -26503,12 +27867,12 @@ LEVELS[8] = {
     dante.onTalk = async (sc2) => { await sc2.say([['dante', 'smile', 'El nodo hidráulico mezcla tres aguas: permeado, pozo 4 y lluvia. El gemelo de riego está en la consola junto al mezclador.']]); };
     sc.station({ id: 'plotHuerta', x: 640, kind: 'sensor', label: 'Plantas de la huerta', glow: '#ff9a8a', onUse: async (sc2, st) => plotsFirst(sc2, st), scan: (sc2, st) => sc2.run(() => plotsFirst(sc2, st)) });
     sc.station({ id: 'agroSim', x: 1475, kind: 'sim', label: 'Gemelo de riego', glow: '#86e36f', hidden: true, onUse: async (sc2, st) => agroFlow(sc2, st) });
-    sc.station({ id: 'tree', x: 2420, kind: 'clue', label: 'El cují antiguo', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => { st.done = true; await kiruMemoryScene(sc2); } });
+    sc.station({ id: 'tree', x: 2420, kind: 'clue', label: 'El cují antiguo', glow: '#b49cff', hidden: true, draw: PFB.drawClue, onUse: async (sc2, st) => { st.done = true; await kiruMemoryScene(sc2); } });
     sc.station({ id: 'solo', x: 2560, kind: 'solo', label: 'Puerta de Evidencia', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => {
       const r = await sc2.open(SOLOScene, { ctx: 'RA-07-C1' });
       st.progress = r.correct; if (r.correct >= 3) { st.done = true; GS.lp(8).solo = true; S.soloDone = true; Codex.unlock('calidad_riego'); }
     } });
-    sc.station({ id: 'exit', x: 2740, kind: 'clue', label: 'Ir a la Mesa del Nexo', glow: '#ffe14d', hidden: true, onUse: async (sc2) => finishLevel8(sc2) });
+    sc.station({ id: 'exit', x: 2740, kind: 'clue', label: 'Ir a la Mesa del Nexo', glow: '#ffe14d', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel8(sc2) });
     // nodos de respaldo de la memoria de KIRU (misión de Alma)
     for (const [x, y] of [[520, 240], [1130, 214], [2060, 250]]) sc.world.add(new Pickup({ kind: 'node', x, y, draw: (g, px, py, pk) => { if (!S.nodeQuest) return; fdisc(g, px, py, 4, '#3f2690'); fdisc(g, px, py, 3, '#b49cff'); fpx(g, px - 1, py - 1, '#ffffff'); for (let k = 0; k < 3; k++) fpx(g, px + Math.cos(pk.t * 3 + k * 2) * 7, py + Math.sin(pk.t * 3 + k * 2) * 7, '#b49cff'); }, onPick: () => { S.nodes++; Game.toast('Nodo de respaldo (' + S.nodes + '/3)', 'save', '#b49cff', 2); if (S.nodes >= 3) { GS.flag('kiruBackupBuilt', true); GS.lp(8).side.backup = true; LearningModel.record({ kind: 'challenge', id: 'side_nodos_respaldo', ra: 'RA-09', concepts: ['steamInquiry'], solo: 2, correct: true }); sc.kiru && sc.kiru.say('Tres nodos de respaldo activos. Si algo se borra, tendré dónde volver.', 'esperanzado', 5); } } }));
     for (const e of sc.world.entities) if (e.kind === 'node') { const up = e.update.bind(e); e.update = (dt) => { if (S.nodeQuest) up(dt); else e.t += dt; }; }
@@ -26523,13 +27887,29 @@ LEVELS[8] = {
   ],
 };
 
-function drawGoat(g, x, y, t, dir) {
-  x = Math.round(x); y = Math.round(y);
-  const bob = Math.floor(t * 4) % 2;
-  frect(g, x - 5, y - 8 - bob, 10, 5, '#f2e2c4'); frect(g, x - 5, y - 8 - bob, 10, 1, '#fffaf0'); frect(g, x - 4, y - 4, 1, 4, '#8a6a4a'); frect(g, x + 3, y - 4, 1, 4, '#8a6a4a');
-  const hx = x + dir * 6;
-  frect(g, hx - 2, y - 11 - bob, 4, 4, '#e8d0a8'); fpx(g, hx + dir, y - 10 - bob, '#140d26'); fpx(g, hx - dir, y - 12 - bob, '#8a6a4a'); fpx(g, hx, y - 7 - bob, '#d8c098');
-  fpx(g, x - dir * 6, y - 8 - bob, '#d8c098');
+/* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
+const LV8_DRIPS = [], LV8_FLOWS = [], LV8_GLOWS = [], LV8_FALLS = [];
+const LV8_CHANNELS = new Int16Array(2801).fill(-1);
+/** Espantapájaros de la milpa (≈66 px): cruz de palos, camisa de colores y sombrero de paja */
+function lv8Scarecrow(pb, x, y) {
+  const s = PFB.sprite(34, 72), b = 70, Wd = PFK.P32(PFB.R.WOODG);
+  for (let yy = b - 64; yy < b; yy++) { PFK.put(s, 16, yy, Wd[5]); PFK.put(s, 17, yy, Wd[3]); }
+  for (let xx = 3; xx < 31; xx++) { PFK.put(s, xx, b - 50, Wd[6]); PFK.put(s, xx, b - 49, Wd[3]); }
+  PFB.rect(s, 9, b - 50, 16, 20, (xx, yy, u, v) => U(['#7a1a1c', '#c8384a', '#e86a4a', '#2a6ab0', '#4a8ad0'][((xx >> 2) + (yy >> 2)) % 2 ? 1 + Math.round(u) : 3 + Math.round(v)]));
+  PFB.rect(s, 4, b - 50, 6, 4, U('#c8384a')); PFB.rect(s, 24, b - 50, 6, 4, U('#c8384a'));
+  for (let k = 0; k < 4; k++) { PFK.put(s, 3 - k % 2, b - 47 + k, U('#e6c46a')); PFK.put(s, 30 + k % 2, b - 47 + k, U('#e6c46a')); }
+  PFK.ellipseFn(s, 17, b - 56, 5, 5, (nx, ny) => U(ny < -0.3 && nx < 0 ? '#f6e2b8' : '#d8c090'));
+  PFK.put(s, 15, b - 57, U('#2a1a10')); PFK.put(s, 19, b - 57, U('#2a1a10'));
+  PFK.ellipseFn(s, 17, b - 61, 11, 2.5, (nx, ny) => U(ny < 0 ? '#f0d68a' : '#b48a3a')); PFB.rect(s, 13, b - 66, 9, 5, (xx, yy) => U(yy === b - 66 ? '#f0d68a' : '#d8b25a'));
+  PFB.rect(s, 13, b - 63, 9, 1, U('#c8384a'));
+  PFB.finish(s); PFB.stamp(pb, s, x - 17, y - b); PFB.contact(pb, x, y, 6, 1.5);
+}
+/** Cesta de cosecha con mazorcas y tomates */
+function lv8Basket(pb, x, y) {
+  const s = PFB.sprite(20, 16), b = 14;
+  for (let yy = b - 8; yy < b; yy++) for (let xx = 2; xx < 18; xx++) PFK.put(s, xx, yy, U(((xx + yy) % 3 === 0) ? '#6a4220' : (yy - b) % 2 ? '#c89458' : '#a87440'));
+  for (let k = 0; k < 4; k++) PFK.ellipseFn(s, 5 + k * 3.5, b - 9, 2, 1.6, (nx, ny) => U(k % 2 ? (ny < 0 ? '#ff8a6a' : '#c8281e') : (ny < 0 ? '#ffe070' : '#d8a428')));
+  PFB.finish(s); PFB.stamp(pb, s, x - 10, y - b); PFB.contact(pb, x, y, 9, 1.5);
 }
 
 /* ---------------- piezas del guion del nivel 08 ---------------- */
@@ -26805,7 +28185,7 @@ const Sim08 = makeSim({
     const sx = x + 280, sy = y + 128;
     frect(g, sx, sy, 110, 80, '#7a4e2e');
     const depth = Math.round((1 - b.infil) * 60);
-    fdither(g, sx, sy, 110, depth, '#56e5ff', 0.35);
+    g.globalAlpha = 0.22; frect(g, sx, sy, 110, depth, '#56e5ff'); g.globalAlpha = 0.14; frect(g, sx, sy + Math.round(depth * 0.5), 110, depth - Math.round(depth * 0.5), '#2c8ad8'); g.globalAlpha = 1;
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }
     drawText(g, 'Infiltración', sx + 55, sy + 84, { font: 'tiny', align: 'center', color: '#cfd6f0' });
     const CX = 414, CW = W - CX - 6;
