@@ -510,23 +510,8 @@ const DroneScene = {
   },
   say(t) { this.msg = { text: t, t: 0 }; Audio2.sfx('voice', { voice: 'kiru' }); },
   buildMap() {
-    const pb = new PixelBuffer(W, H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const depth = clamp(1 - y / 300 + fbm(x * 0.01, y * 0.01, 3, 4) * 0.25, 0, 1);
-      let c = rampDither(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0f4888', '#0d3168'], depth, x, y);
-      pb.data[y * W + x] = U(c);
-    }
-    // arrecife y pradera
-    for (let i = 0; i < 260; i++) { const x = 400 + Math.cos(i * 1.7) * 60 * Math.sqrt((i % 37) / 37), y = 150 + Math.sin(i * 2.3) * 24 * Math.sqrt((i % 23) / 23); pb.disc(x, y, 2.2, ['#ff8ab8', '#ffb93b', '#c2f58e', '#e05aa0'][i % 4]); }
-    for (let i = 0; i < 200; i++) { const x = 190 + (i * 37 % 110), y = 168 + (i * 13 % 40); pb.vline(x, y, y + 4, i % 2 ? '#33a552' : '#1f854c'); }
-    // playa y muelle
-    for (let y = 286; y < H; y++) for (let x = 0; x < W; x++) pb.set(x, y, rampDither(RAMP.sand, 0.55 + (y - 286) / 140, x, y));
-    for (let x = 0; x < W; x++) { pb.set(x, 285 + Math.round(Math.sin(x * 0.08) * 1.5), '#fff6d8'); pb.set(x, 284 + Math.round(Math.sin(x * 0.08) * 1.5), '#c6fff2'); }
-    pb.rect(328, 120, 12, 166, '#8a5a3c'); pb.rect(328, 120, 12, 2, '#c8925e'); for (let y = 122; y < 286; y += 6) pb.hline(328, 339, y, '#6e452e');
-    pb.rect(312, 280, 44, 10, '#e8f0f4'); pb.rect(312, 280, 44, 2, '#20d6c7');
-    // arroyo seco y pluma de sedimentos
-    for (let i = 0; i < 40; i++) pb.rect(20 + i * 2, 286 + i * 0.4, 6, 3, '#c97c38');
-    return pb.toCanvas();
+    // vista cenital de la costa de captación (19d_sca_drone.js): mismas posiciones de boyas, muelle, playa y arroyo
+    return SCADrone.map();
   },
   reading(P) {
     // la lectura incluye incertidumbre y el pulso que avanza desde el noroeste
@@ -561,26 +546,22 @@ const DroneScene = {
   },
   render(g) {
     g.drawImage(this.map, 0, 0);
-    // pluma del arroyo que crece con el tiempo (pulso)
+    // pluma del arroyo que crece con el tiempo (pulso): nube translúcida en bandas
     const k = clamp(this.t / 90, 0, 1);
-    for (let i = 0; i < 6; i++) fshadow(g, 70 + i * 22 + k * 40, 250 - i * 18 - k * 30, 34 + i * 6 + k * 20, 16 + i * 3, '#a07a3a', 0.35 + 0.1 * k);
-    // oleaje
-    drawWaveBands(g, 0, 10, W, 260, Game.time, 'rgba(255,255,255,0.18)', 9);
-    drawSeaSparkles(g, 0, 0, W, 280, Game.time, 0.8);
+    SCADrone.drawPlume(g, k, Game.time);
+    // oleaje, destellos y espuma de orilla
+    SCADrone.drawSea(g, Game.time);
     // boyas
     for (const P of DRONE_POINTS) {
       const s = this.samples[P.id];
-      fdisc(g, P.x, P.y + 2, 6, 'rgba(10,20,40,0.4)');
-      fdisc(g, P.x, P.y, 5, s ? '#86e36f' : '#ff6b6b'); fdisc(g, P.x - 1, P.y - 1, 2, '#ffffff');
-      frect(g, P.x - 1, P.y - 12, 2, 7, '#fffaf0'); frect(g, P.x, P.y - 12, 5, 3, s ? '#86e36f' : '#ffe14d');
-      drawText(g, P.id, P.x + 8, P.y - 6, { color: '#fffaf0', shadow: '#0a1f4a' });
-      if (s) drawText(g, fmt(s.turb, 1) + '±' + fmt(s.turbU, 1) + ' NTU', P.x + 8, P.y + 4, { font: 'tiny', color: '#fff6d8', shadow: '#0a1f4a' });
+      SCADrone.drawBuoy(g, P, !!s, Game.time);
+      drawText(g, P.id, P.x + 8, P.y - 6, { font: 'bold', color: '#fffaf0', shadow: '#000633' });
+      if (s) UIK.pill(g, P.x + 8, P.y + 3, fmt(s.turb, 1) + '±' + fmt(s.turbU, 1) + ' NTU', { rim: '#3fe0a0', fill: '#04221c', color: '#e6fff4' });
     }
     this.ps.render(g);
-    // sombra y dron
-    fshadow(g, this.x, this.y + 14, 7, 2, '#05031a', 0.5);
-    drawDrone(g, this.x, this.y, Game.time, true);
-    if (this.sampling) { const kk = clamp(this.sampling.k, 0, 1); UIK.bar(g, this.x - 14, this.y + 6, 28, 4, kk, '#56e5ff'); for (let i = 0; i < 10; i++) fpx(g, this.x, this.y + 4 + i * 1.2, '#a6f4ff'); }
+    // dron con sombra sobre el agua
+    SCADrone.drawDrone(g, this.x, this.y, Game.time, !!this.sampling);
+    if (this.sampling) { const kk = clamp(this.sampling.k, 0, 1); UIK.bar(g, this.x - 14, this.y + 6, 28, 4, kk, '#56e5ff'); }
     // panel
     UIK.panel(g, W - 214, 6, 208, 168, 'glass');
     drawText(g, 'DRON DE MUESTREO', W - 206, 11, { color: '#ffe14d', font: 'tiny' });
@@ -612,7 +593,7 @@ const DroneScene = {
     drawText(g, 'Flechas/WASD: volar · E: muestrear (mantener)', 8, 8, { font: 'tiny', color: '#fffaf0', shadow: '#0a1f4a' });
   },
   renderDecide(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.6);
+    UIK.scrim(g, 0.62);
     UIK.panel(g, 60, 40, W - 120, H - 80, 'tech');
     UIK.header(g, 60, 40, W - 120, 'DECIDIR PUNTO DE CAPTACIÓN', 'tech', 'target');
     drawTextBlock(g, 'Elige el punto donde convendría captar (o reubicar la toma) considerando calidad del agua, riesgo ecológico y costo. Tus mediciones incluyen incertidumbre.', 72, 64, W - 144, { color: '#fffaf0' });
@@ -636,7 +617,7 @@ const DroneScene = {
   },
   renderResult(g) {
     const r = this.res;
-    fdither(g, 0, 0, W, H, '#05030f', 0.6);
+    UIK.scrim(g, 0.62);
     UIK.panel(g, 80, 70, W - 160, 200, r.ok ? 'green' : r.acceptable ? 'tech' : 'alert');
     const txt = {
       E: '{g}Punto E: agua profunda, fría y de baja turbidez, lejos del arrecife y la pradera.{/} Su desventaja es real: tubería más larga y más costo de bombeo. Es la opción más robusta para la calidad y el ecosistema; el costo debe discutirse, no ocultarse.',
