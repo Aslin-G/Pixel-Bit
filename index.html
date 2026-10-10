@@ -8567,7 +8567,10 @@ function drawStringLights(g, pts, t, on = true, cols = ['#ffe14d', '#ff9f43', '#
     const c = cols[k % cols.length];
     if (!on) { fpx(g, x, y + 1, '#3a3050'); continue; }
     const tw = 0.7 + 0.3 * Math.sin(t * 3 + k * 1.7);
-    fdither(g, x - 3, y - 2, 7, 7, c, 0.22 * tw);
+    // halo en anillos (núcleo + anillo exterior al 50 %), aditivo y con pulso: sin tramado (STYLE §1/§6)
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * tw;
+    g.drawImage(PFK.glow(3, c, 2, 0.5), Math.round(x) - 4, Math.round(y) - 2);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     frect(g, x - 1, y + 1, 2, 2, c); fpx(g, x - 1, y + 1, '#fffaf0');
   }
 }
