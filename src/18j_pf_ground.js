@@ -182,8 +182,11 @@ const PFGround = (() => {
       if (r() < 0.06) cat(x + 40);
     }
     // pilastras en los extremos del muro
+    const segs = (world.def.pf && world.def.pf.terrain) || [];
     for (const xe of [s.x0, s.x1]) {
       if (xe <= 0 || xe >= world.w) continue;
+      const nb = segs.find(o => o !== s && (xe === s.x0 ? o.x1 === xe : o.x0 === xe));
+      if (nb && nb.face === s.face) continue;
       const gy = gyAt(xe), px0 = xe === s.x0 ? xe : xe - 10;
       for (let yy = gy; yy < gy + wallH + gut + 4; yy++) for (let xx = px0; xx < px0 + 10; xx++) { const lx = xx - px0; PFK.put(pb, xx, yy, yy < gy + 5 ? K[yy === gy ? 6 : 5] : A[clamp((lx < 2 ? 7 : lx > 7 ? 2 : 5) - ((yy - gy) % 14 === 0 ? 3 : 0), 0, 8)]); }
     }
