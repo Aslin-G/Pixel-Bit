@@ -395,7 +395,7 @@ LEVELS[0] = {
     { x: 1437, y: 168, title: 'PRIMER AGUA', sub: 'Agua tratada', kind: 'water', ax: 1437, ay: 184 },
     { x: 1570, y: 214, title: 'RIEGO POR GOTEO', sub: (sc) => sc.state.irrig && !sc.state.dark ? 'Activo' : 'Cerrado', kind: 'green', ax: 1570, ay: 250 },
     { x: 1702, y: 196, title: 'ELECTROLIZADOR', sub: 'Agua + energía → H₂ + O₂', kind: 'green', ax: 1700, ay: 230 },
-    { x: 2000, y: 150, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1962, ay: 160 },
+    { x: 2000, y: 175, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1962, ay: 185 },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {

@@ -58,7 +58,7 @@ LEVELS[2] = {
     { x: 1156, y: 136, title: 'TREN C', sub: 'Membranas OI', kind: 'water', ax: 1156, ay: 150 },
     { x: 1318, y: 184, title: 'AGUA PERMEADA', sub: '(Producto)', kind: 'water', ax: 1318, ay: 196 },
     { x: 1376, y: 224, title: 'CALCITA', sub: 'Remineraliza', kind: 'green', ax: 1372, ay: 234 },
-    { x: 1535, y: 86, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 92 },
+    { x: 1535, y: 140, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 152 },
     { x: 1756, y: 208, title: 'LIMPIEZA CIP', sub: 'Solo si el flujo cae', kind: 'tech', ax: 1752, ay: 222 },
     { x: 2104, y: 196, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
     { x: 2203, y: 176, title: 'DESPACHO', sub: 'Controlador', kind: 'tech', ax: 2203, ay: 192 },
@@ -70,6 +70,7 @@ LEVELS[2] = {
     const t0 = nowMs();
     PFTerrain.surface(pb, world);
     const P = PFAPlant, I = PFInfra, A = PFArch, K = PFK, G = 290, fb = G - 12;
+    LEVELS[2].labelAvoid = []; // rótulos de zona horneados (las etiquetas científicas los esquivan)
     const N = LV2_ANCH; N.leds = []; N.lamps = []; N.screens = []; LV2_FLOWS.length = 0;
     const flow = (pts, kind, rate) => LV2_FLOWS.push({ pts, kind, rate });
     const U_ = (c) => U(c);
@@ -224,8 +225,11 @@ LEVELS[2] = {
     for (const x of [252, 656, 1268, 1676, 2166]) P.sign(pb, x, 136, 'warn');
     /* ===== conductos, rótulos de zona, bandejas y luminarias colgantes en toda la nave ===== */
     P.duct(pb, 0, 2600, 82, 7, { top: 40, diff: 130 });
-    for (const [x, txt, col] of [[110, 'ZONA 1 · CARTUCHOS', '#7aaad6'], [380, 'ZONA 2 · ALTA PRESIÓN', '#4a8ee2'], [1268, 'ZONA 4 · POSTRATAMIENTO', '#48d4f0'], [1690, 'ZONA 5 · CIP', '#ff9f43'], [1960, 'ZONA 6 · AGUA PRODUCTO', '#48d4f0'], [2260, 'ZONA 7 · DESPACHO', '#f27ee6']]) P.hangSign(pb, x, 132, txt, col, { top: 90 });
-    P.hangSign(pb, 820, 100, 'ZONA 3 · TRENES DE OSMOSIS INVERSA', '#11bedd', { top: 90 });
+    for (const [x, txt, col] of [[110, 'ZONA 1 · CARTUCHOS', '#7aaad6'], [380, 'ZONA 2 · ALTA PRESIÓN', '#4a8ee2'], [1268, 'ZONA 4 · POSTRATAMIENTO', '#48d4f0'], [1690, 'ZONA 5 · CIP', '#ff9f43'], [1960, 'ZONA 6 · AGUA PRODUCTO', '#48d4f0'], [2260, 'ZONA 7 · DESPACHO', '#f27ee6'], [820, 'ZONA 3 · TRENES DE ÓSMOSIS INVERSA', '#11bedd']]) {
+      const y = txt.startsWith('ZONA 3') ? 100 : 146; // bajo la banda del HUD (y de pantalla ≥ 106); la de los trenes va sobre los bastidores
+      P.hangSign(pb, x, y, txt, col, { top: 90 });
+      LEVELS[2].labelAvoid.push({ x, y, w: K.measure(txt, { font: 'tiny' }) + 10, h: 11 });
+    }
     P.tray(pb, 0, 680, 108, 12); P.tray(pb, 1262, 1418, 108, 12); P.tray(pb, 1652, 2160, 108, 12);
     for (const x of [120, 300, 480, 1300, 1760, 1990]) { P.vline(pb, x, 96, 118, U_('#2a282e')); P.rect(pb, x - 7, 118, 15, 3, U_('#4f4d51')); P.hline(pb, x - 6, x + 6, 121, U_('#fff6d8')); N.lamps.push([x, 124, '#fff0c8', 12]); }
     LEVELS[2]._ms = Math.round(nowMs() - t0);
