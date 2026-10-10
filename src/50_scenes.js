@@ -45,8 +45,8 @@ const TitleScene = {
       items.push(['sett', 'Ajustes', 'gear', () => Game.push(SettingsScene, {}), 'primary']);
       items.push(['cred', 'Créditos', 'book', () => Game.push(CreditsScene, {}), 'primary']);
       // lista vertical en panel navy a la derecha (deja libres el sol, el mar y a Amaya)
-      const w = 158, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
-      const x = W - w - 14, y = Math.min(168, H - 8 - h);
+      const w = 150, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
+      const x = W - w - 8, y = Math.min(168, H - 8 - h);
       UIK.panel(g, x, y, w, h, 'tech');
       UIK.header(g, x, y, w, 'MENÚ', 'tech', 'map');
       let yy = y + 26;

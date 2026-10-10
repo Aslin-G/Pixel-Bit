@@ -89,7 +89,7 @@ const SCAKit = (() => {
     const A = {}, leds = [], glows = [];
     const S = ramp(STEEL, k), G = ramp(GLASS, k), Wt = ramp(WHITE, k);
     // ---- 1. CAPTACIÓN: nave de acero con bóveda de cristal azul y rejillas
-    const cx0 = x + 6, cw = 50, ch = 18;
+    const cx0 = x + 6, cw = 42, ch = 18;
     V.box3q(pb, cx0, yb, cw, ch, 10, { ramp: STEEL, k });
     for (let xx = 0; xx < cw + 6; xx++) {
       const t = xx / (cw + 6), vh = Math.round(Math.sin(t * Math.PI) * 7);
@@ -99,7 +99,7 @@ const SCAKit = (() => {
         V.put(pb, cx0 + xx, yb - ch - yy, G[i]);
       }
     }
-    for (let i = 0; i < 6; i++) for (let yy = yb - ch + 4; yy < yb - 3; yy++) V.put(pb, cx0 + 4 + i * 8, yy, S[(yy & 1) ? 1 : 2]);
+    for (let i = 0; i < 5; i++) for (let yy = yb - ch + 4; yy < yb - 3; yy++) V.put(pb, cx0 + 4 + i * 8, yy, S[(yy & 1) ? 1 : 2]);
     for (let xx = cx0 + 2; xx < cx0 + cw - 2; xx++) V.put(pb, xx, yb - ch + 3, S[7]);
     A.captacion = { x: cx0 + cw / 2, y: yb - ch - 10 };
     leds.push([cx0 + 6, yb - 6, '#17f3f7'], [cx0 + cw - 6, yb - 6, '#3fe0a0']);
@@ -114,33 +114,33 @@ const SCAKit = (() => {
     V.cylH(pb, px0, yb - 9, 28, 6, STEEL, { k, caps: BAND });
     for (let q = 0; q < 3; q++) valve(pb, px0 + 6 + q * 8, yb - 15, k);
     for (let i = 0; i < 3; i++) {
-      const vx = px0 + 40 + i * 13;
+      const vx = px0 + 37 + i * 12;
       V.cylV(pb, vx, yb, 6, 30, WHITE, { k, dome: 0.75, bands: [[6, 2, BAND], [22, 2, BAND]] });
       for (let yy = yb - 26; yy < yb - 4; yy += 4) V.put(pb, vx - 3, yy, Wt[7]);
-      V.pipe(pb, [[vx, yb - 36], [vx, yb - 40], [vx + 13, yb - 40]], 1, STEEL, { k });
+      V.pipe(pb, [[vx, yb - 36], [vx, yb - 40], [vx + 12, yb - 40]], 1, STEEL, { k });
     }
-    A.pretrat = { x: px0 + 40, y: yb - 46 };
+    A.pretrat = { x: px0 + 37, y: yb - 46 };
     // ---- bomba de alta presión (roja) con manómetro
-    const bx0 = px0 + 82;
+    const bx0 = px0 + 76;
     V.box3q(pb, bx0, yb, 12, 8, 5, { ramp: RED, k });
     V.ellipse(pb, bx0 + 6, yb - 11, 2.5, 2.5, (nx, ny) => U(nx * nx + ny * ny < 0.4 ? '#f4f0e6' : '#3a3d48'));
-    V.pipe(pb, [[px0 + 66, yb - 6], [bx0, yb - 6]], 2, FEED, { k });
+    V.pipe(pb, [[px0 + 62, yb - 6], [bx0, yb - 6]], 2, FEED, { k });
     // ---- 3. MEMBRANAS: bastidor con 2 columnas × 3 tubos de presión horizontales
-    const mx0 = bx0 + 18, mw = 62;
+    const mx0 = bx0 + 16, mw = 54;
     frame(pb, mx0, mx0 + mw, yb, 26, k);
     frame(pb, mx0 + 6, mx0 + mw + 6, yb - 4, 24, k + 0.06);
     for (let r = 0; r < 3; r++) {
       V.cylH(pb, mx0 + 8, yb - 24 + r * 7 - 2, mw - 4, 3, MEMB, { k: k + 0.06, caps: BAND });
       V.cylH(pb, mx0 + 2, yb - 21 + r * 7, mw - 4, 3, MEMB, { k, caps: BAND });
     }
-    for (let r = 0; r < 3; r++) for (let q = 0; q < 4; q++) V.put(pb, mx0 + 10 + q * 14, yb - 22 + r * 7, U('#e8f6fa'));
+    for (let r = 0; r < 3; r++) for (let q = 0; q < 4; q++) V.put(pb, mx0 + 9 + q * 12, yb - 22 + r * 7, U('#e8f6fa'));
     A.membranas = { x: mx0 + mw / 2, y: yb - 32 };
     leds.push([mx0 + 3, yb - 4, '#17f3f7'], [mx0 + mw - 2, yb - 4, '#f5dc5a']);
     // ---- 4. AGUA POTABLE: bloque blanco + depósito con banda cian
-    const ax0 = mx0 + mw + 16;
+    const ax0 = mx0 + mw + 14;
     V.box3q(pb, ax0, yb, 20, 13, 8, { ramp: WHITE, k });
     for (let i = 0; i < 3; i++) { V.put(pb, ax0 + 4 + i * 5, yb - 9, G[4]); V.put(pb, ax0 + 4 + i * 5, yb - 8, G[3]); }
-    const tx = ax0 + 34;
+    const tx = ax0 + 31;
     V.cylV(pb, tx, yb, 9, 22, WHITE, { k, dome: 0.45, bands: [[8, 4, PERM]] });
     A.potable = { x: ax0 + 18, y: yb - 30 };
     // ---- tubería de permeado (cian luminosa): membranas → depósito → sube hacia la ciudad

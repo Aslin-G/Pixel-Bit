@@ -19,10 +19,10 @@ const SCATitleArt = (() => {
   const V = VISTA;
   const HZ = 150;
   const SUN = { x: 506, y: 30, r: 11, halo: 24 };
-  const CLIFF_X1 = 238;         // borde del acantilado
+  const CLIFF_X1 = 220;         // borde del acantilado
   const CLIFF_Y = 254;          // línea de paso de Amaya
   const WY = 300;               // línea de agua del corte submarino
-  const PLANT_X = 200, PLANT_Y = 132, PLANT_LY = 150; // SYNARA (plano local → pantalla y = LY + y; pie a y = 282)
+  const PLANT_X = 214, PLANT_Y = 132, PLANT_LY = 150; // SYNARA (plano local → pantalla y = LY + y; pie a y = 282)
 
   /** Águila grande (4 cuadros, 31×15) con plumas primarias abiertas */
   function eagleStrip() {
@@ -223,7 +223,7 @@ const SCATitleArt = (() => {
     });
     /* ---------------- SYNARA: planta desaladora de plano medio (SCAKit.heroPlant) ---------------- */
     B.vplane(0, PLANT_LY, 170, (pb) => {
-      const P = SCAKit.heroPlant(pb, PLANT_X, PLANT_Y, { k: 0, wp: 262 });
+      const P = SCAKit.heroPlant(pb, PLANT_X, PLANT_Y, { k: 0, wp: 246 });
       const L = PLANT_LY, Aq = P.anchors;
       FX.perm.push(P.perm.map(([x, y]) => [x, y + L]), P.perm2.map(([x, y]) => [x, y + L]));
       FX.feed = P.feed.map(([x, y]) => [x, y + L]);
@@ -233,8 +233,8 @@ const SCATitleArt = (() => {
       A.labels.push(
         { x: Aq.captacion.x - 2, y: L + Aq.captacion.y - 4, title: 'CAPTACIÓN', kind: 'water', ax: Aq.captacion.x, ay: L + Aq.captacion.y + 6 },
         { x: Aq.pretrat.x + 8, y: L + Aq.pretrat.y - 2, title: 'PRETRATAMIENTO', kind: 'water', ax: Aq.pretrat.x, ay: L + Aq.pretrat.y + 8 },
-        { x: Aq.membranas.x + 4, y: L + Aq.membranas.y - 8, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
-        { x: Aq.potable.x + 14, y: L + Aq.potable.y - 14, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
+        { x: Aq.membranas.x - 8, y: L + Aq.membranas.y + 2, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
+        { x: Aq.potable.x - 2, y: L + Aq.potable.y - 22, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
       );
       A.brineX = P.brine.x; A.intakeX = P.intake.x;
     }, {
@@ -267,7 +267,7 @@ const SCATitleArt = (() => {
     // poste de madera con tablones en flecha (como la referencia)
     // flora del borde: pasto, flores, hibisco, lupinos, agave, helechos
     PFFlora.scatter(fl, (x) => gy(x) + 1, 96, CLIFF_X1 - 4, 31, { mix: { tuft: 5, flowers: 2, bush: 1, fern: 1 }, gap: 9 });
-    PFFlora.hibiscusBush(fl, 214, gy(214) + 1, 22, 16, 5);
+    PFFlora.hibiscusBush(fl, 198, gy(198) + 1, 20, 15, 5);
     PFFlora.agave(fl, 104, gy(104) + 1, 9, 3);
     for (let i = 0; i < 4; i++) PFFlora.lupine(fl, 84 + i * 4, gy(84) + 1, 16 + (i % 2) * 5, 40 + i);
     PFFlora.palm(fl, 82, gy(82) + 1, 66, -8, 11);
@@ -324,8 +324,8 @@ const SCATitleArt = (() => {
     const u = (t * 0.02) % 1, ex = 300 + Math.sin(u * TAU) * 70, ey = 120 + Math.sin(u * TAU * 2) * 8;
     V.drawStrip(g, A.eagle, (t % 4) < 1.2 ? Math.floor(t * 7) % 4 : 1, ex - 15, ey - 7, Math.cos(u * TAU) < 0);
     // personajes
-    drawChar(g, 'kiru', 'idle', t, 128, 222, 1, { shadow: false, expr: 'esperanzado' });
-    drawChar(g, 'amaya', A.pose || 'point', t, 176, CLIFF_Y, 1, { shadow: false });
+    drawChar(g, 'kiru', 'idle', t, 116, 222, 1, { shadow: false, expr: 'esperanzado' });
+    drawChar(g, 'amaya', A.pose || 'point', t, 162, CLIFF_Y, 1, { shadow: false });
     // oclusores
     g.drawImage(A.canopy, -26, -10);
     g.drawImage(A.clumpL, -20, H - 92);

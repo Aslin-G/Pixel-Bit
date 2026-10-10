@@ -21289,10 +21289,10 @@ const SCATitleArt = (() => {
   const V = VISTA;
   const HZ = 150;
   const SUN = { x: 506, y: 30, r: 11, halo: 24 };
-  const CLIFF_X1 = 238;         // borde del acantilado
+  const CLIFF_X1 = 220;         // borde del acantilado
   const CLIFF_Y = 254;          // línea de paso de Amaya
   const WY = 300;               // línea de agua del corte submarino
-  const PLANT_X = 200, PLANT_Y = 132, PLANT_LY = 150; // SYNARA (plano local → pantalla y = LY + y; pie a y = 282)
+  const PLANT_X = 214, PLANT_Y = 132, PLANT_LY = 150; // SYNARA (plano local → pantalla y = LY + y; pie a y = 282)
 
   /** Águila grande (4 cuadros, 31×15) con plumas primarias abiertas */
   function eagleStrip() {
@@ -21493,7 +21493,7 @@ const SCATitleArt = (() => {
     });
     /* ---------------- SYNARA: planta desaladora de plano medio (SCAKit.heroPlant) ---------------- */
     B.vplane(0, PLANT_LY, 170, (pb) => {
-      const P = SCAKit.heroPlant(pb, PLANT_X, PLANT_Y, { k: 0, wp: 262 });
+      const P = SCAKit.heroPlant(pb, PLANT_X, PLANT_Y, { k: 0, wp: 246 });
       const L = PLANT_LY, Aq = P.anchors;
       FX.perm.push(P.perm.map(([x, y]) => [x, y + L]), P.perm2.map(([x, y]) => [x, y + L]));
       FX.feed = P.feed.map(([x, y]) => [x, y + L]);
@@ -21503,8 +21503,8 @@ const SCATitleArt = (() => {
       A.labels.push(
         { x: Aq.captacion.x - 2, y: L + Aq.captacion.y - 4, title: 'CAPTACIÓN', kind: 'water', ax: Aq.captacion.x, ay: L + Aq.captacion.y + 6 },
         { x: Aq.pretrat.x + 8, y: L + Aq.pretrat.y - 2, title: 'PRETRATAMIENTO', kind: 'water', ax: Aq.pretrat.x, ay: L + Aq.pretrat.y + 8 },
-        { x: Aq.membranas.x + 4, y: L + Aq.membranas.y - 8, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
-        { x: Aq.potable.x + 14, y: L + Aq.potable.y - 14, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
+        { x: Aq.membranas.x - 8, y: L + Aq.membranas.y + 2, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
+        { x: Aq.potable.x - 2, y: L + Aq.potable.y - 22, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
       );
       A.brineX = P.brine.x; A.intakeX = P.intake.x;
     }, {
@@ -21537,7 +21537,7 @@ const SCATitleArt = (() => {
     // poste de madera con tablones en flecha (como la referencia)
     // flora del borde: pasto, flores, hibisco, lupinos, agave, helechos
     PFFlora.scatter(fl, (x) => gy(x) + 1, 96, CLIFF_X1 - 4, 31, { mix: { tuft: 5, flowers: 2, bush: 1, fern: 1 }, gap: 9 });
-    PFFlora.hibiscusBush(fl, 214, gy(214) + 1, 22, 16, 5);
+    PFFlora.hibiscusBush(fl, 198, gy(198) + 1, 20, 15, 5);
     PFFlora.agave(fl, 104, gy(104) + 1, 9, 3);
     for (let i = 0; i < 4; i++) PFFlora.lupine(fl, 84 + i * 4, gy(84) + 1, 16 + (i % 2) * 5, 40 + i);
     PFFlora.palm(fl, 82, gy(82) + 1, 66, -8, 11);
@@ -21594,8 +21594,8 @@ const SCATitleArt = (() => {
     const u = (t * 0.02) % 1, ex = 300 + Math.sin(u * TAU) * 70, ey = 120 + Math.sin(u * TAU * 2) * 8;
     V.drawStrip(g, A.eagle, (t % 4) < 1.2 ? Math.floor(t * 7) % 4 : 1, ex - 15, ey - 7, Math.cos(u * TAU) < 0);
     // personajes
-    drawChar(g, 'kiru', 'idle', t, 128, 222, 1, { shadow: false, expr: 'esperanzado' });
-    drawChar(g, 'amaya', A.pose || 'point', t, 176, CLIFF_Y, 1, { shadow: false });
+    drawChar(g, 'kiru', 'idle', t, 116, 222, 1, { shadow: false, expr: 'esperanzado' });
+    drawChar(g, 'amaya', A.pose || 'point', t, 162, CLIFF_Y, 1, { shadow: false });
     // oclusores
     g.drawImage(A.canopy, -26, -10);
     g.drawImage(A.clumpL, -20, H - 92);
@@ -21721,7 +21721,7 @@ const SCAKit = (() => {
     const A = {}, leds = [], glows = [];
     const S = ramp(STEEL, k), G = ramp(GLASS, k), Wt = ramp(WHITE, k);
     // ---- 1. CAPTACIÓN: nave de acero con bóveda de cristal azul y rejillas
-    const cx0 = x + 6, cw = 50, ch = 18;
+    const cx0 = x + 6, cw = 42, ch = 18;
     V.box3q(pb, cx0, yb, cw, ch, 10, { ramp: STEEL, k });
     for (let xx = 0; xx < cw + 6; xx++) {
       const t = xx / (cw + 6), vh = Math.round(Math.sin(t * Math.PI) * 7);
@@ -21731,7 +21731,7 @@ const SCAKit = (() => {
         V.put(pb, cx0 + xx, yb - ch - yy, G[i]);
       }
     }
-    for (let i = 0; i < 6; i++) for (let yy = yb - ch + 4; yy < yb - 3; yy++) V.put(pb, cx0 + 4 + i * 8, yy, S[(yy & 1) ? 1 : 2]);
+    for (let i = 0; i < 5; i++) for (let yy = yb - ch + 4; yy < yb - 3; yy++) V.put(pb, cx0 + 4 + i * 8, yy, S[(yy & 1) ? 1 : 2]);
     for (let xx = cx0 + 2; xx < cx0 + cw - 2; xx++) V.put(pb, xx, yb - ch + 3, S[7]);
     A.captacion = { x: cx0 + cw / 2, y: yb - ch - 10 };
     leds.push([cx0 + 6, yb - 6, '#17f3f7'], [cx0 + cw - 6, yb - 6, '#3fe0a0']);
@@ -21746,33 +21746,33 @@ const SCAKit = (() => {
     V.cylH(pb, px0, yb - 9, 28, 6, STEEL, { k, caps: BAND });
     for (let q = 0; q < 3; q++) valve(pb, px0 + 6 + q * 8, yb - 15, k);
     for (let i = 0; i < 3; i++) {
-      const vx = px0 + 40 + i * 13;
+      const vx = px0 + 37 + i * 12;
       V.cylV(pb, vx, yb, 6, 30, WHITE, { k, dome: 0.75, bands: [[6, 2, BAND], [22, 2, BAND]] });
       for (let yy = yb - 26; yy < yb - 4; yy += 4) V.put(pb, vx - 3, yy, Wt[7]);
-      V.pipe(pb, [[vx, yb - 36], [vx, yb - 40], [vx + 13, yb - 40]], 1, STEEL, { k });
+      V.pipe(pb, [[vx, yb - 36], [vx, yb - 40], [vx + 12, yb - 40]], 1, STEEL, { k });
     }
-    A.pretrat = { x: px0 + 40, y: yb - 46 };
+    A.pretrat = { x: px0 + 37, y: yb - 46 };
     // ---- bomba de alta presión (roja) con manómetro
-    const bx0 = px0 + 82;
+    const bx0 = px0 + 76;
     V.box3q(pb, bx0, yb, 12, 8, 5, { ramp: RED, k });
     V.ellipse(pb, bx0 + 6, yb - 11, 2.5, 2.5, (nx, ny) => U(nx * nx + ny * ny < 0.4 ? '#f4f0e6' : '#3a3d48'));
-    V.pipe(pb, [[px0 + 66, yb - 6], [bx0, yb - 6]], 2, FEED, { k });
+    V.pipe(pb, [[px0 + 62, yb - 6], [bx0, yb - 6]], 2, FEED, { k });
     // ---- 3. MEMBRANAS: bastidor con 2 columnas × 3 tubos de presión horizontales
-    const mx0 = bx0 + 18, mw = 62;
+    const mx0 = bx0 + 16, mw = 54;
     frame(pb, mx0, mx0 + mw, yb, 26, k);
     frame(pb, mx0 + 6, mx0 + mw + 6, yb - 4, 24, k + 0.06);
     for (let r = 0; r < 3; r++) {
       V.cylH(pb, mx0 + 8, yb - 24 + r * 7 - 2, mw - 4, 3, MEMB, { k: k + 0.06, caps: BAND });
       V.cylH(pb, mx0 + 2, yb - 21 + r * 7, mw - 4, 3, MEMB, { k, caps: BAND });
     }
-    for (let r = 0; r < 3; r++) for (let q = 0; q < 4; q++) V.put(pb, mx0 + 10 + q * 14, yb - 22 + r * 7, U('#e8f6fa'));
+    for (let r = 0; r < 3; r++) for (let q = 0; q < 4; q++) V.put(pb, mx0 + 9 + q * 12, yb - 22 + r * 7, U('#e8f6fa'));
     A.membranas = { x: mx0 + mw / 2, y: yb - 32 };
     leds.push([mx0 + 3, yb - 4, '#17f3f7'], [mx0 + mw - 2, yb - 4, '#f5dc5a']);
     // ---- 4. AGUA POTABLE: bloque blanco + depósito con banda cian
-    const ax0 = mx0 + mw + 16;
+    const ax0 = mx0 + mw + 14;
     V.box3q(pb, ax0, yb, 20, 13, 8, { ramp: WHITE, k });
     for (let i = 0; i < 3; i++) { V.put(pb, ax0 + 4 + i * 5, yb - 9, G[4]); V.put(pb, ax0 + 4 + i * 5, yb - 8, G[3]); }
-    const tx = ax0 + 34;
+    const tx = ax0 + 31;
     V.cylV(pb, tx, yb, 9, 22, WHITE, { k, dome: 0.45, bands: [[8, 4, PERM]] });
     A.potable = { x: ax0 + 18, y: yb - 30 };
     // ---- tubería de permeado (cian luminosa): membranas → depósito → sube hacia la ciudad
@@ -36408,8 +36408,8 @@ const TitleScene = {
       items.push(['sett', 'Ajustes', 'gear', () => Game.push(SettingsScene, {}), 'primary']);
       items.push(['cred', 'Créditos', 'book', () => Game.push(CreditsScene, {}), 'primary']);
       // lista vertical en panel navy a la derecha (deja libres el sol, el mar y a Amaya)
-      const w = 158, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
-      const x = W - w - 14, y = Math.min(168, H - 8 - h);
+      const w = 150, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
+      const x = W - w - 8, y = Math.min(168, H - 8 - h);
       UIK.panel(g, x, y, w, h, 'tech');
       UIK.header(g, x, y, w, 'MENÚ', 'tech', 'map');
       let yy = y + 26;
