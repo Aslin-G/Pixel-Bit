@@ -278,7 +278,7 @@ const SCATitleArt = (() => {
     A.clumpL = PFFlora.fgClump(150, 96, 3, { spikes: 7, leaves: 13 }).toCanvas();
     A.clumpR = PFFlora.fgClump(124, 64, 8, { spikes: 3, leaves: 9 }).toCanvas();
     /* ---------------- fauna ---------------- */
-    A.eagle = eagleStrip();
+    A.eagle = eagle();
     FX.fauna.push({ kind: 'gull', x: 520, y: 150, r: 160, sp: -5 }, { kind: 'drone', x: 610, y: 44, r: 20 });
     A.ms = Math.round(nowMs() - t0);
     BG_CACHE.set('sca_title', A);
@@ -356,5 +356,7 @@ const SCATitleArt = (() => {
     g.fillStyle = '#7fd8f6'; for (let k = 0; k < 6; k++) g.fillRect(ix - 8 + k * 3, WY + 26, 1, 6);
     g.fillStyle = '#5a5658'; g.fillRect(ix - 12, WY + 33, 25, 3);
   }
-  return { build, render, SUN, HZ, CLIFF_Y };
+  let _eagle = null;
+  function eagle() { return _eagle || (_eagle = eagleStrip()); }
+  return { build, render, eagle, SUN, HZ, CLIFF_Y };
 })();

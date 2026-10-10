@@ -169,5 +169,110 @@ const SCAKit = (() => {
       if (ph > 0.75) { g.fillStyle = '#ffffff'; g.fillRect(x + 3, F.y - up - 3, 1, 2); g.fillRect(x + 5, F.y - up - 2, 1, 1); }
     }
   }
-  return { heroPlant, foam, platform, frame, valve, CONC, DECK, STEEL, WHITE, BAND, MEMB, PERM, FEED, BRP, GLASS, RED };
+  /** Mar cercano en bandas de profundidad con rizos de espuma que se ensanchan hacia el espectador */
+  function nearSea(pb, o = {}) {
+    const w = pb.w, h = pb.h, k = o.k || 0;
+    const R = V.P32(V.expand(V.hz(o.stops || ['#0a6fb8', '#0189d4', '#0692d5', '#11a8dc', '#11bedd', '#27cee1', '#3adcf1'], k), 14));
+    const FO = V.P32(V.hz(RAMP.foamR, k)), seed = o.seed || 51;
+    for (let y = 0; y < h; y++) {
+      const t = y / Math.max(1, h - 1);
+      for (let x = 0; x < w; x++) {
+        const n = (vnoise(x * 0.03, y * 0.09, seed) - 0.5) * 0.18 + (V.ridged(x * 0.02, y * 0.06, 3, seed + 2) - 0.5) * 0.12;
+        let u = R[V.band(clamp((o.t0 ?? 0.18) + t * (o.t1 ?? 0.78) + n, 0, 0.999), R.length, x, y, 0.05, seed + 4)];
+        const per = 6 + t * 10, ph = Math.sin(x * (0.06 - t * 0.03) + y * 0.9) * 2;
+        if (((y + ph) % per) < 1 && vnoise(x * 0.05, y * 0.3, seed + 6) > (o.foam ?? 0.58)) u = FO[t > 0.5 ? 4 : 3];
+        if (hash2(x, y, seed + 8) < 0.004) u = FO[5];
+        pb.data[y * w + x] = u;
+      }
+    }
+  }
+  /** Destellos que derivan sobre el mar cercano (≤ n fillRect) */
+  function drawSeaGlints(g, n, t, x0, y0, w, h, ox = 0) {
+    g.fillStyle = '#e6f8fc';
+    for (let i = 0; i < n; i++) {
+      const y = y0 + Math.round(hash1(i, 3) * h), len = 3 + Math.round((y - y0) / 10) + (i % 3);
+      const x = Math.round((hash1(i, 5) * (w + 30) + t * (4 + (y - y0) * 0.12)) % (w + 30)) - 15 + x0 + ox;
+      const a = 0.5 + 0.5 * Math.sin(t * 2 + i);
+      if (a < 0.4) continue;
+      g.globalAlpha = a * 0.8; g.fillRect(x, y, len, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Tierra agrietada en perspectiva: placas (Worley) que encogen hacia el horizonte, grietas oscuras, labios iluminados */
+  function crackedEarth(pb, x0, x1, y0, y1, o = {}) {
+    const k = o.k || 0, R = V.P32(V.hz(o.ramp || ['#3a1c0c', '#5e3016', '#86502a', '#a86a38', '#c88a4a', '#e0a860', '#f0c47c', '#fadc9e'], k)), n = R.length, seed = o.seed || 7;
+    const topY = o.top || (() => y0);
+    for (let x = x0; x < x1; x++) for (let y = Math.max(y0, Math.round(topY(x))); y < y1; y++) {
+      const v = (y - y0) / Math.max(1, y1 - y0), sc = 5 + v * v * 26;           // tamaño de placa por profundidad
+      const X = x / sc, Y = (y - y0) / (sc * 0.45);
+      const gx = Math.floor(X), gy = Math.floor(Y);
+      let d1 = 9, d2 = 9, id = 0, cx = 0, cy = 0;
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+        const px = gx + i + hash2(gx + i, gy + j, seed) * 0.9, py = gy + j + hash2(gx + i, gy + j, seed + 1) * 0.9;
+        const d = Math.hypot(X - px, Y - py);
+        if (d < d1) { d2 = d1; d1 = d; id = (gx + i) * 73 + (gy + j); cx = px; cy = py; } else if (d < d2) d2 = d;
+      }
+      const edge = d2 - d1, cw = 0.07 + v * 0.05;
+      let i;
+      if (edge < cw) i = 0;                                                        // grieta
+      else if (edge < cw * 1.8 && (Y - cy) > 0) i = 1;                             // sombra bajo el labio
+      else {
+        const lip = edge < cw * 2.6 && (Y - cy) < 0;                               // labio superior iluminado
+        i = Math.round(3.6 + v * 1.2 + (hash2(id, 5, seed) - 0.5) * 1.6 - (X - cx) * 0.5 + (lip ? 1.6 : 0) + (PFK.cl(x, y, 2, seed) - 0.5) * 0.8 - (1 - v) * 0.8);
+      }
+      V.put(pb, x, y, R[clamp(i, 0, n - 1)]);
+    }
+  }
+  /** Árbol seco de ramas desnudas (silueta cálida con borde iluminado a la izquierda) */
+  function deadTree(pb, x, y, h, seed, o = {}) {
+    const r = RNG(seed), C = V.P32(V.hz(o.ramp || ['#1e0e08', '#3a1e10', '#5a3418', '#7e5028', '#a8743c'], o.k || 0));
+    const branch = (bx, by, ang, len, wd, depth) => {
+      let px = bx, py = by;
+      for (let i = 0; i < len; i++) {
+        px += Math.cos(ang); py += Math.sin(ang); ang += (r() - 0.5) * 0.25;
+        const ww = Math.max(1, Math.round(wd * (1 - i / len)));
+        for (let q = 0; q < ww; q++) V.put(pb, Math.round(px) + q, Math.round(py), C[q === 0 ? 3 : q === ww - 1 ? 1 : 2]);
+        if (depth > 0 && i > len * 0.35 && r() < 0.12) branch(px, py, ang + (r() < 0.5 ? -1 : 1) * (0.5 + r() * 0.5), len * 0.55, ww * 0.7, depth - 1);
+      }
+      if (depth > 0) { branch(px, py, ang - 0.5, len * 0.5, wd * 0.5, depth - 1); branch(px, py, ang + 0.5, len * 0.45, wd * 0.5, depth - 1); }
+    };
+    branch(x, y, -Math.PI / 2 + (r() - 0.5) * 0.2, h * 0.5, o.w || 4, 3);
+  }
+  /** Pozo de piedra seco con armazón de madera, polea y cubo */
+  function well(pb, x, y, o = {}) {
+    const k = o.k || 0, S = V.P32(V.hz(['#3a2418', '#5c3a26', '#86583a', '#a8744a', '#c8945e', '#e2b67a', '#f2d09a'], k)), Wd = V.P32(V.hz(PFSigns.WOOD, k));
+    const rx = o.r || 14;
+    // brocal: cilindro de piedras
+    for (let yy = 0; yy < 12; yy++) for (let xx = -rx; xx <= rx; xx++) {
+      const t = (xx + rx) / (2 * rx), row = Math.floor(yy / 4), bx = Math.floor((xx + rx + row * 3) / 6);
+      let i = t < 0.3 ? 5 : t < 0.7 ? 4 : 2;
+      if (((xx + rx + row * 3) % 6) === 0 || yy % 4 === 0) i = 1;
+      i += Math.round((hash2(bx, row, 3) - 0.5) * 1.4);
+      const e = Math.round(Math.sqrt(Math.max(0, 1 - (xx / (rx + 0.5)) ** 2)) * 3);
+      V.put(pb, x + xx, y - 12 + yy + e, S[clamp(i, 0, 6)]);
+    }
+    V.ellipse(pb, x + 0.5, y - 12.5, rx + 0.5, 3.5, (nx, ny, d) => d > 0.55 ? S[ny < 0 ? 6 : 4] : U('#140804'));
+    // armazón y polea
+    for (const sx of [-rx + 2, rx - 3]) for (let yy = 0; yy < 30; yy++) { V.put(pb, x + sx, y - 12 - yy, Wd[6]); V.put(pb, x + sx + 1, y - 12 - yy, Wd[3]); }
+    for (let xx = -rx + 1; xx <= rx - 1; xx++) { V.put(pb, x + xx, y - 42, Wd[7]); V.put(pb, x + xx, y - 41, Wd[3]); }
+    V.ellipse(pb, x + 0.5, y - 39.5, 2.5, 2.5, (nx, ny) => Wd[nx + ny < 0 ? 7 : 2]);
+    for (let yy = -37; yy < -24; yy++) V.put(pb, x, y + yy, U('#c8b090'));
+    // cubo de metal vacío
+    for (let yy = 0; yy < 6; yy++) for (let xx = -3; xx <= 3; xx++) V.put(pb, x + xx, y - 24 + yy, V.P32(STEEL)[xx < -1 ? 6 : xx < 2 ? 4 : 2]);
+    V.put(pb, x - 3, y - 25, V.P32(STEEL)[7]); V.put(pb, x + 3, y - 25, V.P32(STEEL)[3]);
+  }
+  /** Acantilado columnar del kit PF con un mundo ficticio: gy(x) → y del borde (o null = sin terreno).
+      Devuelve {face, top} (lienzos w×h) para dibujar en un plano dinámico. */
+  function pfCliff(w, h, gy, o = {}) {
+    const ground = new Int16Array(w);
+    let x0 = -1, x1 = w;
+    for (let x = 0; x < w; x++) { const y = gy(x); ground[x] = y == null ? 999 : Math.round(y); if (y != null && x0 < 0) x0 = x; if (y == null && x0 >= 0 && x1 === w) x1 = x; }
+    const seg = { x0: Math.max(0, x0), x1, surf: o.surf || 'path', face: 'cliff', depth: o.depth || 14, ledges: o.ledges ?? true };
+    const world = { def: { pf: { terrain: [seg] } }, w, h, ground, water: [], platforms: [] };
+    const face = PFTerrain.render(world);
+    const topPb = new PixelBuffer(w, h);
+    PFTerrain.surface(topPb, world);
+    return { face, top: topPb.toCanvas() };
+  }
+  return { heroPlant, foam, pfCliff, nearSea, drawSeaGlints, crackedEarth, deadTree, well, platform, frame, valve, CONC, DECK, STEEL, WHITE, BAND, MEMB, PERM, FEED, BRP, GLASS, RED };
 })();

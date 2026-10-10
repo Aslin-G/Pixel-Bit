@@ -97,11 +97,32 @@ const IntroScene = {
   },
   go() { if (this.gone) return; this.gone = true; Game.transition(() => Game.setScene(GameplayScene, { level: 0 })); },
   render(g) {
-    frect(g, 0, 0, W, H, '#0a0718');
-    for (let i = 0; i < 80; i++) fpx(g, hash1(i, 1) * W, hash1(i, 2) * H * 0.7, (Game.frame + i * 7) % 60 < 4 ? '#ffffff' : '#5a6fb0');
-    const ln = this.lines[Math.min(this.i, this.lines.length - 1)];
-    drawTextBlock(g, ln, 80, 150, W - 160, { color: '#fffaf0', align: 'center', max: Math.floor(this.t * 45), shadow: '#140d26' });
-    UIK.pill(g, W / 2, H - 22, 'ENTER / clic: continuar · X: saltar', { align: 'center', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' });
+    // viñeta ilustrada de cada frase (19c_sca_intro.js) con paneo lento y fundido cruzado
+    const i = Math.min(this.i, this.lines.length - 1), dt = Game.dt || 1 / 60;
+    if (this.artI !== i) {
+      if (this.artI != null && SCAIntro.ready(this.artI)) {
+        if (!this.snap) this.snap = makeCanvas(W, H);
+        this.snap.g.imageSmoothingEnabled = false;
+        SCAIntro.draw(this.snap.g, SCAIntro.get(this.artI), Game.time, Math.min(1, (this.artT || 0) / 12));
+        this.fadeT = 0;
+      }
+      this.artI = i; this.artT = 0;
+    }
+    this.artT += dt; this.fadeT = (this.fadeT ?? 1) + dt;
+    SCAIntro.draw(g, SCAIntro.get(i), Game.time, Math.min(1, this.artT / 12));
+    if (this.snap && this.fadeT < 0.9) { g.globalAlpha = clamp(1 - this.fadeT / 0.9, 0, 1); g.drawImage(this.snap, 0, 0); g.globalAlpha = 1; }
+    // la viñeta siguiente se prepara mientras se lee la actual (una por cuadro como máximo)
+    if (this.artT > 0.5 && i + 1 < this.lines.length && !SCAIntro.ready(i + 1)) SCAIntro.get(i + 1);
+    // franja de cine arriba y panel de texto navy con bisel abajo
+    g.globalAlpha = 0.55; frect(g, 0, 0, W, 14, '#000633'); g.globalAlpha = 1; frect(g, 0, 14, W, 1, '#12305a');
+    drawText(g, 'PRÓLOGO', 10, 4, { font: 'tiny', color: '#f5dc5a' });
+    for (let k = 0; k < this.lines.length; k++) { const x = 52 + k * 9; frect(g, x, 5, 5, 5, '#000633'); frect(g, x + 1, 6, 3, 3, k < i ? '#6d9be8' : k === i ? '#f5dc5a' : '#12305a'); }
+    UIK.pill(g, W - 8, 2, 'ENTER / clic: continuar · X: saltar', { align: 'right', rim: '#3a64b0', fill: '#041533', color: '#a8c8ff' });
+    const ln = this.lines[i];
+    const px = 34, pw = W - 68, ph = 62, py = H - ph - 10;
+    UIK.panel(g, px, py, pw, ph, 'tech');
+    drawTextBlock(g, ln, px + 18, py + 13, pw - 36, { color: '#e2ebfc', align: 'center', max: Math.floor(this.t * 45), shadow: '#000633' });
+    if (this.t * 45 >= stripMarkup(ln).length && Math.floor(Game.time * 2.5) % 2) { const ax = px + pw - 16, ay = py + ph - 13; frect(g, ax, ay, 7, 1, '#f5dc5a'); frect(g, ax + 1, ay + 1, 5, 1, '#f5dc5a'); frect(g, ax + 2, ay + 2, 3, 1, '#f5dc5a'); frect(g, ax + 3, ay + 3, 1, 1, '#f5dc5a'); }
   },
 };
 
