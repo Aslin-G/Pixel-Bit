@@ -8,6 +8,8 @@
      PFStage.renderFrontPlane(g,sc)→ oclusores f≈1,3 en los bordes del encuadre
    ===================================================================== */
 const PFStage = (() => {
+  /** Registro de oclusores frontales adicionales: FG[kind](o) → PixelBuffer (pilares, cables, barandillas…) */
+  const FG = {};
   function build(sc) {
     const def = sc.def, P = def.pf || {};
     const st = { fg: [], water: [], t0: nowMs() };
@@ -15,8 +17,9 @@ const PFStage = (() => {
     for (const o of (P.fg || [])) {
       let pb;
       if (o.kind === 'canopy') pb = PFFlora.canopy(o.w || 220, o.h || 70, o.seed || 1, { side: o.side || -1, n: o.n, vines: o.vines });
+      else if (FG[o.kind]) pb = FG[o.kind](o);
       else pb = PFFlora.fgClump(o.w || 110, o.h || 80, o.seed || 1, o);
-      st.fg.push({ c: pb.toCanvas(), x: o.x, y: o.y ?? 0, f: o.f || 1.3, w: pb.w, h: pb.h, top: o.kind === 'canopy', sway: o.sway ?? 1, ph: (o.seed || 1) * 0.7 });
+      st.fg.push({ c: pb.toCanvas(), x: o.x, y: o.y ?? 0, f: o.f || 1.3, w: pb.w, h: pb.h, top: o.top ?? (o.kind === 'canopy'), sway: o.sway ?? 1, ph: (o.seed || 1) * 0.7, fixedY: o.fixedY });
     }
     if (typeof PFWater !== 'undefined') for (const w of sc.world.water) if (w.pf) st.water.push(PFWater.build(sc.world, w));
     st.ms = Math.round(nowMs() - st.t0);
@@ -34,9 +37,9 @@ const PFStage = (() => {
       const sway = Math.round(Math.sin(t * 2.2 + o.ph) * o.sway);
       // abajo: anclado al borde inferior con leve parallax vertical; arriba: colgando del borde superior
       // (abajo nunca sube por encima del borde: no deja ver la base recortada de la mata)
-      const sy = o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + Math.max(0, (o.y || 0) + (cam.y - 60) * 0.3));
+      const sy = o.fixedY != null ? Math.round(o.fixedY - cam.y * 0.3) : o.top ? Math.round(o.y - (cam.y - 60) * 0.3) : Math.round(H - o.h + Math.max(0, (o.y || 0) + (cam.y - 60) * 0.3));
       g.drawImage(o.c, sx + sway, sy);
     }
   }
-  return { build, renderBack, renderWaterBack, renderWaterFront, renderFrontPlane };
+  return { build, renderBack, renderWaterBack, renderWaterFront, renderFrontPlane, FG };
 })();

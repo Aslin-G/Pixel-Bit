@@ -293,7 +293,7 @@ class Player extends Entity {
       if (!wasGround) { Audio2.sfx('land'); if (yPrev < sup - 20) { this.setAnim('land'); this.landT = 0.14; W_.ps.emit(water ? 'splash' : 'sand', this.x, this.y, 0, -30, 8, 6); } }
     } else if (this.onGround && this.vy >= 0 && sup - this.y < PHYS.stepH + 2 && sup > this.y) { this.y = sup; }
     else this.onGround = false;
-    if (this.y > W_.h + 60) { this.x = this.lastSafe.x; this.y = this.lastSafe.y; this.vy = 0; this.inv = 1; Game.toast('Ruta recuperada', 'reset', '#ffe14d', 1.6); }
+    if (this.y > (W_.def.fallY ?? W_.h + 60)) { this.x = this.lastSafe.x; this.y = this.lastSafe.y; this.vy = 0; this.inv = 1; Game.toast('Ruta recuperada', 'reset', '#ffe14d', 1.6); }
     if (this.onGround && !water) { this.stepT += dt; if (this.stepT > 0.5) { this.stepT = 0; this.lastSafe = { x: this.x, y: this.y }; } }
     // ---- peligros (no letales)
     for (const hz of W_.hazards) {

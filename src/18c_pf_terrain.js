@@ -21,8 +21,12 @@ const PFTerrain = (() => {
   const DECK = ['#262a33', '#3c3f4a', '#5f6066', '#86837f', '#a9a299', '#c9c0b2', '#e2d8c6', '#f4ecdc'];
 
   const UWU = () => PFK.P32(RAMP.underR);
+  /* Registro de materiales adicionales (kit PF ampliado, 18j+): EXT.surf[nombre](s,x,y,gy,D,back,t,dz) → u32,
+     EXT.face[nombre](s,x,y,gy,world) → u32 (0 = transparente), EXT.prep[nombre](s,world), EXT.depth[nombre] = px,
+     EXT.flat[nombre] = true (borde posterior recto), EXT.lip[nombre](pb,x,gy,s,world) (labio tras las caras). */
+  const EXT = { surf: {}, face: {}, prep: {}, depth: {}, flat: {}, lip: {}, post: {} };
   function segAt(segs, x) { for (const s of segs) if (x >= s.x0 && x < s.x1) return s; return segs[segs.length - 1]; }
-  function depthOf(s) { return s.depth ?? ({ path: 14, sand: 12, deck: 18, paving: 16, rock: 12, grass: 12 }[s.surf] || 12); }
+  function depthOf(s) { return s.depth ?? ({ path: 14, sand: 12, deck: 18, paving: 16, rock: 12, grass: 12 }[s.surf] || EXT.depth[s.surf] || 12); }
 
   /* ---------- acantilado columnar ---------- */
   function buildCols(x0, x1, seed) {
@@ -60,11 +64,11 @@ const PFTerrain = (() => {
       if (x < lx0 || x > lx1) continue;
       const ly = L.y + Math.round((PFK.vn(x * 0.08, L.y, 5) - 0.5) * 3);
       if (y >= ly - L.h && y < ly) {
-        const S = PFK.P32(SANDF), k = y - (ly - L.h);
+        const S = PFK.P32(s.ledgeRamp || SANDF), k = y - (ly - L.h);
         if (k === 0) return P[2];
-        if (y === ly - 1) return U(LIP);
+        if (y === ly - 1) return U(s.lip || LIP);
         const g = PFK.cl(x, y, 2, 61);
-        if (g < 0.22) return PFK.P32(RAMP.grassR)[3 + (k > 2 ? 1 : 0)];
+        if (g < 0.22) return PFK.P32(s.ledgeGrass || RAMP.grassR)[3 + (k > 2 ? 1 : 0)];
         return S[clamp(6 + k - (x === lx0 || x === lx1 ? 2 : 0), 3, 9)];
       }
       if (y < ly - L.h && y > ly - L.h - 16) tierK = -0.2 + (ly - L.h - y) * 0.012;
@@ -137,12 +141,12 @@ const PFTerrain = (() => {
   /* ---------- caras frontales ---------- */
   function facePix(s, x, y, gy, world) {
     const d = y - gy;
-    const RW = PFK.P32(RAMP.rockWarmR);
+    const RW = PFK.P32(s.ramp || RAMP.rockWarmR);
     const sea = s._sea && x >= s._sea.x0 && x <= s._sea.x1 ? s._sea.y : null;
     switch (s.face) {
       case 'cliff': return cliffPix(s, x, y, gy, RW);
       case 'rocks': {
-        if (d <= 1) return U(d === 0 ? LIP : '#e29441');
+        if (d <= 1) return U(d === 0 ? (s.lip || LIP) : (s.lip2 || '#e29441'));
         // bajo la línea de agua solo queda la base del roquedal (cantos cuyo centro está a ≤ 9 px):
         // borde inferior dentado como la orilla de arena; debajo se ve el corte submarino
         const u = boulderPix(x, y, s.seed || 77, 20, 15, RW, sea != null ? { keep: (id, cy) => cy < sea + 9 } : {});
@@ -197,7 +201,7 @@ const PFTerrain = (() => {
         if (PFK.vn(x * 0.5, y * 0.03, 9) > 0.8 && jy > 1) k -= 1; // chorreones
         return C[clamp(k, 1, 7)];
       }
-      default: return RW[3];
+      default: return EXT.face[s.face] ? EXT.face[s.face](s, x, y, gy, world) : RW[3];
     }
   }
 
@@ -262,6 +266,7 @@ const PFTerrain = (() => {
         return G[clamp(Math.round((0.8 - t * 0.4 + (PFK.cl(x, y, 2, 61) - 0.5) * 0.4) * 6), 1, 6)];
       }
     }
+    if (EXT.surf[s.surf]) return EXT.surf[s.surf](s, x, y, gy, D, back, t, dz);
     return 0;
   }
 
@@ -278,13 +283,16 @@ const PFTerrain = (() => {
           x += w + r.int(30, 110);
         }
       }
+      if (EXT.prep[s.face]) EXT.prep[s.face](s, world);
+      if (s.prep) s.prep(s, world);
+      if (s.surf !== s.face && EXT.prep[s.surf]) EXT.prep[s.surf](s, world);
       const w = (world.water || []).find(w => w.cutaway && w.x0 < s.x1 && w.x1 > s.x0);
       if (w) { s._sea = { x0: w.x0, x1: w.x1, y: w.y }; s.waterY = w.y; if (s.face === 'pier') s._hole = [Math.max(s.x0, w.x0), Math.min(s.x1, w.x1)]; }
     }
     return segs;
   }
   /** Profundidad de la cara superior con borde posterior irregular */
-  function backEdge(s, x, gy) { const D = depthOf(s); return gy - D - Math.round((PFK.vn(x * 0.07, 0, s.seed) - 0.5) * (s.surf === 'deck' || s.surf === 'paving' ? 0 : 5)); }
+  function backEdge(s, x, gy) { const D = depthOf(s); return gy - D - Math.round((PFK.vn(x * 0.07, 0, s.seed) - 0.5) * (s.surf === 'deck' || s.surf === 'paving' || EXT.flat[s.surf] ? 0 : 5)); }
 
   /** Caras superiores → pb (normalmente el lienzo de accesorios, antes de los accesorios) */
   function surface(pb, world) {
@@ -313,9 +321,9 @@ const PFTerrain = (() => {
       for (let y = Math.max(0, gy); y < hd; y++) {
         let ss = s;
         // frontera orgánica entre materiales: borde vertical ondulado (sin mezcla de ruido)
-        if (nearB && s.face !== 'pier') {
+        if (nearB && s.face !== 'pier' && !s.hard) {
           const o = segAt(segs, clamp(x + Math.round((PFK.vn(y * 0.07, 0.5, 13) - 0.5) * 16), 0, wd - 1));
-          if (o.face !== 'pier') ss = o;
+          if (o.face !== 'pier' && !o.hard) ss = o;
         }
         const u = facePix(ss, x, y, gy, world);
         if (u) pb.data[y * wd + x] = u;
@@ -324,7 +332,7 @@ const PFTerrain = (() => {
     // labio: borde superior iluminado + sombra de contacto en caídas
     for (let x = 0; x < wd; x++) {
       const gy = world.ground[x], s = segAt(segs, x);
-      if (s.face === 'cliff' || s.face === 'rocks') { PFK.put(pb, x, gy, U(LIP)); if (hash2(x, 1, 3) < 0.5) PFK.put(pb, x, gy + 1, U('#f7c679')); }
+      if (s.face === 'cliff' || s.face === 'rocks') { PFK.put(pb, x, gy, U(s.lip || LIP)); if (hash2(x, 1, 3) < 0.5) PFK.put(pb, x, gy + 1, U(s.lip2 || '#f7c679')); }
       const gl = world.ground[Math.max(0, x - 1)];
       if (gl < gy - 3) for (let y = gl; y < gy + 30; y++) { const c = PFK.get(pb, x - 1, y); if (c >>> 24) PFK.put(pb, x - 1, y, PFK.shU(c, -0.3, 15)); }
     }
@@ -334,13 +342,15 @@ const PFTerrain = (() => {
       for (let y = 0; y < hd; y++) for (let x = xe - 16; x < xe + 16; x++) {
         const c = PFK.get(pb, x, y); if (!(c >>> 24)) continue;
         if (!(PFK.get(pb, x + 1, y) >>> 24) && y > world.ground[clamp(x, 0, wd)] + 2) { for (let k = 0; k < 4; k++) { const cc = PFK.get(pb, x - k, y); if (cc >>> 24) PFK.put(pb, x - k, y, PFK.shU(cc, k === 0 ? -0.45 : -0.3 + k * 0.06, 15)); } }
-        else if (!(PFK.get(pb, x - 1, y) >>> 24) && y > world.ground[clamp(x, 0, wd)] + 2) PFK.put(pb, x, y, PFK.mixU(c, U('#f7c679'), 0.5));
+        else if (!(PFK.get(pb, x - 1, y) >>> 24) && y > world.ground[clamp(x, 0, wd)] + 2) PFK.put(pb, x, y, PFK.mixU(c, U(s.lip2 || '#f7c679'), 0.5));
       }
     }
     // pilotes del muelle (delante del corte submarino)
     for (const s of segs) if (s.face === 'pier' && s._hole) piles(pb, world, s);
     // plantas en repisas del acantilado
     for (const s of segs) if (s.face === 'cliff' && s.ledgePlants !== false) ledgePlants(pb, world, s);
+    // labios y retoques de materiales registrados
+    for (const s of segs) { if (EXT.post[s.face]) EXT.post[s.face](pb, world, s); if (s.post) s.post(pb, world, s); }
     // plataformas estáticas
     for (const p of world.platforms) if (p.baked) platform(pb, p);
     if (def.pf && def.pf.decorateFace) def.pf.decorateFace(pb, world);
@@ -415,6 +425,8 @@ const PFTerrain = (() => {
   }
 
   /* ---------- plataformas horneadas ---------- */
+  /** Registro de tipos de plataforma horneada adicionales: PLAT_EXT[tipo](pb, p) */
+  const PLAT_EXT = {};
   function platform(pb, p) {
     const x = Math.round(p.x), y = Math.round(p.y), w = p.w;
     const RW = PFK.P32(RAMP.rockWarmR);
@@ -437,6 +449,7 @@ const PFTerrain = (() => {
       PFFlora.tuft(pb, x + 6, y - 3, 7, 6, x); PFFlora.tuft(pb, x + w - 8, y - 2, 6, 5, x + 9);
       return;
     }
+    if (PLAT_EXT[p.art || p.type]) { PLAT_EXT[p.art || p.type](pb, p); return; }
     if (p.type === 'metal') {
       const S = PFK.P32(RAMP.steelRefR);
       // rejilla (cara superior 4 px), viga frontal 4 px con borde de seguridad, barandilla amarilla posterior
@@ -465,5 +478,7 @@ const PFTerrain = (() => {
     const c = render(fake); const g = makeCanvas(640, 360).g; g.drawImage(pb.toCanvas(), 0, 0); g.drawImage(c, 0, 0);
     const id = g.getImageData(0, 0, 640, 360); pb.data.set(new Uint32Array(id.data.buffer));
   }
-  return { render, surface, platform, railing, gallery, segAt, depthOf, backEdge, boulderPix, CONC, SANDF, PAVE, DECK };
+  /** Registra un material: register('nombre', {surf, face, prep, depth, flat, post}) */
+  function register(name, o) { for (const k of ['surf', 'face', 'prep', 'depth', 'flat', 'post']) if (o[k] !== undefined) EXT[k][name] = o[k]; }
+  return { render, surface, platform, railing, gallery, segAt, depthOf, backEdge, boulderPix, register, EXT, PLAT_EXT, CONC, SANDF, PAVE, DECK };
 })();
