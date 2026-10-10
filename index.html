@@ -16871,7 +16871,7 @@ const PFBGround = (() => {
   const PAVERD = ['#181a28', '#22263a', '#2e334a', '#3c425a', '#4c536c', '#5e6680', '#727a94', '#8a92aa', '#a6acc0'];
   const RT = (f) => f < 0.12 ? 1 : f < 0.3 ? 4 : f < 0.45 ? 5 : f < 0.62 ? 3 : f < 0.85 ? 2 : 1;
 
-  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16, epoxy: 20 }[s.surf] || 14); }
+  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16, epoxy: 20, carpet: 18 }[s.surf] || 14); }
   function segAt(segs, x) { for (const s of segs) if (x >= s.x0 && x < s.x1) return s; return segs[segs.length - 1]; }
   function prep(world) {
     const P = world.def.pf || {};
@@ -16880,7 +16880,7 @@ const PFBGround = (() => {
     return segs;
   }
   function backEdge(s, x, gy) {
-    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck', 'epoxy'].includes(s.surf);
+    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck', 'epoxy', 'carpet'].includes(s.surf);
     return gy - D - (flat ? 0 : Math.round((K.vn(x * 0.07, 0, s.seed) - 0.5) * 6));
   }
   /** Filas en perspectiva: índice de fila y posición dentro de la fila para dz (1 = frente) */
@@ -16983,6 +16983,21 @@ const PFBGround = (() => {
         if (((x + Math.round(Math.sin(y * 0.9) * 3)) % 37) === 0) tt += 0.05;
         if (y - back < 1) tt = 0.1;
         return reflect(s, x, y, E[clamp(Math.round(tt * (n - 1)), 1, n - 1)], 1 - t);
+      }
+      case 'carpet': {
+        // alfombra roja con cenefas doradas y rombos (sala del consejo)
+        const Cp = K.P32(s.ramp || ['#2a0608', '#4a0c10', '#6e1418', '#901c1e', '#b02a26', '#c83a30', '#dc5a44', '#f08060']), Gd = K.P32(PFB.R.GOLD);
+        if (dz === 1) return Gd[6];
+        if (dz === 2) return Gd[3];
+        if (dz === D - 1) return Gd[2];
+        if (dz === D - 2) return Gd[5];
+        if (dz === 4 || dz === D - 4) return Gd[(x % 4) ? 5 : 3];
+        const px = ((x % 24) + 24) % 24, pz = (dz - D / 2) * 2, dm = Math.abs(px - 12) + Math.abs(pz);
+        let k = 5 - Math.round(t * 2) + Math.round((K.vn(x * 0.1, y * 0.3, 7) - 0.5) * 0.8);
+        if (dm === 9 || dm === 10) return Gd[dz > D / 2 ? 3 : 5];
+        if (dm < 4) k += 1;
+        if (y - back < 1) k = 0;
+        return reflect(s, x, y, Cp[clamp(k, 0, 7)], 1 - t);
       }
       case 'deck': {
         const Dk = K.P32(s.ramp || DECKW), n = Dk.length;
@@ -19352,6 +19367,189 @@ const PFBV = (() => {
     for (const [fx, fy, rx, ry] of fans) { const x = fx - ox, y = fy - oy; if (x < -20 || x > W + 20) continue; for (let k = 0; k < 4; k++) { const a = t + k * TAU / 4; for (let j = 2; j < rx; j++) g.fillRect(Math.round(x + Math.cos(a) * j), Math.round(y + Math.sin(a) * j * ry / rx), 1, 1); } }
   }
   return { portal, archive, elevator, hvacUnit, lampRail, drawFanFront, ST, CON, MAG };
+})();
+
+/* ===== 18x_pfb_hall.js ===== */
+/* =====================================================================
+   18x_pfb_hall.js — Salón del consejo en el plano jugable (kit B, nivel 9).
+   Atardecer dorado por los ventanales: luz de borde cálida desde la
+   izquierda, sombras azul real. Estandartes de tela con pliegues y borlas,
+   paneles de historia en 3/4, macetas de cerámica, gran mesa del consejo
+   (encimera a 36 px, frente de mosaico, sillas altas detrás, micrófonos,
+   jarras de agua), muro de evidencias con hilos rojos, pedestal
+   holográfico, entreplanta del observatorio con pantallas, balaustrada y
+   puerta monumental hacia el núcleo, lámparas colgantes.
+   ===================================================================== */
+const PFBM = (() => {
+  const K = PFK, B = PFB, I = PFInfra;
+  const P = (r) => K.P32(r);
+  const GOLD = ['#3a2408', '#5a3a0e', '#8a5e14', '#b07a1c', '#c8861a', '#e0a83a', '#f0c860', '#ffe08a', '#fff4c8'];
+  const ROYAL = ['#060c2e', '#0a1440', '#0e1f5a', '#14287a', '#1c3596', '#2a46b0', '#3a5ac4', '#5a7ad4', '#8aa4e8'];
+  const WOODH = ['#200e06', '#3a1c0c', '#5a3016', '#7a4620', '#9a5e2c', '#ba7c3e', '#d49c58', '#ecc080'];
+  const MARB = ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'];
+  const MOS = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'];
+  const RIM = '#ffd8a0';
+  const fin = (s, o = {}) => B.finish(s, Object.assign({ rimCol: RIM, rimK: 0.5 }, o));
+  /** Estandarte de tela colgante con pliegues, ribete dorado, cola en punta, borlas e icono */
+  function banner(pb, x, y, col, k, h = 64) {
+    const s = B.sprite(36, h + 10), w = 28, C = P([mixHex(col, '#000000', 0.6), mixHex(col, '#000000', 0.4), mixHex(col, '#000000', 0.2), col, mixHex(col, '#ffffff', 0.18), mixHex(col, '#ffffff', 0.4)]), G = P(GOLD);
+    for (let xx = 0; xx < 34; xx++) { K.put(s, xx, 1, G[7]); K.put(s, xx, 2, G[4]); K.put(s, xx, 3, G[2]); }
+    K.ellipseFn(s, 1, 2, 1.6, 1.6, () => G[6]); K.ellipseFn(s, 33, 2, 1.6, 1.6, () => G[5]);
+    for (let yy = 0; yy < h; yy++) {
+      const cut = yy > h - 12 ? (yy - (h - 12)) * 1.25 : 0;
+      for (let xx = 0; xx < w; xx++) {
+        if (yy > h - 12 && Math.abs(xx - 13.5) < cut) continue;
+        const fold = Math.sin((xx + 1) * 0.55 + yy * 0.02) * 0.9 + Math.sin(xx * 1.4) * 0.25;
+        let kk = Math.round(3 + fold - (xx > 24 ? 1 : 0) + (xx < 2 ? 1 : 0) - yy / h * 0.6);
+        const edge = xx < 2 || xx > w - 3 || (yy > h - 12 && Math.abs(xx - 13.5) < cut + 1.5);
+        K.put(s, 3 + xx, 4 + yy, edge ? G[(xx < 2) ? 6 : 4] : C[clamp(kk, 0, 5)]);
+      }
+      if (yy === 4 || yy === h - 16) for (let xx = 3; xx < w - 3; xx++) K.put(s, 3 + xx, 4 + yy, G[6]);
+    }
+    // icono (agua, sol, viento, hoja, ecosistema, personas)
+    const cx = 17, cy = 4 + Math.round(h * 0.4), c = U('#fffaf0');
+    if (k === 0) { K.ellipseFn(s, cx, cy + 3, 5.5, 5.5, () => c); for (let j = 0; j < 7; j++) for (let i = -Math.floor(j / 2); i <= Math.floor(j / 2); i++) K.put(s, cx + i, cy - 7 + j, c); K.put(s, cx - 2, cy + 2, U('#bff4ff')); }
+    else if (k === 1) { K.ellipseFn(s, cx, cy, 5, 5, () => c); for (let a = 0; a < 8; a++) { const an = a * Math.PI / 4; for (let r = 7; r < 10; r++) K.put(s, Math.round(cx + Math.cos(an) * r), Math.round(cy + Math.sin(an) * r), c); } }
+    else if (k === 2) { for (let j = 0; j < 3; j++) { for (let i = -8; i < 5 - j * 3; i++) K.put(s, cx + i, cy - 6 + j * 6, c); K.put(s, cx + 5 - j * 3, cy - 7 + j * 6, c); } }
+    else if (k === 3) { K.ellipseFn(s, cx, cy, 4.5, 8.5, () => c); for (let j = -8; j < 11; j++) K.put(s, cx, cy + j, C[1]); }
+    else if (k === 4) { K.ellipseFn(s, cx - 1, cy + 2, 8, 4, () => c); for (let j = 0; j < 9; j++) for (let i = 0; i <= Math.min(j, 8 - j) / 2; i++) K.put(s, cx + 7 + i, cy - 2 + j, c); }
+    else { K.ellipseFn(s, cx - 5, cy - 4, 2.6, 2.6, () => c); K.ellipseFn(s, cx + 5, cy - 4, 2.6, 2.6, () => c); B.rect(s, cx - 9, cy, 8, 9, c); B.rect(s, cx + 1, cy, 8, 9, c); }
+    // borlas
+    for (const tx of [5, 16, 28]) { for (let k2 = 0; k2 < 5; k2++) K.put(s, tx, 4 + h - 12 + Math.round((tx === 16 ? 12 : 4)) + k2, G[k2 < 2 ? 6 : 3]); }
+    fin(s, { sides: 'lrb' }); B.stamp(pb, s, x - 3, y - 4);
+  }
+  /** Panel expositivo de historia en 3/4 sobre patas: franja de color, icono y líneas de texto */
+  function historyPanel(pb, x, yb, w, col, seed = 1) {
+    const s = B.sprite(w + 12, 96), b = 92, h = 58, Wd = P(WOODH), G = P(GOLD), r = RNG(seed);
+    for (const lx of [8, w - 6]) for (let yy = b - 34; yy < b; yy++) { K.put(s, lx, yy, Wd[5]); K.put(s, lx + 1, yy, Wd[3]); K.put(s, lx + 2, yy, Wd[1]); }
+    I.box3q(s, 2, b - 30, w, h, 6, { ramp: WOODH, front: (xx, yy, u, v) => { const lx = xx - 2, ly = yy - (b - 30 - h); if (lx < 2 || lx > w - 3 || ly < 2 || ly > h - 3) return G[(lx < 2 || ly < 2) ? 6 : 3]; if (ly < 12) return U(ly === 11 ? mixHex(col, '#000000', 0.3) : col); return U(ly > h - 6 ? '#e8dcc8' : '#fff4de'); }, top: (xx, yy, u, v) => G[clamp(6 - Math.round(v * 2), 0, 8)], side: (xx, yy) => Wd[2] });
+    const top = b - 30 - h;
+    K.ellipseFn(s, 16, top + 30, 9, 9, (nx, ny, d) => U(d > 0.7 ? mixHex(col, '#000000', 0.25) : mixHex(col, '#ffffff', 0.45 - ny * 0.2)));
+    for (let j = 0; j < 5; j++) for (let xx = 30; xx < w - 6 - (j % 2) * 8 - r.int(0, 6); xx++) K.put(s, xx, top + 18 + j * 7, U(j === 0 ? '#5a3826' : '#c8a46a'));
+    K.text(s, String(2010 + seed * 5), 6, top + 4, U('#ffffff'), { font: 'tiny' });
+    // flexo dorado encima
+    for (let k = 0; k < 6; k++) K.put(s, Math.round(w / 2) + k, top - 4 + Math.round(k * 0.4), G[5]);
+    B.rect(s, Math.round(w / 2) + 4, top - 3, 6, 2, U('#fff4c8'));
+    fin(s); B.stamp(pb, s, x - 2, yb - b);
+    B.contact(pb, x + w / 2, yb, w / 2 + 4, 2);
+    return { lamp: [x + Math.round(w / 2) + 5, yb - b + top - 1] };
+  }
+  /** Maceta de cerámica pintada (≈28 px) con agave o nopal */
+  function pot(pb, x, yb, k = 0) {
+    const s = B.sprite(34, 32), b = 30, base = ['#c06a30', '#d4843e', '#a85024'][k % 3], C = P([mixHex(base, '#000000', 0.55), mixHex(base, '#000000', 0.35), mixHex(base, '#000000', 0.15), base, mixHex(base, '#ffffff', 0.2), mixHex(base, '#ffffff', 0.45)]);
+    for (let yy = 0; yy < 24; yy++) { const t = yy / 23, hw = Math.round(lerp(12, 9, t) + Math.sin(t * Math.PI) * 1.5); for (let xx = -hw; xx <= hw; xx++) { const f = (xx + hw) / (2 * hw); let kk = Math.round(4 - f * 3 + (f < 0.12 ? -1 : 0)); if (yy === 8 || yy === 9) kk = f < 0.5 ? 5 : 2; K.put(s, 17 + xx, b - 24 + yy, (yy > 12 && yy < 16 && ((xx + 30) % 6) < 2) ? U(MOS[(Math.floor((xx + 30) / 6) + k) % 6]) : C[clamp(kk, 0, 5)]); } }
+    for (let xx = 4; xx < 31; xx++) { K.put(s, xx, b - 25, C[5]); K.put(s, xx, b - 24, C[3]); }
+    fin(s); B.stamp(pb, s, x - 17, yb - b);
+    if (k % 2) PFFlora.agave(pb, x, yb - 25, 13, x); else PFAgro.put(pb, 'nopal', x, yb - 24, 0.7, 0, x);
+    B.contact(pb, x, yb, 13, 2);
+  }
+  /** Silla alta del consejo (respaldo tallado con medallón de color) */
+  function chair(pb, x, yb, col, h = 76) {
+    const s = B.sprite(28, h + 4), b = h + 2, Wd = P(WOODH), R = P(['#2a0a0a', '#4a1414', '#6e2020', '#8a3a2a', '#a8503a', '#c06a50']), G = P(GOLD);
+    for (let yy = b - h; yy < b; yy++) for (let xx = 2; xx < 24; xx++) { const ly = yy - (b - h), lx = xx - 2; let u; if (lx < 3 || lx > 18 || ly < 4) u = Wd[(lx < 2) ? 6 : (lx > 19) ? 1 : ly < 2 ? 7 : 4]; else if (ly < h - 36) u = R[clamp(4 - Math.round(ly / h * 3) + ((lx + ly) % 7 === 0 ? 1 : 0), 0, 5)]; else u = Wd[3]; K.put(s, xx, yy, u); }
+    for (let xx = 0; xx < 26; xx++) { K.put(s, xx, b - h, G[7]); K.put(s, xx, b - h + 1, G[4]); }
+    K.ellipseFn(s, 13, b - h + 16, 4, 4, (nx, ny, d) => U(d > 0.6 ? '#e0a83a' : col));
+    B.rect(s, 10, b - h - 4, 6, 4, G[6]);
+    fin(s); B.stamp(pb, s, x - 13, yb - b);
+  }
+  /** Gran mesa del consejo en 3/4: encimera a 36 px, frente de mosaico, papeles, micrófonos y jarras de agua */
+  function councilTable(pb, x, yb, w, o = {}) {
+    const h = o.h ?? 36, d = 18, Wd = P(WOODH), G = P(GOLD), out = { mics: [], cups: [] };
+    // sillas detrás (respaldos sobresalen por encima de la mesa)
+    for (let k = 0; k < (o.chairs || 9); k++) chair(pb, x + 30 + k * Math.round((w - 60) / ((o.chairs || 9) - 1)), yb - 10, MOS[k % 6], 74);
+    I.box3q(pb, x, yb, w, h, d, {
+      ramp: WOODH,
+      front: (xx, yy, u, v) => { const lx = xx - x, ly = yy - (yb - h); if (ly < 3) return G[ly === 0 ? 7 : ly === 1 ? 5 : 2]; if (lx < 4 || lx > w - 5) return Wd[lx < 2 ? 6 : 2]; if (ly > h - 4) return Wd[1]; const cx = Math.floor(lx / 6), cy = Math.floor((ly - 3) / 5); if ((lx % 6 === 0) || ((ly - 3) % 5 === 0)) return U('#0a1440'); const c = MOS[(cx * 7 + cy * 3) % 6]; return U(v > 0.8 ? mixHex(c, '#000000', 0.25) : c); },
+      top: (xx, yy, u, v) => { let k = 5 - Math.round(v * 2) + (((xx - x) % 23) === 0 ? -1 : 0) + Math.round((K.vn(xx * 0.1, yy * 0.5, 5) - 0.5) * 0.8); return Wd[clamp(k, 1, 7)]; },
+      side: (xx, yy) => Wd[2], ink: '#140a06',
+    });
+    const ty = yb - h - 1, dx = Math.round(d * 0.45);
+    // papeles, micrófonos, jarras y vasos, placas con nombre
+    const r = RNG(o.seed || 9);
+    for (let k = 0; k < (o.chairs || 9); k++) {
+      const px = x + 22 + k * Math.round((w - 60) / ((o.chairs || 9) - 1)), py = ty - 6;
+      for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 9; xx++) K.put(pb, px + xx + Math.round(yy * 0.45), py + 4 - yy, U(yy === 3 ? '#fff4de' : '#f0e4cc'));
+      for (let j = 0; j < 3; j++) K.put(pb, px + 2 + j * 2, py + 2, U('#8a7a66'));
+      if (k % 2 === 0) { const mx = px + 13; for (let yy = 0; yy < 8; yy++) K.put(pb, mx + Math.round(yy * 0.3), py + 2 - yy, U('#2a2a30')); K.put(pb, mx + 2, py - 7, U('#5a5a64')); K.put(pb, mx + 3, py - 7, U('#5a5a64')); out.mics.push([mx + 3, py - 8]); }
+      else { const cx = px + 13; for (let yy = 0; yy < 7; yy++) for (let xx = -1; xx <= 1; xx++) K.put(pb, cx + xx, py + 2 - yy, U(yy > 4 ? '#c8ecff' : xx < 0 ? '#e8f8ff' : '#7ab8e8')); K.put(pb, cx, py - 5, U('#ffffff')); out.cups.push([cx, py - 2]); }
+      B.rect(pb, px + 1, ty - 1, 10, 3, U('#2a1a10')); K.put(pb, px + 3, ty, U('#ffe08a')); K.put(pb, px + 6, ty, U('#ffe08a'));
+    }
+    B.castR(pb, x, x + w + dx, yb - 1, 8, { amt: -0.2, yMin: yb - 12 });
+    return out;
+  }
+  /** Muro de evidencias: corcho en bastidor de madera con fotos, notas, mapa e hilos rojos */
+  function corkboard(pb, x, yb, w = 118, h = 84) {
+    const s = B.sprite(w + 14, h + 40), b = h + 36, Wd = P(WOODH), r = RNG(77);
+    for (const lx of [10, w - 6]) for (let yy = b - 36; yy < b; yy++) { K.put(s, lx, yy, Wd[5]); K.put(s, lx + 1, yy, Wd[3]); K.put(s, lx + 2, yy, Wd[1]); }
+    const top = b - 32 - h;
+    I.box3q(s, 2, b - 32, w, h, 5, { ramp: WOODH, front: (xx, yy, u, v) => { const lx = xx - 2, ly = yy - top; if (lx < 4 || lx > w - 5 || ly < 4 || ly > h - 5) return Wd[(lx < 2 || ly < 2) ? 6 : lx > w - 3 || ly > h - 3 ? 1 : 4]; const g = hash2(xx, yy, 5); return U(g < 0.2 ? '#a87440' : g > 0.85 ? '#d8a868' : '#c08a52'); }, top: (xx, yy, u, v) => Wd[6], side: (xx, yy) => Wd[2] });
+    // fotos, notas y mapa
+    const items = [];
+    for (let k = 0; k < 9; k++) { const ix = 10 + (k % 4) * Math.round((w - 20) / 4) + r.int(-3, 3), iy = top + 10 + Math.floor(k / 4) * 24 + r.int(-2, 3), iw = r.int(14, 20), ih = r.int(10, 14); items.push([ix + iw / 2, iy + 1]); B.rect(s, ix, iy, iw, ih, U(k % 3 === 2 ? '#fff6a0' : '#fffaf0')); if (k % 3 !== 2) B.rect(s, ix + 1, iy + 1, iw - 2, ih - 4, U(mixHex(MOS[k % 6], '#3a2a5a', 0.35))); else for (let j = 0; j < 3; j++) B.rect(s, ix + 2, iy + 3 + j * 3, iw - 5 - j * 2, 1, U('#8a7a66')); K.put(s, Math.round(ix + iw / 2), iy, U('#ff4e5d')); }
+    for (let i = 0; i < items.length - 1; i += 1 + (i % 2)) { const [ax, ay] = items[i], [bx, by] = items[i + 1 + (i % 3 === 0 ? 2 : 0)] || items[i + 1]; K.lineFn(s, ax, ay, bx, by, () => U('#d82a2a')); }
+    fin(s); B.stamp(pb, s, x - 2, yb - b);
+    B.contact(pb, x + w / 2, yb, w / 2 + 4, 2);
+  }
+  /** Pedestal holográfico: zócalo octogonal en 3/4 con anillo emisor y rejilla; devuelve {cx, top} (base del haz) */
+  function holoPedestal(pb, cx, yb, rx = 56) {
+    const R = P(ROYAL), G = P(GOLD), h = 18, ry = 9, out = {};
+    // cuerpo (cilindro ancho) y tapa elíptica
+    for (let yy = yb - h; yy <= yb; yy++) for (let xx = cx - rx; xx <= cx + rx; xx++) { const nx = (xx - cx) / rx; if (Math.abs(nx) > 1) continue; const nz = Math.sqrt(1 - nx * nx), e = Math.round(ry * nz), lit = 0.3 + Math.max(0, -nx * 0.5 + nz * 0.5) * 0.7, ly = yy - (yb - h); let k = Math.round(lit * 6) - (ly > h - 3 ? 2 : 0); if (ly === 3 || ly === 4) k = 7; if (ly > 8 && ly < 14 && ((xx - cx + 200) % 8) < 4) k -= 2; K.put(pb, xx, yy + e, R[clamp(k, 0, 8)]); }
+    K.ellipseFn(pb, cx, yb - h, rx + 0.5, ry + 0.5, (nx, ny, d) => d > 0.86 ? G[ny < 0 ? 7 : 4] : d > 0.7 ? U('#56e5ff') : d < 0.3 ? U(((Math.round(nx * 8) + Math.round(ny * 4)) & 1) ? '#bff4ff' : '#56e5ff') : R[clamp(Math.round(3 - ny * 2), 0, 8)]);
+    for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, ex = Math.round(cx + Math.cos(a) * rx * 0.55), ey = Math.round(yb - h + Math.sin(a) * ry * 0.55); K.put(pb, ex, ey, U('#ffffff')); K.put(pb, ex + 1, ey, U('#bff4ff')); }
+    B.plaque(pb, cx, yb - 8, 'GEMELO DIGITAL', { center: true, bg: '#06203a', border: '#56e5ff', col: '#f4fbff', h: 9, screws: false });
+    B.contact(pb, cx, yb + ry, rx + 4, 2.5, -0.3);
+    out.cx = cx; out.top = yb - h;
+    return out;
+  }
+  /** Entreplanta del observatorio: columnas doradas bajo el forjado, muro de pantallas enmarcadas y pupitre.
+      Devuelve {screens:[[x,y,w,h]], lamps} */
+  function observatory(pb, x0, x1, floorY, yb) {
+    const R = P(ROYAL), G = P(GOLD), out = { screens: [], lamps: [] }, w = x1 - x0;
+    // columnas bajo la entreplanta
+    for (const px of [x0 + 10, x0 + Math.round(w / 2) - 4, x1 - 18]) { for (let yy = floorY + 12; yy < yb; yy++) for (let k = 0; k < 9; k++) K.put(pb, px + k, yy, G[[7, 6, 5, 5, 4, 3, 3, 2, 1][k] - ((k % 3 === 1 && yy % 2) ? 1 : 0)]); B.rect(pb, px - 2, yb - 4, 13, 4, (xx, yy) => G[yy === yb - 4 ? 7 : 3]); B.rect(pb, px - 2, floorY + 10, 13, 3, G[6]); }
+    // muro trasero de la entreplanta (azul real con moldura)
+    I.box3q(pb, x0, floorY - 14, w, 84, 0, { ramp: ROYAL, front: (xx, yy, u, v) => { const ly = yy - (floorY - 98); let k = 3 - Math.round(v) + (((xx - x0) % 38) === 0 ? -1 : 0); if (ly < 3) return G[6]; return R[clamp(k, 0, 8)]; }, edges: false });
+    for (let k = 0; k < 3; k++) {
+      const sx = x0 + 14 + k * Math.round((w - 28) / 3), sw = Math.round((w - 28) / 3) - 10, sy = floorY - 82, sh = 40;
+      B.rect(pb, sx - 3, sy - 3, sw + 6, sh + 6, (xx, yy) => G[yy < sy - 1 ? 7 : xx > sx + sw + 1 ? 2 : 5]); B.rect(pb, sx, sy, sw, sh, U('#05081d'));
+      out.screens.push([sx + 2, sy + 2, sw - 4, sh - 4]);
+    }
+    // pupitre de lectura con lámpara
+    I.box3q(pb, x0 + 70, floorY - 12, 40, 26, 8, { ramp: WOODH });
+    B.rect(pb, x0 + 98, floorY - 52, 2, 16, G[4]); B.rect(pb, x0 + 94, floorY - 54, 9, 3, G[7]);
+    out.lamps.push([x0 + 98, floorY - 50]);
+    // suelo interior de la entreplanta (parquet) entre muro y canto
+    for (let yy = floorY - 14; yy < floorY; yy++) for (let xx = x0; xx < x1; xx++) { const t = (floorY - yy) / 14; K.put(pb, xx, yy, P(WOODH)[clamp(Math.round(5 - t * 2 + ((((xx + yy * 3) >> 3) & 1) ? -0.6 : 0)), 1, 7)]); }
+    return out;
+  }
+  /** Balaustrada de piedra con pasamanos dorado */
+  function balustrade(pb, x0, x1, yb, h = 30) {
+    const M = P(MARB), G = P(GOLD);
+    for (let x = x0; x < x1; x++) { for (let k = 0; k < 4; k++) K.put(pb, x, yb - h + k, k === 0 ? G[7] : k === 1 ? G[5] : M[6 - k]); for (let k = 0; k < 4; k++) K.put(pb, x, yb - 4 + k, M[k === 0 ? 7 : 4 - k]); }
+    for (let x = x0 + 3; x < x1 - 3; x += 8) for (let yy = yb - h + 4; yy < yb - 4; yy++) { const t = (yy - (yb - h + 4)) / (h - 8), hw = Math.round(1.5 + Math.sin(t * Math.PI) * 1.6); for (let k = -hw; k <= hw; k++) K.put(pb, x + k, yy, M[clamp(6 - (k + hw) - (k > 0 ? 1 : 0), 0, 8)]); }
+    B.castR(pb, x0, x1, yb - 1, 6, { amt: -0.16, yMin: yb - 8 });
+  }
+  /** Puerta monumental de doble hoja (≥ 100 px) con marco dorado y tímpano */
+  function grandDoor(pb, cx, yb, w = 56, h = 104, title) {
+    const G = P(GOLD), Wd = P(WOODH), x = Math.round(cx - w / 2);
+    B.rect(pb, x - 10, yb - h - 18, w + 20, h + 18, (xx, yy) => G[(xx < x - 7) ? 7 : (xx >= x + w + 7) ? 2 : (yy < yb - h - 15) ? 8 : 4]);
+    K.ellipseFn(pb, cx, yb - h - 2, w / 2 + 4, 16, (nx, ny) => ny > 0 ? 0 : G[clamp(Math.round(5 - nx * 2 - ny), 0, 8)]);
+    K.ellipseFn(pb, cx, yb - h - 2, w / 2 - 2, 12, (nx, ny) => ny > 0 ? 0 : U(((Math.round(nx * 6) + 7) % 2) ? '#56e5ff' : '#1c3596'));
+    B.rect(pb, x, yb - h, w, h, (xx, yy) => { const lx = xx - x, ly = yy - (yb - h), half = lx >= w / 2; const px = half ? lx - w / 2 : lx; if (px < 2 || px > w / 2 - 3) return Wd[px < 2 ? 6 : 1]; if ((ly % 26) < 2) return Wd[2]; if ((px === 5 || px === w / 2 - 6) && (ly % 26) > 4) return Wd[6]; return Wd[clamp(4 - Math.round(ly / h) + (((px + ly) % 9) === 0 ? -1 : 0), 0, 7)]; });
+    for (const hx of [cx - 4, cx + 3]) { B.rect(pb, hx, yb - Math.round(h * 0.5), 2, 6, G[7]); }
+    if (title) B.plaque(pb, cx, yb - h - 34, title, { center: true, font: 'main', bold: true, bg: '#0e1f5a', border: '#ffe08a', col: '#fff4c8', h: 13 });
+  }
+  /** Lámpara colgante dorada (cadena desde arriba); devuelve la posición de la luz */
+  function chandelier(pb, x, yTop, y) {
+    const G = P(GOLD);
+    for (let yy = yTop; yy < y; yy++) K.put(pb, x, yy, G[(yy % 3) ? 4 : 6]);
+    K.ellipseFn(pb, x, y + 4, 9, 4, (nx, ny) => G[clamp(Math.round(5 - ny * 2 - nx), 0, 8)]);
+    for (const dx of [-8, -3, 3, 8]) { K.put(pb, x + dx, y + 1, U('#fff4c8')); K.put(pb, x + dx, y, U('#ffe08a')); }
+    K.ellipseFn(pb, x, y + 8, 3, 2, () => G[3]);
+    return [x, y + 2];
+  }
+  return { banner, historyPanel, pot, chair, councilTable, corkboard, holoPedestal, observatory, balustrade, grandDoor, chandelier, GOLD, ROYAL, WOODH, MARB, MOS };
 })();
 
 /* ===== 18z_pf_test.js ===== */
@@ -31432,82 +31630,97 @@ LEVELS[9] = {
   checkpoints: { lab: { x: 1260, y: 292 } },
   ground: [[0, 292], [2400, 292]],
   terrain: [{ x0: 0, x1: 2400, mat: 'plaza' }],
-  platforms: [{ x: 1720, y: 230, w: 220, type: 'metal' }],
-  ladders: [{ x: 1730, y0: 230, y1: 292 }],
+  platforms: [{ x: 1720, y: 230, w: 220, type: 'metal', baked: true, look: 'slab', strip: '#ffe08a', ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'] }],
+  ladders: [{ x: 1730, y0: 230, y1: 292, look: 'wood' }],
   cam: { look: 50, vy: 0.66 },
+  /* ---------------- plano jugable con kit PF (B) ----------------
+     Salón del consejo al atardecer: mármol ajedrezado con reflejos de los ventanales y canto de
+     estuco con moldura dorada y arcadas ciegas → alfombra roja con cenefas sobre escalinata ante la
+     mesa del consejo → mármol del muro de evidencias, del gemelo y del observatorio → balcón y
+     puerta monumental hacia el núcleo. Línea de paso intacta (292). */
+  pf: {
+    kitB: true,
+    terrain: [
+      { x0: 0, x1: 600, surf: 'tile', face: 'hall', depth: 18, checker: true, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 40, refl: [{ x: 120, w: 16, col: '#ffc070', k: 0.3 }, { x: 330, w: 16, col: '#ffc070', k: 0.3 }, { x: 540, w: 16, col: '#ffc070', k: 0.3 }] },
+      { x0: 600, x1: 1100, surf: 'carpet', face: 'steps', depth: 18, steps: 3, stepH: 8, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'] },
+      { x0: 1100, x1: 1700, surf: 'tile', face: 'hall', depth: 18, checker: true, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 40, refl: [{ x: 1440, w: 40, col: '#56e5ff', k: 0.22 }, { x: 1240, w: 16, col: '#ffc070', k: 0.3 }, { x: 1620, w: 16, col: '#ffc070', k: 0.3 }] },
+      { x0: 1700, x1: 2080, surf: 'tile', face: 'hall', depth: 18, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 56, refl: [{ x: 1830, w: 60, col: '#eab02a', k: 0.18 }] },
+      { x0: 2080, x1: 2400, surf: 'tile', face: 'hall', depth: 18, checker: true, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 32, refl: [{ x: 2350, w: 22, col: '#56e5ff', k: 0.2 }] },
+    ],
+    fg: [
+      { kind: 'pillar', x: -6, w: 24, h: 360, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'], lit: true, capital: true, fluted: true },
+      { kind: 'beam', x: 300, y: 0, w: 380, h: 14, bolts: false, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'dark', x: 820, w: 110, h: 64, seed: 121, leaves: 9 },
+      { kind: 'rail', x: 1280, w: 240, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'beam', x: 1700, y: 0, w: 360, h: 14, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'dark', x: 2260, w: 120, h: 70, seed: 123, leaves: 10 },
+      { kind: 'rail', x: 2640, w: 240, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'pillar', x: 3060, w: 26, h: 360, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'], lit: true, capital: true, fluted: true },
+    ],
+  },
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 236, y: 170, title: 'HISTORIA DE SYNARA', sub: 'Quién decidió y con qué datos', kind: 'tech', ax: 236, ay: 186 },
+    { x: 850, y: 140, title: 'CONSEJO CIUDADANO', sub: 'Todas las voces en la mesa', kind: 'green', ax: 850, ay: 190 },
+    { x: 1157, y: 166, title: 'MURO DE EVIDENCIAS', sub: 'Cada dato con su fuente', kind: 'alert', ax: 1157, ay: 186 },
+    { x: 1440, y: 168, title: 'GEMELO DIGITAL', sub: (sc) => sc.state.mosaicBoard ? 'Capas: todos los criterios' : 'Un solo índice opaco', kind: 'water', ax: 1440, ay: 186 },
+    { x: 1830, y: 112, title: 'OBSERVATORIO', sub: 'LCOA · LCOE · LCOH (supuestos)', kind: 'solar', ax: 1830, ay: 130 },
+  ],
+  /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
-    const gy = 292;
-    const MOS = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'];
-    // estandartes colgantes entre columnas: agua, sol, viento, hoja, ecosistema, personas
-    const banner = (x, y, col, k) => {
-      pb.rect(x - 1, y - 3, 30, 3, '#8a5e14'); pb.hline(x - 2, x + 29, y - 4, '#ffe08a');
-      for (let yy = 0; yy < 56; yy++) { const cut = yy > 46 ? (yy - 46) * 1.4 : 0; for (let xx = 0; xx < 28; xx++) { if (yy > 46 && Math.abs(xx - 13.5) < cut) continue; pb.set(x + xx, y + yy, xx < 3 ? mixHex(col, '#000000', 0.25) : xx > 24 ? mixHex(col, '#ffffff', 0.15) : col); } }
-      pb.rect(x + 2, y + 2, 24, 1, '#ffe08a'); pb.rect(x + 2, y + 44, 24, 1, '#ffe08a');
-      const cx = x + 14, cy = y + 22;
-      if (k === 0) { pb.disc(cx, cy + 3, 6, '#fffaf0'); pb.poly([[cx - 5, cy + 1], [cx + 5, cy + 1], [cx, cy - 9]], '#fffaf0'); pb.disc(cx - 2, cy + 3, 2, '#bff4ff'); }
-      else if (k === 1) { pb.disc(cx, cy, 6, '#fffaf0'); for (let a = 0; a < 8; a++) { const an = a * Math.PI / 4; pb.line(cx + Math.cos(an) * 8, cy + Math.sin(an) * 8, cx + Math.cos(an) * 11, cy + Math.sin(an) * 11, '#fffaf0'); } }
-      else if (k === 2) { for (let j = 0; j < 3; j++) { pb.hline(cx - 9, cx + 5 - j * 3, cy - 6 + j * 6, '#fffaf0'); pb.set(cx + 6 - j * 3, cy - 7 + j * 6, '#fffaf0'); } }
-      else if (k === 3) { pb.ellipse(cx, cy, 5, 9, '#fffaf0'); pb.vline(cx, cy - 8, cy + 11, mixHex(col, '#000000', 0.2)); }
-      else if (k === 4) { pb.ellipse(cx, cy + 2, 9, 4, '#fffaf0'); pb.poly([[cx + 7, cy + 2], [cx + 12, cy - 3], [cx + 12, cy + 7]], '#fffaf0'); pb.set(cx - 5, cy + 1, col); }
-      else { pb.disc(cx - 5, cy - 4, 3, '#fffaf0'); pb.disc(cx + 5, cy - 4, 3, '#fffaf0'); pb.rect(cx - 9, cy, 8, 9, '#fffaf0'); pb.rect(cx + 1, cy, 8, 9, '#fffaf0'); }
-    };
+    const t0 = nowMs();
+    const gy = (x) => world.groundAt(x);
+    const segs = PFBGround.surface(pb, world);
+    const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
+    const M = PFBM, B = PFB, D = LV9;
+    for (const k of Object.keys(D)) if (Array.isArray(D[k])) D[k].length = 0;
+    const yb = (x) => back(x) + 2;
+    const warm = (x, y, r = 10, a = 0.3) => D.glows.push({ x, y, r, col: '#ffd890', a, mode: 'flicker', ph: x });
+    /* ===== techo: estandartes y lámparas colgantes ===== */
     const bcols = ['#1aa59a', '#e08a1a', '#3a8adc', '#2f9e4c', '#d4505a', '#9a52d4'];
-    for (let k = 0; k < 12; k++) banner(96 + k * 200, 8, bcols[k % 6], k % 6);
-    // macetas de cerámica con agaves y nopales (naturaleza dentro del consejo)
-    const pot = (x, k) => { const c = ['#c06a30', '#d4843e', '#a85024'][k % 3]; pb.poly([[x - 11, gy - 20], [x + 11, gy - 20], [x + 8, gy], [x - 8, gy]], c); pb.rect(x - 12, gy - 22, 24, 3, mixHex(c, '#ffffff', 0.25)); for (let i = 0; i < 4; i++) pb.set(x - 6 + i * 4, gy - 12, '#ffe08a'); pb.hline(x - 9, x + 9, gy - 8, mixHex(c, '#000000', 0.25)); if (k % 2) ART.agave(pb, x, gy - 21, 14); else ART.nopal(pb, x, gy - 21, 6, k + 3); };
-    [40, 470, 1290, 1640, 2060].forEach((x, k) => pot(x, k));
-    // paneles de historia en el vestíbulo (línea de tiempo de SYNARA)
-    for (let k = 0; k < 4; k++) {
-      const x = 70 + k * 92;
-      pb.rect(x, 196, 72, 58, '#8a5e14'); pb.rect(x + 2, 198, 68, 54, '#eab02a'); pb.rect(x + 4, 200, 64, 50, '#fff4de');
-      pb.rect(x + 4, 200, 64, 10, MOS[k]);
-      for (let j = 0; j < 4; j++) pb.hline(x + 30, x + 62 - (j % 2) * 8, 216 + j * 7, '#c8a46a');
-      pb.disc(x + 16, 228, 9, mixHex(MOS[k], '#ffffff', 0.5)); pb.disc(x + 16, 228, 6, MOS[k]);
-      pb.rect(x + 34, 252, 4, gy - 252, '#5a3826');
-    }
-    drawSign(pb, 236, gy, 'HISTORIA DE SYNARA', '#1c3596');
-    // bancas del público
-    for (let k = 0; k < 2; k++) { const x = 400 + k * 120; pb.rect(x, gy - 16, 80, 4, '#8a5e14'); pb.rect(x, gy - 17, 80, 1, '#c8861a'); pb.rect(x + 4, gy - 12, 4, 12, '#5a3826'); pb.rect(x + 72, gy - 12, 4, 12, '#5a3826'); pb.rect(x, gy - 30, 80, 3, '#a87028'); pb.rect(x + 2, gy - 27, 2, 11, '#5a3826'); pb.rect(x + 76, gy - 27, 2, 11, '#5a3826'); }
-    // gran mesa del consejo en vista lateral: sillas altas detrás, frente de mosaico
-    const tx = 620, tw = 460;
-    for (let k = 0; k < 9; k++) { const x = tx + 20 + k * 50; pb.rect(x, gy - 58, 22, 36, '#5a3826'); pb.rect(x + 2, gy - 56, 18, 32, '#8a3a2a'); pb.rect(x + 2, gy - 56, 18, 3, '#c06a30'); pb.disc(x + 11, gy - 46, 3, MOS[k % 6]); pb.rect(x + 9, gy - 62, 4, 4, '#eab02a'); }
-    pb.rect(tx, gy - 30, tw, 6, '#c8861a'); pb.rect(tx, gy - 30, tw, 1, '#ffe08a'); pb.rect(tx, gy - 25, tw, 1, '#8a5e14');
-    for (let x = tx + 6; x < tx + tw - 6; x++) for (let y = gy - 24; y < gy - 4; y++) { const cx = Math.floor((x - tx) / 6), cy = Math.floor((y - gy + 24) / 5); pb.set(x, y, ((x - tx) % 6 === 0 || (y - gy + 24) % 5 === 0) ? '#0a1440' : MOS[(cx * 7 + cy * 3) % 6]); }
-    pb.rect(tx + 4, gy - 24, 3, 24, '#5a3826'); pb.rect(tx + tw - 7, gy - 24, 3, 24, '#5a3826');
-    for (let k = 0; k < 5; k++) { const x = tx + 50 + k * 90; pb.rect(x, gy - 34, 10, 4, '#fff4de'); pb.rect(x + 14, gy - 36, 3, 6, '#56e5ff'); }
-    drawSign(pb, tx + tw / 2, gy - 72, 'CONSEJO CIUDADANO', '#1c3596');
-    // muro de evidencias: corcho con fotos clavadas
-    const wx = 1100, wy = 182;
-    pb.rect(wx, wy, 110, 80, '#5a3826'); pb.rect(wx + 3, wy + 3, 104, 74, '#b8864e');
-    for (let i = 0; i < 300; i++) { const r = (i * 7919) % 104, s = (i * 104729) % 74; pb.set(wx + 3 + r, wy + 3 + s, (i % 3) ? '#a87440' : '#cc9a60'); }
-    const pins = [[14, 10], [44, 8], [78, 12], [20, 40], [56, 38], [86, 44], [36, 60], [70, 62]];
-    pins.forEach(([px, py], k) => { pb.rect(wx + px - 6, wy + py - 1, 14, 12, '#fffaf0'); pb.rect(wx + px - 5, wy + py, 12, 7, mixHex(MOS[k % 6], '#3a2a5a', 0.3)); pb.disc(wx + px, wy + py - 1, 1, '#ff4e5d'); });
-    drawSign(pb, wx + 55, wy, 'EVIDENCIAS', '#ff6b6b');
-    // laboratorio del gemelo: pedestal holográfico con emisores
-    const hx = 1440;
-    pb.poly([[hx - 64, gy], [hx + 64, gy], [hx + 54, gy - 26], [hx - 54, gy - 26]], '#14287a');
-    pb.rect(hx - 56, gy - 30, 112, 5, '#1c3596'); pb.rect(hx - 56, gy - 30, 112, 1, '#56e5ff');
-    for (let k = 0; k < 7; k++) pb.rect(hx - 48 + k * 16, gy - 28, 6, 2, '#bff4ff');
-    pb.rect(hx - 40, gy - 20, 80, 12, '#0a1440'); for (let k = 0; k < 10; k++) pb.rect(hx - 36 + k * 8, gy - 17, 4, 6, k % 3 ? '#1c3596' : '#56e5ff');
-    drawSign(pb, hx + 92, gy, 'GEMELO DIGITAL', '#56e5ff');
-    // observatorio económico elevado
-    pb.rect(1716, 146, 228, 84, '#0e1f5a'); pb.rect(1716, 146, 228, 3, '#eab02a'); pb.rect(1716, 226, 228, 4, '#c8861a');
-    for (let k = 0; k < 3; k++) { pb.rect(1730 + k * 70, 160, 62, 38, '#eab02a'); pb.rect(1732 + k * 70, 162, 58, 34, '#05081d'); }
-    for (let x = 1722; x < 1940; x += 8) pb.vline(x, 214, 230, '#eab02a'); pb.hline(1720, 1940, 214, '#ffe08a');
-    drawSign(pb, 1830, 146, 'OBSERVATORIO', '#eab02a');
-    // balcón hacia el núcleo
-    for (let x = 2100; x < 2400; x += 6) pb.vline(x, gy - 18, gy, '#eab02a'); pb.hline(2100, 2399, gy - 18, '#ffe08a');
-    drawSign(pb, 2340, gy, 'NÚCLEO SYNARA', '#c06a30');
+    for (let k = 0; k < 12; k++) M.banner(pb, 96 + k * 200, 8, bcols[k % 6], k % 6, 64);
+    for (const x of [300, 760, 940, 1260, 1620, 2200]) { const L = M.chandelier(pb, x, 0, 108); warm(L[0], L[1], 12, 0.34); D.cones.push([L[0], L[1] + 6, 12, 60, gy(x) - L[1] - 10]); }
+    /* ===== 1. VESTÍBULO (0–600): paneles de historia, bancos, macetas ===== */
+    const hcols = ['#20a0c8', '#e0a020', '#3ab070', '#d0584a'];
+    for (let k = 0; k < 4; k++) { const hp = M.historyPanel(pb, 66 + k * 92, yb(100 + k * 92), 72, hcols[k], k + 1); warm(hp.lamp[0], hp.lamp[1], 6, 0.3); }
+    B.bench(pb, 400, yb(420) + 2, 60, { ramp: M.WOODH }); B.bench(pb, 492, yb(510) + 2, 60, { ramp: M.WOODH });
+    for (const [x, k] of [[34, 0], [576, 1], [1290, 2], [1650, 3], [2060, 4]]) M.pot(pb, x, yb(x) + 2, k);
+    /* ===== 2. MESA DEL CONSEJO (600–1100) ===== */
+    const tb = M.councilTable(pb, 622, yb(850), 456, { chairs: 9, seed: 9 });
+    for (const [x, y] of tb.cups) D.glows.push({ x, y, r: 3, col: '#bff4ff', a: 0.3, mode: 'steady' });
+    /* ===== 3. MURO DE EVIDENCIAS (1096–1230) ===== */
+    M.corkboard(pb, 1098, yb(1157), 118, 84);
+    /* ===== 4. LABORATORIO DEL GEMELO (1300–1600) ===== */
+    const hp = M.holoPedestal(pb, 1440, yb(1440) - 4, 56);
+    D.holo.push(hp.cx, hp.top);
+    for (const x of [1350, 1530]) { PFBH2.box(pb, x, yb(x), 26, 30, 8, { ramp: M.ROYAL, pw: 13 }); D.leds.push({ x: x + 4, y: yb(x) - 24, col: '#56e5ff', hz: 0.8, ph: x }, { x: x + 9, y: yb(x) - 24, col: '#eab02a', hz: 1.1, ph: x + 1 }); }
+    /* ===== 5. OBSERVATORIO en entreplanta (1716–1944) ===== */
+    const ob = M.observatory(pb, 1716, 1944, 230, yb(1830));
+    D.obsScr.push(...ob.screens);
+    for (const [x, y] of ob.lamps) warm(x, y, 8, 0.35);
+    B.shade(pb, 1716, 242, 228, 10, -0.22);
+    /* ===== 6. BALCÓN Y PUERTA DEL NÚCLEO (2080–2400) ===== */
+    M.balustrade(pb, 2096, 2300, yb(2200), 30);
+    M.grandDoor(pb, 2354, yb(2354), 58, 104, 'NÚCLEO SYNARA');
+    D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
+    LEVELS[9]._propsMs = Math.round(nowMs() - t0);
   },
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, gy = 292 - oy;
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV9;
+    // conos de luz de las lámparas colgantes
+    g.globalCompositeOperation = 'lighter';
+    for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#ffe0a8', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
+    g.globalCompositeOperation = 'source-over';
     // holograma del gemelo: ciudad "perfecta" de MIRAGE sin personas (o Mosaico con capas)
-    const hx = 1440 - ox, hy = gy - 70;
-    for (let i = 0; i < 10; i++) VISTA.veil(g, hx - 10 - i * 5, gy - 31 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
-    if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
-    else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
+    if (D.holo.length) { const hx = D.holo[0] - ox, base = D.holo[1] - oy, hy = base - 40; if (hx > -120 && hx < W + 120) {
+      for (let i = 0; i < 10; i++) VISTA.veil(g, hx - 10 - i * 5, base - 1 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
+      if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
+      else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
+    } }
     // pantallas del observatorio
-    for (let k = 0; k < 3; k++) { const x = 1736 + k * 70 - ox, y = 166 - oy; for (let i = 0; i < 4; i++) frect(g, x + 4, y + 4 + i * 7, 6 + ((i * 11 + Math.floor(t * 2) + k * 3) % 40), 2, ['#eab02a', '#4ccb70', '#ff6b6b'][k]); }
+    D.obsScr.forEach(([sx, sy, sw, sh], k) => { const x = sx - ox, y = sy - oy; if (x < -80 || x > W + 10) return; for (let i = 0; i < 4; i++) frect(g, x + 4, y + 4 + i * 7, 6 + ((i * 11 + Math.floor(t * 2) + k * 3) % Math.max(8, sw - 10)), 2, ['#eab02a', '#4ccb70', '#ff6b6b'][k % 3]); drawText(g, ['LCOA', 'LCOE', 'LCOH'][k % 3], x + sw - 4, y + sh - 8, { font: 'tiny', align: 'right', color: '#fff4c8' }); });
+    PFInfra.drawLeds(g, sc, D.leds);
+    PFB.glows(g, sc, D.glows);
     // cielo de calima que avanza al final
     if (S.calimaK > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.calimaK * 0.5; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   },
@@ -31540,20 +31753,23 @@ LEVELS[9] = {
     marea.onTalk = async (sc2) => { await sc2.say([['marea', 'smile', 'Nunca me habían invitado a una mesa con tantos números. Me gusta que el manglar tenga silla.']]); };
     naira.onTalk = async (sc2) => { await sc2.say([['naira', 'calm', 'Una decisión transparente puede discutirse. Una puntuación opaca solo puede obedecerse.']]); };
     dante.onTalk = async (sc2) => { await sc2.say([['dante', 'joy', '¿Viste la silla? Le puse cinta. Para la estabilidad institucional.']]); };
-    sc.station({ id: 'wall', x: 1155, kind: 'clue', label: 'Muro de evidencias', glow: '#ff6b6b', hidden: true, onUse: async (sc2, st) => chainFlow(sc2, st) });
-    sc.station({ id: 'moSim', x: 1440, kind: 'sim', label: 'Tablero del gemelo', glow: '#eab02a', hidden: true, onUse: async (sc2, st) => moFlow(sc2, st) });
+    sc.station({ id: 'wall', x: 1155, kind: 'clue', label: 'Muro de evidencias', glow: '#ff6b6b', hidden: true, draw: PFB.drawClue, onUse: async (sc2, st) => chainFlow(sc2, st) });
+    sc.station({ id: 'moSim', x: 1440, kind: 'sim', label: 'Tablero del gemelo', glow: '#eab02a', hidden: true, draw: PFBH2.drawConsoleSt, onUse: async (sc2, st) => moFlow(sc2, st) });
     sc.station({ id: 'solo', x: 1830, y: 230, kind: 'solo', label: 'Puerta de Evidencia', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => {
       const r = await sc2.open(SOLOScene, { ctx: 'RA-08-C2' });
       st.progress = r.correct; if (r.correct >= 3) { st.done = true; GS.lp(9).solo = true; S.soloDone = true; Codex.unlock('multiobjetivo'); }
     } });
     sc.station({ id: 'solo2', x: 1900, y: 230, kind: 'solo', label: 'Archivo: rediseño participativo', glow: '#86e36f', hidden: true, onUse: async (sc2, st) => { const r = await sc2.open(SOLOScene, { ctx: 'RA-09-C3' }); st.progress = r.correct; if (r.correct >= 3) st.done = true; } });
-    sc.station({ id: 'exit', x: 2360, kind: 'clue', label: 'Ir al núcleo (Gran Calima)', glow: '#ff9f43', hidden: true, onUse: async (sc2) => finishLevel9(sc2) });
+    sc.station({ id: 'exit', x: 2360, kind: 'clue', label: 'Ir al núcleo (Gran Calima)', glow: '#ff9f43', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel9(sc2) });
     sc.setObjective('Habla con la Consejera Ruth en la mesa', ['¿Quién se sienta en la mesa y quién no?', 'La mesa está en el centro del salón.']);
     Codex.unlock('gobernanza');
     if (p.checkpoint === 'lab') { Object.assign(S, { council: true, chainDone: true }); GS.flag('communityDataRestored', true); sc.world.find('moSim').hidden = false; sc.setObjective('Usa el tablero del gemelo', []); }
   },
   update(sc, dt) { const S = sc.state; if (S.calima) S.calimaK = Math.min(1, S.calimaK + dt * 0.2); if (S.calima) ambientParticles(sc.world.ps, 'dust', sc.cam, 1.2, 2); },
 };
+
+/* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
+const LV9 = { glows: [], cones: [], leds: [], holo: [], obsScr: [] };
 
 /* ---------------- piezas del guion del nivel 09 ---------------- */
 async function councilScene(sc) {

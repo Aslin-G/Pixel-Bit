@@ -45,82 +45,97 @@ LEVELS[9] = {
   checkpoints: { lab: { x: 1260, y: 292 } },
   ground: [[0, 292], [2400, 292]],
   terrain: [{ x0: 0, x1: 2400, mat: 'plaza' }],
-  platforms: [{ x: 1720, y: 230, w: 220, type: 'metal' }],
-  ladders: [{ x: 1730, y0: 230, y1: 292 }],
+  platforms: [{ x: 1720, y: 230, w: 220, type: 'metal', baked: true, look: 'slab', strip: '#ffe08a', ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'] }],
+  ladders: [{ x: 1730, y0: 230, y1: 292, look: 'wood' }],
   cam: { look: 50, vy: 0.66 },
+  /* ---------------- plano jugable con kit PF (B) ----------------
+     Salón del consejo al atardecer: mármol ajedrezado con reflejos de los ventanales y canto de
+     estuco con moldura dorada y arcadas ciegas → alfombra roja con cenefas sobre escalinata ante la
+     mesa del consejo → mármol del muro de evidencias, del gemelo y del observatorio → balcón y
+     puerta monumental hacia el núcleo. Línea de paso intacta (292). */
+  pf: {
+    kitB: true,
+    terrain: [
+      { x0: 0, x1: 600, surf: 'tile', face: 'hall', depth: 18, checker: true, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 40, refl: [{ x: 120, w: 16, col: '#ffc070', k: 0.3 }, { x: 330, w: 16, col: '#ffc070', k: 0.3 }, { x: 540, w: 16, col: '#ffc070', k: 0.3 }] },
+      { x0: 600, x1: 1100, surf: 'carpet', face: 'steps', depth: 18, steps: 3, stepH: 8, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'] },
+      { x0: 1100, x1: 1700, surf: 'tile', face: 'hall', depth: 18, checker: true, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 40, refl: [{ x: 1440, w: 40, col: '#56e5ff', k: 0.22 }, { x: 1240, w: 16, col: '#ffc070', k: 0.3 }, { x: 1620, w: 16, col: '#ffc070', k: 0.3 }] },
+      { x0: 1700, x1: 2080, surf: 'tile', face: 'hall', depth: 18, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 56, refl: [{ x: 1830, w: 60, col: '#eab02a', k: 0.18 }] },
+      { x0: 2080, x1: 2400, surf: 'tile', face: 'hall', depth: 18, checker: true, ramp: ['#2a1e1c', '#463430', '#6a5048', '#8e7064', '#b09284', '#ccb2a2', '#e2cebe', '#f2e4d6', '#fcf4ea'], arch: 32, refl: [{ x: 2350, w: 22, col: '#56e5ff', k: 0.2 }] },
+    ],
+    fg: [
+      { kind: 'pillar', x: -6, w: 24, h: 360, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'], lit: true, capital: true, fluted: true },
+      { kind: 'beam', x: 300, y: 0, w: 380, h: 14, bolts: false, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'dark', x: 820, w: 110, h: 64, seed: 121, leaves: 9 },
+      { kind: 'rail', x: 1280, w: 240, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'beam', x: 1700, y: 0, w: 360, h: 14, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'dark', x: 2260, w: 120, h: 70, seed: 123, leaves: 10 },
+      { kind: 'rail', x: 2640, w: 240, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
+      { kind: 'pillar', x: 3060, w: 26, h: 360, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'], lit: true, capital: true, fluted: true },
+    ],
+  },
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 236, y: 170, title: 'HISTORIA DE SYNARA', sub: 'Quién decidió y con qué datos', kind: 'tech', ax: 236, ay: 186 },
+    { x: 850, y: 140, title: 'CONSEJO CIUDADANO', sub: 'Todas las voces en la mesa', kind: 'green', ax: 850, ay: 190 },
+    { x: 1157, y: 166, title: 'MURO DE EVIDENCIAS', sub: 'Cada dato con su fuente', kind: 'alert', ax: 1157, ay: 186 },
+    { x: 1440, y: 168, title: 'GEMELO DIGITAL', sub: (sc) => sc.state.mosaicBoard ? 'Capas: todos los criterios' : 'Un solo índice opaco', kind: 'water', ax: 1440, ay: 186 },
+    { x: 1830, y: 112, title: 'OBSERVATORIO', sub: 'LCOA · LCOE · LCOH (supuestos)', kind: 'solar', ax: 1830, ay: 130 },
+  ],
+  /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
-    const gy = 292;
-    const MOS = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'];
-    // estandartes colgantes entre columnas: agua, sol, viento, hoja, ecosistema, personas
-    const banner = (x, y, col, k) => {
-      pb.rect(x - 1, y - 3, 30, 3, '#8a5e14'); pb.hline(x - 2, x + 29, y - 4, '#ffe08a');
-      for (let yy = 0; yy < 56; yy++) { const cut = yy > 46 ? (yy - 46) * 1.4 : 0; for (let xx = 0; xx < 28; xx++) { if (yy > 46 && Math.abs(xx - 13.5) < cut) continue; pb.set(x + xx, y + yy, xx < 3 ? mixHex(col, '#000000', 0.25) : xx > 24 ? mixHex(col, '#ffffff', 0.15) : col); } }
-      pb.rect(x + 2, y + 2, 24, 1, '#ffe08a'); pb.rect(x + 2, y + 44, 24, 1, '#ffe08a');
-      const cx = x + 14, cy = y + 22;
-      if (k === 0) { pb.disc(cx, cy + 3, 6, '#fffaf0'); pb.poly([[cx - 5, cy + 1], [cx + 5, cy + 1], [cx, cy - 9]], '#fffaf0'); pb.disc(cx - 2, cy + 3, 2, '#bff4ff'); }
-      else if (k === 1) { pb.disc(cx, cy, 6, '#fffaf0'); for (let a = 0; a < 8; a++) { const an = a * Math.PI / 4; pb.line(cx + Math.cos(an) * 8, cy + Math.sin(an) * 8, cx + Math.cos(an) * 11, cy + Math.sin(an) * 11, '#fffaf0'); } }
-      else if (k === 2) { for (let j = 0; j < 3; j++) { pb.hline(cx - 9, cx + 5 - j * 3, cy - 6 + j * 6, '#fffaf0'); pb.set(cx + 6 - j * 3, cy - 7 + j * 6, '#fffaf0'); } }
-      else if (k === 3) { pb.ellipse(cx, cy, 5, 9, '#fffaf0'); pb.vline(cx, cy - 8, cy + 11, mixHex(col, '#000000', 0.2)); }
-      else if (k === 4) { pb.ellipse(cx, cy + 2, 9, 4, '#fffaf0'); pb.poly([[cx + 7, cy + 2], [cx + 12, cy - 3], [cx + 12, cy + 7]], '#fffaf0'); pb.set(cx - 5, cy + 1, col); }
-      else { pb.disc(cx - 5, cy - 4, 3, '#fffaf0'); pb.disc(cx + 5, cy - 4, 3, '#fffaf0'); pb.rect(cx - 9, cy, 8, 9, '#fffaf0'); pb.rect(cx + 1, cy, 8, 9, '#fffaf0'); }
-    };
+    const t0 = nowMs();
+    const gy = (x) => world.groundAt(x);
+    const segs = PFBGround.surface(pb, world);
+    const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
+    const M = PFBM, B = PFB, D = LV9;
+    for (const k of Object.keys(D)) if (Array.isArray(D[k])) D[k].length = 0;
+    const yb = (x) => back(x) + 2;
+    const warm = (x, y, r = 10, a = 0.3) => D.glows.push({ x, y, r, col: '#ffd890', a, mode: 'flicker', ph: x });
+    /* ===== techo: estandartes y lámparas colgantes ===== */
     const bcols = ['#1aa59a', '#e08a1a', '#3a8adc', '#2f9e4c', '#d4505a', '#9a52d4'];
-    for (let k = 0; k < 12; k++) banner(96 + k * 200, 8, bcols[k % 6], k % 6);
-    // macetas de cerámica con agaves y nopales (naturaleza dentro del consejo)
-    const pot = (x, k) => { const c = ['#c06a30', '#d4843e', '#a85024'][k % 3]; pb.poly([[x - 11, gy - 20], [x + 11, gy - 20], [x + 8, gy], [x - 8, gy]], c); pb.rect(x - 12, gy - 22, 24, 3, mixHex(c, '#ffffff', 0.25)); for (let i = 0; i < 4; i++) pb.set(x - 6 + i * 4, gy - 12, '#ffe08a'); pb.hline(x - 9, x + 9, gy - 8, mixHex(c, '#000000', 0.25)); if (k % 2) ART.agave(pb, x, gy - 21, 14); else ART.nopal(pb, x, gy - 21, 6, k + 3); };
-    [40, 470, 1290, 1640, 2060].forEach((x, k) => pot(x, k));
-    // paneles de historia en el vestíbulo (línea de tiempo de SYNARA)
-    for (let k = 0; k < 4; k++) {
-      const x = 70 + k * 92;
-      pb.rect(x, 196, 72, 58, '#8a5e14'); pb.rect(x + 2, 198, 68, 54, '#eab02a'); pb.rect(x + 4, 200, 64, 50, '#fff4de');
-      pb.rect(x + 4, 200, 64, 10, MOS[k]);
-      for (let j = 0; j < 4; j++) pb.hline(x + 30, x + 62 - (j % 2) * 8, 216 + j * 7, '#c8a46a');
-      pb.disc(x + 16, 228, 9, mixHex(MOS[k], '#ffffff', 0.5)); pb.disc(x + 16, 228, 6, MOS[k]);
-      pb.rect(x + 34, 252, 4, gy - 252, '#5a3826');
-    }
-    drawSign(pb, 236, gy, 'HISTORIA DE SYNARA', '#1c3596');
-    // bancas del público
-    for (let k = 0; k < 2; k++) { const x = 400 + k * 120; pb.rect(x, gy - 16, 80, 4, '#8a5e14'); pb.rect(x, gy - 17, 80, 1, '#c8861a'); pb.rect(x + 4, gy - 12, 4, 12, '#5a3826'); pb.rect(x + 72, gy - 12, 4, 12, '#5a3826'); pb.rect(x, gy - 30, 80, 3, '#a87028'); pb.rect(x + 2, gy - 27, 2, 11, '#5a3826'); pb.rect(x + 76, gy - 27, 2, 11, '#5a3826'); }
-    // gran mesa del consejo en vista lateral: sillas altas detrás, frente de mosaico
-    const tx = 620, tw = 460;
-    for (let k = 0; k < 9; k++) { const x = tx + 20 + k * 50; pb.rect(x, gy - 58, 22, 36, '#5a3826'); pb.rect(x + 2, gy - 56, 18, 32, '#8a3a2a'); pb.rect(x + 2, gy - 56, 18, 3, '#c06a30'); pb.disc(x + 11, gy - 46, 3, MOS[k % 6]); pb.rect(x + 9, gy - 62, 4, 4, '#eab02a'); }
-    pb.rect(tx, gy - 30, tw, 6, '#c8861a'); pb.rect(tx, gy - 30, tw, 1, '#ffe08a'); pb.rect(tx, gy - 25, tw, 1, '#8a5e14');
-    for (let x = tx + 6; x < tx + tw - 6; x++) for (let y = gy - 24; y < gy - 4; y++) { const cx = Math.floor((x - tx) / 6), cy = Math.floor((y - gy + 24) / 5); pb.set(x, y, ((x - tx) % 6 === 0 || (y - gy + 24) % 5 === 0) ? '#0a1440' : MOS[(cx * 7 + cy * 3) % 6]); }
-    pb.rect(tx + 4, gy - 24, 3, 24, '#5a3826'); pb.rect(tx + tw - 7, gy - 24, 3, 24, '#5a3826');
-    for (let k = 0; k < 5; k++) { const x = tx + 50 + k * 90; pb.rect(x, gy - 34, 10, 4, '#fff4de'); pb.rect(x + 14, gy - 36, 3, 6, '#56e5ff'); }
-    drawSign(pb, tx + tw / 2, gy - 72, 'CONSEJO CIUDADANO', '#1c3596');
-    // muro de evidencias: corcho con fotos clavadas
-    const wx = 1100, wy = 182;
-    pb.rect(wx, wy, 110, 80, '#5a3826'); pb.rect(wx + 3, wy + 3, 104, 74, '#b8864e');
-    for (let i = 0; i < 300; i++) { const r = (i * 7919) % 104, s = (i * 104729) % 74; pb.set(wx + 3 + r, wy + 3 + s, (i % 3) ? '#a87440' : '#cc9a60'); }
-    const pins = [[14, 10], [44, 8], [78, 12], [20, 40], [56, 38], [86, 44], [36, 60], [70, 62]];
-    pins.forEach(([px, py], k) => { pb.rect(wx + px - 6, wy + py - 1, 14, 12, '#fffaf0'); pb.rect(wx + px - 5, wy + py, 12, 7, mixHex(MOS[k % 6], '#3a2a5a', 0.3)); pb.disc(wx + px, wy + py - 1, 1, '#ff4e5d'); });
-    drawSign(pb, wx + 55, wy, 'EVIDENCIAS', '#ff6b6b');
-    // laboratorio del gemelo: pedestal holográfico con emisores
-    const hx = 1440;
-    pb.poly([[hx - 64, gy], [hx + 64, gy], [hx + 54, gy - 26], [hx - 54, gy - 26]], '#14287a');
-    pb.rect(hx - 56, gy - 30, 112, 5, '#1c3596'); pb.rect(hx - 56, gy - 30, 112, 1, '#56e5ff');
-    for (let k = 0; k < 7; k++) pb.rect(hx - 48 + k * 16, gy - 28, 6, 2, '#bff4ff');
-    pb.rect(hx - 40, gy - 20, 80, 12, '#0a1440'); for (let k = 0; k < 10; k++) pb.rect(hx - 36 + k * 8, gy - 17, 4, 6, k % 3 ? '#1c3596' : '#56e5ff');
-    drawSign(pb, hx + 92, gy, 'GEMELO DIGITAL', '#56e5ff');
-    // observatorio económico elevado
-    pb.rect(1716, 146, 228, 84, '#0e1f5a'); pb.rect(1716, 146, 228, 3, '#eab02a'); pb.rect(1716, 226, 228, 4, '#c8861a');
-    for (let k = 0; k < 3; k++) { pb.rect(1730 + k * 70, 160, 62, 38, '#eab02a'); pb.rect(1732 + k * 70, 162, 58, 34, '#05081d'); }
-    for (let x = 1722; x < 1940; x += 8) pb.vline(x, 214, 230, '#eab02a'); pb.hline(1720, 1940, 214, '#ffe08a');
-    drawSign(pb, 1830, 146, 'OBSERVATORIO', '#eab02a');
-    // balcón hacia el núcleo
-    for (let x = 2100; x < 2400; x += 6) pb.vline(x, gy - 18, gy, '#eab02a'); pb.hline(2100, 2399, gy - 18, '#ffe08a');
-    drawSign(pb, 2340, gy, 'NÚCLEO SYNARA', '#c06a30');
+    for (let k = 0; k < 12; k++) M.banner(pb, 96 + k * 200, 8, bcols[k % 6], k % 6, 64);
+    for (const x of [300, 760, 940, 1260, 1620, 2200]) { const L = M.chandelier(pb, x, 0, 108); warm(L[0], L[1], 12, 0.34); D.cones.push([L[0], L[1] + 6, 12, 60, gy(x) - L[1] - 10]); }
+    /* ===== 1. VESTÍBULO (0–600): paneles de historia, bancos, macetas ===== */
+    const hcols = ['#20a0c8', '#e0a020', '#3ab070', '#d0584a'];
+    for (let k = 0; k < 4; k++) { const hp = M.historyPanel(pb, 66 + k * 92, yb(100 + k * 92), 72, hcols[k], k + 1); warm(hp.lamp[0], hp.lamp[1], 6, 0.3); }
+    B.bench(pb, 400, yb(420) + 2, 60, { ramp: M.WOODH }); B.bench(pb, 492, yb(510) + 2, 60, { ramp: M.WOODH });
+    for (const [x, k] of [[34, 0], [576, 1], [1290, 2], [1650, 3], [2060, 4]]) M.pot(pb, x, yb(x) + 2, k);
+    /* ===== 2. MESA DEL CONSEJO (600–1100) ===== */
+    const tb = M.councilTable(pb, 622, yb(850), 456, { chairs: 9, seed: 9 });
+    for (const [x, y] of tb.cups) D.glows.push({ x, y, r: 3, col: '#bff4ff', a: 0.3, mode: 'steady' });
+    /* ===== 3. MURO DE EVIDENCIAS (1096–1230) ===== */
+    M.corkboard(pb, 1098, yb(1157), 118, 84);
+    /* ===== 4. LABORATORIO DEL GEMELO (1300–1600) ===== */
+    const hp = M.holoPedestal(pb, 1440, yb(1440) - 4, 56);
+    D.holo.push(hp.cx, hp.top);
+    for (const x of [1350, 1530]) { PFBH2.box(pb, x, yb(x), 26, 30, 8, { ramp: M.ROYAL, pw: 13 }); D.leds.push({ x: x + 4, y: yb(x) - 24, col: '#56e5ff', hz: 0.8, ph: x }, { x: x + 9, y: yb(x) - 24, col: '#eab02a', hz: 1.1, ph: x + 1 }); }
+    /* ===== 5. OBSERVATORIO en entreplanta (1716–1944) ===== */
+    const ob = M.observatory(pb, 1716, 1944, 230, yb(1830));
+    D.obsScr.push(...ob.screens);
+    for (const [x, y] of ob.lamps) warm(x, y, 8, 0.35);
+    B.shade(pb, 1716, 242, 228, 10, -0.22);
+    /* ===== 6. BALCÓN Y PUERTA DEL NÚCLEO (2080–2400) ===== */
+    M.balustrade(pb, 2096, 2300, yb(2200), 30);
+    M.grandDoor(pb, 2354, yb(2354), 58, 104, 'NÚCLEO SYNARA');
+    D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
+    LEVELS[9]._propsMs = Math.round(nowMs() - t0);
   },
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, gy = 292 - oy;
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV9;
+    // conos de luz de las lámparas colgantes
+    g.globalCompositeOperation = 'lighter';
+    for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#ffe0a8', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
+    g.globalCompositeOperation = 'source-over';
     // holograma del gemelo: ciudad "perfecta" de MIRAGE sin personas (o Mosaico con capas)
-    const hx = 1440 - ox, hy = gy - 70;
-    for (let i = 0; i < 10; i++) VISTA.veil(g, hx - 10 - i * 5, gy - 31 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
-    if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
-    else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
+    if (D.holo.length) { const hx = D.holo[0] - ox, base = D.holo[1] - oy, hy = base - 40; if (hx > -120 && hx < W + 120) {
+      for (let i = 0; i < 10; i++) VISTA.veil(g, hx - 10 - i * 5, base - 1 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
+      if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
+      else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
+    } }
     // pantallas del observatorio
-    for (let k = 0; k < 3; k++) { const x = 1736 + k * 70 - ox, y = 166 - oy; for (let i = 0; i < 4; i++) frect(g, x + 4, y + 4 + i * 7, 6 + ((i * 11 + Math.floor(t * 2) + k * 3) % 40), 2, ['#eab02a', '#4ccb70', '#ff6b6b'][k]); }
+    D.obsScr.forEach(([sx, sy, sw, sh], k) => { const x = sx - ox, y = sy - oy; if (x < -80 || x > W + 10) return; for (let i = 0; i < 4; i++) frect(g, x + 4, y + 4 + i * 7, 6 + ((i * 11 + Math.floor(t * 2) + k * 3) % Math.max(8, sw - 10)), 2, ['#eab02a', '#4ccb70', '#ff6b6b'][k % 3]); drawText(g, ['LCOA', 'LCOE', 'LCOH'][k % 3], x + sw - 4, y + sh - 8, { font: 'tiny', align: 'right', color: '#fff4c8' }); });
+    PFInfra.drawLeds(g, sc, D.leds);
+    PFB.glows(g, sc, D.glows);
     // cielo de calima que avanza al final
     if (S.calimaK > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.calimaK * 0.5; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   },
@@ -153,20 +168,23 @@ LEVELS[9] = {
     marea.onTalk = async (sc2) => { await sc2.say([['marea', 'smile', 'Nunca me habían invitado a una mesa con tantos números. Me gusta que el manglar tenga silla.']]); };
     naira.onTalk = async (sc2) => { await sc2.say([['naira', 'calm', 'Una decisión transparente puede discutirse. Una puntuación opaca solo puede obedecerse.']]); };
     dante.onTalk = async (sc2) => { await sc2.say([['dante', 'joy', '¿Viste la silla? Le puse cinta. Para la estabilidad institucional.']]); };
-    sc.station({ id: 'wall', x: 1155, kind: 'clue', label: 'Muro de evidencias', glow: '#ff6b6b', hidden: true, onUse: async (sc2, st) => chainFlow(sc2, st) });
-    sc.station({ id: 'moSim', x: 1440, kind: 'sim', label: 'Tablero del gemelo', glow: '#eab02a', hidden: true, onUse: async (sc2, st) => moFlow(sc2, st) });
+    sc.station({ id: 'wall', x: 1155, kind: 'clue', label: 'Muro de evidencias', glow: '#ff6b6b', hidden: true, draw: PFB.drawClue, onUse: async (sc2, st) => chainFlow(sc2, st) });
+    sc.station({ id: 'moSim', x: 1440, kind: 'sim', label: 'Tablero del gemelo', glow: '#eab02a', hidden: true, draw: PFBH2.drawConsoleSt, onUse: async (sc2, st) => moFlow(sc2, st) });
     sc.station({ id: 'solo', x: 1830, y: 230, kind: 'solo', label: 'Puerta de Evidencia', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => {
       const r = await sc2.open(SOLOScene, { ctx: 'RA-08-C2' });
       st.progress = r.correct; if (r.correct >= 3) { st.done = true; GS.lp(9).solo = true; S.soloDone = true; Codex.unlock('multiobjetivo'); }
     } });
     sc.station({ id: 'solo2', x: 1900, y: 230, kind: 'solo', label: 'Archivo: rediseño participativo', glow: '#86e36f', hidden: true, onUse: async (sc2, st) => { const r = await sc2.open(SOLOScene, { ctx: 'RA-09-C3' }); st.progress = r.correct; if (r.correct >= 3) st.done = true; } });
-    sc.station({ id: 'exit', x: 2360, kind: 'clue', label: 'Ir al núcleo (Gran Calima)', glow: '#ff9f43', hidden: true, onUse: async (sc2) => finishLevel9(sc2) });
+    sc.station({ id: 'exit', x: 2360, kind: 'clue', label: 'Ir al núcleo (Gran Calima)', glow: '#ff9f43', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel9(sc2) });
     sc.setObjective('Habla con la Consejera Ruth en la mesa', ['¿Quién se sienta en la mesa y quién no?', 'La mesa está en el centro del salón.']);
     Codex.unlock('gobernanza');
     if (p.checkpoint === 'lab') { Object.assign(S, { council: true, chainDone: true }); GS.flag('communityDataRestored', true); sc.world.find('moSim').hidden = false; sc.setObjective('Usa el tablero del gemelo', []); }
   },
   update(sc, dt) { const S = sc.state; if (S.calima) S.calimaK = Math.min(1, S.calimaK + dt * 0.2); if (S.calima) ambientParticles(sc.world.ps, 'dust', sc.cam, 1.2, 2); },
 };
+
+/* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
+const LV9 = { glows: [], cones: [], leds: [], holo: [], obsScr: [] };
 
 /* ---------------- piezas del guion del nivel 09 ---------------- */
 async function councilScene(sc) {

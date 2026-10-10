@@ -34,7 +34,7 @@ const PFBGround = (() => {
   const PAVERD = ['#181a28', '#22263a', '#2e334a', '#3c425a', '#4c536c', '#5e6680', '#727a94', '#8a92aa', '#a6acc0'];
   const RT = (f) => f < 0.12 ? 1 : f < 0.3 ? 4 : f < 0.45 ? 5 : f < 0.62 ? 3 : f < 0.85 ? 2 : 1;
 
-  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16, epoxy: 20 }[s.surf] || 14); }
+  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16, epoxy: 20, carpet: 18 }[s.surf] || 14); }
   function segAt(segs, x) { for (const s of segs) if (x >= s.x0 && x < s.x1) return s; return segs[segs.length - 1]; }
   function prep(world) {
     const P = world.def.pf || {};
@@ -43,7 +43,7 @@ const PFBGround = (() => {
     return segs;
   }
   function backEdge(s, x, gy) {
-    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck', 'epoxy'].includes(s.surf);
+    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck', 'epoxy', 'carpet'].includes(s.surf);
     return gy - D - (flat ? 0 : Math.round((K.vn(x * 0.07, 0, s.seed) - 0.5) * 6));
   }
   /** Filas en perspectiva: índice de fila y posición dentro de la fila para dz (1 = frente) */
@@ -146,6 +146,21 @@ const PFBGround = (() => {
         if (((x + Math.round(Math.sin(y * 0.9) * 3)) % 37) === 0) tt += 0.05;
         if (y - back < 1) tt = 0.1;
         return reflect(s, x, y, E[clamp(Math.round(tt * (n - 1)), 1, n - 1)], 1 - t);
+      }
+      case 'carpet': {
+        // alfombra roja con cenefas doradas y rombos (sala del consejo)
+        const Cp = K.P32(s.ramp || ['#2a0608', '#4a0c10', '#6e1418', '#901c1e', '#b02a26', '#c83a30', '#dc5a44', '#f08060']), Gd = K.P32(PFB.R.GOLD);
+        if (dz === 1) return Gd[6];
+        if (dz === 2) return Gd[3];
+        if (dz === D - 1) return Gd[2];
+        if (dz === D - 2) return Gd[5];
+        if (dz === 4 || dz === D - 4) return Gd[(x % 4) ? 5 : 3];
+        const px = ((x % 24) + 24) % 24, pz = (dz - D / 2) * 2, dm = Math.abs(px - 12) + Math.abs(pz);
+        let k = 5 - Math.round(t * 2) + Math.round((K.vn(x * 0.1, y * 0.3, 7) - 0.5) * 0.8);
+        if (dm === 9 || dm === 10) return Gd[dz > D / 2 ? 3 : 5];
+        if (dm < 4) k += 1;
+        if (y - back < 1) k = 0;
+        return reflect(s, x, y, Cp[clamp(k, 0, 7)], 1 - t);
       }
       case 'deck': {
         const Dk = K.P32(s.ramp || DECKW), n = Dk.length;
