@@ -15,95 +15,17 @@ const TitleScene = {
     this.hasSave = SaveManager.exists();
   },
   build() {
-    const k = 'title_bg';
-    if (BG_CACHE.has(k)) { Object.assign(this, BG_CACHE.get(k)); return; }
-    const horizon = 196;
-    const sky = makeSkyCanvas(RAMP.skyDusk, horizon, { sun: { x: 412, y: 168, r: 22, cols: ['#fff6d8', '#ffe08a', '#ffb862'], halo: '#ffd28d' }, curve: 1.05, stars: 40, seed: 3 });
-    // capa lejana: promontorio y mesetas en contraluz violeta
-    const far = new PixelBuffer(W, H);
-    const farPal = ['#3a2a6a', '#4e3480', '#6a3e8e', '#8a4a96', '#b05a96', '#d06e94', '#e88a92'];
-    ART.ridge(far, (x) => 176 - Math.max(0, 1 - Math.abs(x - 90) / 120) * 40 - fbm1(x * 0.04, 3, 3) * 10 + (x > 240 ? 26 : 0) - (x > 520 ? Math.max(0, (x - 520) * 0.3) : 0), farPal, { mesa: true, baseIdx: 3, strata: 6 });
-    // mar con reflejo del sol
-    const sea = new PixelBuffer(W, H - horizon);
-    ART.sea(sea, 0, sea.h, ['#2a2a6e', '#3a3a88', '#5a4a9a', '#8a5aa0', '#c06a9a', '#e88a92'], { invert: true });
-    // ciudad y SYNARA (capa media)
-    const mid = new PixelBuffer(W, H);
-    const landY = 236;
-    ART.ridge(mid, (x) => landY - 10 - Math.sin(x * 0.012) * 8 - fbm1(x * 0.02, 3, 8) * 8 - Math.max(0, 1 - Math.abs(x - 470) / 140) * 26, ['#2a1838', '#3e2048', '#5a2c52', '#7a3a58', '#a24a5a', '#c8645e'], { baseIdx: 3 });
-    const r = RNG(5);
-    for (let i = 0; i < 26; i++) {
-      const x = 330 + i * 11 + r.int(-3, 3), w = r.int(8, 16), h = r.int(10, 30) + Math.max(0, 30 - Math.abs(x - 470) * 0.3);
-      const base = landY - 6 - Math.max(0, 1 - Math.abs(x - 470) / 140) * 24;
-      ART.house(mid, x, Math.round(base), w, Math.round(h), i * 13, { pal: HOUSE_COLS[i % 7].map(c => mixHex(c, '#7a3a78', 0.45)), night: true });
-    }
-    // torre SYNARA
-    const tx = 470, tb = landY - 34;
-    for (let y = tb - 92; y < tb; y++) { const w = 3 + Math.round((y - (tb - 92)) / 30); mid.rect(tx - w, y, w * 2, 1, '#d8d0ec'); mid.rect(tx + w - 2, y, 2, 1, '#9a8ab8'); }
-    mid.ellipse(tx, tb - 70, 14, 4, '#56e5ff'); mid.ellipse(tx, tb - 70, 11, 2.5, '#0e2b4a'); mid.ellipse(tx, tb - 92, 5, 5, '#e6fdff');
-    // planta desalinizadora junto a la costa
-    for (let i = 0; i < 4; i++) ART.tank(mid, 560 + i * 16, landY - 4, 12, 18 - i % 2 * 4, ART.hazeRamp(RAMP.steelW, '#c06a9a', 0.35));
-    // campo FV en las dunas (izquierda)
-    for (let k = 0; k < 5; k++) ART.pvRow(mid, 180 + k * 8, landY - 2 - k * 3, 60, k, { tilt: 5, depth: 4 });
-    // salinas rosadas en primer plano medio
-    const fg = new PixelBuffer(W, H);
-    for (let y = 262; y < H; y++) for (let x = 0; x < W; x++) {
-      const t = (y - 262) / 98;
-      const n = fbm(x * 0.03, y * 0.06, 3, 7);
-      let c = rampDither(['#8a3e78', '#b44d88', '#dc6aa4', '#f78acb', '#fbb0da', '#ffd8ec'], 0.35 + t * 0.4 + (n - 0.5) * 0.5, x, y);
-      if (n > 0.63 && ((x + y) & 1)) c = '#ffffff';
-      fg.set(x, y, c);
-    }
-    // espejo de agua de las salinas
-    for (let y = 270; y < 300; y++) for (let x = 230; x < 600; x++) { const d = ((x - 415) / 185) ** 2 + ((y - 285) / 15) ** 2; if (d < 1) fg.set(x, y, rampDither(['#e88a92', '#ffb862', '#ffe08a', '#fff6d8'], 1 - d, x, y)); }
-    // promontorio rocoso (izquierda) con flora
-    const rock = new PixelBuffer(W, H);
-    ART.ridge(rock, (x) => x < 250 ? 248 + Math.pow(Math.max(0, x - 120) / 130, 2) * 120 - fbm1(x * 0.05, 3, 11) * 10 : 400, ['#140a20', '#24122e', '#3a1a3a', '#5a2440', '#8a3446', '#b8504a'], { mesa: true, baseIdx: 2, strata: 5 });
-    // borde iluminado por el sol
-    for (let x = 0; x < 250; x++) for (let y = 0; y < H; y++) { if (rock.alpha(x, y)) { rock.set(x, y, '#ffb862'); if (rock.alpha(x, y + 1)) rock.set(x, y + 1, '#e86a5a'); break; } }
-    ART.cactus(rock, 30, 252, 34, 7, ['#140a20', '#2a1a2a', '#3e2438', '#5a3048', '#7a4058', '#a05a68', '#c87a78']);
-    ART.agave(rock, 190, 262, 10, ['#140a20', '#2a1a2a', '#3e2438', '#5a3048', '#8a5068', '#ffb862']);
-    ART.nopal(rock, 222, 270, 4, 9, ['#140a20', '#2a1a2a', '#3e2438', '#5a3048', '#8a5068', '#c87a78', '#ffb862']);
-    const o = { sky, far: far.toCanvas(), sea: sea.toCanvas(), mid: mid.toCanvas(), fg: fg.toCanvas(), rock: rock.toCanvas(), horizon };
-    o.clouds = [];
-    for (let i = 0; i < 7; i++) { const w = 60 + i * 13 % 50, h = Math.round(w * 0.36); o.clouds.push({ c: ART.cloudSprite(w, h, 90 + i, CLOUD_PALS.dusk).toCanvas(), x: (i * 113) % W, y: 30 + (i * 37) % 90, s: 2 + i % 3, w }); }
-    BG_CACHE.set(k, o);
-    Object.assign(this, o);
+    // key art cinematográfico (19a_sca_title.js): prerender único cacheado
+    this.art = SCATitleArt.build();
   },
   update(dt) {
     this.t += dt; this.ps.update(dt);
-    if (Math.random() < 0.15) this.ps.emit('salt', Math.random() * W, 270 + Math.random() * 80, 6, -4, 1);
-    if (Math.random() < 0.05) this.ps.emit('firefly', 300 + Math.random() * 300, 160 + Math.random() * 60, 0, 0, 1);
     if (this.menu === 'main' && Input.pressed('cancel')) { }
     if (Input.keyPressed('F9')) Game.push(TeacherScene, {});
   },
   render(g) {
     const t = this.t;
-    g.drawImage(this.sky, 0, 0);
-    for (const c of this.clouds) { c.x = (c.x + c.s * Game.dt) % (W + c.w); g.drawImage(c.c, Math.round(c.x - c.w), c.y); }
-    g.drawImage(this.far, 0, 0);
-    g.drawImage(this.sea, 0, this.horizon);
-    drawSunGlitter(g, 412, this.horizon + 1, this.horizon + 50, t, '#ffe08a');
-    drawSeaSparkles(g, 0, this.horizon + 2, W, 50, t, 0.8, ['#ffd28d', '#ffb862', '#fff6d8']);
-    // aerogeneradores en la cresta
-    for (let i = 0; i < 6; i++) ART.turbine(g, 250 + i * 22 + (i % 2) * 6, 214 - i * 2, 22 + (i % 3) * 3, t * 1.4 + i * 0.7, { col: '#e6d8f0', shade: '#9a8ab8', dark: '#5a4a7a' });
-    g.drawImage(this.mid, 0, 0);
-    // pulsos de la red SYNARA (líneas de energía y agua)
-    const lines = [[[210, 232], [330, 226], [470, 196]], [[470, 196], [580, 224]], [[470, 196], [380, 236], [300, 250]]];
-    lines.forEach((L, i) => { for (let s = 0; s < L.length - 1; s++) { const [x0, y0] = L[s], [x1, y1] = L[s + 1]; const n = 26; for (let k = 0; k < n; k++) { const ph = (k / n + t * 0.25 + i * 0.2) % 1; if (ph < 0.12) fpx(g, lerp(x0, x1, k / n), lerp(y0, y1, k / n), i === 0 ? '#ffe14d' : '#56e5ff'); } } });
-    // faro de la torre
-    const beam = (Math.sin(t * 2) + 1) / 2;
-    fdisc(g, 470, 192 - 70 + 34 - 36, 3 + beam * 2, '#c4fbff');
-    g.drawImage(this.fg, 0, 0);
-    // flamencos en la salina
-    for (let i = 0; i < 4; i++) ART.flamingo(g, 300 + i * 34 + Math.sin(t * 0.2 + i) * 4, 300 + (i % 2) * 8, t + i, i % 2 ? -1 : 1);
-    // reflejo del sol en la salina
-    for (let y = 276; y < 296; y += 2) frect(g, 404 + Math.round(Math.sin(t * 2 + y) * 3), y, 16, 1, (y + Math.floor(t * 8)) % 4 < 2 ? '#fff6d8' : '#ffe08a');
-    g.drawImage(this.rock, 0, 0);
-    // Amaya y KIRU sobre el promontorio, en contraluz
-    drawChar(g, 'amaya', 'idle', t, 132, 268, 1, { shadow: false });
-    drawChar(g, 'kiru', 'idle', t, 104, 271, 1, { shadow: false, expr: 'esperanzado' });
-    // aves
-    for (let i = 0; i < 6; i++) ART.bird(g, Math.round((t * (10 + i * 3) + i * 120) % (W + 40) - 20), 70 + i * 9 + Math.round(Math.sin(t + i) * 4), t + i, '#3a1a3a', '#3a1a3a');
+    SCATitleArt.render(g, this.art, t, this.ps);
     this.ps.render(g);
     // logotipo
     const ly = 22 + Math.round(Math.sin(t * 1.2) * 2);
@@ -124,13 +46,13 @@ const TitleScene = {
       items.push(['cred', 'Créditos', 'book', () => Game.push(CreditsScene, {}), 'primary']);
       // lista vertical en panel navy a la derecha (deja libres el sol, el mar y a Amaya)
       const w = 158, bh = 20, gap = 4, h = 28 + items.length * (bh + gap) + 2;
-      const x = W - w - 14, y = 128;
+      const x = W - w - 14, y = Math.min(168, H - 8 - h);
       UIK.panel(g, x, y, w, h, 'tech');
       UIK.header(g, x, y, w, 'MENÚ', 'tech', 'map');
       let yy = y + 26;
       for (const [id, l, ic, fn, st] of items) { if (Gui.button(g, id, x + 10, yy, w - 20, bh, l, { icon: ic, style: st, align: 'left' })) fn(); yy += bh + gap; }
     } else if (this.menu === 'confirmNew') {
-      const w = 260, x = W - w - 14, y = 140;
+      const w = 260, x = W - w - 14, y = 172;
       UIK.panel(g, x, y, w, 96, 'alert');
       UIK.header(g, x, y, w, 'NUEVA PARTIDA', 'alert', 'warn');
       drawTextBlock(g, 'Ya existe una partida guardada. ¿Empezar de nuevo? Se perderá el progreso local.', x + 10, y + 26, w - 20, { color: '#ffe8e4' });
