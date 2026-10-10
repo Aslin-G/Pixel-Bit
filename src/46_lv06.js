@@ -16,43 +16,104 @@ LEVELS[6] = {
   checkpoints: { archive: { x: 1360, y: 296 }, busbar: { x: 1700, y: 296 } },
   ground: [[0, 230], [140, 230], [150, 250, 'lin'], [210, 250], [220, 272, 'lin'], [280, 272], [290, 296, 'lin'], [2400, 296], [2410, 250, 'lin'], [2600, 250]],
   terrain: [{ x0: 0, x1: 2600, mat: 'metal' }],
-  platforms: [{ x: 1380, y: 222, w: 240, type: 'metal' }, { x: 960, y: 250, w: 30, type: 'metal' }, { x: 1230, y: 250, w: 30, type: 'metal' }],
-  ladders: [{ x: 1390, y0: 222, y1: 296 }, { x: 2405, y0: 250, y1: 296 }],
+  platforms: [{ x: 1380, y: 222, w: 240, type: 'metal', baked: true, look: 'slab', strip: '#56e5ff' }, { x: 960, y: 250, w: 30, type: 'metal', baked: true, look: 'grate', railing: false }, { x: 1230, y: 250, w: 30, type: 'metal', baked: true, look: 'grate', railing: false }],
+  ladders: [{ x: 1390, y0: 222, y1: 296, look: 'steel' }, { x: 2405, y0: 250, y1: 296, look: 'steel' }],
   hazards: ARCS.map(a => ({ x: a.x, y: 256, w: a.w, h: 40, on: false, power: 150 })),
   cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
+  /* ---------------- plano jugable con kit PF (B) ----------------
+     Interior de la bóveda: rellanos de rejilla en la escalera de acceso → chapa sobre galería de
+     cables y refrigeración bajo los bastidores → rejilla y zanja bajo la sala de convertidores →
+     baldosa pulida bajo la sala de control → chapa y galería del segundo banco → epoxi y zanja de
+     potencia ante la barra principal → rellano del ascensor. Geometría intacta. */
+  pf: {
+    kitB: true,
+    terrain: [
+      { x0: 0, x1: 290, surf: 'grate', face: 'gallery', depth: 16, stripe: true, pipes: [[13, 3, 'cool'], [23, 2, 'power'], [32, 3, 'cool']], bay: 48 },
+      { x0: 290, x1: 880, surf: 'metal', face: 'gallery', depth: 16, pipes: [[13, 3, 'power'], [22, 2, 'cool'], [31, 3, 'cool']], bay: 80, refl: [{ x: 392, w: 3, col: '#b6f05a', k: 0.2 }, { x: 472, w: 3, col: '#b6f05a', k: 0.2 }, { x: 552, w: 3, col: '#b6f05a', k: 0.2 }, { x: 632, w: 3, col: '#b6f05a', k: 0.2 }, { x: 712, w: 3, col: '#b6f05a', k: 0.2 }, { x: 792, w: 3, col: '#b6f05a', k: 0.2 }] },
+      { x0: 880, x1: 1310, surf: 'grate', face: 'trench', depth: 16, tw: 90, pipes: [[6, 2, 'power'], [13, 3, 'cool'], [20, 2, 'power']] },
+      { x0: 1310, x1: 1760, surf: 'tile', face: 'concrete', depth: 16, checker: true, ramp: ['#0e1220', '#161c2e', '#20283e', '#2c3650', '#3a4664', '#4c5a7a', '#627294', '#7e8eae', '#a0aeca'], refl: [{ x: 1452, w: 26, col: '#48dcf4', k: 0.22 }, { x: 1548, w: 26, col: '#48dcf4', k: 0.22 }, { x: 1680, w: 10, col: '#e05aa0', k: 0.25 }] },
+      { x0: 1760, x1: 2140, surf: 'metal', face: 'gallery', depth: 16, pipes: [[13, 3, 'power'], [22, 2, 'cool'], [31, 3, 'cool']], bay: 80, refl: [{ x: 1832, w: 3, col: '#b6f05a', k: 0.2 }, { x: 1912, w: 3, col: '#b6f05a', k: 0.2 }, { x: 1992, w: 3, col: '#b6f05a', k: 0.2 }, { x: 2072, w: 3, col: '#b6f05a', k: 0.2 }] },
+      { x0: 2140, x1: 2405, surf: 'epoxy', face: 'trench', depth: 16, tw: 88, ramp: ['#0c1220', '#121a2c', '#182438', '#202e46', '#2a3a56', '#344866', '#405678', '#50688a', '#647c9e', '#8096b6'], pipes: [[6, 2, 'power'], [13, 3, 'power'], [20, 2, 'cool']], refl: [{ x: 2210, w: 50, col: '#ff6b6b', k: 0.14 }] },
+      { x0: 2405, x1: 2600, surf: 'metal', face: 'metal', depth: 16, pipe: 'cool', bay: 48 },
+    ],
+    fg: [
+      { kind: 'pillar', x: -6, w: 20, h: 360, ramp: ['#020308', '#05070e', '#0a0e1c', '#121a2e', '#1c2842', '#2a3a58', '#48dcf4'], lit: true },
+      { kind: 'beam', x: 320, y: 0, w: 380, h: 14, bolts: true },
+      { kind: 'cables', x: 760, y: 10, w: 300, h: 40, seed: 61, n: 4 },
+      { kind: 'rail', x: 1080, w: 240, h: 40 },
+      { kind: 'beam', x: 1560, y: 0, w: 360, h: 14, bolts: true },
+      { kind: 'cables', x: 2080, y: 10, w: 300, h: 40, seed: 63, n: 3 },
+      { kind: 'rail', x: 2520, w: 240, h: 40 },
+      { kind: 'beam', x: 2940, y: 0, w: 360, h: 14, bolts: true },
+      { kind: 'pillar', x: 3340, w: 26, h: 360, ramp: ['#020308', '#05070e', '#0a0e1c', '#121a2e', '#1c2842', '#2a3a58', '#48dcf4'], lit: true },
+    ],
+  },
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 560, y: 150, title: 'BANCO BESS · 4 MWh', sub: (sc) => sc.state.blackout ? 'Sin energía' : 'SOC ' + fmt0((sc.state.soc ?? 0.28) * 100) + ' % = ' + fmt0((sc.state.soc ?? 0.28) * 4000) + ' kWh', kind: 'tech', ax: 560, ay: 162 },
+    { x: 1094, y: 172, title: 'CONVERTIDORES', sub: 'Batería (CC) y red (CA)', kind: 'tech', ax: 1094, ay: 186 },
+    { x: 1500, y: 66, title: 'RESERVA MÍNIMA', sub: (sc) => fmt0((sc.state.reserve ?? 0.1) * 100) + ' % para cargas críticas', kind: 'solar', ax: 1500, ay: 74 },
+    { x: 1960, y: 150, title: 'EFICIENCIA ≈ 90 %', sub: 'Entran 100 kWh, salen ≈ 90', kind: 'tech', ax: 1960, ay: 162 },
+    { x: 2210, y: 122, title: 'CARGAS CRÍTICAS', sub: 'Agua potable · clínica · comunicaciones', kind: 'alert', ax: 2210, ay: 130 },
+  ],
+  /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
+    const t0 = nowMs();
     const gy = (x) => world.groundAt(x);
-    // túnel de acceso y escaleras
-    pb.rect(0, 150, 300, 6, '#2a2f4a'); for (let x = 0; x < 300; x += 12) pb.vline(x, 150, 156, '#3a4268');
-    drawSign(pb, 70, gy(70), 'BÓVEDA DE CARGA', '#2c63c0');
-    // racks de baterías con frente de módulos
-    for (const x of VAULT_RACKS) {
-      const y = gy(x);
-      pb.rect(x, y - 92, 64, 92, '#16224c'); pb.rect(x, y - 92, 64, 3, '#2c63c0'); pb.rect(x + 60, y - 92, 4, 92, '#070a1c'); pb.rect(x, y - 3, 64, 3, '#070a1c');
-      for (let r = 0; r < 7; r++) { pb.rect(x + 4, y - 86 + r * 12, 54, 9, '#1d2c64'); pb.hline(x + 4, x + 57, y - 86 + r * 12, '#3a52a0'); pb.rect(x + 6, y - 83 + r * 12, 8, 3, '#0a1030'); }
-      pb.rect(x + 22, y - 100, 20, 8, '#ffe14d'); pb.set(x + 32, y - 97, '#140d26');
-    }
-    drawSign(pb, 560, gy(560) - 92, 'BANCO BESS · 4 MWh', '#b6f05a');
-    // sala de convertidores: gabinetes y barras de cobre
-    for (let k = 0; k < 4; k++) { const x = 920 + k * 90; pb.rect(x, gy(x) - 70, 50, 70, '#e8f0f4'); pb.rect(x, gy(x) - 70, 50, 3, '#8d6bff'); pb.rect(x + 6, gy(x) - 60, 38, 16, '#0a1030'); for (let j = 0; j < 5; j++) pb.hline(x + 6, x + 43, gy(x) - 36 + j * 5, '#a9bbd6'); }
-    pb.rect(900, 186, 400, 6, '#c8861a'); pb.hline(900, 1299, 186, '#ffe08a'); pb.rect(900, 194, 400, 4, '#9a5e12');
-    drawSign(pb, 1100, 186, 'CONVERTIDORES', '#8d6bff');
-    // sala de control elevada
-    const cx = 1380;
-    pb.rect(cx, 140, 240, 82, '#101a46'); pb.rect(cx, 140, 240, 3, '#56e5ff'); pb.rect(cx + 236, 140, 4, 82, '#070a1c');
-    for (let k = 0; k < 4; k++) { pb.rect(cx + 10 + k * 58, 150, 48, 28, '#05081d'); pb.rect(cx + 10 + k * 58, 150, 48, 2, '#2c63c0'); }
-    drawSign(pb, cx + 120, 140, 'CONTROL MICRORRED', '#56e5ff');
-    // archivo de datos
-    pb.rect(1660, gy(1660) - 60, 40, 60, '#1a1240'); pb.rect(1660, gy(1660) - 60, 40, 3, '#e05aa0'); for (let r = 0; r < 6; r++) pb.rect(1664, gy(1660) - 54 + r * 9, 32, 6, '#2a1a5a');
-    drawSign(pb, 1680, gy(1680) - 60, 'ARCHIVO', '#e05aa0');
-    // barra principal (arranque en negro)
-    pb.rect(2150, gy(2150) - 110, 120, 110, '#0f1838'); pb.rect(2150, gy(2150) - 110, 120, 4, '#ff6b6b');
-    for (let k = 0; k < 5; k++) { pb.rect(2160 + k * 22, gy(2150) - 96, 14, 40, '#263442'); pb.rect(2162 + k * 22, gy(2150) - 92, 10, 6, '#c8861a'); }
-    drawSign(pb, 2210, gy(2210) - 110, 'BARRA PRINCIPAL', '#ff6b6b');
-    // ascensor de salida
-    pb.rect(2420, 120, 80, 130, '#1a2458'); pb.rect(2424, 124, 72, 126, '#070a1c'); for (let y = 130; y < 250; y += 10) pb.hline(2424, 2495, y, '#24306c');
-    drawSign(pb, 2460, 250, 'ASCENSOR · CIUDADELA H2', '#56e5ff');
+    const segs = PFBGround.surface(pb, world);
+    const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
+    const V = PFBV, E = PFBE, H2 = PFBH2, B = PFB, I = PFInfra, D = LV6;
+    for (const k of Object.keys(D)) if (Array.isArray(D[k])) D[k].length = 0;
+    const yb = (x) => back(x) + 2;
+    const off = (sc) => !sc.state.blackout;
+    /* ===== techo: carril de luminarias y bandeja de cables a lo largo de la bóveda ===== */
+    for (const [x0, x1] of [[300, 1366], [1636, 2400]]) for (const L of V.lampRail(pb, x0, x1, 112, 80)) { D.glows.push({ x: L[0], y: L[1], r: 10, col: '#e8fbff', a: 0.26, mode: 'steady', on: off }); D.cones.push([L[0], L[1], 14, 58, gy(L[0]) - L[1] - 10]); }
+    H2.cableTray(pb, 330, 2140, 150, { hang: 64, hangTo: 113 });
+    D.flows.push({ pts: [[330, 150], [2140, 150]], kind: 'power', rate: (sc) => (sc.state.blackout || sc.state.charging > 0) ? 0 : 0.8 }, { pts: [[2140, 150], [330, 150]], kind: 'power', rate: (sc) => (!sc.state.blackout && sc.state.charging > 0) ? 0.8 : 0 });
+    /* ===== 1. ACCESO (0–290): portal con puerta blindada, barandillas de los rellanos ===== */
+    const po = V.portal(pb, 2, yb(60), 132, 156, 'BÓVEDA DE CARGA');
+    D.glows.push({ x: po.lamp[0], y: po.lamp[1], r: 9, col: '#ffb93b', a: 0.5, mode: 'pulse', hz: 0.5 });
+    const RAIL = ['#1a1e2e', '#3a4258', '#6e769a', '#b0b8d6', '#e8ecf8'];
+    for (const [x0, x1] of [[150, 210], [220, 280]]) B.rail(pb, x0, x1, yb(x0) - 1, 30, { ramp: RAIL, gap: 20 });
+    for (const [xa, xb] of [[140, 150], [210, 220], [280, 290]]) { const ya = yb(xa) - 1, yb2 = yb(xb) - 1; PFK.lineFn(pb, xa, ya - 30, xb, yb2 - 30, () => U('#b0b8d6')); PFK.lineFn(pb, xa, ya - 15, xb, yb2 - 15, () => U('#6e769a')); }
+    H2.extinguisher(pb, 270, yb(270) - 1);
+    /* ===== 2. PRIMER BANCO (340–880): bastidores BESS a escala de personaje ===== */
+    for (const x of VAULT_RACKS.slice(0, 6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan);
+    D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
+    /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
+    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#141a2a', '#202838', '#2e384c', '#3e4a62', '#52607a', '#6a7894', '#8a98b2', '#b0bcd0', '#d8e0ec', '#f0f4fa'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); }
+    E.busbar(pb, 900, 1300, 186, { gap: 50, hangTo: 153 });
+    for (const a of ARCS) E.arcGap(pb, a.x, a.w, 198, gy(a.x));
+    D.flows.push({ pts: [[900, 189], [1300, 189]], kind: 'power', rate: (sc) => sc.state.blackout ? 0 : (sc.state.elyOn ? 1.4 : 0.6) });
+    /* ===== 4. SALA DE CONTROL elevada (1380–1620) y archivo ===== */
+    for (let k = 0; k < 5; k++) H2.box(pb, 1414 + k * 36, yb(1500), 30, 46, 8, { ramp: H2.R.NAVY, pw: 15 });
+    for (let k = 0; k < 5; k++) for (let j = 0; j < 3; j++) D.leds.push({ x: 1418 + k * 36 + j * 4, y: yb(1500) - 40, col: ['#3fe0a0', '#48dcf4', '#ffd84a'][j], hz: 0.5 + j * 0.3, ph: k + j });
+    const cr = H2.controlRoom(pb, 1380, 1620, 222, 108, yb(1500), 'CONTROL MICRORRED');
+    cr.screens.forEach((s, i) => D.screens.push(Object.assign({ col: (sc) => i === 2 ? '#ff6b6b' : (s.small ? '#86e36f' : '#56e5ff'), col2: '#ffd84a', on: off }, s)));
+    for (const [x, y] of cr.lamps) { D.glows.push({ x, y: y + 1, r: 10, col: '#fff2d0', a: 0.26, mode: 'steady', on: off }); D.cones.push([x, y, 12, 44, 222 - y]); }
+    for (const [x, y, col] of cr.leds) D.leds.push({ x, y, col, hz: 0.9, ph: x * 0.07 });
+    D.glows.push({ x: cr.beacon[0], y: cr.beacon[1], r: 4, col: '#ff6a50', a: 0.8, mode: 'blink', hz: 0.6, core: '#ffb0a0' });
+    B.shade(pb, 1380, 234, 246, 10, -0.22); B.shade(pb, 1380, 244, 246, 8, -0.12);
+    const ar = V.archive(pb, 1653, yb(1680));
+    for (const [x, y, col] of ar.leds) D.leds.push({ x, y, col, hz: 0.4, ph: x });
+    D.glows.push({ x: ar.lock[0], y: ar.lock[1], r: 8, col: '#e05aa0', a: 0.3, mode: 'pulse', hz: 0.6 });
+    /* ===== 5. SEGUNDO BANCO (1760–2140) ===== */
+    for (const x of VAULT_RACKS.slice(6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan);
+    /* ===== 6. BARRA PRINCIPAL (2140–2405): celdas de interruptores ===== */
+    const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL' });
+    D.breakers.push(...sw.breakers);
+    for (let k = 0; k < 6; k++) D.glows.push({ x: 2160 + k * 22, y: sw.top - 2, r: 3, col: '#ff4e5d', a: 0.85, mode: 'blink', hz: 0.5, ph: k, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
+    H2.aframe(pb, 2300 - 26, yb(2274) + 6, 'ARRANQUE EN NEGRO', { bd: '#ff6a50', col: '#ffd0c0' });
+    /* ===== 7. ASCENSOR (2405–2600) ===== */
+    const el = V.elevator(pb, 2420, yb(2460), 84, 132, 'ASCENSOR · CIUDADELA H2');
+    D.lift.push(el.ind);
+    D.glows.push({ x: el.call[0], y: el.call[1], r: 4, col: '#48dcf4', a: 0.7, mode: 'blink', hz: 0.8, on: off });
+    const hv3 = V.hvacUnit(pb, 2526, yb(2540), 40, 30); D.fans.push(hv3.fan);
+    // balizas de emergencia (las únicas que quedan en el apagón)
+    for (const x of [140, 870, 1310, 1760, 2140, 2404]) D.glows.push({ x, y: 120, r: 5, col: '#ff4e5d', a: 0.75, mode: 'blink', hz: 0.7, ph: x, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
+    LEVELS[6]._propsMs = Math.round(nowMs() - t0);
   },
   /* ---------------- dinámico ---------------- */
   /* ---------------- panorama: publica el estado de la microrred para el fondo ---------------- */
@@ -61,17 +122,19 @@ LEVELS[6] = {
     sc.backdrop.vault = { soc: S.blackout ? 0 : (S.soc ?? 0.28), charging: S.charging || 0, blackout: !!S.blackout };
   },
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, w = sc.world, ox = cam.x, oy = cam.y;
+    const S = sc.state, t = Game.time, w = sc.world, ox = cam.x, oy = cam.y, D = LV6;
     const gy = (x) => w.groundAt(x) - oy;
-    // LED de módulos y barra de SOC en cada rack
-    for (const x of VAULT_RACKS) {
-      const sx = x - ox; if (sx < -70 || sx > W + 10) continue;
-      const soc = S.blackout ? 0 : (S.soc ?? 0.28);
-      for (let r = 0; r < 7; r++) { const on = (6 - r) / 7 < soc; frect(g, sx + 6, gy(x) - 83 + r * 12, 8, 3, on ? (soc < 0.3 ? '#ff6b6b' : '#b6f05a') : '#1a1a2a'); if (on && !S.blackout && ((Math.floor(t * 3) + r + x) % 9 === 0)) fpx(g, sx + 50, gy(x) - 83 + r * 12, '#56e5ff'); }
-      if (!S.blackout) drawSOCStrip(g, sx + 8, gy(x) - 110, 48, soc, t, S.charging || 0);
+    const soc = S.blackout ? 0 : (S.soc ?? 0.28);
+    // conos de luz de las luminarias (apagados en el apagón)
+    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#dcf4ff', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
+    // LED de módulos y barra de SOC en cada bastidor
+    for (const R of D.racks) {
+      const sx = R.x - ox; if (sx < -80 || sx > W + 10) continue;
+      R.leds.forEach(([lx, ly], r) => { const on = (6 - r) / 7 < soc; frect(g, lx - ox, ly - oy, 8, 3, on ? (soc < 0.3 ? '#ff6b6b' : '#b6f05a') : '#1a1a2a'); if (on && !S.blackout && ((Math.floor(t * 3) + r + R.x) % 9 === 0)) fpx(g, lx - ox + 46, ly - oy + 1, '#56e5ff'); });
+      if (!S.blackout) drawSOCStrip(g, R.soc[0] - ox, R.soc[1] - oy, R.soc[2], soc, t, S.charging || 0);
     }
-    // flujo por la barra de cobre: hacia el electrolizador (arriba) o a cargas críticas
-    if (!S.blackout) VISTA.flowClip(g, [[900 - ox, 189 - oy], [1300 - ox, 189 - oy]], 'power', S.elyOn ? 1.4 : 0.6, 2);
+    // flujos: bandeja (carga/descarga), barra de cobre (hacia el electrolizador o cargas críticas), refrigeración
+    PFInfra.drawFlows(g, sc, D.flows);
     // arcos eléctricos temporizados (peligro no letal)
     for (let i = 0; i < ARCS.length; i++) {
       const a = ARCS[i], hz = w.hazards[i];
@@ -82,11 +145,15 @@ LEVELS[6] = {
       if (hz.on) { let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } VISTA.veil(g, sx - 6, top, a.w + 12, bot - top, '#56e5ff', 0.12); }
       else if (ph > 1.8) for (let k = 0; k < 3; k++) fpx(g, sx + 6 + Math.random() * 10, top + 6 + Math.random() * 10, '#a6e6ff');
     }
-    // pantallas de control
-    for (let k = 0; k < 4; k++) { const x = 1390 + k * 58 - ox, y = 150 - oy; if (S.blackout) continue; for (let i = 0; i < 5; i++) frect(g, x + 4, y + 4 + i * 4, 6 + ((i * 7 + Math.floor(t * 3) + k) % 34), 1, k === 2 ? '#ff6b6b' : '#56e5ff'); }
-    // interruptores de la barra principal
+    // interruptores de la barra principal (arranque en negro por pasos)
     const bs = S.bsSteps || 0;
-    for (let k = 0; k < 5; k++) frect(g, 2163 + k * 22 - ox, gy(2150) - 82, 8, 10, k < bs ? '#b6f05a' : (S.blackout ? '#3a1a20' : '#ff6b6b'));
+    D.breakers.forEach(([bx, by], k) => { const x = bx - ox; if (x < -10 || x > W + 10) return; const c = k < bs ? '#b6f05a' : (S.blackout ? '#3a1a20' : '#ff6b6b'); frect(g, x, by - oy, 8, 10, c); if (k < bs) PFK.drawGlow(g, x + 4, by - oy + 5, 7, c, 0.4); });
+    // ascensor: indicador de planta
+    for (const [ix, iy, iw] of D.lift) { const x = ix - ox; if (x < -30 || x > W + 10) continue; g.fillStyle = S.blackout ? '#5a1a20' : '#48dcf4'; const up = Math.floor(t * 2) % 2; for (let k = 0; k < 3; k++) g.fillRect(Math.round(x + iw / 2 - k), Math.round(iy - oy + 1 + k + up), 1 + k * 2, 1); drawText(g, '-2', x + 2, iy - oy, { font: 'tiny', color: S.blackout ? '#ff6b6b' : '#c4f8ff' }); }
+    PFBV.drawFanFront(g, sc, D.fans, !S.blackout);
+    PFInfra.drawLeds(g, sc, S.blackout ? [] : D.leds);
+    PFB.screens(g, sc, D.screens);
+    PFB.glows(g, sc, D.glows);
   },
   renderGrade(g, sc) {
     const S = sc.state;
@@ -137,14 +204,14 @@ LEVELS[6] = {
     };
     naira.onTalk = async (sc2) => { if (S.revealed) await sc2.say([['naira', 'calm', 'Borraste datos, Amaya. Ahora sabes qué representaban. Eso cambia lo que puedes hacer.']]); else await sc2.say([['naira', 'thinking', 'La consola de la microrred está aquí. Y ese archivo, abajo a la derecha, lleva días cerrado con candado.']]); };
     dante.onTalk = async (sc2) => sideHospital(sc2);
-    sc.station({ id: 'gridSim', x: 1450, y: 222, kind: 'sim', label: 'Gemelo de la microrred', glow: '#56e5ff', onUse: async (sc2, st) => gridFlow(sc2, st) });
-    sc.station({ id: 'archive', x: 1680, kind: 'clue', label: 'Archivo de limpieza de datos', glow: '#e05aa0', hidden: true, onUse: async (sc2, st) => { st.done = true; await archiveReveal(sc2); } });
+    sc.station({ id: 'gridSim', x: 1450, y: 222, kind: 'sim', label: 'Gemelo de la microrred', glow: '#56e5ff', draw: PFBH2.drawConsoleSt, onUse: async (sc2, st) => gridFlow(sc2, st) });
+    sc.station({ id: 'archive', x: 1680, kind: 'clue', label: 'Archivo de limpieza de datos', glow: '#e05aa0', hidden: true, draw: PFB.drawClue, onUse: async (sc2, st) => { st.done = true; await archiveReveal(sc2); } });
     sc.station({ id: 'busbar', x: 2210, kind: 'terminal', label: 'Barra principal', glow: '#ff6b6b', hidden: true, onUse: async (sc2, st) => busbarFlow(sc2, st) });
     sc.station({ id: 'solo', x: 2320, kind: 'solo', label: 'Puerta de Evidencia', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => {
       const r = await sc2.open(SOLOScene, { ctx: 'RA-05-C1' });
       st.progress = r.correct; if (r.correct >= 3) { st.done = true; GS.lp(6).solo = true; S.soloDone = true; Codex.unlock('reserva'); }
     } });
-    sc.station({ id: 'exit', x: 2460, y: 250, kind: 'clue', label: 'Subir a la Ciudadela H2', glow: '#ffe14d', hidden: true, onUse: async (sc2) => finishLevel6(sc2) });
+    sc.station({ id: 'exit', x: 2460, y: 250, kind: 'clue', label: 'Subir a la Ciudadela H2', glow: '#ffe14d', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel6(sc2) });
     sc.setObjective('Habla con BETA-9 junto al banco de baterías', ['¿Por qué la batería baja de noche?', 'BETA-9 está al pie de la escalera.']);
     Codex.unlock('bess');
     if (p.checkpoint === 'archive') { Object.assign(S, { metBeta: true, gridStage: 'archive' }); GS.giveTool('reserva', true); sc.world.find('archive').hidden = false; S.reserve = 0.3; S.elyOn = false; sc.setObjective('Abre el archivo de limpieza de datos', []); }
@@ -159,6 +226,9 @@ LEVELS[6] = {
     { x: 880, w: 40, run: (sc) => { sc.kiru && sc.kiru.say('Arcos eléctricos: pasa cuando se apagan. Cuenta el ritmo.', 'alarmado', 4); } },
   ],
 };
+
+/* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
+const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [] };
 
 /* ---------------- piezas del guion del nivel 06 ---------------- */
 async function gridFlow(sc, st) {

@@ -103,6 +103,83 @@ const PFBE = (() => {
     out.led = [x + w - 5, yb - h + 15];
     return out;
   }
+  /** Armario BESS de interior a escala de personaje (≈100 px): 7 filas de módulos con asa y ranura de LED,
+      cabecera BMS con pantalla, prensaestopas y cables a la bandeja. Devuelve {leds:[[x,y]], soc:[x,y,w], screen, top} */
+  function bessRack(pb, x, yb, w = 64, h = 100, d = 14, o = {}) {
+    const N = P(NAVY), Mo = P(o.module || ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2']), out = { leds: [] };
+    I.box3q(pb, x - 2, yb, w + 4, 4, d + 2, { ramp: PFTerrain.CONC });
+    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14;
+    I.box3q(pb, x, by, w, h, d, {
+      ramp: NAVY,
+      front: (xx, yy, u, v) => {
+        const lx = xx - x, ly = yy - top;
+        if (lx < 3 || lx > w - 4) return N[lx < 1 ? 6 : lx < 3 ? 4 : lx > w - 2 ? 0 : 2];
+        if (ly < 13) return N[ly < 1 ? 7 : ly === 12 ? 1 : 3];
+        const ry = yy - r0, ri = Math.floor(ry / rh), rr = ry - ri * rh;
+        if (ri >= rows) return N[clamp(2 - Math.round(v), 0, 7)];
+        if (rr >= 10) return N[0];
+        if (lx >= 5 && lx < 14 && rr >= 2 && rr < 6) return U('#060a14');
+        if (lx > w - 14 && lx < w - 7 && rr === 4) return Mo[7];
+        if (lx > w - 14 && lx < w - 7 && rr === 5) return Mo[2];
+        if (lx >= 18 && lx < 34 && rr === 7) return Mo[6];
+        let k = 4 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : rr === 1 ? 1 : 0) + Math.round((K.cl(xx, yy, 2, 31) - 0.5) * 0.6);
+        return Mo[clamp(k, 0, 7)];
+      },
+      top: (xx, yy, u, v) => N[clamp(5 - Math.round(v * 2) + ((xx - x) % 8 === 0 ? -1 : 0), 0, 7)],
+      side: (xx, yy, u, v) => { const k = ((yy - top) % 6 < 2 && v > 0.1 && v < 0.9) ? 0 : 2; return N[k]; }, ink: '#03050c',
+    });
+    for (let ri = 0; ri < rows; ri++) out.leds.push([x + 6, r0 + ri * rh + 3]);
+    B.rect(pb, x + 5, top + 3, w - 10, 7, U('#021018'));
+    out.screen = [x + 6, top + 4, w - 12, 5];
+    out.soc = [x + 8, top - 14, w - 16];
+    // prensaestopas y cables que suben a la bandeja
+    if (o.cablesTo != null) for (const [cx, col] of [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']]) for (let yy = o.cablesTo; yy < top - d; yy++) { K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col)); }
+    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 9, screws: false });
+    B.castR(pb, x, x + w + Math.round(d * 0.45), yb - 1, 14, { amt: -0.22, yMin: yb - 18 });
+    out.top = top;
+    return out;
+  }
+  /** Celdas de media tensión (interruptores): n cubículos en 3/4 con mirillas, diagrama unifilar en
+      la cabecera y ventanas de estado (vivas). Devuelve {breakers:[[x,y]]} */
+  function switchgear(pb, x, yb, n = 5, cw = 24, h = 112, d = 16, o = {}) {
+    const C = P(o.ramp || ['#141a2a', '#202838', '#2e384c', '#3e4a62', '#52607a', '#6a7894', '#8a98b2', '#b0bcd0', '#d8e0ec']), out = { breakers: [] }, w = n * cw;
+    I.box3q(pb, x - 3, yb, w + 6, 4, d + 2, { ramp: PFTerrain.CONC });
+    const by = yb - 4, top = by - h;
+    I.box3q(pb, x, by, w, h, d, {
+      ramp: o.ramp || ['#141a2a', '#202838', '#2e384c', '#3e4a62', '#52607a', '#6a7894', '#8a98b2', '#b0bcd0', '#d8e0ec'],
+      front: (xx, yy, u, v) => {
+        const lx = (xx - x) % cw, ly = yy - top;
+        if (lx === 0) return C[1]; if (lx === 1) return C[6];
+        if (ly < 18) return ly < 2 ? C[8] : ly === 17 ? C[1] : C[2];
+        if (ly === 18 || ly === 58) return C[1];
+        let k = 5 - Math.round(v * 2) + (lx === cw - 1 ? -2 : 0);
+        if (ly > 64 && ly < 96 && lx > 5 && lx < cw - 5 && (ly % 4) < 2) k -= 2;
+        return C[clamp(k, 0, 8)];
+      },
+      top: (xx, yy, u, v) => C[clamp(7 - Math.round(v * 2), 0, 8)], side: (xx, yy) => C[2], ink: '#03050c',
+    });
+    // diagrama unifilar en la cabecera
+    for (let xx = x + 3; xx < x + w - 3; xx++) K.put(pb, xx, top + 6, U('#ff8a6a'));
+    for (let k = 0; k < n; k++) { const cx = x + k * cw + Math.round(cw / 2); for (let yy = top + 6; yy < top + 14; yy++) K.put(pb, cx, yy, U('#ff8a6a')); K.put(pb, cx - 1, top + 11, U('#ffe0d0')); K.put(pb, cx + 1, top + 11, U('#ffe0d0')); out.breakers.push([cx - 4, top + 30]); B.rect(pb, cx - 5, top + 29, 10, 12, U('#05070e')); B.rect(pb, cx - 6, top + 44, 12, 8, U('#2e384c')); K.put(pb, cx - 3, top + 47, U('#ffd84a')); K.put(pb, cx + 2, top + 47, U('#3fe0a0')); for (let yy = top + 60; yy < top + 64; yy++) K.put(pb, cx + 5, yy, U('#d8e0ec')); }
+    if (o.label) B.plaque(pb, x + w / 2, top - 6 - d, o.label, { center: true, font: 'main', bold: true, bg: '#2a0610', border: '#ff7a6a', col: '#fff4f0', h: 13 });
+    B.castR(pb, x, x + w + Math.round(d * 0.45), yb - 1, 16, { amt: -0.22, yMin: yb - 18 });
+    out.top = top;
+    return out;
+  }
+  /** Barra de cobre aérea sobre aisladores (vista de frente con canto) */
+  function busbar(pb, x0, x1, y, o = {}) {
+    const Cu = P(['#2a1206', '#5a2a0e', '#8e4a18', '#c27028', '#e89a40', '#ffc878', '#fff0c8']), S = P(STLD);
+    for (let x = x0; x <= x1; x++) for (let k = 0; k < 8; k++) K.put(pb, x, y + k, Cu[[6, 5, 4, 4, 3, 3, 2, 1][k] - ((x % 48) === 0 ? 2 : 0)]);
+    for (let x = x0 + 10; x < x1; x += o.gap || 50) { for (let k = 0; k < 8; k++) for (let j = -2; j <= 2; j++) K.put(pb, x + j, y - 9 + k, U((k % 2) ? '#c8562a' : '#e8805a')); for (let yy = o.hangTo ?? y - 30; yy < y - 9; yy++) { K.put(pb, x, yy, S[5]); K.put(pb, x + 1, yy, S[2]); } }
+  }
+  /** Electrodos de un arco temporizado: borne de cobre bajo la barra y placa de tierra con franja */
+  function arcGap(pb, x, w, yTop, yb) {
+    const Cu = P(['#2a1206', '#5a2a0e', '#8e4a18', '#c27028', '#e89a40', '#ffc878', '#fff0c8']);
+    for (let yy = yTop - 2; yy < yTop + 6; yy++) { K.put(pb, x + 4, yy, Cu[5]); K.put(pb, x + 5, yy, Cu[3]); K.put(pb, x + 6, yy, Cu[1]); }
+    K.ellipseFn(pb, x + 5, yTop + 7, 2.5, 2, (nx, ny) => Cu[ny < 0 ? 6 : 3]);
+    for (let xx = x - 4; xx < x + w + 4; xx++) for (let k = 0; k < 3; k++) K.put(pb, xx, yb - 1 + k - 2, U(k === 0 ? '#5a6070' : ((((xx + k) >> 2) & 1) ? '#e8b830' : '#1c1c26')));
+    for (let yy = yb - 8; yy < yb - 3; yy++) { K.put(pb, x + w - 6, yy, Cu[4]); K.put(pb, x + w - 5, yy, Cu[2]); }
+  }
   /* ---------- solar y eólica ---------- */
   /** Mesa FV a escala de personaje: plano inclinado con celdas, marco, patas y polvo (soil 0..1) */
   function pvTable(pb, x, yb, w = 70, o = {}) {
@@ -176,5 +253,5 @@ const PFBE = (() => {
     for (const k of [-7, 1, 9]) { K.put(pb, x + k, yb - h + 4, U('#d8e0e8')); K.put(pb, x + k, yb - h + 5, U('#8a96a8')); }
     return { tops: [[x - 7, yb - h + 4], [x + 1, yb - h + 4], [x + 9, yb - h + 4]] };
   }
-  return { dust, drift, container, rack, inverter, pvTable, turbineTower, drawRotor, line, pole, WHD, NAVY, BLUEC, STLD, PV };
+  return { dust, drift, container, rack, bessRack, switchgear, busbar, arcGap, inverter, pvTable, turbineTower, drawRotor, line, pole, WHD, NAVY, BLUEC, STLD, PV };
 })();
