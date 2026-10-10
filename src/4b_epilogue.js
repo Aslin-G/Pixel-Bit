@@ -232,6 +232,7 @@ const PostCreditsScene = {
     this.t = 0; this.i = 0; this.ps = new Particles(120); Audio2.playMusic('oasis');
     this.lines = [['kiru', 'Amaya.'], ['amaya', '¿Qué ocurre?'], ['kiru', 'El sensor del vivero reporta una variable desconocida.'], ['amaya', '¿La eliminaste?'], ['kiru', 'Preparé té.']];
     this.lt = 0;
+    this.art = SCBPost.make();
   },
   update(dt) {
     this.t += dt; this.lt += dt; this.ps.update(dt);
@@ -242,29 +243,9 @@ const PostCreditsScene = {
   },
   render(g) {
     const t = this.t;
-    // noche en el vivero
-    for (let y = 0; y < H; y++) frect(g, 0, y, W, 1, mixHex('#05081d', '#1a1a4a', y / H));
-    for (let i = 0; i < 60; i++) fpx(g, hash1(i, 1) * W, hash1(i, 2) * 160, (Math.floor(t * 2 + i) % 7) ? '#cfd6f0' : '#ffffff');
-    fdisc(g, 520, 60, 12, '#fff6d8'); fdisc(g, 525, 57, 11, '#1a1a4a');
-    // colinas con las luces de Aridia a lo lejos
-    for (let x = 0; x < W; x += 2) { const hh = 26 + Math.round(12 * Math.sin(x * 0.013) + 6 * Math.sin(x * 0.041)); frect(g, x, 270 - hh, 2, hh, '#141a3a'); }
-    for (let i = 0; i < 40; i++) { const lx = (i * 97) % W, ly = 270 - 10 - (i * 13) % 18; fpx(g, lx, ly, (Math.floor(t + i) % 9) ? '#ffd86a' : '#ff9f43'); }
-    for (let k = 0; k < 3; k++) { const tx = 80 + k * 240; frect(g, tx - 1, 200, 3, 70, '#2a2a5a'); fdisc(g, tx, 200, 3, '#56e5ff'); }
-    frect(g, 0, 270, W, H - 270, '#0e1a12'); fdither(g, 0, 270, W, 8, '#1f3a24', 0.5);
-    for (let x = 6; x < W; x += 11) { const hh = 2 + (x * 7) % 4; frect(g, x, 270 - hh, 1, hh, '#1f5a34'); fpx(g, x + 1, 270 - hh + 1, '#2f7a44'); }
-    // farol junto a Amaya
-    frect(g, 178, 196, 2, 74, '#3a3a5a'); frect(g, 176, 196, 6, 2, '#5a5a7a'); fdisc(g, 179, 194, 3, '#ffe8a0'); PFK.drawGlow(g, 179, 194, 30, '#ffd86a', 0.35);
-    // casa de sombra
-    frect(g, 300, 178, 200, 4, '#3a4a3a'); for (let k = 0; k < 6; k++) frect(g, 300 + k * 39, 178, 3, 92, '#2a3a2a'); fdither(g, 300, 182, 200, 88, '#1a2a1a', 0.5);
-    for (let k = 0; k < 8; k++) { const x = 312 + k * 23, hh = 12 + (k * 5) % 10; frect(g, x, 270 - hh, 2, hh, '#1f854c'); fpx(g, x - 1, 270 - hh, '#4ccb70'); fpx(g, x + 2, 270 - hh + 2, '#4ccb70'); }
-    // sensor con la alarma
-    frect(g, 456, 226, 2, 44, '#8a8fb8'); const on = Math.floor(t * 3) % 2; fdisc(g, 457, 224, 3, on ? '#ffe14d' : '#6a5a10'); if (on) PFK.drawGlow(g, 457, 224, 14, '#ffe14d', 0.4);
-    // Amaya y KIRU
-    drawChar(g, 'amaya', 'idle', t, 220, 270, 1, { expr: this.i >= 4 ? 'smile' : 'surprised' });
-    drawChar(g, 'kiru', 'idle', t, 260, 270, -1, {});
-    // taza de té con vapor
-    frect(g, 225, 238, 7, 6, '#fff6d8'); frect(g, 232, 239, 2, 3, '#fff6d8'); frect(g, 225, 243, 7, 1, '#cfc4a8'); for (let i = 0; i < 3; i++) fpx(g, 228 + Math.round(Math.sin(t * 3 + i) * 1.5), 234 - i * 3 - Math.floor((t * 4) % 3), '#cfd6f0'); // taza en la mano de Amaya (sprite de 74 px)
-    this.ps.render(g);
+    // noche en el vivero (19o_scb_post.js): cielo estrellado, invernadero con luz cálida, faroles, luciérnagas
+    if (!this.art) this.art = SCBPost.make();
+    this.art.draw(g, t, { amayaExpr: this.i >= 4 ? 'smile' : 'surprised' });
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {
       const sp = SPEAKERS[L[0]];
