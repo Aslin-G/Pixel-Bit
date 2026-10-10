@@ -141,11 +141,20 @@ const CodexScene = {
     UIK.header(g, 8, 8, W - 16, 'ATLAS DEL NEXO · ' + GS.s.codex.length + ' / ' + CODEX.length + ' fichas', 'tech', 'book');
     Gui.begin();
     // pestañas de sección
-    CODEX_SECTIONS.forEach(([id, label, icon], i) => {
-      const col = i % 7, row = Math.floor(i / 7);
-      const n = CODEX.filter(e => e.sec === id && Codex.has(e.id)).length, tot = CODEX.filter(e => e.sec === id).length;
-      if (Gui.button(g, 'sec' + id, 14 + col * 87, 32 + row * 18, 84, 16, label.length > 11 ? label.slice(0, 10) + '.' : label, { icon, style: 'tab', selected: this.sec === id, align: 'left', tip: label + ' · ' + n + '/' + tot })) { this.sec = id; this.sel = null; this.scroll = 0; }
-    });
+    // pestañas medidas: cada fila de 7 reparte su ancho según el nombre completo (sin «Desaliniza.» ni «Almacenami.»)
+    const perRow = 7, rowW = W - 28, gap = 3;
+    for (let r0 = 0; r0 < CODEX_SECTIONS.length; r0 += perRow) {
+      const row = CODEX_SECTIONS.slice(r0, r0 + perRow);
+      const nat = row.map(([, label]) => FONTS.main.measure(label) + 27);
+      const free = rowW - gap * (row.length - 1) - nat.reduce((a, b) => a + b, 0);
+      const ws = free >= 0 ? nat.map(w => w + Math.floor(free / row.length)) : row.map(() => Math.floor((rowW - gap * (row.length - 1)) / row.length));
+      let tx = 14;
+      row.forEach(([id, label, icon], k) => {
+        const n = CODEX.filter(e => e.sec === id && Codex.has(e.id)).length, tot = CODEX.filter(e => e.sec === id).length;
+        if (Gui.button(g, 'sec' + id, tx, 32 + (r0 / perRow) * 18, ws[k], 16, label, { icon, style: 'tab', selected: this.sec === id, align: 'left', tip: label + ' · ' + n + '/' + tot })) { this.sec = id; this.sel = null; this.scroll = 0; }
+        tx += ws[k] + gap;
+      });
+    }
     // lista (pozo hundido)
     const list = CODEX.filter(e => e.sec === this.sec);
     let ly = 72;
@@ -153,7 +162,7 @@ const CodexScene = {
     for (const e of list) {
       const un = Codex.has(e.id);
       if (ly > H - 38) break;
-      if (Gui.button(g, 'ent' + e.id, 17, ly, 164, 16, un ? (e.title.length > 26 ? e.title.slice(0, 25) + '…' : e.title) : '??? (bloqueada)', { style: this.sel === e.id ? 'gold' : 'ghost', selected: this.sel === e.id, disabled: !un, align: 'left' })) { this.sel = e.id; this.scroll = 0; Audio2.sfx('page'); }
+      if (Gui.button(g, 'ent' + e.id, 17, ly, 164, 16, un ? fitText(e.title, 156) : '??? (bloqueada)', { style: this.sel === e.id ? 'gold' : 'ghost', selected: this.sel === e.id, disabled: !un, align: 'left' })) { this.sel = e.id; this.scroll = 0; Audio2.sfx('page'); }
       ly += 18;
     }
     // página

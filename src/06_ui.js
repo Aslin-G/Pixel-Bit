@@ -415,8 +415,13 @@ const Gui = {
     if (R.inner !== R.fill) frect(g, rx + 3, y + 3, rw - 6, h - 6, R.fill);
     if (st === 'correct') { frect(g, rx + 3, y + 3, rw - 6, Math.max(1, Math.round((h - 6) * 0.45)), '#0a6e58'); }
     lines.forEach((ln, i) => drawText(g, ln, rx + 6, y + 4 + i * 11, { color: R.text }));
-    if (st === 'correct') Icons.draw(g, 'check', rx + rw - 16, y + Math.round(h / 2) - 6);
-    if (st === 'wrong') Icons.draw(g, 'cross', rx + rw - 16, y + Math.round(h / 2) - 6);
+    if (st === 'correct' || st === 'wrong') {
+      // el icono va a la derecha de la fila; si una línea de texto llega hasta ahí, rompe la esquina superior (como una insignia)
+      let ix = rx + rw - 16, iy = y + Math.round(h / 2) - 6;
+      const clash = lines.some((ln, i) => { const ly = y + 4 + i * 11; return ly < iy + 13 && ly + 9 > iy && rx + 6 + FONTS.main.measure(ln) > ix - 2; });
+      if (clash) { ix = rx + rw - 12; iy = y - 6; }
+      Icons.draw(g, st === 'correct' ? 'check' : 'cross', ix, iy);
+    }
     if (focused && st !== 'correct' && st !== 'wrong' && ((Game.frame >> 4) & 1)) { const cy = y + Math.round(h / 2); fpx(g, x - 2, cy, '#e8f6ff'); fpx(g, x - 3, cy - 1, '#e8f6ff'); fpx(g, x - 3, cy + 1, '#e8f6ff'); }
     if (clicked) Audio2.sfx('ui');
     return { clicked, h };

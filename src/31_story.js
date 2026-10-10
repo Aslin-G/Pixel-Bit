@@ -244,8 +244,19 @@ const EvidenceScene = {
     UIK.badge(g, 'eye', 17, 11, 22, 'tech');
     drawText(g, 'TABLERO DE EVIDENCIAS', 44, 20, { font: 'bold', color: '#3a1a10' });
     const ids = Object.keys(CLUES).filter(id => GS.s.clues.includes(id));
-    if (!ids.length) { drawTextBlock(g, 'Aún no hay pistas. Observa anomalías, conversa y escanea: cada evidencia aparecerá aquí con su interpretación aparente. Las revelaciones de la historia las reinterpretarán.', 50, 120, W - 100, { color: '#3a1a10', align: 'center' }); return; }
-    const cols = 3, cw = (W - 80) / cols, ch = 92;
+    if (!ids.length) {
+      // nota de papel clavada (mismo estilo que las fichas): el texto no queda sobre el corcho
+      const msg = 'Aún no hay pistas. Observa anomalías, conversa y escanea: cada evidencia aparecerá aquí con su interpretación aparente. Las revelaciones de la historia las reinterpretarán.';
+      const nw = 380, nh = textHeight(msg, nw - 28) + 26, nx = Math.round(W / 2 - nw / 2), ny = 104;
+      frect(g, nx + 3, ny + 3, nw, nh, '#5a2e12'); frect(g, nx, ny, nw, nh, '#fff6d8'); frect(g, nx, ny, nw, 2, '#ffe14d');
+      fdisc(g, nx + nw / 2, ny + 6, 3, '#d8343c'); fpx(g, nx + nw / 2 - 1, ny + 5, '#ff9a8a');
+      drawTextBlock(g, msg, nx + 14, ny + 15, nw - 28, { color: '#3a1a10', align: 'center' });
+      UIK.pill(g, W / 2, H - 27, 'ESC para cerrar', { align: 'center', rim: '#74381c', fill: '#f6e6cc', color: '#3a1a10' });
+      return;
+    }
+    // la altura de ficha se ajusta a las filas: con las 11 pistas del juego caben 4 filas sobre el corcho
+    const cols = 3, cw = (W - 80) / cols, rows = Math.ceil(ids.length / cols);
+    const ch = clamp(Math.floor((H - 72) / rows) - 4, 54, 92);
     const pos = ids.map((id, i) => [36 + (i % cols) * cw, 40 + Math.floor(i / cols) * (ch + 4)]);
     // hilos rojos entre pistas del mismo giro
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) if (CLUES[ids[i]].payoff === CLUES[ids[j]].payoff) {
@@ -270,6 +281,6 @@ const EvidenceScene = {
     });
     Gui.end();
     Gui.renderTooltip(g);
-    UIK.pill(g, W / 2, H - 26, 'Pasa el cursor sobre una pista para ver la observación original · ESC para cerrar', { align: 'center', rim: '#74381c', fill: '#f6e6cc', color: '#3a1a10' });
+    UIK.pill(g, W / 2, H - 27, 'Pasa el cursor sobre una pista para ver la observación original · ESC para cerrar', { align: 'center', rim: '#74381c', fill: '#f6e6cc', color: '#3a1a10' });
   },
 };
