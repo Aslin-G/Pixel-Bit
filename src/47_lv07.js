@@ -218,6 +218,7 @@ LEVELS[7] = {
     for (const [x, y] of sh.lamps) D.cones.push([x, y, 10, 56, yb + 8 - y]);
     for (const [x, y] of cr.lamps) D.cones.push([x, y, 12, 44, 212 - y]);
     for (const [x, y] of cg.lights) D.cones.push([x, y, 6, 30, yb + 10 - y]);
+    { const all = LV7.flows.splice(0); for (const r of all) LV7.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[7]._propsMs = Math.round(nowMs() - t0);
   },
   /** Primer plano a ras de suelo: balizas bajas y tapas de registro delante de los pies */

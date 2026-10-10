@@ -237,7 +237,17 @@ const PFB = (() => {
     for (let k = 0; k < 6; k++) { const a = t * 2 + k * 1.047; fpx(g, x + Math.cos(a) * 11, y - 20 + b + Math.sin(a) * 4, k % 2 ? col : '#f4f0ff'); }
     if (st.done) frect(g, x - 1, y - 33 + b, 3, 1, '#3fe0a0');
   }
-  return { R, P, LIGHT, sprite, finish, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
+  /** Parte un recorrido de flujo largo en tramos de step px (múltiplo de 12 para que los chevrones
+      no salten) para que PFInfra.drawFlows pueda descartar los que quedan fuera de pantalla */
+  function chunkFlow(run, step = 192) {
+    const out = [];
+    for (let i = 0; i < run.pts.length - 1; i++) {
+      const [x0, y0] = run.pts[i], [x1, y1] = run.pts[i + 1], L = Math.abs(x1 - x0) + Math.abs(y1 - y0), sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+      for (let a = 0; a < L; a += step) { const b = Math.min(L, a + step); out.push(Object.assign({}, run, { pts: [[x0 + sx * a, y0 + sy * a], [x0 + sx * b, y0 + sy * b]] })); }
+    }
+    return out;
+  }
+  return { R, P, LIGHT, sprite, finish, chunkFlow, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
 })();
 
 /* ---------- extensiones compatibles de los kits PF ---------- */

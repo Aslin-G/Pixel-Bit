@@ -113,6 +113,7 @@ LEVELS[6] = {
     const hv3 = V.hvacUnit(pb, 2526, yb(2540), 40, 30); D.fans.push(hv3.fan);
     // balizas de emergencia (las únicas que quedan en el apagón)
     for (const x of [140, 870, 1310, 1760, 2140, 2404]) D.glows.push({ x, y: 120, r: 5, col: '#ff4e5d', a: 0.75, mode: 'blink', hz: 0.7, ph: x, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
+    { const all = LV6.flows.splice(0); for (const r of all) LV6.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[6]._propsMs = Math.round(nowMs() - t0);
   },
   /* ---------------- dinámico ---------------- */

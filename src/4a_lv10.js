@@ -584,6 +584,7 @@ LEVELS[10] = {
     for (const [x, y] of core.beacons) beacon(x, y, '#f27ee6', 0.5);
     for (const x of [2880, 3290, 3380]) { lp = B.lampPost(pb, x, yb(x) + 1, 96, { dir: x > 3000 ? -1 : 1 }); lampG(lp.x, lp.y); }
     C.routeSign(pb, 3340, yb(3340), 'SALIDA', 1);
+    { const all = LV10.flows.splice(0); for (const r of all) LV10.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[10]._propsMs = Math.round(nowMs() - t0);
   },
   /* ---------------- dinámico ---------------- */

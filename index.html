@@ -16753,7 +16753,17 @@ const PFB = (() => {
     for (let k = 0; k < 6; k++) { const a = t * 2 + k * 1.047; fpx(g, x + Math.cos(a) * 11, y - 20 + b + Math.sin(a) * 4, k % 2 ? col : '#f4f0ff'); }
     if (st.done) frect(g, x - 1, y - 33 + b, 3, 1, '#3fe0a0');
   }
-  return { R, P, LIGHT, sprite, finish, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
+  /** Parte un recorrido de flujo largo en tramos de step px (múltiplo de 12 para que los chevrones
+      no salten) para que PFInfra.drawFlows pueda descartar los que quedan fuera de pantalla */
+  function chunkFlow(run, step = 192) {
+    const out = [];
+    for (let i = 0; i < run.pts.length - 1; i++) {
+      const [x0, y0] = run.pts[i], [x1, y1] = run.pts[i + 1], L = Math.abs(x1 - x0) + Math.abs(y1 - y0), sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+      for (let a = 0; a < L; a += step) { const b = Math.min(L, a + step); out.push(Object.assign({}, run, { pts: [[x0 + sx * a, y0 + sy * a], [x0 + sx * b, y0 + sy * b]] })); }
+    }
+    return out;
+  }
+  return { R, P, LIGHT, sprite, finish, chunkFlow, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
 })();
 
 /* ---------- extensiones compatibles de los kits PF ---------- */
@@ -29670,6 +29680,7 @@ LEVELS[6] = {
     const hv3 = V.hvacUnit(pb, 2526, yb(2540), 40, 30); D.fans.push(hv3.fan);
     // balizas de emergencia (las únicas que quedan en el apagón)
     for (const x of [140, 870, 1310, 1760, 2140, 2404]) D.glows.push({ x, y: 120, r: 5, col: '#ff4e5d', a: 0.75, mode: 'blink', hz: 0.7, ph: x, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
+    { const all = LV6.flows.splice(0); for (const r of all) LV6.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[6]._propsMs = Math.round(nowMs() - t0);
   },
   /* ---------------- dinámico ---------------- */
@@ -30320,6 +30331,7 @@ LEVELS[7] = {
     for (const [x, y] of sh.lamps) D.cones.push([x, y, 10, 56, yb + 8 - y]);
     for (const [x, y] of cr.lamps) D.cones.push([x, y, 12, 44, 212 - y]);
     for (const [x, y] of cg.lights) D.cones.push([x, y, 6, 30, yb + 10 - y]);
+    { const all = LV7.flows.splice(0); for (const r of all) LV7.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[7]._propsMs = Math.round(nowMs() - t0);
   },
   /** Primer plano a ras de suelo: balizas bajas y tapas de registro delante de los pies */
@@ -32507,6 +32519,7 @@ LEVELS[10] = {
     for (const [x, y] of core.beacons) beacon(x, y, '#f27ee6', 0.5);
     for (const x of [2880, 3290, 3380]) { lp = B.lampPost(pb, x, yb(x) + 1, 96, { dir: x > 3000 ? -1 : 1 }); lampG(lp.x, lp.y); }
     C.routeSign(pb, 3340, yb(3340), 'SALIDA', 1);
+    { const all = LV10.flows.splice(0); for (const r of all) LV10.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[10]._propsMs = Math.round(nowMs() - t0);
   },
   /* ---------------- dinámico ---------------- */
