@@ -18139,7 +18139,7 @@ const PFBH2 = (() => {
     const base = yb - 11;
     B.castR(pb, cx - r, cx + r, yb - 4, 18, { amt: -0.2, yMin: yb - 20 });
     const t = I.cylV(pb, cx, base, r, h, { ramp: ['#1c2442', '#2c365c', '#4c5a86', '#7280b0', '#a2aed4', '#d0d8f0', '#f6f6ff', '#ffffff'], band: CY, bands: [{ y: 12, h: 3 }, { y: h - 30, h: 5 }, { y: h - 12, h: 2 }], dome: 0.42, ladder: true, stain: false });
-    B.plaque(pb, cx - 2, base - h + 34, 'AGUA ULTRAPURA', { center: true, bg: '#06203a', border: '#6ae2f8', col: '#f4fbff', h: 10, screws: false });
+    B.plaque(pb, cx + 2, base - h + 34, 'AGUA UP', { center: true, bg: '#06203a', border: '#6ae2f8', col: '#f4fbff', h: 10, screws: false });
     // barandilla en la cúpula
     for (let xx = cx - r + 2; xx <= cx + r - 2; xx++) K.put(pb, xx, base - h - 12, U('#d4daee'));
     for (const px of [cx - r + 2, cx - 6, cx + 6, cx + r - 2]) for (let k = 0; k < 8; k++) K.put(pb, px, base - h - 12 + k, U('#8e96b8'));
@@ -29496,9 +29496,9 @@ LEVELS[7] = {
     for (const [x, y, col] of rc.leds) D.leds.push({ x, y, col, hz: 0.6 + (x % 5) * 0.2, ph: x * 0.1 });
     lp = B.lampPost(pb, 718, yb + 1, 98, { dir: -1, ramp: H2.R.STL.slice(0, 10) }); lampG(lp.x, lp.y, 9, 0.38);
     // subida de cables del rectificador a la bandeja de la nave
-    for (let yy = 140; yy < 204; yy++) for (let k = 0; k < 4; k++) PFK.put(pb, 600 + k, yy, U((yy % 4 < 2) ? ['#6e769a', '#ecc030', '#c8384a', '#383e5a'][k] : ['#6e769a', '#c49418', '#7a1a1c', '#383e5a'][k]));
-    H2.cableTray(pb, 600, 1236, 140, { hang: 56, hangTo: 132 });
-    D.flows.push({ pts: [[602, 204], [602, 140], [1236, 140]], kind: 'power', rate: (sc) => on(sc) ? 1 : 0 });
+    for (let yy = 140; yy < 204; yy++) for (let k = 0; k < 4; k++) PFK.put(pb, 696 + k, yy, U((yy % 4 < 2) ? ['#6e769a', '#ecc030', '#c8384a', '#383e5a'][k] : ['#6e769a', '#c49418', '#7a1a1c', '#383e5a'][k]));
+    H2.cableTray(pb, 696, 1236, 140, { hang: 56, hangTo: 132 });
+    D.flows.push({ pts: [[698, 204], [698, 140], [1236, 140]], kind: 'power', rate: (sc) => on(sc) ? 1 : 0 });
     /* ===== 4. NAVE DE ELECTROLIZADORES (756–1240) ===== */
     const sh = H2.shed(pb, 756, 1240, yb, 118, [760, 917, 1067, 1217], 'NAVE DE ELECTROLIZADORES');
     for (const [x, y] of sh.lamps) D.glows.push({ x, y: y + 2, r: 12, col: '#fff2d0', a: 0.26, mode: 'steady' });

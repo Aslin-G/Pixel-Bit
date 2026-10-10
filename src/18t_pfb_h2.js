@@ -185,7 +185,7 @@ const PFBH2 = (() => {
     const base = yb - 11;
     B.castR(pb, cx - r, cx + r, yb - 4, 18, { amt: -0.2, yMin: yb - 20 });
     const t = I.cylV(pb, cx, base, r, h, { ramp: ['#1c2442', '#2c365c', '#4c5a86', '#7280b0', '#a2aed4', '#d0d8f0', '#f6f6ff', '#ffffff'], band: CY, bands: [{ y: 12, h: 3 }, { y: h - 30, h: 5 }, { y: h - 12, h: 2 }], dome: 0.42, ladder: true, stain: false });
-    B.plaque(pb, cx - 2, base - h + 34, 'AGUA ULTRAPURA', { center: true, bg: '#06203a', border: '#6ae2f8', col: '#f4fbff', h: 10, screws: false });
+    B.plaque(pb, cx + 2, base - h + 34, 'AGUA UP', { center: true, bg: '#06203a', border: '#6ae2f8', col: '#f4fbff', h: 10, screws: false });
     // barandilla en la cúpula
     for (let xx = cx - r + 2; xx <= cx + r - 2; xx++) K.put(pb, xx, base - h - 12, U('#d4daee'));
     for (const px of [cx - r + 2, cx - 6, cx + 6, cx + r - 2]) for (let k = 0; k < 8; k++) K.put(pb, px, base - h - 12 + k, U('#8e96b8'));

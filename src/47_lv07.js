@@ -130,9 +130,9 @@ LEVELS[7] = {
     for (const [x, y, col] of rc.leds) D.leds.push({ x, y, col, hz: 0.6 + (x % 5) * 0.2, ph: x * 0.1 });
     lp = B.lampPost(pb, 718, yb + 1, 98, { dir: -1, ramp: H2.R.STL.slice(0, 10) }); lampG(lp.x, lp.y, 9, 0.38);
     // subida de cables del rectificador a la bandeja de la nave
-    for (let yy = 140; yy < 204; yy++) for (let k = 0; k < 4; k++) PFK.put(pb, 600 + k, yy, U((yy % 4 < 2) ? ['#6e769a', '#ecc030', '#c8384a', '#383e5a'][k] : ['#6e769a', '#c49418', '#7a1a1c', '#383e5a'][k]));
-    H2.cableTray(pb, 600, 1236, 140, { hang: 56, hangTo: 132 });
-    D.flows.push({ pts: [[602, 204], [602, 140], [1236, 140]], kind: 'power', rate: (sc) => on(sc) ? 1 : 0 });
+    for (let yy = 140; yy < 204; yy++) for (let k = 0; k < 4; k++) PFK.put(pb, 696 + k, yy, U((yy % 4 < 2) ? ['#6e769a', '#ecc030', '#c8384a', '#383e5a'][k] : ['#6e769a', '#c49418', '#7a1a1c', '#383e5a'][k]));
+    H2.cableTray(pb, 696, 1236, 140, { hang: 56, hangTo: 132 });
+    D.flows.push({ pts: [[698, 204], [698, 140], [1236, 140]], kind: 'power', rate: (sc) => on(sc) ? 1 : 0 });
     /* ===== 4. NAVE DE ELECTROLIZADORES (756–1240) ===== */
     const sh = H2.shed(pb, 756, 1240, yb, 118, [760, 917, 1067, 1217], 'NAVE DE ELECTROLIZADORES');
     for (const [x, y] of sh.lamps) D.glows.push({ x, y: y + 2, r: 12, col: '#fff2d0', a: 0.26, mode: 'steady' });
