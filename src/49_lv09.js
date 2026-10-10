@@ -118,6 +118,8 @@ LEVELS[9] = {
     M.balustrade(pb, 2096, 2300, yb(2200), 30);
     M.grandDoor(pb, 2354, yb(2354), 58, 104, 'NÚCLEO SYNARA');
     D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
+    /* ===== acabado (19r_scb_lv09.js): vitrinas, cordones, atril, quiosco, alfombra y reflejos en el mármol ===== */
+    SCBL9.finish(pb, world, back, gy, D);
     LEVELS[9]._propsMs = Math.round(nowMs() - t0);
   },
   renderMid(g, sc, cam) {
