@@ -85,7 +85,11 @@ const IntroScene = {
     'El mar es turquesa, el sol no da tregua y el viento conoce todos los caminos.',
     'Hoy, la ciudad celebra el {c}Festival del Primer Agua{/}: SYNARA, el sistema que convierte mar, sol y viento en agua, alimentos e hidrógeno, entregará su primera gota.',
     'Pero la máquina no está rota de la manera que todos creen.',
-    'Y el enemigo que parece robar el agua quizá sea el único que intenta impedir una catástrofe.'] },
+    'Y el enemigo que parece robar el agua quizá sea el único que intenta impedir una catástrofe.'];
+    // las cinco viñetas se componen aquí, tras el fundido a negro de la transición (≈1 s una sola vez),
+    // en lugar de construir cada una dentro de un cuadro mientras se escribe el texto (tirones de 0,1–0,6 s)
+    for (let k = 0; k < this.lines.length; k++) SCAIntro.get(k);
+  },
   update(dt) {
     this.t += dt;
     if (Input.anyConfirm() || Input.pressed('jump')) {

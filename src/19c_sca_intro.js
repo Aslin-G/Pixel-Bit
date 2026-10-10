@@ -285,10 +285,45 @@ const SCAIntro = (() => {
     B.vplane(0.55, 40, H - 40, (pb, w, h) => {
       // ladera urbana
       const gy = (x) => 200 - Math.max(0, x - 280) * 0.05 + Math.sin(x * 0.03) * 3;
-      for (let x = 260; x < w; x++) for (let y = Math.round(gy(x)); y < h; y++) {
-        const t = (y - gy(x)) / 50; V.put(pb, x, y, V.P32(RAMP.sandR)[clamp(Math.round(4 - t * 3 + (hash2(x >> 1, y >> 1, 3) - 0.5) * 1.4), 0, 5)]);
+      // (FIXUI SU-10) la ladera ya no termina en un corte vertical: baja en playa hasta el agua, con
+      // arena mojada bajo la línea de agua y espuma; y detrás de la primera fila hay una terraza con muro
+      // de contención (cara de piedra en bandas) sobre la que se apoyan las casas de atrás.
+      const WL = Math.round(gy(262)) + 3, SAND = V.P32(RAMP.sandR), WET = U('#a8865a'), FOAM = [U('#e6fdff'), U('#c6fff2')];
+      const beachTop = (x) => (x >= 292 ? gy(x) : gy(x) + (292 - x) * 0.62);
+      // orilla en diagonal: bajo la línea de agua el mar ocupa el triángulo inferior izquierdo (más cerca, más mar)
+      const shoreX = (y) => 238 + (y - WL) * 1.15;
+      for (let x = 236; x < w; x++) {
+        const top = Math.round(beachTop(x));
+        for (let y = top; y < h; y++) {
+          const sx = y > WL ? shoreX(y) : -1;
+          if (x < sx) continue;
+          const t = (y - top) / 50;
+          let c = SAND[clamp(Math.round(4 - t * 3 + (hash2(x >> 1, y >> 1, 3) - 0.5) * 1.4), 0, 5)];
+          if (sx >= 0 && x < sx + 2) c = hash2(x, y >> 1, 7) > 0.3 ? FOAM[(x + y) & 1] : FOAM[1];
+          else if (sx >= 0 && x < sx + 5) c = WET;
+          else if (y >= WL - 1 && y <= WL && x < 296) c = hash2(x >> 1, y, 7) > 0.35 ? FOAM[0] : WET;
+          V.put(pb, x, y, c);
+        }
+        if (top < WL - 1 && x < 296) V.put(pb, x, top, U('#fde8a8'));
       }
-      for (let x = 254; x < 266; x++) for (let y = Math.round(gy(266)); y < h; y++) V.put(pb, x, y, V.P32(RAMP.rockR)[clamp(1 + (x - 254) >> 1, 0, 6)]);
+      const STONE = ['#6a4a3a', '#8a6a52', '#b08a68', '#d2ae86', '#ead2aa'].map(U), MORTAR = U('#4a3028');
+      for (let x = 272; x < w; x++) {
+        const g0 = Math.round(gy(x)), yT = g0 - 37;
+        for (let y = yT; y < g0; y++) {
+          const by = y - yT;
+          let c;
+          if (by === 0) c = STONE[4];
+          else if (by < 3) c = SAND[4 + (hash2(x >> 1, y, 5) > 0.7 ? 1 : 0)];
+          else if (x < 276) c = STONE[x - 272 < 2 ? 1 : 0];
+          else {
+            const row = Math.floor((by - 3) / 4), bx = (x + (row % 2) * 3) % 7;
+            c = (by - 3) % 4 === 3 || bx === 0 ? MORTAR : STONE[clamp(1 + Math.floor(hash2(Math.floor((x + (row % 2) * 3) / 7), row, 9) * 3) - (by > 26 ? 1 : 0), 0, 4)];
+          }
+          V.put(pb, x, y, c);
+        }
+        // escalera que sube a la terraza
+        if (x >= 318 && x < 334) for (let k = 0; k < 9; k++) { const sx = 318 + k * 2, sy = g0 - 4 - k * 4; if (x >= sx && x < sx + 6) for (let y = sy; y < sy + 4 && y < g0; y++) V.put(pb, x, y, y === sy ? STONE[4] : STONE[2]); }
+      }
       V.hillTown(pb, {
         x0: 270, x1: w, seed: 61, k: 0,
         rows: [
