@@ -435,74 +435,157 @@ LEVELS[10] = {
   checkpoints: { field: { x: 1240, y: 288 }, core: { x: 2860, y: 288 } },
   ground: [[0, 288], [420, 288], [460, 284], [860, 284], [900, 288], [1240, 288], [1270, 292], [1580, 292], [1610, 286], [2140, 286], [2170, 288], [2480, 288], [2510, 284], [2840, 284], [2870, 288], [3400, 288]],
   terrain: [{ x0: 0, x1: 460, mat: 'plaza' }, { x0: 460, x1: 1240, mat: 'metal' }, { x0: 1240, x1: 1600, mat: 'stone' }, { x0: 1600, x1: 2160, mat: 'sand' }, { x0: 2160, x1: 2500, mat: 'metal' }, { x0: 2500, x1: 2860, mat: 'soil' }, { x0: 2860, x1: 3400, mat: 'tile' }],
-  platforms: [{ x: 1180, y: 236, w: 50, type: 'metal' }, { x: 2050, y: 230, w: 60, type: 'metal' }],
+  platforms: [{ x: 1180, y: 236, w: 50, type: 'metal', baked: true, look: 'grate' }, { x: 2050, y: 230, w: 60, type: 'metal', baked: true, look: 'none' }],
   wind: [
     { x: 1700, y: 120, w: 160, h: 200, fx: -55, fy: 0 },
     { x: 1940, y: 120, w: 160, h: 200, fx: -70, fy: 0 },
     { x: 2900, y: 120, w: 120, h: 200, fx: -45, fy: 0 },
   ],
   cam: { look: 60, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
+  /* ---------------- plano jugable con kit PF (B) ----------------
+     La ciudad bajo la Calima: calle empedrada con bordillo → losa y galería de agua de mar (captación)
+     → epoxi y zanja de permeado/salmuera (nave de OI) → hormigón y escollera (laguna de salmuera) →
+     arena y arenisca (campo FV, eólica y baterías) → chapa y galería de H₂ → bancales de piedra seca
+     con canal (vivero y banco de semillas) → plaza y escalinata del núcleo. Línea de paso intacta. */
+  pf: {
+    kitB: true,
+    terrain: [
+      { x0: 0, x1: 460, surf: 'street', face: 'curb', depth: 18, dust: '#d8a060', drains: true },
+      { x0: 460, x1: 876, surf: 'tile', face: 'gallery', depth: 18, ramp: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8'], pipes: [[13, 3, 'sea'], [23, 2, 'sea'], [32, 3, 'pre']], bay: 70 },
+      { x0: 876, x1: 1250, surf: 'epoxy', face: 'trench', depth: 18, tw: 92, pipes: [[6, 2, 'perm'], [13, 3, 'brineB'], [20, 2, 'perm']], ramp: ['#1c1a16', '#2a2620', '#3a342a', '#4a4236', '#5a5242', '#6c6450', '#7e7660', '#928a72', '#a8a088', '#c0b8a0'] },
+      { x0: 1250, x1: 1600, surf: 'street', face: 'concrete', depth: 18, faceH: 20, dust: '#d8a060', ramp: ['#2a1a14', '#3e2a22', '#56402f', '#6e5440', '#886a52', '#a28466', '#ba9e7e', '#d2b896', '#e8d2b2'] },
+      { x0: 1600, x1: 2160, surf: 'sand', face: 'sandstone', depth: 18, strata: true },
+      { x0: 2160, x1: 2500, surf: 'metal', face: 'gallery', depth: 18, pipes: [[13, 3, 'h2'], [23, 2, 'power'], [32, 3, 'h2']], bay: 60 },
+      { x0: 2500, x1: 2860, surf: 'path', face: 'terrace', depth: 18, falls: [2560, 2760], roots: [2600, 2700], tiers: [{ wall: 16, top: 10, channel: true, crop: 'lettuce' }, { wall: 14, top: 9, crop: 'bean' }] },
+      { x0: 2860, x1: 3400, surf: 'tile', face: 'steps', depth: 18, steps: 4, stepH: 7, ramp: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8'], refl: [{ x: 3080, w: 26, col: '#56e5ff', k: 0.2 }] },
+    ],
+    fg: [
+      { kind: 'clump', x: -24, w: 140, h: 90, seed: 101, spikes: 4, leaves: 11 },
+      { kind: 'cables', x: 330, y: 0, w: 320, h: 42, seed: 103, n: 4, cols: ['#140804', '#24120a', '#341c10'] },
+      { kind: 'rail', x: 980, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
+      { kind: 'reeds', x: 1660, w: 130, h: 86, seed: 105, ramp: ['#0a0604', '#140c08', '#22160c', '#302010', '#402c16', '#56401e'] },
+      { kind: 'clump', x: 2380, w: 120, h: 76, seed: 107, spikes: 5, leaves: 9 },
+      { kind: 'cables', x: 2700, y: 0, w: 300, h: 40, seed: 109, n: 3, cols: ['#140804', '#24120a', '#341c10'] },
+      { kind: 'dark', x: 3260, w: 120, h: 70, seed: 111, leaves: 9 },
+      { kind: 'rail', x: 3700, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
+      { kind: 'clump', x: 4280, w: 150, h: 92, seed: 113, spikes: 6, leaves: 12 },
+    ],
+  },
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 540, y: 222, title: 'CAPTACIÓN', sub: (sc) => fmt0(sc.state.ntu ?? 0) + ' NTU · ' + (sc.state.cards && sc.state.cards.toma ? (sc.state.ntu > 60 ? 'TOMA CERRADA' : sc.state.ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA'), kind: 'water', ax: 540, ay: 256 },
+    { x: 720, y: 176, title: 'FILTROS DE ARENA', sub: 'Retienen la arena del agua', kind: 'water', ax: 720, ay: 196 },
+    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 150 },
+    { x: 1214, y: 152, title: 'AGUA POTABLE', sub: (sc) => fmt0(sc.state.tank ?? 0) + ' m³ · mínimo 300', kind: 'water', ax: 1210, ay: 170 },
+    { x: 1392, y: 222, title: 'LAGUNA DE SALMUERA', sub: (sc) => (sc.state.cards && sc.state.cards.salmuera && sc.state.tideBad) ? 'Retiene: marea desfavorable' : 'Retención de 900 m³', kind: 'brine', ax: 1392, ay: 252 },
+    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246 },
+    { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
+    { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
+    { x: 2262, y: 162, title: 'ELECTROLIZADOR 300 kW', sub: (sc) => (sc.state.cards && sc.state.cards.h2) ? 'Solo con excedente' : 'Consumo fijo: no se adapta', kind: 'green', ax: 2262, ay: 196 },
+    { x: 2560, y: 168, title: 'VIVERO', sub: 'Riego crítico 10 m³/h', kind: 'green', ax: 2552, ay: 190 },
+    { x: 2754, y: 128, title: 'BANCO DE SEMILLAS', sub: 'Lo que el modelo no veía', kind: 'green', ax: 2754, ay: 146 },
+  ],
+  /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
+    const t0 = nowMs();
     const gy = (x) => world.groundAt(x);
-    // borde de la ciudad: casas con persianas cerradas, puesto del festival con banderines rotos
-    for (let k = 0; k < 4; k++) { const x = 10 + k * 46; ART.house(pb, x, gy(x), 40, 44 + (k % 2) * 10, 70 + k, { pal: HOUSE_COLS[k % HOUSE_COLS.length].map(c => mixHex(c, '#c06a30', 0.35)) }); }
-    ART.stall(pb, 200, gy(200), 44, { c1: '#ff6b6b', c2: '#ffe14d', h: 34 });
-    ART.bunting(pb, 186, gy(186) - 54, 250, gy(250) - 40, 6, ['#ff6b6b', '#20d6c7', '#ffe14d', '#86e36f'], 4);
-    // pantalla pública de MIRAGE
-    ART.bigScreen(pb, CAL_X.screen - 64, gy(CAL_X.screen), 128, 76);
-    drawSign(pb, 400, gy(400), 'RUTA DE EMERGENCIA', '#ff9f43');
-    // ---- la toma: canal de captación, rejillas y filtros de arena
-    const tx = 470;
-    pb.rect(tx, gy(tx) - 6, 140, 6, '#0d3168');
-    for (let x = tx; x < tx + 140; x += 6) pb.vline(x, gy(tx) - 26, gy(tx) - 6, '#477a94');
-    pb.hline(tx, tx + 139, gy(tx) - 26, '#98c6d2'); pb.hline(tx, tx + 139, gy(tx) - 14, '#6aa0b4');
-    for (let k = 0; k < 3; k++) ART.tank(pb, 660 + k * 44, gy(660), 34, 58, RAMP.steelW, { band: '#c06a30', label: true });
-    ART.pipe(pb, 610, gy(610) - 12, 800, gy(800) - 12, 2, 'seawater');
-    drawSign(pb, 560, gy(560) - 26, 'CAPTACIÓN', '#1283bf');
-    drawSign(pb, 726, gy(726) - 58, 'FILTROS DE ARENA', '#c06a30');
-    // ---- membranas: nave de ósmosis inversa con tres trenes
-    const rx = 880;
-    pb.rect(rx, gy(rx) - 96, 300, 96, '#1c3a5a'); pb.rect(rx, gy(rx) - 96, 300, 3, '#56e5ff'); pb.rect(rx + 296, gy(rx) - 96, 4, 96, '#0e2236');
-    for (let k = 0; k < 3; k++) ART.roRack(pb, rx + 14 + k * 92, gy(rx), 4, true, { tubeW: 60 });
-    ART.hpPump(pb, rx + 240, gy(rx) - 60);
-    ART.tank(pb, 1196, gy(1196), 40, 80, RAMP.steelW, { band: '#56e5ff', label: true, ladder: true });
-    drawSign(pb, rx + 150, gy(rx) - 96, 'ÓSMOSIS INVERSA · 3 TRENES', '#1491aa');
-    drawSign(pb, 1216, gy(1216) - 80, 'AGUA POTABLE', '#56e5ff');
-    // ---- salmuera: laguna de retención y difusor hacia el mar
-    const px = 1290, pg = gy(px);
-    pb.rect(px, pg - 20, 200, 20, '#8a7a6a'); pb.rect(px, pg - 20, 200, 2, '#c8b8a0'); pb.rect(px + 4, pg - 16, 192, 14, '#3a1a3a');
-    for (let x = px; x < px + 200; x += 10) pb.vline(x, pg - 19, pg - 1, '#6a5a4a');
-    ART.saltPile(pb, 1510, gy(1510), 26, 10);
-    ART.pipe(pb, 1180, gy(1180) - 20, 1290, gy(1290) - 22, 2, 'brine');
-    pb.rect(1520, gy(1520) - 22, 14, 22, '#621a66'); pb.rect(1520, gy(1520) - 22, 14, 2, '#f888b8');
-    drawSign(pb, 1390, gy(1390) - 20, 'LAGUNA DE RETENCIÓN 900 m³', '#bc3e92');
-    // ---- energía: FV polvorienta, turbinas y baterías
-    for (let k = 0; k < 4; k++) ART.pvRow(pb, 1620 + k * 34, gy(1620), 30, 11 + k, { soil: 0.65 });
-    for (const x of CAL_TURB) { pb.rect(x - 7, gy(x) - 4, 14, 4, '#94a6b4'); pb.rect(x - 5, gy(x) - 6, 10, 2, '#b8c6d0'); }
-    for (let k = 0; k < 2; k++) ART.batteryContainer(pb, 2010 + k * 62, gy(2010), 56, 40);
-    ART.pole(pb, 1990, gy(1990), 70); ART.cable(pb, 1990, gy(1990) - 68, 2160, gy(2160) - 70, 8);
-    drawSign(pb, 1700, gy(1700), 'FV · POLVO 65 %', '#e0b41e');
-    drawSign(pb, 2150, gy(2150), 'BATERÍAS 1 600 kWh', '#2c63c0');
-    // ---- hidrógeno: electrolizador modulable y almacenamiento
-    ART.electrolyzer(pb, 2200, gy(2200), 120, 92);
-    ART.h2tank(pb, 2340, gy(2340) - 16, 70, 12);
-    for (let x = 2190; x < 2420; x++) pb.set(x, gy(2190) + 1, ((x >> 3) & 1) ? '#ffb93b' : '#263442');
-    drawSign(pb, 2440, gy(2440), 'ELECTROLIZADOR 300 kW', '#40d0d4');
-    // ---- agroecología: casa de sombra, vivero y banco de semillas
-    ART.shadeHouse(pb, 2530, gy(2530), 120, 54);
-    const crops = ['maiz', 'frijol', 'ahuyama', 'tomate', 'aji', 'sorgo'];
-    for (let k = 0; k < 6; k++) ART.crop(pb, 2540 + k * 19, gy(2540), crops[k], 0.7, 30 + k, 0.2);
-    ART.dripLine(pb, 2536, 2650, gy(2536) - 1, 10);
-    pb.rect(2700, gy(2700) - 46, 60, 46, '#8a5e14'); pb.rect(2700, gy(2700) - 46, 60, 4, '#c8861a'); pb.rect(2722, gy(2700) - 30, 16, 30, '#5a3826');
-    for (let k = 0; k < 4; k++) pb.disc(2708 + k * 14, gy(2700) - 38, 2, ['#ffe14d', '#ff6b6b', '#86e36f', '#c8861a'][k]);
-    drawSign(pb, 2590, gy(2590) - 54, 'VIVERO', '#33a552');
-    drawSign(pb, 2730, gy(2730) - 46, 'BANCO DE SEMILLAS', '#c8861a');
-    for (let x = 2770; x < 2840; x += 12) ART.agave(pb, x, gy(x), 9);
-    // ---- núcleo de SYNARA
-    ART.synaraCore(pb, CAL_X.core - 48, gy(CAL_X.core), 170, { w: 96, sealed: true });
-    for (let k = 0; k < 2; k++) ART.bigScreen(pb, 2900 + k * 250, gy(2900), 70, 44);
-    drawSign(pb, 3000, gy(3000), 'NÚCLEO SYNARA', '#56e5ff');
+    const segs = PFBGround.surface(pb, world);
+    const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
+    const C = PFBC, E = PFBE, H2 = PFBH2, B = PFB, I = PFInfra, F = PFFlora, A = PFAgro, D = LV10;
+    for (const k of Object.keys(D)) if (Array.isArray(D[k])) D[k].length = 0;
+    const yb = (x) => back(x) + 2;
+    const lampG = (x, y, r = 9, a = 0.32) => D.glows.push({ x, y, r, col: '#ffe0a0', a, mode: 'flicker', ph: x });
+    const beacon = (x, y, col = '#ffb93b', hz = 1.2) => D.glows.push({ x, y, r: 5, col, a: 0.8, mode: 'blink', hz, ph: x, core: '#fff2b0' });
+    /* ===== 1. CIUDAD (0–460): casas cerradas, puesto, guirnaldas, pantalla de MIRAGE ===== */
+    const h1 = C.house(pb, 4, yb(40), 86, 132, { col: '#e09868', floors: 2, balcony: true, solar: true, door: ['#3a0810', '#6a1424', '#a82a26', '#c8384a', '#e0584a', '#ff7a6a', '#ffb0a0', '#ffd8c8'] });
+    const h2 = C.house(pb, 98, yb(130), 64, 108, { col: '#7ab0a8', doorX: 30, shutter: B.R.WOODG });
+    C.stall(pb, 172, yb(200), 52, { sign: 'FRUTAS' });
+    C.bunting(pb, 88, yb(88) - 118, 226, yb(226) - 84, 12, ['#ff6b6b', '#20d6c7', '#ffe14d', '#86e36f'], 0.45, 7);
+    C.bunting(pb, 160, yb(160) - 96, 236, yb(236) - 72, 8, ['#ffe14d', '#b49cff', '#ff6b6b'], 0.5, 9);
+    D.screen.push(CAL_X.screen - 60, gy(CAL_X.screen) - 104, 120, 72);
+    C.billboard(pb, D.screen[0], D.screen[1], 120, 72, 'PANTALLA PÚBLICA');
+    for (const x of [252, 348]) beacon(x - 14 + (x > 300 ? 28 : 0), D.screen[1] - 10, '#f27ee6', 0.8);
+    C.sandbags(pb, 368, yb(390), 52, 3);
+    C.routeSign(pb, 412, yb(412), 'RUTA DE EMERGENCIA', 1);
+    C.barricade(pb, 424, yb(440) + 1, 34);
+    let lp = B.lampPost(pb, 166, yb(166) + 1, 96, { dir: -1 }); lampG(lp.x, lp.y);
+    for (const x of [62, 140]) D.glows.push({ x, y: yb(x) - 50, r: 10, col: '#ffcf7a', a: 0.14, mode: 'flicker', ph: x });
+    /* ===== 2. CAPTACIÓN (460–876): canal, filtros de arena a presión, carpa de ayuda ===== */
+    I.pipe(pb, [[612, yb(700) - 12], [806, yb(700) - 12], [806, yb(806) + 1]], 2, 'sea', { flange: 30 });
+    const it = C.intake(pb, 470, 612, yb(540));
+    D.water.push(...it.water);
+    for (let k = 0; k < 3; k++) { const f = C.sandFilter(pb, 676 + k * 44, yb(676 + k * 44), 14, 58); D.filters.push(f.led); }
+    D.flows.push({ pts: [[612, yb(700) - 12], [806, yb(700) - 12]], kind: 'sea', rate: (sc) => (sc.state.cards.toma && sc.state.ntu > 60) ? 0 : 1 });
+    C.tent(pb, 816, yb(840), 52, 50);
+    C.sandbags(pb, 470, yb(470) + 2, 34, 2);
+    lp = B.lampPost(pb, 640, yb(640) + 1, 96, { dir: 1 }); lampG(lp.x, lp.y);
+    /* ===== 3. NAVE DE OI (876–1250): tres trenes, depósito de agua potable con mirilla de nivel ===== */
+    const hall = H2.withTheme('day', () => {
+      const sh = H2.shed(pb, 876, 1172, yb(1000), 150, [878, 1022, 1164], 'ÓSMOSIS INVERSA · 3 TRENES');
+      for (let k = 0; k < 3; k++) { const rx = 892 + k * 92; const ro = H2.roRack(pb, rx, yb(rx), 72); D.trains.push([rx + 36, yb(rx) - 78]); D.screens.push({ x: ro.hmi[0], y: ro.hmi[1], w: ro.hmi[2], h: ro.hmi[3], kind: 'bars', col: '#48dcf4' }); }
+      return sh;
+    });
+    for (const [x, y] of hall.lamps) { D.glows.push({ x, y: y + 2, r: 11, col: '#fff2d0', a: 0.24, mode: 'steady' }); D.cones.push([x, y, 10, 52, yb(x) + 6 - y]); }
+    D.hall.push(876, 150, 296, yb(1000) - 150);
+    // depósito de agua potable (la lámina viva sube por la mirilla)
+    const tx = 1206, tyb = yb(tx);
+    I.box3q(pb, tx - 30, tyb, 61, 6, 14, { ramp: H2.THEMES.day.CONC });
+    I.cylV(pb, tx, tyb - 11, 24, 92, { ramp: ['#2a1e1c', '#4a3630', '#7a6050', '#a68a74', '#ccb49a', '#ead8c0', '#faf0e0', '#ffffff'], band: ['#0c2e4a', '#106a8a', '#1ebde3', '#48d4f0', '#6de1f1', '#d0f4f8'], bands: [{ y: 12, h: 3 }, { y: 80, h: 3 }], dome: 0.4, ladder: true });
+    B.rect(pb, tx - 15, tyb - 92, 6, 76, U('#0a1a2a')); B.rect(pb, tx - 16, tyb - 93, 8, 1, U('#d2c8be')); B.rect(pb, tx - 16, tyb - 16, 8, 1, U('#d2c8be'));
+    for (let k = 1; k < 4; k++) B.rect(pb, tx - 9, tyb - 16 - k * 19, 3, 1, U('#d2c8be'));
+    B.rect(pb, tx - 9, tyb - 16 - 19, 4, 1, U('#ff6a50')); // marca del mínimo (300 m³)
+    D.tankGauge.push(tx - 14, tyb - 16, 4, 75);
+    B.plaque(pb, tx + 4, tyb - 70, 'AGUA', { center: true, bg: '#06203a', border: '#6ae2f8', col: '#f4fbff', h: 9, screws: false });
+    E.dust(pb, tx - 26, tyb - 112, 54, 100, C.DUST, 0.12, tx);
+    // permeado al depósito y salmuera a la laguna
+    I.pipe(pb, [[1150, yb(1150) - 32], [1182, yb(1150) - 32]], 2, 'perm', { flange: 0 });
+    I.pipe(pb, [[1150, yb(1150) - 20], [1240, yb(1150) - 20], [1240, yb(1296) - 18], [1298, yb(1296) - 18]], 2, 'brineB', { flange: 26 });
+    D.flows.push({ pts: [[1150, yb(1150) - 32], [1182, yb(1150) - 32]], kind: 'perm', rate: (sc) => lv10Trains(sc.state) ? 1 : 0 }, { pts: [[1240, yb(1150) - 20], [1240, yb(1296) - 18], [1298, yb(1296) - 18]], kind: 'brineB', rate: (sc) => sc.state.cards.membranas ? 0.6 : 1 });
+    /* ===== 4. LAGUNA DE SALMUERA (1250–1600) ===== */
+    const lg = C.lagoon(pb, 1290, 1494, yb(1390), 26);
+    D.lagoon.push(lg.x0, lg.x1, lg.far, lg.lip);
+    C.saltPile(pb, 1514, yb(1514), 30, 14);
+    const dh = C.diffuserHut(pb, 1532, yb(1532));
+    D.valve.push(1550, yb(1532) - 28);
+    lampG(dh.lamp[0], dh.lamp[1], 7, 0.25);
+    C.routeSign(pb, 1588, yb(1588), 'COSTA', 1);
+    /* ===== 5. ENERGÍA (1600–2160): FV con polvo, aerogeneradores, baterías ===== */
+    for (const x of [1612, 1682, 1790, 1862]) E.pvTable(pb, x, yb(x), 60, { soil: 0.65, depth: 18 });
+    for (const x of CAL_TURB) { const T = E.turbineTower(pb, x, yb(x), 118, { r: 40 }); D.turbines.push({ hub: T.hub, r: T.r, x }); beacon(T.hub[0] + 6, T.hub[1] - 6, '#ff6a50', 0.6); }
+    const b1 = E.container(pb, 1996, yb(2020), 50, 40, 14, { dust: C.DUST, soil: 0.3, label: 'BESS' });
+    const b2 = E.container(pb, 2050, yb(2080), 60, yb(2080) - 233, 14, { dust: C.DUST, soil: 0.3, label: 'BESS 2' });
+    for (const b of [b1, b2]) { D.soc.push(b.soc); for (const L of b.leds) D.leds.push({ x: L[0], y: L[1], col: L[2], hz: 0.8, ph: L[0] }); }
+    // escalerilla lateral del contenedor 2 (su techo es la plataforma de servicio)
+    for (let yy = 232; yy < yb(2112); yy++) { PFK.put(pb, 2114, yy, U('#d2c8be')); PFK.put(pb, 2120, yy, U('#786a64')); if (yy % 5 === 0) for (let k = 2114; k <= 2120; k++) PFK.put(pb, k, yy, U('#b6aaa0')); }
+    const pl = E.pole(pb, 2138, yb(2138), 86);
+    E.line(pb, pl.tops[0][0], pl.tops[0][1], 1966, 120, 10); E.line(pb, pl.tops[2][0], pl.tops[2][1], 2400, 150, 8);
+    C.barricade(pb, 1722, yb(1722) + 1, 30);
+    /* ===== 6. HIDRÓGENO (2160–2500): electrolizador modulable y depósito ===== */
+    const st = H2.withTheme('day', () => H2.stackPEM(pb, 2196, yb(2260), 0));
+    D.stack.push(st);
+    C.bullet(pb, 2344, 2448, yb(2400), 13, { label: 'H₂' });
+    I.pipe(pb, [[st.h2Out[0], st.h2Out[1] + 6], [st.h2Out[0], 196], [2396, 196], [2396, yb(2400) - 30]], 2, 'h2', { flange: 30 });
+    D.flows.push({ pts: [[st.h2Out[0], st.h2Out[1] + 6], [st.h2Out[0], 196], [2396, 196], [2396, yb(2400) - 30]], kind: 'h2', rate: (sc) => lv10H2Rate(sc.state) > 0 ? 1 : 0 });
+    E.dust(pb, 2188, 150, 150, yb(2260) - 150, C.DUST, 0.12, 2196);
+    lp = B.lampPost(pb, 2470, yb(2470) + 1, 96, { dir: -1 }); lampG(lp.x, lp.y);
+    C.sandbags(pb, 2448, yb(2460) + 2, 40, 2);
+    /* ===== 7. VIVERO Y BANCO DE SEMILLAS (2500–2860) ===== */
+    A.shadeHouse(pb, 2508, yb(2540), 84, 64, 16);
+    const bed = A.bed(pb, 2604, 2684, yb(2640) + 1, { crops: ['maiz', 'frijol', 'tomate'], depth: 16, board: 9, rows: 2, seed: 41, growth: 0.8, stress: 0.25 });
+    D.drips.push(...bed.drips);
+    A.seedBank(pb, 2694, yb(2750), 118, 122, 20);
+    for (let x = 2822; x < 2856; x += 11) F.agave(pb, x, yb(x) - 2, 8 + (x % 3), x);
+    E.dust(pb, 2500, 120, 360, yb(2700) - 118, C.DUST, 0.1, 2500);
+    /* ===== 8. NÚCLEO SYNARA (2860–3400) ===== */
+    const s1 = C.screenStand(pb, 2900, yb(2930), 66, 40), s2 = C.screenStand(pb, 3188, yb(3220), 66, 40);
+    D.coreScr.push(s1.scr, s2.scr);
+    const core = C.synaraCore(pb, CAL_X.core, yb(CAL_X.core), 176, 124);
+    D.core.push(core);
+    for (const [x, y] of core.beacons) beacon(x, y, '#f27ee6', 0.5);
+    for (const x of [2880, 3290, 3380]) { lp = B.lampPost(pb, x, yb(x) + 1, 96, { dir: x > 3000 ? -1 : 1 }); lampG(lp.x, lp.y); }
+    C.routeSign(pb, 3340, yb(3340), 'SALIDA', 1);
+    { const all = LV10.flows.splice(0); for (const r of all) LV10.flows.push(...PFB.chunkFlow(r)); }
+    LEVELS[10]._propsMs = Math.round(nowMs() - t0);
   },
   /* ---------------- dinámico ---------------- */
   /* ---------------- cielo: publica el estado de la tormenta para el panorama ---------------- */
@@ -524,10 +607,14 @@ LEVELS[10] = {
     }
   },
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, gyw = (x) => sc.world.groundAt(x) - oy;
-    const ntu = S.ntu ?? 60, storm = 1 - (S.clearK || 0);
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV10;
+    const ntu = S.ntu ?? 60;
+    // conos de luz de la nave de OI
+    g.globalCompositeOperation = 'lighter';
+    for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#fff0c8', 0.14), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
+    g.globalCompositeOperation = 'source-over';
     // pantalla de MIRAGE: la falsa elección (o MOSAICO con capas al final)
-    { const x = CAL_X.screen - 60 - ox, y = gyw(CAL_X.screen) - 104; if (x > -140 && x < W + 20) {
+    if (D.screen.length) { const x = D.screen[0] - ox, y = D.screen[1] - oy; if (x > -140 && x < W + 20) {
       frect(g, x, y, 120, 72, '#1d0b3a');
       if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a', '#b49cff']; for (let i = 0; i < 7; i++) VISTA.veil(g, x + 4, y + 6 + i * 8, 112, 6, cols[i], 0.55); drawText(g, 'ALTERNATIVAS: 4', x + 60, y + 30, { font: 'tiny', align: 'center', color: '#fffaf0', shadow: '#06100a' }); }
       else {
@@ -538,56 +625,54 @@ LEVELS[10] = {
       VISTA.veil(g, x, y, 120, 72, '#ffffff', 0.04 + 0.03 * Math.sin(t * 9));
     } }
     // canal de captación: el color sigue a la turbidez
-    { const x = 470 - ox, y = gyw(470) - 6; if (x > -160 && x < W + 20) {
+    if (D.water.length) { const [wx, wy, ww, wh] = D.water, x = wx - ox; if (x > -ww && x < W) {
       const col = mixHex('#1283bf', '#a8742c', clamp(ntu / 90, 0, 1));
-      frect(g, x, y, 140, 5, col); for (let i = 0; i < 14; i++) fpx(g, x + ((i * 11 + t * 30) % 140), y + 1 + (i % 3), mixHex(col, '#ffffff', 0.4));
-      // luces de los filtros
-      for (let k = 0; k < 3; k++) { const fx = 660 + k * 44 - ox + 14, fy = gyw(660) - 50; const c = S.cards.toma ? (ntu > 60 ? '#ff4e5d' : ntu > 20 ? '#ffb93b' : '#86e36f') : ((Math.floor(t * 3) + k) % 2 ? '#ff4e5d' : '#6a1414'); frect(g, fx, fy, 5, 3, c); }
-      const mode = S.cards.toma ? (ntu > 60 ? 'TOMA CERRADA' : ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA';
-      frect(g, 650 - ox, gyw(650) - 104, 112, 11, '#05081d'); drawText(g, fmt0(ntu) + ' NTU · ' + mode, 706 - ox, gyw(650) - 102, { font: 'tiny', align: 'center', color: S.cards.toma ? '#ffe14d' : '#ff9a8a' });
-      VISTA.flowClip(g, [[610 - ox, gyw(610) - 12], [800 - ox, gyw(800) - 12]], 'seawater', S.cards.toma && ntu > 60 ? 0 : 1, 2);
+      frect(g, x, wy - oy, ww, wh, col); frect(g, x, wy - oy, ww, 1, mixHex(col, '#ffffff', 0.35));
+      for (let i = 0; i < 16; i++) fpx(g, x + ((i * 11 + t * 30) % ww), wy - oy + 2 + (i % 3) * 2, mixHex(col, '#ffffff', 0.4));
     } }
-    // trenes de OI: luces por tren y permeado hacia el tanque
-    { const x0 = 880 - ox; if (x0 > -320 && x0 < W + 20) {
-      const on = S.cards.membranas ? (ntu > 60 && S.cards.toma ? 0 : 3) : 3;
-      for (let k = 0; k < 3; k++) { const lx = 880 + 14 + k * 92 - ox, ly = gyw(880) - 62; frect(g, lx + 30, ly, 10, 3, k < on ? (S.cards.membranas ? '#86e36f' : '#ffb93b') : '#3a3a4a'); }
-      VISTA.flowClip(g, [[1150 - ox, gyw(1150) - 30], [1196 - ox, gyw(1196) - 30]], 'permeate', on ? 1 : 0, 2);
-      if (!S.cards.membranas) { VISTA.veil(g, 880 - ox, gyw(880) - 96, 300, 96, '#a8742c', 0.08 + 0.04 * Math.sin(t * 4)); }
-      const lvl = clamp(S.tank / CalimaModel.TANK_CAP, 0, 1), tx = 1196 - ox + 4, ty = gyw(1196) - 6;
-      frect(g, tx, ty - Math.round(70 * lvl), 32, Math.round(70 * lvl), '#22bdd0'); VISTA.veil(g, tx, ty - Math.round(70 * lvl), 32, 3, '#a6f4ff', 0.6);
-      drawText(g, fmt0(S.tank) + ' m³', 1216 - ox, gyw(1196) - 96, { font: 'tiny', align: 'center', color: '#a6f4ff' });
+    // luces de los filtros
+    for (let k = 0; k < D.filters.length; k++) { const [fx, fy] = D.filters[k]; if (fx - ox < -10 || fx - ox > W + 10) continue; const c = S.cards.toma ? (ntu > 60 ? '#ff4e5d' : ntu > 20 ? '#ffb93b' : '#86e36f') : ((Math.floor(t * 3) + k) % 2 ? '#ff4e5d' : '#6a1414'); frect(g, fx - ox - 2, fy - oy, 5, 3, c); PFK.drawGlow(g, fx - ox, fy - oy + 1, 5, c, 0.4); }
+    PFInfra.drawFlows(g, sc, D.flows);
+    // trenes de OI: luz por tren; velo de ensuciamiento si nadie protege las membranas
+    { const on = lv10Trains(S); D.trains.forEach(([lx, ly], k) => { const x = lx - ox; if (x < -10 || x > W + 10) return; const c = k < on ? (S.cards.membranas ? '#86e36f' : '#ffb93b') : '#3a3a4a'; frect(g, x - 4, ly - oy, 9, 3, c); if (k < on) PFK.drawGlow(g, x, ly - oy + 1, 6, c, 0.4); });
+      if (!S.cards.membranas && D.hall.length) { const [hx, hy, hw, hh] = D.hall; if (hx + hw > ox && hx < ox + W) VISTA.veil(g, hx - ox, hy - oy, hw, hh, '#a8742c', 0.08 + 0.04 * Math.sin(t * 4)); } }
+    // depósito de agua potable: nivel en la mirilla
+    if (D.tankGauge.length) { const [gx, gb, gw, gh] = D.tankGauge, x = gx - ox; if (x > -10 && x < W + 10) { const lvl = clamp(S.tank / CalimaModel.TANK_CAP, 0, 1), hh = Math.round(gh * lvl); frect(g, x, gb - hh - oy, gw, hh, S.tank < 300 ? '#ff6b6b' : '#22bdd0'); frect(g, x, gb - hh - oy, gw, 1, '#a6f4ff'); } }
+    // laguna de retención: la lámina sube por el talud
+    if (D.lagoon.length) { const [x0, x1, far, lip] = D.lagoon; if (x1 - ox > 0 && x0 - ox < W) {
+      const k = clamp(S.pond / CalimaModel.POND, 0, 1), wl = Math.round(lerp(lip - 3, far + 3, 0.12 + 0.88 * k));
+      frect(g, x0 - ox, wl - oy, x1 - x0, lip - wl, '#3a1240'); VISTA.veil(g, x0 - ox, wl - oy + 2, x1 - x0, Math.max(0, lip - wl - 2), '#bc3e92', 0.35);
+      frect(g, x0 - ox, wl - oy, x1 - x0, 1, '#f888b8');
+      g.fillStyle = '#ffd8ec'; for (let i = 0; i < 12; i++) g.fillRect(Math.round(x0 - ox + ((i * 19 + t * 12) % (x1 - x0))), Math.round(wl - oy + 2 + (i % 3) * 2), 2, 1);
     } }
-    // laguna de retención y válvula del difusor
-    { const x = 1294 - ox, y = gyw(1294) - 2; if (x > -220 && x < W + 20) {
-      const k = clamp(S.pond / CalimaModel.POND, 0, 1), lh = Math.max(1, Math.round(13 * (0.15 + 0.85 * k)));
-      frect(g, x, y - lh, 192, lh, '#bc3e92'); frect(g, x, y - lh, 192, 1, '#f888b8'); VISTA.veil(g, x, y - lh + 1, 192, lh - 1, '#621a66', 0.4);
-      for (let i = 0; i < 10; i++) fpx(g, x + ((i * 19 + t * 12) % 192), y - lh + (i % 2), '#ffd8ec');
-      const hold = S.cards.salmuera && S.tideBad;
-      const vx = 1520 - ox, vy = gyw(1520) - 16;
-      frect(g, vx + 3, vy, 8, 6, hold ? '#ff4e5d' : '#86e36f');
-      drawText(g, hold ? 'RETENIENDO' : 'DIFUSOR', vx + 7, vy - 10, { font: 'tiny', align: 'center', color: hold ? '#ff9a8a' : '#c2f58e' });
-      VISTA.flowClip(g, [[1180 - ox, gyw(1180) - 20], [1290 - ox, gyw(1290) - 22]], 'brine', S.cards.membranas ? 0.6 : 1, 2);
-    } }
-    // turbinas con ráfagas y corte por velocidad
-    for (const x of CAL_TURB) { const sx = x - ox; if (sx < -80 || sx > W + 80) continue; const gust = S.gust > 0.75; ART.turbine(g, sx, gyw(x), 70, S.rotor + x * 0.01, { stopped: gust && !S.clearK }); }
+    if (D.valve.length) { const hold = S.cards.salmuera && S.tideBad, [vx, vy] = D.valve, x = vx - ox; if (x > -10 && x < W + 10) { const c = hold ? '#ff4e5d' : '#86e36f'; frect(g, x - 3, vy - oy, 7, 4, c); PFK.drawGlow(g, x, vy - oy + 2, 6, c, 0.45); } }
+    // aerogeneradores: frenan con las ráfagas (corte por velocidad)
+    for (const T of D.turbines) { const sx = T.hub[0] - ox; if (sx < -60 || sx > W + 60) continue; PFBE.drawRotor(g, sx, T.hub[1] - oy, T.r, S.rotor + T.x * 0.01, { stopped: S.gust > 0.75 && !S.clearK }); }
     // baterías: tiras de SOC
-    for (let k = 0; k < 2; k++) { const x = 2010 + k * 62 - ox; if (x < -70 || x > W) continue; drawSOCStrip(g, x + 20, gyw(2010) - 34, 30, S.soc, t, S.socTrend || 0); }
-    // electrolizador: burbujas según modo
-    { const x = 2200 - ox; if (x > -140 && x < W + 20) {
-      const rate = S.transformed ? 1 : S.cards.h2 ? (S.gust > 0.75 ? 0 : 0.4) : 1.4;
-      drawGasBubbles(g, x + 10, gyw(2200) - 8, 56, 40, t, rate);
-      frect(g, x + 8, gyw(2200) - 74, 4, 3, S.cards.h2 ? '#86e36f' : ((Math.floor(t * 4) % 2) ? '#ffb93b' : '#6a3e0e'));
-      drawText(g, S.cards.h2 ? 'SOLO EXCEDENTE' : '300 kW FIJOS', x + 60, gyw(2200) - 96, { font: 'tiny', align: 'center', color: S.cards.h2 ? '#c2f58e' : '#ff9a8a', shadow: '#2a0e0a' });
+    for (const [x, y, w] of D.soc) { if (x - ox < -40 || x - ox > W) continue; drawSOCStrip(g, x - ox, y - oy, w, S.soc, t, S.socTrend || 0); }
+    // electrolizador: burbujas según el modo
+    if (D.stack.length) { const st = D.stack[0]; if (st.cells[0] - ox > -160 && st.cells[0] - ox < W + 20) {
+      const rate = lv10H2Rate(S);
+      drawGasBubbles(g, st.sepH[0] - ox, st.sepH[1] + st.sepH[3] - oy, 3, st.sepH[3] - 2, t, Math.min(1, rate), '#d4ffe6');
+      drawGasBubbles(g, st.sepO[0] - ox, st.sepO[1] + st.sepO[3] - oy, 3, st.sepO[3] - 2, t * 0.8, Math.min(1, rate * 0.6), '#e8f0ff');
+      const c = S.cards.h2 ? '#86e36f' : ((Math.floor(t * 4) % 2) ? '#ffb93b' : '#6a3e0e'), L = S.cards.h2 ? st.led : st.ledAmb;
+      frect(g, L[0] - 2 - ox, L[1] - 1 - oy, 5, 3, c); PFK.drawGlow(g, L[0] - ox, L[1] - oy, 6, c, 0.5);
     } }
-    // goteo del vivero y cortavientos
-    { const x = 2536 - ox; if (x > -140 && x < W + 20) { drawDrips(g, x, x + 114, gyw(2536) - 1, t, S.cards.agro || S.clearK > 0, 10); if (S.cards.agro) { for (let k = 0; k < 6; k++) VISTA.veil(g, x - 6 + k * 2, gyw(2536) - 34, 1, 34, '#c8861a', 0.6); } } }
+    // goteo del vivero (solo con plan de riego o al despejar) y cortavientos
+    if (S.cards.agro || S.clearK > 0) { g.fillStyle = '#9cf0f8'; for (const [x0, x1, y] of D.drips) { if (x1 - ox < 0 || x0 - ox > W) continue; for (let x = x0, i = 0; x < x1; x += 10, i++) { const ph = (t * 1.1 + i * 0.37) % 1; if (ph < 0.5) g.fillRect(Math.round(x - ox), Math.round(y - oy + ph * 4), 1, 1 + (ph > 0.3 ? 1 : 0)); } } }
+    if (S.cards.agro) { const x = 2594 - ox; if (x > -20 && x < W) { for (let k = 0; k < 8; k++) VISTA.veil(g, x + k * 2, 214 - oy, 1, 54, '#3a2a18', 0.7); frect(g, x - 1, 212 - oy, 18, 2, '#8a5a2e'); } }
     // pantallas del núcleo: optimización opaca de MIRAGE → capas de MOSAICO
-    for (let k = 0; k < 2; k++) { const x = 2902 + k * 250 - ox, y = gyw(2900) - 72; if (x < -80 || x > W + 10) continue;
-      if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#f78acb', '#b49cff']; for (let i = 0; i < 5; i++) frect(g, x + 2, y + 2 + i * 8, 20 + ((i * 13 + k * 7) % 40), 6, cols[i]); drawText(g, k ? 'ESCENARIOS: 3' : 'INCERT.: VISIBLE', x + 33, y + 34, { font: 'tiny', align: 'center', color: '#fffaf0' }); }
-      else { for (let i = 0; i < 5; i++) frect(g, x + 2, y + 2 + i * 8, 10 + ((i * 17 + Math.floor(t * 4) + k * 5) % 50), 4, i === 0 ? '#ffd0e8' : '#f27ee6'); drawText(g, k ? 'H2: MÁXIMO' : 'ÍNDICE: 100', x + 33, y + 34, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
-    }
+    D.coreScr.forEach(([sx, sy], k) => { const x = sx - ox, y = sy - oy; if (x < -80 || x > W + 10) return;
+      if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#f78acb', '#b49cff']; for (let i = 0; i < 5; i++) frect(g, x + 2, y + 2 + i * 7, 20 + ((i * 13 + k * 7) % 40), 5, cols[i]); drawText(g, k ? 'ESCENARIOS: 3' : 'INCERT.: VISIBLE', x + 33, y + 31, { font: 'tiny', align: 'center', color: '#fffaf0' }); }
+      else { for (let i = 0; i < 4; i++) frect(g, x + 2, y + 3 + i * 7, 10 + ((i * 17 + Math.floor(t * 4) + k * 5) % 50), 4, i === 0 ? '#ffd0e8' : '#f27ee6'); drawText(g, k ? 'H2: MÁXIMO' : 'ÍNDICE: 100', x + 33, y + 31, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
+    });
+    // puerta del núcleo: juntas magenta (MIRAGE) → verdes (MOSAICO)
+    if (D.core.length) { const c = D.core[0], [dcx, dy, dw, dh] = c.door, x = dcx - ox; if (x > -60 && x < W + 60) { const col = S.transformed ? '#86e36f' : S.coreOpen ? '#56e5ff' : '#f27ee6', a = 0.55 + 0.25 * Math.sin(t * 3); g.globalAlpha = a; frect(g, x, dy - oy, 1, dh, col); frect(g, x - dw / 2, dy - oy, dw, 1, col); frect(g, x - dw / 2, dy - oy + Math.round(dh * 0.5), dw, 1, col); g.globalAlpha = 1; PFK.drawGlow(g, x, dy - oy + dh * 0.5, 14, col, 0.25); } }
+    PFInfra.drawLeds(g, sc, D.leds);
+    PFB.screens(g, sc, D.screens);
+    PFB.glows(g, sc, D.glows);
     // núcleo: holograma de MIRAGE / MOSAICO y flujo de datos de KIRU
-    { const x = CAL_X.core - ox, y = gyw(CAL_X.core) - 120; if (x > -200 && x < W + 200) {
+    { const x = CAL_X.core - ox, y = sc.world.groundAt(CAL_X.core) - oy - 120; if (x > -200 && x < W + 200) {
       if (S.dataFlow > 0 && sc.kiru) { const kx = sc.kiru.x - ox, ky = sc.kiru.y - oy - 20; for (let i = 0; i < 10; i++) { const u = ((t * 0.8 + i / 10) % 1); fdisc(g, lerp(kx, x, u), lerp(ky, y + 40, u) - Math.sin(u * Math.PI) * 30, 2, '#b49cff'); } }
       if (S.transformed) { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff']; for (let i = 0; i < 7; i++) { const yy = y - 40 + i * 9 + Math.sin(t * 1.5 + i) * 2; VISTA.veil(g, x - 60 + i * 3, yy, 120 - i * 6, 6, cols[i], 0.5); } }
       else if (S.coreOpen) { for (let i = 0; i < 26; i++) { const a = t * 2 + i; fpx(g, x + Math.cos(a) * (20 + i), y + Math.sin(a * 1.3) * 30, '#f27ee6'); } }
@@ -652,14 +737,14 @@ LEVELS[10] = {
     A('cobre').onTalk = async (s2) => s2.say([['cobre', 'determined', 'Las baterías aguantan, si no les pedimos que lo aguanten todo.']]);
     A('ledesma').onTalk = async (s2) => s2.say([['financia', 'worried', 'El contrato… lo renegociamos ayer en la mesa. Haz lo que sea seguro. Yo hablo con el banco.']]);
     A('alma').onTalk = async (s2) => s2.say([['alma', 'worried', '¡Las plántulas se están enterrando! ¿Las vamos a perder?']]);
-    for (const id of Object.keys(CAL_CARDS)) sc.station({ id: 'card_' + id, x: CAL_X[id], kind: 'clue', label: 'Tarjeta de crisis: ' + CAL_CARDS[id].title.toLowerCase(), glow: '#ff9f43', hidden: true, onUse: async (s2, st) => calCard(s2, st, id) });
-    sc.station({ id: 'core', x: CAL_X.core, kind: 'sim', label: 'Núcleo: Control Mosaico Vivo', glow: '#c2f58e', hidden: true, onUse: async (s2, st) => coreFlow(s2, st) });
+    for (const id of Object.keys(CAL_CARDS)) sc.station({ id: 'card_' + id, x: CAL_X[id], kind: 'clue', label: 'Tarjeta de crisis: ' + CAL_CARDS[id].title.toLowerCase(), glow: '#ff9f43', hidden: true, draw: PFB.drawClue, onUse: async (s2, st) => calCard(s2, st, id) });
+    sc.station({ id: 'core', x: CAL_X.core, kind: 'sim', label: 'Núcleo: Control Mosaico Vivo', glow: '#c2f58e', hidden: true, draw: PFBH2.drawConsoleSt, onUse: async (s2, st) => coreFlow(s2, st) });
     sc.station({ id: 'solo', x: 3260, kind: 'solo', label: 'Puerta de Evidencia', glow: '#b49cff', hidden: true, onUse: async (s2, st) => {
       const r = await s2.open(SOLOScene, { ctx: 'RA-08-C1' });
       st.progress = r.correct; if (r.correct >= 3) { st.done = true; GS.lp(10).solo = true; S.soloDone = true; Codex.unlock('resiliencia'); }
     } });
     sc.station({ id: 'solo2', x: 3310, kind: 'solo', label: 'Puerta final: una nueva comunidad', glow: '#86e36f', hidden: true, onUse: async (s2, st) => { const r = await s2.open(SOLOScene, { ctx: 'RA-08-C3' }); st.progress = r.correct; if (r.correct >= 3) { st.done = true; S.solo2Done = true; } } });
-    sc.station({ id: 'exit', x: 3372, kind: 'clue', label: 'Salir a la luz', glow: '#fff6d8', hidden: true, onUse: async (s2) => finishLevel10(s2) });
+    sc.station({ id: 'exit', x: 3372, kind: 'clue', label: 'Salir a la luz', glow: '#fff6d8', hidden: true, draw: PFB.drawClue, onUse: async (s2) => finishLevel10(s2) });
     sc.world.add(new Pickup({ kind: 'echo', x: 1160, y: 210, onPick: () => kiruEcho(sc, 'l10a', 'KIRU: "Recuerdo la primera vez que vi el mar contigo. Era azul. Volverá a serlo."') }));
     sc.world.add(new Pickup({ kind: 'echo', x: 2080, y: 204, onPick: () => kiruEcho(sc, 'l10b', 'KIRU: "Si olvido algo hoy, prométeme que me lo contarás con detalles innecesarios."') }));
     sc.world.add(new Adversary({ type: 'dust', x: 820, y: 240, range: 50, speed: 40 }));
@@ -700,6 +785,13 @@ LEVELS[10] = {
     if (S.clearK === 0) ambientParticles(w.ps, 'dust', sc.cam, 0.6, 2);
   },
 };
+
+/* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
+const LV10 = { screen: [], water: [], filters: [], flows: [], trains: [], screens: [], glows: [], cones: [], hall: [], tankGauge: [], lagoon: [], valve: [], turbines: [], soc: [], leds: [], stack: [], drips: [], coreScr: [], core: [] };
+/** Trenes de OI en marcha según las tarjetas (misma regla que antes en renderMid) */
+function lv10Trains(S) { const ntu = S.ntu ?? 60; return S.cards.membranas ? (ntu > 60 && S.cards.toma ? 0 : 3) : 3; }
+/** Ritmo del electrolizador según el modo */
+function lv10H2Rate(S) { return S.transformed ? 1 : S.cards.h2 ? (S.gust > 0.75 ? 0 : 0.4) : 1.4; }
 
 /* velo de polvo: máscaras precalculadas con un claro circular (alfa en bandas, sin tramado) */
 const CAL_VEIL = {};
