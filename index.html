@@ -21267,6 +21267,455 @@ const PF_KIT_TEST = {
   },
 };
 
+/* ===== 19m_scb_kit.js ===== */
+/* =====================================================================
+   19m_scb_kit.js — Kit compartido de las ESCENAS B (finales, poscréditos,
+   epílogo). Todo bajo SCBK para no chocar con otros kits.
+   Sin tramado Bayer/ajedrez: bandas con borde de ruido y alfa horneada.
+     SCBK.grade(pb, {sat, tint, tintK, bright, lift, liftCol})  gradación de color por plano
+     SCBK.ledge(pb, x0, x1, top(x), yBot, {seed, ramp, grass, lip, cols}) → Int16Array top
+         cornisa rocosa columnar en 3/4 (luz arriba-izquierda, estratos, fisuras, labio de pradera)
+     SCBK.folk(pb, x, y, seed, {s, k, cols, pose})          vecino diminuto del plano medio
+     SCBK.stars(pb, w, h, seed, {n, y1})                     estrellas horneadas (1–2 px, cruz las brillantes)
+     SCBK.nightSky(w, h, {stops, horizonY, moon:{x,y,r}})   cielo nocturno en bandas con resplandor lunar
+     SCBK.moon(pb, cx, cy, r)                                luna con mares y terminador
+     SCBK.drawFireflies(g, n, t, seed, {x0,x1,y0,y1,col})   luciérnagas con halo 1 px (≤ 2n fillRect)
+     SCBK.drawTwinkle(g, list, t)                           centelleo de estrellas brillantes
+     SCBK.mosaicTiles(pb, x, y, w, h, seed, cols)           teselas de datos (mosaico comunitario)
+   ===================================================================== */
+const SCBK = (() => {
+  const V = VISTA;
+  const P = (r, k) => V.P32(k ? V.hz(r, k) : r);
+  /** Gradación por plano: saturación, tinte y brillo (horneado, sin coste por cuadro) */
+  function grade(pb, o = {}) {
+    const sat = o.sat ?? 1, tk = o.tintK || 0, br = o.bright ?? 1, lift = o.lift || 0;
+    const T = o.tint ? U(o.tint) : 0, tr = T & 255, tg = (T >>> 8) & 255, tb = (T >>> 16) & 255;
+    const Lc = o.liftCol ? U(o.liftCol) : 0, lr = Lc & 255, lg = (Lc >>> 8) & 255, lb = (Lc >>> 16) & 255;
+    const d = pb.data;
+    for (let i = 0; i < d.length; i++) {
+      const c = d[i], a = c >>> 24; if (!a) continue;
+      let r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255;
+      const l = r * 0.3 + g * 0.59 + b * 0.11;
+      r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+      if (tk) { const m = tk * (0.6 + 0.4 * (l / 255)); r += (tr * l / 160 - r) * m; g += (tg * l / 160 - g) * m; b += (tb * l / 160 - b) * m; }
+      r *= br; g *= br; b *= br;
+      if (lift) { r += (lr - r) * lift; g += (lg - g) * lift; b += (lb - b) * lift; }
+      d[i] = ((a << 24) | (clamp(b, 0, 255) << 16) | (clamp(g, 0, 255) << 8) | clamp(r, 0, 255)) >>> 0;
+    }
+  }
+  /**
+   * Cornisa rocosa columnar en 3/4 (como el acantilado de la referencia): labio de
+   * pradera iluminado, caras de columnas con arista clara a la izquierda, fisuras
+   * oscuras, estratos y oclusión hacia la base. top(x) = y del borde superior.
+   */
+  function ledge(pb, x0, x1, topFn, yBot, o = {}) {
+    const R = P(o.ramp || RAMP.rockWarmR, o.k), n = R.length, seed = o.seed || 3;
+    const G = P(o.grass || RAMP.grassR, o.k), nG = G.length;
+    const top = new Int16Array(pb.w).fill(32767);
+    const colW = o.colW || 13;
+    for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+      const yt = Math.round(topFn(x)); top[x] = yt;
+      // columna: índice y posición dentro de la columna (anchos variables)
+      const cx = x + Math.round(vnoise(x * 0.02, 0, seed) * 9);
+      const ci = Math.floor(cx / colW), u = (cx % colW) / colW;
+      const jag = Math.round(hash1(ci, seed) * 6);
+      for (let y = yt; y < Math.min(pb.h, yBot); y++) {
+        const d = y - yt;
+        let c;
+        if (d < (o.lip ?? 4)) {
+          // labio de pradera (lima iluminada arriba, verde en sombra debajo)
+          const gi = clamp(nG - 1 - d - (hash2(x >> 1, y, seed) < 0.3 ? 1 : 0) - (x > x1 - 30 ? 1 : 0), 1, nG - 1);
+          c = G[gi];
+        } else {
+          // cara de columna: arista iluminada, cuerpo, sombra lateral; oscurece con la profundidad
+          const deep = clamp((d - 4) / Math.max(10, (yBot - yt)), 0, 1);
+          let k = u < 0.12 ? n - 2 : u < 0.45 ? n - 3 : u < 0.8 ? n - 4 : n - 6;
+          k -= Math.round(deep * 3.2);
+          if (d < 7) k += 1; // borde soleado bajo el labio
+          // fisura entre columnas y grietas horizontales (estratos)
+          if (u > 0.92 || ((d + jag) % 17 === 0 && hash2(ci, (d + jag) / 17 | 0, seed) < 0.7)) k = 1;
+          else if ((d + jag) % 17 === 1) k += 1;
+          // textura en clusters
+          const nz = hash2(x >> 1, y >> 1, seed + 7);
+          if (nz < 0.12) k -= 1; else if (nz > 0.9) k += 1;
+          c = R[clamp(k, 0, n - 1)];
+        }
+        pb.data[y * pb.w + x] = c;
+      }
+    }
+    // sombra de contacto del labio (1 px granate) y matas colgantes
+    const r = RNG(seed + 11);
+    for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+      const y = top[x] + (o.lip ?? 4); if (y < pb.h) V.put(pb, x, y, R[1]);
+      if (r() < 0.12) { const L = r.int(2, 6); for (let q = 0; q < L; q++) V.put(pb, x + (q > 2 ? 1 : 0), y + q, G[clamp(3 - (q >> 1), 0, nG - 1)]); }
+    }
+    return top;
+  }
+  /** Vecino diminuto del plano medio (cabeza 2 px, cuerpo 3–4 px, piernas) */
+  const SKINS = ['#f2c8a0', '#d89a6a', '#b4744a', '#8a5434', '#6a3e26'];
+  const CLOTH = ['#e83b41', '#11bedd', '#f5dc5a', '#3fe0a0', '#8d6bff', '#ff9f43', '#ffffff', '#f060b8', '#2186eb'];
+  function folk(pb, x, y, seed, o = {}) {
+    const r = RNG(seed), k = o.k || 0, s = o.s || 1;
+    const sk = U(V.hzc(SKINS[r.int(0, 4)], k)), cl = o.cols ? o.cols[r.int(0, o.cols.length - 1)] : CLOTH[r.int(0, CLOTH.length - 1)];
+    const C = U(V.hzc(cl, k)), Cs = U(V.hzc(shadeTo(cl, -0.3, 250), k)), Lg = U(V.hzc(r.chance(0.5) ? '#3a3050' : '#5a4430', k)), Hr = U(V.hzc(['#1a0a08', '#3a1a10', '#6a3a1a', '#c8c0b0'][r.int(0, 3)], k));
+    const h = s > 1 ? 9 : 7, child = r.chance(0.18) && !o.adult;
+    const hh = child ? h - 2 : h;
+    // piernas
+    V.put(pb, x, y - 1, Lg); V.put(pb, x + 1, y - 1, Lg); if (hh > 6) { V.put(pb, x, y - 2, Lg); V.put(pb, x + 1, y - 2, Lg); }
+    // cuerpo
+    const by = y - (hh > 6 ? 3 : 2), bh = hh > 7 ? 4 : 3;
+    for (let q = 0; q < bh; q++) { V.put(pb, x - (q < bh - 1 && s > 1 ? 1 : 0), by - q, Cs); V.put(pb, x, by - q, C); V.put(pb, x + 1, by - q, q === bh - 1 ? C : Cs); }
+    // brazo en alto (celebración) o al costado
+    if (o.pose === 'cheer' && r.chance(0.6)) { V.put(pb, x - 1, by - bh, sk); V.put(pb, x - 1, by - bh - 1, sk); }
+    // cabeza
+    const hy = by - bh; V.put(pb, x, hy, sk); V.put(pb, x + 1, hy, V.shU(sk, -0.2, 20)); V.put(pb, x, hy - 1, Hr); V.put(pb, x + 1, hy - 1, Hr);
+    return hy - 1;
+  }
+  /** Estrellas horneadas */
+  function stars(pb, w, h, seed, o = {}) {
+    const r = RNG(seed), n = o.n || 120, y1 = o.y1 ?? h, out = [];
+    const C = [U('#8a94c8'), U('#b8c0e8'), U('#e6ecff'), U('#ffffff'), U('#ffe8c0')];
+    for (let i = 0; i < n; i++) {
+      const x = r.int(0, w - 1), y = Math.floor(Math.pow(r(), 1.4) * y1), b = r();
+      const c = b > 0.93 ? C[3] : b > 0.75 ? C[2] : b > 0.45 ? C[1] : C[0];
+      V.put(pb, x, y, c);
+      if (b > 0.93) { V.blend(pb, x - 1, y, C[1], 0.6); V.blend(pb, x + 1, y, C[1], 0.6); V.blend(pb, x, y - 1, C[1], 0.6); V.blend(pb, x, y + 1, C[1], 0.6); out.push([x, y, r.range(0, 6)]); }
+      else if (b > 0.88) { V.put(pb, x, y, C[4]); out.push([x, y, r.range(0, 6)]); }
+    }
+    return out;
+  }
+  /** Cielo nocturno en bandas con resplandor lunar suave y banda de luz sobre el horizonte */
+  function nightSky(w, h, o = {}) {
+    const pb = new PixelBuffer(w, h), hy = o.horizonY ?? h;
+    const stops = o.stops || ['#03061a', '#060b26', '#0a1232', '#0e1a40', '#14244e', '#1c2e5c', '#283a6a', '#364678', '#4a5284', '#62608c'];
+    const nb = 20, R = V.P32(V.expand(stops, nb)), M = o.moon;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let t = Math.pow(clamp(y / hy, 0, 1), 1.6);
+      if (M) { const d = Math.hypot(x - M.x, (y - M.y) * 1.15); const b = Math.max(0, 1 - d / (M.r * 9)); t += b * b * 0.42; }
+      pb.data[y * w + x] = R[V.band(clamp(t, 0, 1), nb, x, y, 0.05, 11)];
+    }
+    return pb;
+  }
+  /** Luna creciente-gibosa: disco crema con mares y terminador en violeta */
+  function moon(pb, cx, cy, r) {
+    const C = V.P32(['#3a3a6a', '#6a6a98', '#a8a8c8', '#d8d4e0', '#f4f0e0', '#fffcf0']);
+    for (let y = -r - 1; y <= r + 1; y++) for (let x = -r - 1; x <= r + 1; x++) {
+      const d = Math.hypot(x, y) / r; if (d > 1) continue;
+      const lit = (x + r * 0.35) / r; // terminador a la derecha
+      let k = d > 0.86 ? 4 : 5;
+      if (lit > 0.95) k = lit > 1.1 ? 1 : 2;
+      const mare = vnoise((cx + x) * 0.35, (cy + y) * 0.35, 77);
+      if (mare > 0.62 && k > 2) k -= 1;
+      if (d > 0.93 && x < 0) k = 5;
+      V.put(pb, cx + x, cy + y, C[k]);
+    }
+  }
+  /** Luciérnagas: punto 1 px + halo 1 px al 40 %, parpadeo lento */
+  function drawFireflies(g, n, t, seed, o = {}) {
+    const x0 = o.x0 ?? 0, x1 = o.x1 ?? W, y0 = o.y0 ?? 0, y1 = o.y1 ?? H, col = o.col || '#e8ff8a', halo = o.halo || '#9aff5a';
+    for (let i = 0; i < n; i++) {
+      const hx = hash1(i, seed), hy = hash1(i, seed + 1), ph = hash1(i, seed + 2) * 6.28;
+      const x = x0 + hx * (x1 - x0) + Math.sin(t * 0.6 + ph) * 10, y = y0 + hy * (y1 - y0) + Math.sin(t * 0.9 + ph * 1.7) * 6;
+      const a = 0.5 + 0.5 * Math.sin(t * 2.2 + ph); if (a < 0.15) continue;
+      g.globalAlpha = a * 0.4; g.fillStyle = halo; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+      g.globalAlpha = a; g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), 1, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Centelleo: cruz breve sobre las estrellas brillantes */
+  function drawTwinkle(g, list, t) {
+    g.fillStyle = '#ffffff';
+    for (const [x, y, ph] of list) {
+      const a = Math.sin(t * 1.7 + ph); if (a < 0.55) continue;
+      g.globalAlpha = (a - 0.55) * 1.8; g.fillRect(x - 1, y, 3, 1); g.fillRect(x, y - 1, 1, 3);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Teselas de datos (mosaico comunitario): celdas 2–3 px con brillo arriba-izquierda */
+  function mosaicTiles(pb, x, y, w, h, seed, cols) {
+    const C = cols.map(c => [U(shadeTo(c, -0.3, 250)), U(c), U(shadeTo(c, 0.35))]);
+    for (let yy = 0; yy < h; yy += 3) for (let xx = 0; xx < w; xx += 3) {
+      const c = C[Math.floor(hash2(xx + x, yy + y, seed) * C.length)];
+      V.put(pb, x + xx, y + yy, c[2]); V.put(pb, x + xx + 1, y + yy, c[1]); V.put(pb, x + xx, y + yy + 1, c[1]); V.put(pb, x + xx + 1, y + yy + 1, c[0]);
+    }
+  }
+  return { grade, ledge, folk, stars, nightSky, moon, drawFireflies, drawTwinkle, mosaicTiles, SKINS, CLOTH };
+})();
+
+/* ===== 19n_scb_ending.js ===== */
+/* =====================================================================
+   19n_scb_ending.js — Ilustraciones de los FINALES (640×164 sobre el
+   panel de debrief) con el kit de panorama VISTA, en diorama 3/4:
+   cielo + sol · nubes que derivan · cordillera lila · mar con destellos ·
+   montañas medias con aerogeneradores · llano costero con la desaladora,
+   FV e H₂ · colina de ARIDIA con la cúpula, la torre de SYNARA, terrazas y
+   cascadas · barrio bajo con vecinos · cornisa columnar de primer plano con
+   Amaya, KIRU y vecinos (drawChar) · palmera y follaje de encuadre.
+   Cada final cambia luz, color, vegetación y detalles:
+     mosaico  mañana clara y vibrante; la torre de SYNARA lleva el mosaico de
+              datos comunitarios; guirnaldas, cometas y la plaza llena.
+     pacto    amanecer tras la tormenta: nubes residuales encendidas desde
+              abajo, andamio y grúa en la cúpula, tablero de decisiones pendientes.
+     tecnica  luz fría y eficiente: la planta domina, vallas y puertas cerradas,
+              pocas personas, ventanas apagadas; color desaturado.
+     deuda    calima residual: cielo ocre, sol apagado, manglar seco en la orilla,
+              pluma de salmuera; plan de reparación con plantones.
+   SCBEnd.make(id) → {draw(g, t)}  (prerender ≈ 300–500 ms; ≈250 fillRect/cuadro)
+   ===================================================================== */
+const SCBEnd = (() => {
+  const V = VISTA;
+  const IH = 164; // alto de la ilustración
+  const MOODS = {
+    mosaico: {
+      sun: { x: 556, y: 26, r: 11, halo: 26 }, sunKind: 'noon', HZ: 96,
+      sky: ['#1466d8', '#1a74e2', '#2484ec', '#3292f2', '#40a0f6', '#58acf6', '#7cbcf2', '#a2caf0', '#c4d0ec', '#dcd2e2'],
+      skyHaze: ['#d8cce0', '#e4cad4', '#ecd0c8', '#f0d8c4'], clouds: null, cloudN: 7,
+      farHaze: '#b9bde0', farRim: '#e8c2b4', hzc: '#a9a6cc', rim: '#f6dcc8', rimN: '#fcd8ae',
+      vegK: 1.5, gold: 0.25, lit: null, grade: { sat: 1.12 }, sea: null, folk: 46, festive: true,
+    },
+    pacto: {
+      sun: { x: 452, y: 90, r: 13, halo: 34 }, sunKind: 'dusk', HZ: 96,
+      sky: ['#2a1a5e', '#3a2470', '#523080', '#6e3c8c', '#8c4890', '#b05a90', '#d07090', '#ec9090', '#f8b48c', '#fcd49a'],
+      skyHaze: ['#f4c0a0', '#f8c898', '#fcd8a0', '#ffe4b0'], cloudN: 6,
+      clouds: ['#4a2a6a', '#6a3a7a', '#8c4a84', '#b05a88', '#d47088', '#f09488', '#fcb890', '#ffdcac'],
+      farHaze: '#d4a8c0', farRim: '#ffd0a0', hzc: '#c49ab4', rim: '#ffc890', rimN: '#ffd8a0',
+      vegK: 1.1, gold: 0.4, lit: { off: 0.45 }, grade: { sat: 1.02 }, folk: 26,
+      sea: ['#e8b8b0', '#b49ac0', '#7a86c0', '#4a74b8', '#2a66ae', '#2a6aae', '#3474b4', '#3c80ba'], seaH: '#ffe0c0', scaffold: true, board: true, storm: true,
+    },
+    tecnica: {
+      sun: { x: 300, y: 22, r: 10, halo: 22 }, sunKind: 'noon', HZ: 96,
+      sky: ['#2a4a7a', '#30568a', '#3a6498', '#4672a6', '#5480b0', '#6890bc', '#7ea0c4', '#96b0cc', '#adbed2', '#c2cad6'],
+      skyHaze: ['#c4ccd8', '#cad0da', '#d0d4dc', '#d6dae0'], cloudN: 5,
+      clouds: ['#6a7a94', '#8494ac', '#9eacc0', '#b8c4d2', '#cfd8e2', '#e2e8ee', '#f0f4f6', '#ffffff'],
+      farHaze: '#a8b4cc', farRim: '#d8dce6', hzc: '#9aa6c0', rim: '#e0e4ec', rimN: '#e8eaf0',
+      vegK: 0.55, gold: 0.05, lit: null, grade: { sat: 0.62, tint: '#8aa8d0', tintK: 0.14 }, folk: 6, cold: true,
+      sea: ['#b8c8dc', '#7a9ac0', '#4a7aae', '#2a64a0', '#1e5894', '#1e5a94', '#24629a', '#2a6aa0'], seaH: '#dce4ee',
+    },
+    deuda: {
+      sun: { x: 508, y: 54, r: 12, halo: 30 }, sunKind: 'dusk', HZ: 96,
+      sky: ['#4a2418', '#5e2e1c', '#743a20', '#8a4824', '#a0582a', '#b46a34', '#c47e40', '#d2944e', '#dcaa60', '#e4bc74'],
+      skyHaze: ['#d8a878', '#dcb080', '#e0b888', '#e4c094'], cloudN: 5,
+      clouds: ['#5a2a1a', '#74361e', '#8e4624', '#a8582e', '#c06e3a', '#d4884a', '#e2a460', '#eec080'],
+      farHaze: '#c09078', farRim: '#e8b888', hzc: '#b08a78', rim: '#e8b080', rimN: '#ecc090',
+      vegK: 0.45, gold: 0.6, lit: { off: 0.7 }, grade: { sat: 0.78, tint: '#c89060', tintK: 0.2, bright: 0.92 }, folk: 14, dust: true,
+      sea: ['#c8a088', '#9a8a90', '#6a7690', '#46648a', '#345680', '#345882', '#3a5e86', '#40668a'], seaH: '#f0c8a0', mangrove: true,
+    },
+  };
+  /** Ilustración del final id */
+  function make(id) {
+    const M = MOODS[id] || MOODS.pacto;
+    const B = new Backdrop(W, H);
+    const HZ = M.HZ, SUN = M.sun, T = () => Game.time;
+    const fx = { turb: [], falls: [], glints: [], glows: [], perm: null, fauna: [], flags: [], kites: [], lanterns: [], tower: null, plume: null, beacons: [] };
+    const P = (ys, h, draw, opts) => B.vplane(0, ys, h, (pb, w, hh) => { draw(pb, w, hh); SCBK.grade(pb, M.grade); }, opts);
+    /* ---------- cielo, sol y haces ---------- */
+    const sky = V.sky(W, IH, { horizonY: HZ, sun: SUN, curve: 1.15, stops: M.sky, haze: M.skyHaze });
+    if (M.sunKind === 'dusk') V.sunDisc(sky, SUN.x, SUN.y, SUN.r, SUN.halo, 'dusk');
+    V.rays(sky, SUN.x, SUN.y, M.sunKind === 'dusk' ? { n: 8, len: 300, col: M.dust ? '#ffd090' : '#ffe0b0', a: M.dust ? 0.07 : 0.11, spread: 2.8, ang: -Math.PI / 2, w: 0.05, seed: 4, yMax: HZ + 10 }
+      : { n: 6, len: 220, col: '#fff6dc', a: M.cold ? 0.04 : 0.08, spread: 1.6, ang: Math.PI / 2 + 0.3, w: 0.04, seed: 4, yMax: HZ });
+    SCBK.grade(sky, M.grade);
+    const skyC = sky.toCanvas();
+    B.vdyn(0, (g) => g.drawImage(skyC, 0, 0), { tag: 'sky' });
+    B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, M.dust ? 56 : 42, M.dust ? '#ffb070' : M.cold ? '#f0f4ff' : M.sunKind === 'dusk' ? '#ffb070' : '#fff0c0', M.dust ? 0.3 : 0.22, T()), { tag: 'bloom' });
+    /* ---------- nubes ---------- */
+    B.cloudDeck({ kind: 'cirrus', n: 5, seed: 31, f: [0.01, 0.03], y: [4, 34], w: [80, 160], speed: [1, 2], pal: M.clouds ? M.clouds.slice(3, 7) : null });
+    B.cloudDeck({ n: M.cloudN, seed: M.storm ? 51 : 37, f: [0.03, 0.07], y: [-4, 46], w: M.storm ? [80, 150] : [50, 120], bias: 0.6, speed: [2, 3.5], sunX: SUN.x, pal: M.clouds, tall: !!M.storm });
+    /* ---------- cordillera lejana ---------- */
+    P(HZ - 52, 54, (pb, w, h) => {
+      const r = RNG(57), peaks = [];
+      for (let x = 210; x < w + 60;) { const ww = r.int(50, 120); peaks.push({ x: x + ww * 0.5, v: r.int(14, 30), h: r.int(20, 48) * (x < 330 ? 0.55 : 1), w: ww, d: r.int(16, 28) }); x += r.int(34, 80); }
+      V.relief(pb, { yBase: h - 1, nv: 40, dvy: 0.3, seed: 59, hMax: 48, H: V.massif(peaks, { seed: 59, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }), ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55, haze: { col: M.farHaze, k0: 0, k: 0.22 }, mist: { col: M.farHaze, h: 10, k: 0.5 }, rim: M.farRim, tex: 0.04 });
+    }, { tag: 'far' });
+    /* ---------- mar ---------- */
+    P(HZ, 62, (pb) => V.seaFar(pb, 0, pb.h, { seed: 7, stops: M.sea, horizonCol: M.seaH }), {
+      tag: 'sea', dyn: (g) => {
+        V.drawSeaFx(g, 0, HZ, W, 48, T(), { sunX: SUN.x, density: 0.8 });
+        if (fx.plume) V.drawPlume(g, fx.plume[0], fx.plume[1], T(), { n: 26, len: 34 });
+      },
+    });
+    /* ---------- montañas medias con aerogeneradores ---------- */
+    P(34, 86, (pb, w, h) => {
+      const r = RNG(63), peaks = [];
+      for (let x = 330; x < w + 60;) { const ww = r.int(80, 150), hh = r.int(40, 76); peaks.push({ x: x + ww * 0.5, v: r.int(18, 34), h: hh, w: ww, d: r.int(22, 36) }); if (r.chance(0.6)) peaks.push({ x: x + ww * r.range(0.2, 0.8), v: r.int(4, 12), h: hh * 0.5, w: ww * 0.5, d: 16 }); x += r.int(70, 120); }
+      const info = V.relief(pb, { yBase: h - 1, nv: 50, dvy: 0.36, seed: 67, hMax: 76, H: V.massif(peaks, { seed: 67, rough: 0.6, scale: 0.034, apron: 7, spurs: 6, spurW: 0.45 }), ramp: V.RAMPS.mid, contrast: 2.3, facet: 0.35, cav: 0.1, haze: { col: M.hzc, k0: 0, k: 0.14 }, mist: { col: M.hzc, h: 22, k: 0.5 }, rim: M.rim, tex: 0.05, veg: { ramp: V.RAMPS.vegMid, density: 0.03 * M.vegK, maxSlope: 0.6, minY: 40 } });
+      for (const x of [372, 418, 600, 628]) {
+        let bx = x; for (let q = -14; q <= 14; q++) if (info.top[x + q] < info.top[bx]) bx = x + q;
+        const y = info.top[bx] + 1; if (y > h - 20) continue;
+        const hub = V.turbineTower(pb, bx, y, 18, { k: 0.3, w: 2 });
+        fx.turb.push({ x: hub.hx, y: hub.hy + 34, R: 8, k: 0.3, sp: 1.6 + (x % 7) * 0.2, ph: x, stop: M.dust && x === 418 });
+      }
+    }, { tag: 'mid', dyn: (g) => { const t = T(); for (const tb of fx.turb) { if (!tb.rot) tb.rot = V.rotor(tb.R, { k: tb.k }); V.drawRotor(g, tb.rot, tb.x, tb.y, tb.stop ? 0.4 : t * tb.sp + tb.ph); } } });
+    /* ---------- llano costero: desaladora, FV, H₂ e invernaderos ---------- */
+    const PLY = 100;
+    P(PLY, 34, (pb, w, h) => {
+      const k = 0.1, r = RNG(71), yB = 16;
+      const info = V.relief(pb, { yBase: yB + 2, nv: 22, dvy: 0.3, seed: 73, hMax: 16, x0: 300, H: V.massif([{ x: 380, v: 10, h: 12, w: 90, d: 14 }, { x: 520, v: 12, h: 16, w: 120, d: 16 }, { x: 640, v: 12, h: 14, w: 100, d: 14 }], { seed: 73, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, haze: { col: M.hzc, k0: 0.1, k: 0.06 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.12 * M.vegK, maxSlope: 1.1, minY: 0, size: 2 } });
+      V.fields(pb, 300, w, yB + 3, h, { k: 0.08, seed: 75, gold: M.gold, irrig: !M.dust });
+      const SAND = V.P32(V.hz(['#c58440', '#edaf5f', '#fccf85'], k)), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
+      for (let x = 150; x < w; x++) { V.put(pb, x, yB, SAND[2]); V.put(pb, x, yB + 1, SAND[1]); V.put(pb, x, yB + 2, SAND[0]); if (info.top[x] >= yB) V.put(pb, x, yB - 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); for (let y = yB + 3; y < h; y++) if (x < 300) V.put(pb, x, y, SAND[y > yB + 6 ? 0 : 1]); }
+      // la desaladora SYNARA, con el mismo orden de proceso del Nivel 1 (más grande en la victoria técnica)
+      const dc = V.desalChain(pb, M.cold ? 168 : 178, yB + 3, { k, s: M.cold ? 0.62 : 0.52, climb: 5 });
+      fx.perm = dc.perm;
+      if (M.mangrove) fx.plume = [dc.outfall.x, PLY + dc.outfall.y];
+      const pv = V.pvArray(pb, 330, info.yAt(380, 6) - 1, { tables: M.cold ? 4 : 3, cols: 10, rows: 2, cw: 3, ch: 2, gap: 2, skew: 2, k, shift: 2 });
+      fx.glints.push({ x: pv.x0 + 2, y: PLY + pv.y0 + 2, len: pv.x1 - pv.x0 - 4, ph: 0.2, sp: 0.18 });
+      if (M.dust) V.dustOn(pb, pv.x0, pv.y0, pv.x1 - pv.x0, pv.y1 - pv.y0, '#c88a50', 0.5);
+      const h2 = V.h2Plant(pb, 560, info.yAt(560, 8) - 1, { k, s: 0.5 });
+      fx.glows.push(...h2.glows.map(([x, y, rr]) => [x, PLY + y, Math.max(2, rr - 1)]));
+      if (!M.cold) { V.greenhouse(pb, 470, yB + 1, 18, 8, { k }); V.greenhouse(pb, 500, yB + 1, 14, 7, { k }); }
+      for (let x = 310; x < w; x += r.int(22, 48)) if (!(x > 540 && x < 620)) V.palm(pb, x, yB + 1, r.int(8, 13), r.range(-3, 3), 7300 + x, { k });
+      if (M.cold) { const FN = U(V.hzc('#9aa4b8', k)); for (let x = 160; x < 330; x++) { if (x % 3 === 0) for (let q = 0; q < 4; q++) V.put(pb, x, yB + 2 - q, FN); V.put(pb, x, yB - 2, FN); } }
+      fx.fauna.push({ kind: 'gull', x: 230, y: PLY - 20, r: 120, sp: 6 }, { kind: 'gull', x: 260, y: PLY - 30, r: 150, sp: 5 });
+    }, {
+      tag: 'plain', dyn: (g) => {
+        const t = T();
+        if (fx.perm) V.drawFlow(g, fx.perm, 0, PLY, t, { col: '#f4ffff', speed: 10, gap: 5 });
+        V.drawPulse(g, fx.glows, 0, 0, t, '#4cd48e', 0.35, 0.2, 2);
+        V.drawGlints(g, fx.glints, 0, 0, t);
+      },
+    });
+    /* ---------- colina de ARIDIA: cúpula, torre de SYNARA, terrazas, cascadas ---------- */
+    const CITY_X = 508, TOWER_X = 404;
+    P(0, 150, (pb, w, h) => {
+      const k = 0.08, r = RNG(81);
+      const peaks = [{ x: CITY_X, v: 22, h: 84, w: 150, d: 30, k: 0.8 }, { x: TOWER_X, v: 16, h: 66, w: 90, d: 22, k: 0.85 }, { x: CITY_X + 110, v: 14, h: 64, w: 100, d: 22 }, { x: 330, v: 10, h: 30, w: 70, d: 16 }, { x: 660, v: 14, h: 60, w: 90, d: 20 }];
+      const info = V.relief(pb, { yBase: h - 1, nv: 44, dvy: 0.3, seed: 83, hMax: 90, x0: 280, H: V.massif(peaks, { seed: 83, rough: 0.5, scale: 0.045, apron: 6, plateaus: [{ x: CITY_X, w: 66, h: 76 }, { x: TOWER_X, w: 24, h: 60 }] }), ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.54, facet: 0.32, cav: 0.1, haze: { col: M.hzc, k0: 0, k: 0.1 }, mist: { col: M.hzc, h: 14, k: 0.3 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegHill, density: 0.13 * M.vegK, maxSlope: 1.1, minY: 60, size: 3 } });
+      const TA = V.carveTerraces(pb, info, { x0: 572, x1: 640, yTop: 88, yBot: 136, stepH: [7, 9], wallK: 0.42, k, seed: 85, kinds: ['rows', 'orchard', 'flowers', 'rows', 'vine'], crop: M.gold > 0.3 ? ['#3a2a0c', '#5a4414', '#86661c', '#b08a24', '#d4ac34', '#ecc84a', '#f8e070', '#fff0a0'] : null, falls: [{ x: 600, w: 3, from: 0 }] });
+      const TB = V.carveTerraces(pb, info, { x0: 430, x1: 468, yTop: 100, yBot: 140, stepH: [7, 9], wallK: 0.42, k, seed: 87, kinds: ['rows', 'orchard', 'rows'], falls: [] });
+      fx.falls.push(...TA.falls, ...TB.falls);
+      V.scatterVeg(pb, (x) => (Math.abs(x - CITY_X) < 50 || Math.abs(x - TOWER_X) < 18) ? null : info.top[x] + 1, 290, w, 8101, { k: k + 0.02, gap: Math.round(7 / M.vegK), mix: { tree: 4, shrub: 3, palm: 1 }, ramp: V.RAMPS.vegHill });
+      for (let i = 0; i < 30; i++) { const x = r.pick([r.int(300, 390), r.int(420, 470), r.int(560, 640)]); const y = info.onSurf(x, r.int(4, 16)); if (y == null || y < 60 || y > h - 8 || Math.abs(x - TOWER_X) < 14) continue; V.house(pb, x, y + 1, r.int(6, 10), r.int(4, 7), 8200 + i, { k: k + 0.02 }); }
+      // torre de SYNARA (en el final mosaico, envuelta en el mosaico de datos comunitarios)
+      const tw = V.synaraTower(pb, TOWER_X, info.top[TOWER_X] + 4, 74, { k: 0.04 });
+      fx.tower = tw;
+      if (id === 'mosaico') {
+        const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#f78acb', '#ff9f43', '#8d6bff'];
+        const yb = info.top[TOWER_X] + 4 - 4;
+        for (let q = 0; q < 4; q++) { const y0 = yb - 14 - q * 13, hw = Math.round(lerp(6, 3, (14 + q * 13) / 74)); SCBK.mosaicTiles(pb, TOWER_X - hw, y0 - 5, hw * 2 + 2, 5, 90 + q, cols); }
+      }
+      if (id === 'tecnica') { const yb = info.top[TOWER_X] + 4; const FN = U('#8a94ac'); for (let x = TOWER_X - 22; x < TOWER_X + 24; x++) { V.put(pb, x, yb - 1, FN); if (x % 3 === 0) for (let q = 2; q < 6; q++) V.put(pb, x, yb - q, FN); V.put(pb, x, yb - 6, FN); } }
+      // ciudad de ARIDIA sobre la meseta
+      const dc = V.domeCity(pb, CITY_X, info.top[CITY_X] + 8, { k: 0.03, s: 0.72 });
+      for (const F of dc.falls) {
+        let y0 = dc.base, x0 = F.x, wf = F.w; const total = h - 6 - y0, tiers = F.w > 8 ? [0.34, 0.3, 0.26] : [0.5, 0.45];
+        for (let ti = 0; ti < tiers.length; ti++) {
+          const y1 = Math.round(y0 + total * tiers[ti]);
+          if (!M.dust || ti === 0) { V.fall(pb, x0, y0, y1, M.dust ? Math.max(2, wf >> 2) : wf, { k: 0.02 }); fx.falls.push({ x: x0, y0, y1, w: M.dust ? Math.max(2, wf >> 2) : wf }); }
+          const RK = V.P32(V.RAMPS.hill);
+          for (let xx = x0 - 4; xx < x0 + wf + 4; xx++) { V.put(pb, xx, y1 + 2, RK[2]); V.put(pb, xx, y1 + 1, RK[7]); V.put(pb, xx, y1, U(M.dust ? '#b89a7a' : (xx < x0 || xx >= x0 + wf ? '#3adcf1' : '#e8f8fc'))); }
+          y0 = y1 + 2; x0 += (ti % 2 ? -2 : 2); if (wf > 8) wf += 2;
+        }
+      }
+      // pacto: andamio y grúa sobre el flanco de la cúpula (obra sin terminar)
+      if (M.scaffold) {
+        const SC = U('#f0b040'), SD = U('#8a5a20'), x0 = CITY_X + 18, y0 = dc.top + 14;
+        for (let yy = y0; yy < y0 + 30; yy++) { V.put(pb, x0, yy, SD); V.put(pb, x0 + 10, yy, SD); V.put(pb, x0 + 20, yy, SD); if ((yy - y0) % 6 === 0) for (let xx = x0; xx <= x0 + 20; xx++) V.put(pb, xx, yy, SC); }
+        for (let q = 0; q < 6; q++) V.put(pb, x0 + q * 2, y0 + 6 + q * 2, SC);
+        const cx = CITY_X - 30, cy = dc.top + 4; for (let yy = cy; yy < cy + 44; yy++) { V.put(pb, cx, yy, SC); if (yy % 3 === 0) V.put(pb, cx + 1, yy, SD); }
+        for (let xx = cx - 10; xx < cx + 34; xx++) { V.put(pb, xx, cy, SC); if (xx % 3 === 0) V.put(pb, xx, cy + 1, SD); }
+        for (let q = 0; q < 10; q++) V.put(pb, cx + 28, cy + 1 + q, U('#3a3040'));
+        fx.beacons.push([cx, cy - 1]);
+      }
+      fx.fauna.push({ kind: 'eagle', x: 300, y: 28, r: 70 }, { kind: 'drone', x: CITY_X + 60, y: dc.top + 6, r: 24 });
+      if (!M.dust && !M.cold) fx.fauna.push({ kind: 'drone', x: 610, y: 60, r: 20 });
+    }, {
+      tag: 'hill', dyn: (g) => {
+        const t = T();
+        V.drawFalls(g, fx.falls, 0, 0, t, { speed: 40, alpha: 0.8 });
+        const tw = fx.tower;
+        if (tw) V.drawPulse(g, tw.glows, 0, 0, t, id === 'mosaico' ? '#ffe14d' : M.cold ? '#a8f0ff' : '#5ae8f0', id === 'deuda' ? 0.2 : 0.4, 0.2, 1.6);
+        if (tw && Math.floor(t * 1.5) % 2) { g.fillStyle = id === 'deuda' ? '#ffb04a' : '#ff6a5a'; g.fillRect(tw.beacon[0], tw.beacon[1] - 1, 1, 1); }
+        for (const [x, y] of fx.beacons) if (Math.floor(t * 2) % 2) V.drawGlow(g, x, y, 3, '#ff6a40', 0.8);
+        V.drawFauna(g, fx.fauna, 0, 0, t);
+      },
+    });
+    /* ---------- barrio bajo con vecinos (plano medio) ---------- */
+    P(108, 56, (pb, w, h) => {
+      const k = 0.03, r = RNG(101);
+      const info = V.relief(pb, { yBase: h - 10, nv: 20, dvy: 0.3, seed: 105, hMax: 30, x0: 250, H: V.massif([{ x: 380, v: 10, h: 18, w: 150, d: 14, k: 1.1 }, { x: 560, v: 10, h: 26, w: 200, d: 16, k: 1.1 }], { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: M.hzc, k0: 0, k: 0.03 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.16 * M.vegK, maxSlope: 1.3, minY: 6, size: 3 } });
+      const GR = V.P32(V.hz(M.dust ? ['#4a3a1c', '#6a5226', '#8a6a32', '#a88440', '#c49c52'] : ['#2a3a0c', '#3b5312', '#597611', '#7b981a', '#9cb42c'], k));
+      for (let x = 250; x < w; x++) for (let y = h - 10; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
+      const town = V.hillTown(pb, { x0: 268, x1: w + 8, seed: 109, k, bunting: M.festive ? 0.9 : M.cold ? 0 : 0.4, lit: M.lit, rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.03) * 1), w: [14, 24], h: [10, 18], gap: [-4, 8], hole: 0.15, veg: 0.85 * M.vegK, vegGap: [10, 24], roofs: M.cold ? ['flat', 'solar', 'flat'] : ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles'], scale: 1.2, s: 2, flowers: M.dust ? 0.05 : 0.5 }] });
+      for (const [x, y] of town.tops) if (M.festive && hash2(x, y, 11) < 0.3) { const PL = U('#e8e4de'); for (let q = 0; q < 8; q++) V.put(pb, x, y - q, PL); fx.flags.push({ x, y: 108 + y - 8, col: SCBK.CLOTH[(x >> 3) % 6] }); }
+      if (M.lit) for (const hs of town.houses) if (hash2(hs.x, 1, 3) < 0.5) fx.lanterns.push([hs.x + 3, 108 + hs.y - hs.h + 2, 3]);
+      // vecinos en la calle (más gente en el mosaico; casi nadie en la victoria técnica)
+      for (let i = 0; i < M.folk; i++) { const x = r.int(262, w - 4); SCBK.folk(pb, x, h - 2 - r.int(0, 3), 900 + i, { k, pose: M.festive ? 'cheer' : null, cols: M.cold ? ['#8a94ac', '#c8d0dc', '#5a6a8a'] : null }); }
+      if (M.festive) { const KC = ['#e83b41', '#f5dc5a', '#8d6bff', '#11bedd', '#ff9f43', '#3fe0a0']; for (let i = 0; i < 4; i++) fx.kites.push({ x: 300 + i * 90, y: 60 + (i % 2) * 12, col: KC[i], sp: 0.6, ph: i, tail: 10, line: [8, 30] }); }
+    }, {
+      tag: 'low', dyn: (g) => {
+        const t = T();
+        V.drawFlags(g, fx.flags, 0, 0, t);
+        V.drawKites(g, fx.kites, 0, 0, t);
+        if (fx.lanterns.length) V.drawPulse(g, fx.lanterns, 0, 0, t, '#ffb050', 0.4, 0.15, 3);
+      },
+    });
+    /* ---------- primer plano: cornisa columnar, palmera, follaje ---------- */
+    const topF = (x) => x < 196 ? 150 - Math.round(Math.sin(x * 0.03) * 2) + (x > 150 ? Math.round((x - 150) * 0.12) : 0) : 156 + (x - 196) * 0.5;
+    const fg = new PixelBuffer(W, IH);
+    const ledgeTop = SCBK.ledge(fg, 0, 236, topF, IH, { seed: 5, ramp: M.cold ? ['#1e1a28', '#2e2838', '#463a48', '#5e4c56', '#7a6268', '#967c7c', '#b0989a', '#c8b4b0', '#dccac4'] : RAMP.rockWarmR, grass: M.dust ? ['#3a2a10', '#5e4318', '#8a6526', '#b48a3a', '#d8b25a', '#f0d68a'] : RAMP.grassR, lip: 4 });
+    const gy = (x) => ledgeTop[Math.max(0, Math.min(235, Math.round(x)))] + 1;
+    if (M.dust) PFFlora.scatter(fg, gy, 4, 220, 41, { mix: { dry: 5, agave: 1 }, gap: 12 });
+    else PFFlora.scatter(fg, gy, 4, 220, 41, { mix: M.cold ? { tuft: 4, agave: 2 } : { tuft: 4, flowers: 3, lupine: 1, hibiscus: 1 }, gap: 12 });
+    PFFlora.palm(fg, 20, gy(20), 96, 10, 77, M.dust ? { ramp: ['#1a1408', '#2e240c', '#4a3a14', '#6a5420', '#8a7030', '#a88a44', '#c4a45a', '#dcc070'] } : {});
+    // matas oscuras del borde derecho (oclusor frío)
+    const clump = PFFlora.fgClump(80, 40, 9, { spikes: M.dust ? 0 : 3 });
+    V.blit(fg, clump, 572, IH - 40);
+    // manglar seco (deuda): raíces grises sobre la orilla y plantones nuevos en cajas
+    if (M.mangrove) {
+      const DW = V.P32(['#2a2420', '#4a403a', '#6a5e56', '#8a7e74', '#a89c90']);
+      for (let i = 0; i < 4; i++) {
+        const bx = 252 + i * 22, by = 132;
+        for (let q = -3; q <= 3; q++) for (let s = 0; s < 6; s++) V.put(fg, bx + q * 2 + Math.round(q * s * 0.3), by - s, DW[1 + (s & 1)]);
+        for (let s = 0; s < 14; s++) V.put(fg, bx, by - 6 - s, DW[2 + (s % 3 === 0 ? 1 : 0)]);
+        for (const [dx, dy] of [[-5, -16], [4, -18], [-3, -21], [6, -14]]) V.line(fg, bx, by - 14, bx + dx, by + dy, () => DW[3]);
+      }
+    }
+    SCBK.grade(fg, M.cold ? { sat: 0.8, tint: '#8aa8d0', tintK: 0.08 } : M.dust ? { sat: 0.86, tint: '#c89060', tintK: 0.1 } : { sat: 1.05 });
+    const fgC = fg.toCanvas();
+    // tablero de decisiones pendientes (pacto) / caja de plantones (deuda) / mosaico (mosaico), horneados aparte
+    const props = new PixelBuffer(W, IH);
+    if (M.board) {
+      const x = 186, y = gy(186) - 40, WD = U('#5a3826'), WL = U('#8e542f');
+      for (let q = 0; q < 40; q++) { V.put(props, x + 2, y + q, WD); V.put(props, x + 33, y + q, WD); }
+      for (let yy = 0; yy < 22; yy++) for (let xx = 0; xx < 36; xx++) V.put(props, x + xx, y + yy, U(yy === 0 || xx === 0 ? '#cb9772' : yy === 21 || xx === 35 ? '#4e2519' : hash2(xx >> 1, yy >> 1, 3) < 0.2 ? '#7a4a28' : '#8e542f'));
+      const NC = ['#ffe14d', '#ff9a8a', '#a6f4ff', '#c2f58e'];
+      for (let i = 0; i < 8; i++) { const nx = x + 3 + (i % 4) * 8, ny = y + 3 + Math.floor(i / 4) * 9; for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 6; xx++) V.put(props, nx + xx, ny + yy, U(yy === 0 ? shadeTo(NC[i % 4], 0.3) : yy === 5 ? shadeTo(NC[i % 4], -0.25) : NC[i % 4])); V.put(props, nx + 1, ny + 2, U('#3a2a40')); V.put(props, nx + 3, ny + 2, U('#3a2a40')); V.put(props, nx + 2, ny + 4, U('#3a2a40')); }
+      for (let xx = 0; xx < 36; xx++) V.put(props, x + xx, y - 1, WL);
+    }
+    if (M.mangrove) {
+      const x = 170, y = gy(170);
+      for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 26; xx++) V.put(props, x + xx, y - 8 + yy, U(yy === 0 ? '#cb9772' : yy === 7 ? '#4e2519' : xx % 9 === 0 ? '#5a2d21' : '#8e542f'));
+      for (let i = 0; i < 5; i++) PFFlora.leaf(props, x + 3 + i * 5, y - 8, -Math.PI / 2 - 0.4 + i * 0.2, 7, 3, V.P32(RAMP.foliageR), 4);
+    }
+    const propsC = props.toCanvas();
+    // personajes del primer plano por final
+    const cast = {
+      mosaico: [['amaya', 'victory', 104, 1, { expr: 'happy' }], ['alma', 'celebrate', 56, 1, {}], ['crowd3', 'celebrate', 196, -1, {}]],
+      pacto: [['amaya', 'observe', 112, 1, { expr: 'smile' }], ['consejal', 'talk', 58, 1, {}]],
+      tecnica: [['amaya', 'think', 112, 1, { expr: 'thinking' }], ['operador', 'idle', 186, -1, {}]],
+      deuda: [['amaya', 'determined', 104, 1, {}], ['marea', 'talk', 214, -1, {}]],
+    }[id] || [];
+    const kiruExpr = { mosaico: 'happy', pacto: 'smile', tecnica: 'calm', deuda: 'brave' }[id];
+    return {
+      id, B, cast,
+      draw(g, t) {
+        g.save(); g.beginPath(); g.rect(0, 0, W, IH); g.clip();
+        B.render(g, { x: 0, y: V.CAMY });
+        if (M.dust) { V.drawSand(g, 24, t, 5, { y0: 40, y1: 150, col: '#f0c890', wind: 0.6 }); }
+        g.drawImage(fgC, 0, 0);
+        g.drawImage(propsC, 0, 0);
+        for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, op);
+        drawChar(g, 'kiru', 'idle', t, 148, gy(148) - 10, 1, { expr: kiruExpr });
+        if (M.sunKind === 'dusk' || M.festive) V.drawMotes(g, 12, t, 13, { y0: 60, y1: 160, col: M.dust ? '#f0c890' : '#ffe8b0' });
+        // borde inferior: sombra de contacto suave sobre el panel
+        g.fillStyle = '#04142e'; g.globalAlpha = 0.5; g.fillRect(0, IH - 2, W, 2); g.globalAlpha = 1;
+        g.restore();
+      },
+    };
+  }
+  return { make, MOODS, IH };
+})();
+
 /* ===== 1c_bio_coast.js ===== */
 /* =====================================================================
    1c_bio_coast.js — BIOMA COSTA (Nivel 01) con el kit de panorama VISTA.
@@ -35587,45 +36036,16 @@ const EndingScene = {
     this.id = p.ending || computeEnding(); this.E = ENDINGS[this.id]; this.t = 0; this.st = endingStats();
     this.ps = new Particles(300); Audio2.playMusic('ending');
     this.weak = LearningModel.weakest(3).map(k => MASTERY_LABELS[k]);
+    this.art = SCBEnd.make(this.id);
     GS.s.ending = this.id; GS.save();
   },
-  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.3) this.ps.emit('firefly', Math.random() * W, 60 + Math.random() * 120, 0, 0, 1); },
+  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.12) this.ps.emit('firefly', Math.random() * W, 70 + Math.random() * 80, 0, 0, 1); },
   render(g) {
     const E = this.E, t = this.t, st = this.st;
-    // ilustración: amanecer después de la Calima sobre SYNARA, con las capas de MOSAICO
-    const HZ = 128;
-    for (let y = 0; y < HZ; y++) frect(g, 0, y, W, 1, mixHex('#2a1050', mixHex('#ff9f6a', '#fff0c0', y / HZ), clamp(y / 100, 0, 1)));
-    for (let i = 0; i < 7; i++) fdither(g, 0, 30 + i * 9, W, 3, ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'][i], 0.1);
-    const sx = 470; fdisc(g, sx, HZ - 4, 26, '#ffe8b0'); fdisc(g, sx, HZ - 4, 19, '#fff6d8'); fdisc(g, sx, HZ - 4, 13, '#ffffff');
-    // nubes residuales de la tormenta, iluminadas desde abajo por el amanecer
-    for (let k = 0; k < 3; k++) {
-      const cx = ((k * 230 + 60 + t * 3) % (W + 160)) - 80, cy = 56 + (k % 2) * 16;
-      for (const [dx, dy, r] of [[-18, 4, 8], [-6, -2, 11], [8, 0, 10], [20, 5, 7]]) fdisc(g, cx + dx, cy + dy, r, '#8a4a7a');
-      for (const [dx, dy, r] of [[-18, 6, 6], [-6, 1, 9], [8, 3, 8], [20, 7, 5]]) fdisc(g, cx + dx, cy + dy + 2, r, '#b8607a');
-      frect(g, cx - 26, cy + 11, 54, 2, '#ffb08a'); fdither(g, cx - 28, cy + 13, 58, 2, '#ffd8a0', 0.5);
-    }
-    // ciudad en dos planos, más baja junto al sol
-    for (let layer = 0; layer < 2; layer++) {
-      const col = layer ? '#2e2050' : '#5a4278', top = layer ? '#4a3a7a' : '#7a62a0';
-      for (let x = -4, k = layer * 50; x < W; k++) {
-        const bw = 8 + (hash1(k, 5) * 14 | 0), near = Math.abs(x + bw / 2 - 470) < 70;
-        const bh = near ? 4 + (hash1(k, 6) * 5 | 0) : (layer ? 8 : 14) + (hash1(k, 6) * (layer ? 22 : 18) | 0);
-        frect(g, x, HZ - bh, bw, bh, col); frect(g, x, HZ - bh, bw, 1, top);
-        if (layer) for (let j = 0; j < 3; j++) if (hash1(k, j + 9) > 0.5) fpx(g, x + 2 + j * 3, HZ - bh + 3 + (j % 2) * 4, '#ffd86a');
-        x += bw + (layer ? 2 : 1);
-      }
-    }
-    // núcleo de SYNARA con anillos de MOSAICO
-    const cx = 110, ch = 84;
-    for (let y = HZ - ch; y < HZ; y++) { const ww = 4 + Math.round((y - (HZ - ch)) / 9); frect(g, cx - ww, y, ww * 2, 1, y % 9 < 2 ? '#7ae0d0' : '#e8dcc0'); frect(g, cx + ww - 2, y, 2, 1, '#b8a888'); }
-    for (let i = 0; i < 5; i++) { const ry = HZ - ch + 14 + i * 9 + Math.sin(t * 1.5 + i) * 2; fdither(g, cx - 34 + i * 3, ry, 68 - i * 6, 3, E.cols[i % 3], 0.55); }
-    fdisc(g, cx, HZ - ch - 4, 4, '#ffffff'); fdither(g, cx - 10, HZ - ch - 14, 20, 20, E.cols[0], 0.2 + 0.1 * Math.sin(t * 3));
-    // mar con reflejos del sol
-    for (let y = HZ; y < 164; y++) frect(g, 0, y, W, 1, mixHex('#3a2a6a', '#14103a', (y - HZ) / 36));
-    for (let y = HZ + 1; y < 164; y += 2) { const ww = 30 - (y - HZ) * 0.4 + Math.sin(t * 2 + y) * 4; frect(g, sx - ww / 2, y, ww, 1, (y % 4) ? '#ffe8b0' : '#ffb08a'); }
-    for (let i = 0; i < 30; i++) { const xx = (i * 37 + t * 10) % W, yy = HZ + 3 + (i * 7) % 32; frect(g, xx, yy, 4, 1, '#6a5a9a'); }
-    frect(g, cx - 2, HZ + 2, 4, 24, '#e8dcc0'); fdither(g, cx - 6, HZ + 2, 12, 24, '#7ae0d0', 0.3);
-    frect(g, 0, 164, W, H - 164, '#0e0a24');
+    // ilustración cinematográfica del final (kit VISTA + primer plano con personajes): 19n_scb_ending.js
+    if (!this.art || this.art.id !== this.id) this.art = SCBEnd.make(this.id);
+    this.art.draw(g, t);
+    frect(g, 0, 164, W, H - 164, '#04142e');
     this.ps.render(g);
     // título del final
     drawText(g, 'FINAL', W / 2, 16, { align: 'center', font: 'tiny', color: '#fff6d8', shadow: '#2a1050' });

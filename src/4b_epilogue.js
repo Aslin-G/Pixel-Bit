@@ -69,45 +69,16 @@ const EndingScene = {
     this.id = p.ending || computeEnding(); this.E = ENDINGS[this.id]; this.t = 0; this.st = endingStats();
     this.ps = new Particles(300); Audio2.playMusic('ending');
     this.weak = LearningModel.weakest(3).map(k => MASTERY_LABELS[k]);
+    this.art = SCBEnd.make(this.id);
     GS.s.ending = this.id; GS.save();
   },
-  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.3) this.ps.emit('firefly', Math.random() * W, 60 + Math.random() * 120, 0, 0, 1); },
+  update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.12) this.ps.emit('firefly', Math.random() * W, 70 + Math.random() * 80, 0, 0, 1); },
   render(g) {
     const E = this.E, t = this.t, st = this.st;
-    // ilustración: amanecer después de la Calima sobre SYNARA, con las capas de MOSAICO
-    const HZ = 128;
-    for (let y = 0; y < HZ; y++) frect(g, 0, y, W, 1, mixHex('#2a1050', mixHex('#ff9f6a', '#fff0c0', y / HZ), clamp(y / 100, 0, 1)));
-    for (let i = 0; i < 7; i++) fdither(g, 0, 30 + i * 9, W, 3, ['#20d6c7', '#ffe14d', '#4ccb70', '#1f854c', '#f78acb', '#c8861a', '#b49cff'][i], 0.1);
-    const sx = 470; fdisc(g, sx, HZ - 4, 26, '#ffe8b0'); fdisc(g, sx, HZ - 4, 19, '#fff6d8'); fdisc(g, sx, HZ - 4, 13, '#ffffff');
-    // nubes residuales de la tormenta, iluminadas desde abajo por el amanecer
-    for (let k = 0; k < 3; k++) {
-      const cx = ((k * 230 + 60 + t * 3) % (W + 160)) - 80, cy = 56 + (k % 2) * 16;
-      for (const [dx, dy, r] of [[-18, 4, 8], [-6, -2, 11], [8, 0, 10], [20, 5, 7]]) fdisc(g, cx + dx, cy + dy, r, '#8a4a7a');
-      for (const [dx, dy, r] of [[-18, 6, 6], [-6, 1, 9], [8, 3, 8], [20, 7, 5]]) fdisc(g, cx + dx, cy + dy + 2, r, '#b8607a');
-      frect(g, cx - 26, cy + 11, 54, 2, '#ffb08a'); fdither(g, cx - 28, cy + 13, 58, 2, '#ffd8a0', 0.5);
-    }
-    // ciudad en dos planos, más baja junto al sol
-    for (let layer = 0; layer < 2; layer++) {
-      const col = layer ? '#2e2050' : '#5a4278', top = layer ? '#4a3a7a' : '#7a62a0';
-      for (let x = -4, k = layer * 50; x < W; k++) {
-        const bw = 8 + (hash1(k, 5) * 14 | 0), near = Math.abs(x + bw / 2 - 470) < 70;
-        const bh = near ? 4 + (hash1(k, 6) * 5 | 0) : (layer ? 8 : 14) + (hash1(k, 6) * (layer ? 22 : 18) | 0);
-        frect(g, x, HZ - bh, bw, bh, col); frect(g, x, HZ - bh, bw, 1, top);
-        if (layer) for (let j = 0; j < 3; j++) if (hash1(k, j + 9) > 0.5) fpx(g, x + 2 + j * 3, HZ - bh + 3 + (j % 2) * 4, '#ffd86a');
-        x += bw + (layer ? 2 : 1);
-      }
-    }
-    // núcleo de SYNARA con anillos de MOSAICO
-    const cx = 110, ch = 84;
-    for (let y = HZ - ch; y < HZ; y++) { const ww = 4 + Math.round((y - (HZ - ch)) / 9); frect(g, cx - ww, y, ww * 2, 1, y % 9 < 2 ? '#7ae0d0' : '#e8dcc0'); frect(g, cx + ww - 2, y, 2, 1, '#b8a888'); }
-    for (let i = 0; i < 5; i++) { const ry = HZ - ch + 14 + i * 9 + Math.sin(t * 1.5 + i) * 2; fdither(g, cx - 34 + i * 3, ry, 68 - i * 6, 3, E.cols[i % 3], 0.55); }
-    fdisc(g, cx, HZ - ch - 4, 4, '#ffffff'); fdither(g, cx - 10, HZ - ch - 14, 20, 20, E.cols[0], 0.2 + 0.1 * Math.sin(t * 3));
-    // mar con reflejos del sol
-    for (let y = HZ; y < 164; y++) frect(g, 0, y, W, 1, mixHex('#3a2a6a', '#14103a', (y - HZ) / 36));
-    for (let y = HZ + 1; y < 164; y += 2) { const ww = 30 - (y - HZ) * 0.4 + Math.sin(t * 2 + y) * 4; frect(g, sx - ww / 2, y, ww, 1, (y % 4) ? '#ffe8b0' : '#ffb08a'); }
-    for (let i = 0; i < 30; i++) { const xx = (i * 37 + t * 10) % W, yy = HZ + 3 + (i * 7) % 32; frect(g, xx, yy, 4, 1, '#6a5a9a'); }
-    frect(g, cx - 2, HZ + 2, 4, 24, '#e8dcc0'); fdither(g, cx - 6, HZ + 2, 12, 24, '#7ae0d0', 0.3);
-    frect(g, 0, 164, W, H - 164, '#0e0a24');
+    // ilustración cinematográfica del final (kit VISTA + primer plano con personajes): 19n_scb_ending.js
+    if (!this.art || this.art.id !== this.id) this.art = SCBEnd.make(this.id);
+    this.art.draw(g, t);
+    frect(g, 0, 164, W, H - 164, '#04142e');
     this.ps.render(g);
     // título del final
     drawText(g, 'FINAL', W / 2, 16, { align: 'center', font: 'tiny', color: '#fff6d8', shadow: '#2a1050' });
