@@ -36,7 +36,9 @@ const GameplayScene = {
     GS.s.level = p.level; GS.s.scene = 'level';
     if (!GS.s.unlocked.includes(p.level)) GS.s.unlocked.push(p.level);
     LearningModel.startLevel(p.level);
-    if (def.portraits) Portraits.warm(def.portraits);
+    // retratos del nivel: se precalientan de uno en uno tras la entrada (fuera del prerender; si un diálogo
+    // los pide antes, Portraits.get los construye en el acto)
+    if (def.portraits) FIXUI_warmLater(def.portraits);
     Audio2.playMusic(def.music || 'coast');
     Audio2.setAmbience(def.ambience || { sea: 0.5, wind: 0.3, birds: 0.5 });
     if (def.setup) def.setup(this, p);
@@ -281,6 +283,11 @@ const GameplayScene = {
    FIXUI_labelRects: cajas de las etiquetas del mundo dibujadas en este cuadro (WorldLabels.lastRects si el kit
    las publica; si no, se registran los blits de caja durante WorldLabels.draw). FIXUI_bodies: cuerpos de Amaya,
    KIRU y los actores visibles (de la cabeza a los pies). */
+function FIXUI_warmLater(ids) {
+  const q = ids.slice(), tok = (FIXUI_warmLater.tok = (FIXUI_warmLater.tok || 0) + 1);
+  const step = () => { if (tok !== FIXUI_warmLater.tok || !q.length) return; try { Portraits.warm([q.shift()]); } catch (e) { /* se construirá al pedirlo */ } setTimeout(step, 40); };
+  setTimeout(step, 350);
+}
 let FIXUI_labelRects = [];
 let FIXUI_bodies = [];
 function FIXUI_drawLabels(g, sc) {
