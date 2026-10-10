@@ -393,6 +393,53 @@ const BAY_ALTS = [
   { id: 'inject', name: 'Inyección en pozo profundo', c: { ENERGÍA: 3, COSTO: 4, RIESGO: 4, ESPACIO: 1, MADUREZ: 3, OPERACIÓN: 4, IMPACTO: 3, INCERTIDUMBRE: 5 }, ok: false, note: 'Sin estudios hidrogeológicos, puede contaminar el mismo acuífero del pozo.' },
   { id: 'zero', name: '"Valorización total, cero impacto"', c: { ENERGÍA: 5, COSTO: 5, RIESGO: 3, ESPACIO: 2, MADUREZ: 1, OPERACIÓN: 5, IMPACTO: 2, INCERTIDUMBRE: 5 }, ok: false, note: 'Promesa sin evidencia: alta energía, baja madurez, mercado incierto.' },
 ];
+/** Pluma de salmuera de Sim03 sin tramado: tres bandas magenta por umbral (0,03 · 0,3 · 1 g/L), tramos por filas,
+ *  contorno de 1 px más oscuro, borde iluminado arriba y 28 partículas que se alejan del punto de descarga y se diluyen. */
+const FIXSIMS_PLUME = { buf: null };
+function FIXSIMS_plume(g, P, X0, Y0, src, t) {
+  const nx = BAY.nx, ny = BAY.ny, px = BAY.px;
+  const B = FIXSIMS_PLUME.buf && FIXSIMS_PLUME.buf.length === nx * ny ? FIXSIMS_PLUME.buf : (FIXSIMS_PLUME.buf = new Int8Array(nx * ny));
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { const v = P.concAt(x, y); B[y * nx + x] = v < 0.03 ? -1 : v < 0.3 ? 0 : v < 1 ? 1 : 2; }
+  const at = (x, y) => (x < 0 || y < 0 || x >= nx || y >= ny) ? -1 : B[y * nx + x];
+  const runs = (min, col, a) => {
+    g.globalAlpha = a; g.fillStyle = col;
+    for (let y = 0; y < ny; y++) { let x = 0; while (x < nx) { if (B[y * nx + x] < min) { x++; continue; } const x0 = x; while (x < nx && B[y * nx + x] >= min) x++; g.fillRect(X0 + x0 * px, Y0 + y * px, (x - x0) * px, px); } }
+    g.globalAlpha = 1;
+  };
+  runs(0, '#c244a2', 0.14);
+  runs(1, '#9a3488', 1);
+  runs(2, '#e07ecf', 1);
+  // contornos: 1 px oscuro en el borde exterior de cada banda opaca; brillo de 1 px en el borde superior de la banda alta
+  // isolínea exterior (0,03 g/L): contorno de 1 px sobre el velo de trazas
+  g.globalAlpha = 0.75;
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    if (B[y * nx + x] !== 0) continue;
+    const X = X0 + x * px, Y = Y0 + y * px;
+    if (at(x - 1, y) < 0) frect(g, X, Y, 1, px, '#e07ecf');
+    if (at(x + 1, y) < 0) frect(g, X + px - 1, Y, 1, px, '#e07ecf');
+    if (at(x, y - 1) < 0) frect(g, X, Y, px, 1, '#e07ecf');
+    if (at(x, y + 1) < 0) frect(g, X, Y + px - 1, px, 1, '#e07ecf');
+  }
+  g.globalAlpha = 1;
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    const b = B[y * nx + x]; if (b < 1) continue;
+    const X = X0 + x * px, Y = Y0 + y * px, oc = b === 2 ? '#a8388e' : '#4a1048';
+    if (at(x - 1, y) < b) frect(g, X, Y, 1, px, oc);
+    if (at(x + 1, y) < b) frect(g, X + px - 1, Y, 1, px, oc);
+    if (at(x, y + 1) < b) frect(g, X, Y + px - 1, px, 1, oc);
+    if (at(x, y - 1) < b) frect(g, X, Y, px, 1, b === 2 ? '#ffc6ee' : '#c85aae');
+  }
+  if (!src) return;
+  const sx = X0 + src.x * px + 3, sy = Y0 + src.y * px + 3, u = P.tideU ? P.tideU() : 0, cr = P.cross || 0;
+  for (let i = 0; i < 28; i++) {
+    const ph = (t * (0.12 + (i % 4) * 0.02) + i / 28) % 1, ang = Math.atan2(0.8 + cr * 0.6, u * 0.6) + (hash1(i, 9) - 0.5) * 2.2, d = 6 + ph * 70;
+    const qx = Math.round(sx + Math.cos(ang) * d), qy = Math.round(sy + Math.sin(ang) * d * 0.8);
+    const cx = Math.floor((qx - X0) / px), cy = Math.floor((qy - Y0) / px);
+    if (at(cx, cy) < 0) continue;
+    const col = ph < 0.33 ? '#ffd0f0' : ph < 0.66 ? '#f2a0dc' : '#c050a8';
+    if (ph < 0.5) frect(g, qx, qy, 2, 2, col); else fpx(g, qx, qy, col);
+  }
+}
 const Sim03 = makeSim({
   title: 'GEMELO DE LA BAHÍA · pluma de salmuera', icon: 'drop_brine', ra: 'RA-03', concepts: ['brine', 'massBalance'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -495,13 +542,8 @@ const Sim03 = makeSim({
     if (this.phase === 'transfer') { this.drawTransfer(g); return; }
     const P = this.P, X0 = 8, Y0 = 28, c = this.cfg;
     g.drawImage(this.base, X0, Y0);
-    // pluma: celdas con exceso tramadas por concentración
-    const cols = ['#f888b8', '#e05aa0', '#bc3e92', '#ffffff'];
-    for (let y = 0; y < BAY.ny; y++) for (let x = 0; x < BAY.nx; x++) {
-      const v = P.concAt(x, y); if (v < 0.03) continue;
-      const k = clamp(v / 1.5, 0, 1);
-      PFDyn.veil(g, X0 + x * BAY.px, Y0 + y * BAY.px, BAY.px, BAY.px, cols[Math.min(3, Math.floor(k * 3.2))], clamp(0.25 + k * 0.7, 0, 0.95));
-    }
+    // pluma: isolíneas en bandas (trazas < 0,3 g/L como velo plano; ≥ 0,3 y ≥ 1 g/L opacas con contorno) + partículas
+    FIXSIMS_plume(g, P, X0, Y0, c.pt !== 'D' ? BAY_POINTS[c.pt] : null, Game.time);
     // flechas de corriente (marea)
     const s = Math.sin(TAU * P.t / 12.4), u = P.tideU();
     for (let y = 10; y < 34; y += 8) for (let x = 6; x < 62; x += 10) { const ax = X0 + x * BAY.px, ay = Y0 + y * BAY.px; fline(g, ax, ay, ax + u * 2, ay + P.cross * 3, '#c6fff2'); fpx(g, ax + u * 2, ay + P.cross * 3, '#ffffff'); }

@@ -559,7 +559,7 @@ const Sim08 = makeSim({
     drawText(g, 'Rendimiento: ' + fmt0(lerp(100, 58, k)) + ' %', x + 260, y + 26, { color: k > 0.5 ? '#ff9a8a' : '#c2f58e' });
     const CX = 414, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 120, 'tech');
-    drawTextBlock(g, 'ETc = Kc · ET0. En Aridia, ET0 ≈ 6,5 mm/día. El tomate en floración (Kc ≈ 1,15) pierde ≈ 7,5 mm/día. Con goteo (eficiencia ≈ 0,9) hay que aplicar ≈ 8,3 mm/día brutos.', CX + 8, 34, CW - 16, { font: 'tiny', color: '#cfd6f0' });
+    drawTextBlock(g, 'ETc = Kc · ET0. En Aridia, ET0 ≈ 6,5 mm/día. El tomate en floración (Kc ≈ 1,15) pierde ≈ 7,5 mm/día. Con goteo (eficiencia ≈ 0,9) hay que aplicar ≈ 8,3 mm/día brutos.', CX + 8, 34, CW - 16, { color: '#cfd6f0', lineH: 11 });
   },
   drawBlend(g, x, y) {
     const b = this.blend();
@@ -573,7 +573,10 @@ const Sim08 = makeSim({
       Icons.draw(g, k === 'rain' ? 'water' : k === 'perm' ? 'membrane' : 'salt', x + 8, yy + 6);
       const v = Gui.slider(g, 'src' + k, x + 28, yy, 240, this.f[k], 0, S.max, 0.05, { label: S.name, fmt: q => fmt0(q * 100) + ' %', disabled: this.done && this.phase !== 'free', color: S.col });
       if (v !== this.f[k]) { this.f[k] = v; const others = keys.filter(q => q !== k); const rest = Math.max(0, 1 - v); const sum = others.reduce((a, q) => a + this.f[q], 0) || 1; for (const q of others) this.f[q] = Math.min(IRR_SOURCES[q].max, this.f[q] / sum * rest); }
-      drawText(g, 'EC ' + fmt(S.ec, 2) + ' · B ' + fmt(S.boron, 1) + ' · Na ' + S.na + ' · Ca+Mg ' + S.cam, x + 280, yy + 10, { font: 'tiny', color: '#cfd6f0' });
+      // química de la fuente en dos líneas, todo con coma decimal (fmt)
+      const nf = v => Number.isInteger(v) ? fmt0(v) : fmt(v, 1);
+      drawText(g, 'EC ' + fmt(S.ec, 2) + ' · B ' + fmt(S.boron, 1), x + 280, yy + 6, { font: 'tiny', color: '#cfd6f0' });
+      drawText(g, 'Na ' + nf(S.na) + ' · Ca+Mg ' + nf(S.cam), x + 280, yy + 14, { font: 'tiny', color: '#cfd6f0' });
       yy += 30;
     }
     const gp = Gui.toggle(g, 'gyp', x + 28, yy + 4, 'Dosificar yeso (calcio)', this.gyp); if (!this.done || this.phase === 'free') this.gyp = gp;
@@ -590,8 +593,9 @@ const Sim08 = makeSim({
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }
     drawText(g, 'Infiltración', sx + 55, sy + 84, { font: 'tiny', align: 'center', color: '#cfd6f0' });
     const CX = 414, CW = W - CX - 6;
-    UIK.panel(g, CX, 28, CW, 120, 'glass');
-    drawTextBlock(g, 'Calidad para riego (FAO-29, orientativo): la EC mide sales; el boro es tóxico en dosis bajas para cultivos sensibles; el SAR (sodio frente a calcio y magnesio) con agua muy pura sella el suelo. Los umbrales dependen de especie, suelo y manejo.', CX + 8, 34, CW - 16, { font: 'tiny', color: '#cfd6f0' });
+    UIK.panel(g, CX, 28, CW, 200, 'glass');
+    drawText(g, 'CALIDAD PARA RIEGO (FAO-29)', CX + 8, 34, { font: 'tiny', color: '#ffe14d' });
+    drawTextBlock(g, 'Orientativo: la EC mide sales; el boro es tóxico en dosis bajas para cultivos sensibles; el SAR (sodio frente a calcio y magnesio) con agua muy pura sella el suelo. Los umbrales dependen de especie, suelo y manejo.', CX + 8, 46, CW - 16, { color: '#cfd6f0', lineH: 11 });
     if (this.phase === 'guided' && !this.done && Gui.button(g, 'ev', CX + 8, 204, 100, 18, 'Evaluar mezcla', { style: 'good', icon: 'check' })) this.evaluate();
     if (Gui.button(g, 'hintb', CX + CW - 60, 204, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
   },

@@ -39,7 +39,7 @@ const SCBL11 = (() => {
   };
   const labels = [
     { x: 562, y: 210, title: 'PARCELA ESCOLAR', sub: 'Goteo + sensor de humedad', kind: 'green', ax: 562, ay: 248 },
-    { x: 960, y: 196, title: 'PANEL PÚBLICO', sub: (sc) => ((1.2 + 0.2 * Math.sin(Game.time * 0.7)).toFixed(1)) + ' NTU en vivo', kind: 'water', ax: 930, ay: 214 },
+    { x: 960, y: 196, title: 'PANEL PÚBLICO', sub: (sc) => fmt(1.2 + 0.2 * Math.sin(Game.time * 0.7), 1) + ' NTU en vivo', kind: 'water', ax: 930, ay: 214 },
   ];
   function props(pb, world) {
     const gy = (x) => world.groundAt(x);

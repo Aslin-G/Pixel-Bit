@@ -323,6 +323,46 @@ async function sideUnits(sc) {
 /* =====================================================================
    Muro de evidencias: cadena causal sistémica
    ===================================================================== */
+/** Muro de evidencias: tablero de corcho y foto del apagón, horneados una vez (sin coste por cuadro) */
+const FIXSIMS_CHAIN = { board: null, photo: null, emerg: [] };
+function FIXSIMS_chainBoard() {
+  if (FIXSIMS_CHAIN.board) return FIXSIMS_CHAIN.board;
+  const c = makeCanvas(W, H), b = c.g;
+  frect(b, 14, 14, W - 28, H - 28, '#3a1a10'); frect(b, 16, 16, W - 32, H - 32, '#7e4429'); frect(b, 16, 16, W - 32, 2, '#c97c38');
+  frect(b, 20, 34, W - 40, H - 54, '#b8864e');
+  for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(b, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
+  SCBK.veil(b, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+  FIXSIMS_CHAIN.board = c; return c;
+}
+function FIXSIMS_chainPhoto(w, h) {
+  if (FIXSIMS_CHAIN.photo) return FIXSIMS_CHAIN.photo;
+  const V = VISTA, seaY = h - 11;
+  const pb = SCBK.nightSky(w, h, { horizonY: seaY });
+  SCBK.stars(pb, w, seaY - 24, 909, { n: 70, y1: seaY - 24 });
+  // ciudad en la colina, sin luz (apagón): capa aparte que se gradúa a noche y se compone sobre el cielo
+  const town = new PixelBuffer(w, h), r = RNG(4242), emerg = [];
+  const hillTop = (x) => Math.round(seaY - 20 - 9 * Math.sin(x * 0.018 + 0.6) - 4 * Math.sin(x * 0.07));
+  const HR = V.P32(['#1a2a3a', '#24384a', '#2e465a']);
+  for (let x = 0; x < w; x++) for (let y = hillTop(x); y < seaY; y++) town.data[y * w + x] = HR[y - hillTop(x) < 2 ? 2 : y - hillTop(x) < 6 ? 1 : 0];
+  const tw = V.synaraTower(town, Math.round(w * 0.72), hillTop(Math.round(w * 0.72)) + 2, 42, {});
+  let x = 4;
+  while (x < w - 14) {
+    const hw = r.int(10, 16), hh = r.int(9, 15), base = hillTop(x + (hw >> 1)) + r.int(6, 12);
+    if (Math.abs(x + hw / 2 - w * 0.72) > 12) {
+      const hs = V.townHouse(town, x, Math.min(seaY - 1, base), hw, hh, 300 + x, { k: 0 });
+      if (hs && hs.wins && r() < 0.35 && hs.wins.length) { const wv = hs.wins[0]; emerg.push([wv[0], wv[1]]); }
+    }
+    x += hw + r.int(1, 4);
+  }
+  SCBK.grade(town, { sat: 0.55, tint: '#26357a', tintK: 0.55, bright: 0.42 });
+  for (let i = 0; i < town.data.length; i++) if (town.data[i] >>> 24) pb.data[i] = town.data[i];
+  // mar oscuro en bandas con reflejos tenues
+  const SEA = V.P32(['#06183a', '#041230', '#030c24', '#020818']);
+  for (let y = seaY; y < h; y++) for (let xx = 0; xx < w; xx++) pb.data[y * w + xx] = SEA[Math.min(3, Math.floor((y - seaY) / 3))];
+  for (let i = 0; i < 26; i++) { const rx = r.int(0, w - 4), ry = seaY + 1 + r.int(0, h - seaY - 2); for (let k = 0; k < 3; k++) V.put(pb, rx + k, ry, U('#2a3a6a')); }
+  FIXSIMS_CHAIN.emerg = emerg.slice(0, 6);
+  FIXSIMS_CHAIN.photo = pb.toCanvas(); return FIXSIMS_CHAIN.photo;
+}
 const ChainScene = {
   overlay: true,
   enter(p) { this.onDone = p.onDone; this.sel = new Set(); this.fb = null; this.order = RNG(91).shuffle(CHAIN_CARDS.slice()); },
@@ -331,20 +371,21 @@ const ChainScene = {
   render(g) {
     const t = Game.time;
     SCBK.veil(g, 0, 0, W, H, '#05030f', 0.8);
-    // marco de madera y corcho
-    frect(g, 14, 14, W - 28, H - 28, '#3a1a10'); frect(g, 16, 16, W - 32, H - 32, '#7e4429'); frect(g, 16, 16, W - 32, 2, '#c97c38');
-    frect(g, 20, 34, W - 40, H - 54, '#b8864e');
-    for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(g, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
-    SCBK.veil(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+    // marco de madera y corcho (prerenderizado una vez: antes eran ~900 fillRect por cuadro)
+    g.drawImage(FIXSIMS_chainBoard(), 0, 0);
     drawText(g, 'MURO DE EVIDENCIAS · ¿CÓMO OCURRIÓ?', 28, 21, { color: '#fff6d8', shadow: '#3a1a10' });
     drawText(g, 'Clava los factores que la evidencia respalda. Deja fuera los que los datos contradicen.', W - 28, 23, { font: 'tiny', color: '#ffe08a', align: 'right' });
     // foto central de la crisis
     const cx = 26 + 150 + 2, cy = 50 + 60 + 4, cw = 286, ch = 108;
-    frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0');
-    frect(g, cx + 6, cy + 6, cw - 12, ch - 34, '#0a0c22');
-    for (let k = 0; k < 18; k++) { const bx = cx + 10 + k * 15, bh = 10 + (k * 13) % 30; frect(g, bx, cy + ch - 28 - bh, 12, bh, '#1c1f40'); if ((k * 7) % 5 === 0) fpx(g, bx + 4, cy + ch - 26 - bh + 4, '#ff6b6b'); }
-    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
-    fdisc(g, cx + cw / 2, cy + 30, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 30, 5, '#0a0c22');
+    frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0'); frect(g, cx, cy + ch - 1, cw, 1, '#d8ccb0');
+    // foto: Synara de noche durante el apagón (mini panorama VISTA prerenderizado) + polvo de la Calima en el cielo
+    g.drawImage(FIXSIMS_chainPhoto(cw - 12, ch - 34), cx + 6, cy + 6);
+    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.22); SCBK.veil(g, cx + 6, cy + 6, cw - 12, 9, '#c06a30', 0.14);
+    // símbolo de MIRAGE sobre la ciudad (anillo magenta con halo de 1 px) y luces de emergencia que parpadean
+    fdisc(g, cx + cw / 2, cy + 22, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 22, 6, '#0a0c22'); g.globalAlpha = 0.35; fdisc(g, cx + cw / 2, cy + 22, 11, '#f27ee6'); g.globalAlpha = 1; fdisc(g, cx + cw / 2, cy + 22, 6, '#0a0c22');
+    if (Math.floor(t * 2) % 2) for (const [ex, ey] of FIXSIMS_CHAIN.emerg) frect(g, cx + 6 + ex, cy + 6 + ey, 2, 2, '#ff4e5d');
+    // cinta adhesiva arriba
+    g.globalAlpha = 0.7; frect(g, cx + cw / 2 - 22, cy - 4, 44, 9, '#efe2b8'); g.globalAlpha = 1; frect(g, cx + cw / 2 - 22, cy - 4, 44, 1, '#fff6d8');
     drawText(g, 'APAGÓN DE SYNARA', cx + cw / 2, cy + ch - 22, { color: '#3a1a10', align: 'center' });
     drawText(g, 'No preguntes quién. Pregunta cómo.', cx + cw / 2, cy + ch - 11, { font: 'tiny', color: '#7e4429', align: 'center' });
         Gui.begin();
@@ -501,14 +542,16 @@ const Sim09 = makeSim({
     MO_ALTS.forEach((a, r) => {
       const yy = y + 18 + r * 30;
       const marked = this.marks.has(a.id), picked = this.pick === a.id;
-      if (Gui.button(g, 'alt' + a.id, x + 6, yy, 140, 26, a.id + '. ' + a.name, { style: picked ? 'good' : marked ? 'danger' : 'ghost', align: 'left', disabled: this.done && ph !== 'free' })) {
+      const domTag = ph === 'free' && P.find(q => q.id === a.id).dominated;
+      if (Gui.button(g, 'alt' + a.id, x + 6, yy, 140, 26, domTag ? '' : a.id + '. ' + a.name, { style: picked ? 'good' : marked ? 'danger' : 'ghost', align: 'left', disabled: this.done && ph !== 'free' })) {
         if (ph === 'guided') { if (marked) this.marks.delete(a.id); else this.marks.add(a.id); }
         else this.pick = a.id;
         Audio2.sfx('ui');
       }
       keys.forEach((k, i) => { const v = a.crit[k]; const n = MOModel.normalize(MO_ALTS, { [k]: MO_DIRS[k] }).find(q => q.id === a.id).norm[k]; frect(g, x + 150 + i * 52, yy + 18, Math.round(46 * n), 4, n > 0.66 ? '#86e36f' : n > 0.33 ? '#ffe14d' : '#ff6b6b'); drawText(g, k === 'costo' ? fmt(v, 2) : k === 'equidad' ? fmt(v, 2) : fmt0(v), x + 150 + i * 52, yy + 6, { font: 'tiny', color: '#fffaf0' }); });
       if (ph === 'auto') { const s = this.monoScore(a); drawText(g, String(s), x + 156 + keys.length * 52, yy + 6, { color: a.id === 'M' ? '#ffe14d' : '#f27ee6' }); }
-      if (ph === 'free' && P.find(q => q.id === a.id).dominated) { frect(g, x + 104, yy + 1, 40, 7, '#05081d'); drawText(g, 'DOMINADA', x + 142, yy + 2, { font: 'tiny', color: '#ff9a8a', align: 'right' }); }
+      // dominada: nombre arriba y píldora dentro de la fila (no sobre el borde)
+      if (domTag) { drawText(g, fitText(a.id + '. ' + a.name, 128), x + 12, yy + 3, { color: picked ? '#eafff6' : '#e2ebfc' }); UIK.pill(g, x + 12, yy + 13, 'DOMINADA', { rim: '#ff6b6b', fill: '#2a0814', color: '#ffd0c8' }); }
     });
     const CX = 484, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 232, 'glass');

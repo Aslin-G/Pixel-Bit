@@ -474,11 +474,12 @@ const Sim06 = makeSim({
       if (rv !== this.rule.reserve) { this.rule.reserve = rv; this.runDay(); }
       const ho = Gui.toggle(g, 'ho', CX + 8, 70, 'H2 solo con excedente', this.rule.h2Only); if ((!this.done || ph === 'free') && ho !== this.rule.h2Only) { this.rule.h2Only = ho; this.runDay(); }
       const cf = Gui.toggle(g, 'cf', CX + 8, 86, 'Cargar batería antes que el H2', this.rule.chargeFirst); if ((!this.done || ph === 'free') && cf !== this.rule.chargeFirst) { this.rule.chargeFirst = cf; this.runDay(); }
-      drawText(g, 'Desprendimiento: H2 → riego → OI → críticas', CX + 8, 96, { font: 'tiny', color: '#cfd6f0' });
-      drawText(g, 'SOC al cierre: ' + fmt0(r.socEnd * 100) + ' %   mín: ' + fmt0(r.socMin * 100) + ' %', CX + 8, 104, { font: 'tiny', color: r.socEnd < 0.3 ? '#ff6b6b' : '#b6f05a' });
-      drawText(g, 'Críticas sin servir: ' + fmt0(r.unservedCrit) + ' kWh', CX + 8, 113, { font: 'tiny', color: r.unservedCrit > 0 ? '#ff6b6b' : '#86e36f' });
-      drawText(g, 'H2: ' + fmt(r.h2kg, 1) + ' kg   Vertido: ' + fmt0(r.curtailed) + ' kWh', CX + 8, 122, { font: 'tiny', color: '#d8fff8' });
-      drawText(g, 'Pérdidas BESS estimadas: ≈ ' + fmt0(r.bess.throughput * 0.05) + ' kWh', CX + 8, 131, { font: 'tiny', color: '#ff9f43' });
+      drawText(g, 'Desprendimiento: H2 → riego → OI → críticas', CX + 8, 106, { font: 'tiny', color: '#cfd6f0' });
+      frect(g, CX + 8, 115, CW - 16, 1, '#12305a');
+      drawText(g, 'SOC al cierre: ' + fmt0(r.socEnd * 100) + ' %   mín: ' + fmt0(r.socMin * 100) + ' %', CX + 8, 121, { color: r.socEnd < 0.3 ? '#ff6b6b' : '#b6f05a' });
+      drawText(g, 'Críticas sin servir: ' + fmt0(r.unservedCrit) + ' kWh', CX + 8, 134, { color: r.unservedCrit > 0 ? '#ff6b6b' : '#86e36f' });
+      drawText(g, 'H2: ' + fmt(r.h2kg, 1) + ' kg   Vertido: ' + fmt0(r.curtailed) + ' kWh', CX + 8, 147, { color: '#d8fff8' });
+      drawText(g, 'Pérdidas BESS estimadas: ≈ ' + fmt0(r.bess.throughput * 0.05) + ' kWh', CX + 8, 160, { color: '#ff9f43' });
       if (ph === 'guided' && !this.done && Gui.button(g, 'ev', CX + 8, 204, 100, 18, 'Simular 24 h', { style: 'good', icon: 'play' })) this.evaluate();
       if (Gui.button(g, 'hintb', CX + CW - 60, 204, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
     }

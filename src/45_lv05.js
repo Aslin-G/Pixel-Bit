@@ -349,6 +349,13 @@ function gustSeries() {
   }
   return s;
 }
+/** Aerogenerador en su bahía del panel: suelo en bandas, sombra de contacto y rótulo de estado (fuera de la gráfica) */
+function FIXSIMS_turbineBay(g, cx, by, size, ang, stopped, gx, gw, pill = true) {
+  frect(g, gx, by, gw, 1, '#3a64b0'); frect(g, gx, by + 1, gw, 2, '#12305a');
+  frect(g, cx - 6, by - 1, 12, 1, '#0a1838');
+  ART.turbine(g, cx, by - 1, size, ang, { col: '#ffffff', shade: '#c8d8e8', stopped });
+  if (stopped && pill) UIK.pill(g, cx - Math.round(size * 0.48) - 4, by - size - 6, 'CORTE 25 m/s', { align: 'right', rim: '#ff4e5d', fill: '#2a0814', color: '#ffe8e4' });
+}
 const Sim05 = makeSim({
   title: 'GEMELO EÓLICO · curva de potencia, estelas y ráfagas', icon: 'wind', ra: 'RA-04', concepts: ['wind', 'microgrid'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -364,7 +371,7 @@ const Sim05 = makeSim({
     if (ph === 'guided') { this.v = 9; this.say('Tu turno: el viento llega desde la izquierda a 9 m/s. Reubica las 4 turbinas (clic en una turbina y luego en una celda) para que las pérdidas por estela sean ≤ 6 %. La parcela solo tiene 3 filas.'); }
     if (ph === 'auto') { this.series = gustSeries(); this.m = 0; this.running = false; this.stopped = false; this.energy = 0; this.maxEnergy = 0; this.damage = 0; this.badRestart = 0; this.log = []; this.say('Ráfaga Umbral: el pronóstico de MIRAGE (sin extremos) dice "máximo 19 m/s". El anemómetro del acantilado mide el viento ' + this.lead + ' minutos antes de que llegue. La parada automática fue desactivada para "maximizar producción". Decide tú.'); }
     if (ph === 'transfer') { this.say('Transferencia: despacho nocturno con pronóstico incierto. Elige la reserva protegida de la batería y cuánta electrólisis programar. Se probarán tres noches posibles: calma, viento moderado y ráfagas con paradas.'); }
-    if (ph === 'free') { this.v = 10; this.say('Laboratorio libre.'); }
+    if (ph === 'free') { this.v = 10; this.say('Laboratorio libre: mueve el viento con el deslizador y compara la curva real con la extrapolación v³. Sube el viento por encima de 25 m/s, o reubica las turbinas y mira cómo cambia la estela.'); }
   },
   farm() { return WindModel.farm(this.v, this.layout); },
   step(dt) {
@@ -449,7 +456,22 @@ const Sim05 = makeSim({
         f.turbines.forEach((tb, i) => drawText(g, 'T' + (i + 1) + ': v ' + fmt(tb.v, 1) + ' m/s → ' + fmt0(tb.P) + ' kW', CX + 8, 132 + i * 10, { font: 'tiny', color: '#cfd6f0' }));
         if (!this.done && Gui.button(g, 'ev', CX + 8, 204, 100, 18, 'Evaluar', { style: 'good', icon: 'check' })) this.evaluate();
       }
+      if (ph === 'demo') FIXSIMS_turbineBay(g, CX + Math.round(CW / 2), 198, 66, this.t * WindModel.power(this.v) / 120, this.v >= 25, CX + 8, CW - 16);
       if (Gui.button(g, 'hintb', CX + CW - 60, 204, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
+    }
+    if (ph === 'free') {
+      // laboratorio libre: control del viento y lecturas bajo la parcela de estelas
+      const CX = 414, CW = W - CX - 6, PY = 172, PH = 150;
+      UIK.panel(g, CX, PY, CW, PH, 'tech');
+      this.v = Gui.slider(g, 'vfree', CX + 8, PY + 6, CW - 16, this.v, 0, 30, 0.5, { label: 'Velocidad del viento', unit: 'm/s', marks: [{ v: 3, col: '#8ff5c8' }, { v: 12, col: '#ffe14d' }, { v: 25, col: '#ff4e5d' }] });
+      const v = this.v, P = WindModel.power(v), naive = WindModel.naiveCubic(v, 12), f = this.farm(), ideal = P * 4;
+      drawText(g, 'Potencia real: ' + fmt0(P) + ' kW', CX + 8, PY + 34, { color: '#ffffff' });
+      drawText(g, 'Extrapolación v³: ' + fmt0(naive) + ' kW', CX + 8, PY + 48, { color: '#f78acb' });
+      drawText(g, 'Parque: ' + fmt0(f.total) + ' / ' + fmt0(ideal) + ' kW', CX + 8, PY + 64, { color: '#ffe14d' });
+      drawText(g, ideal > 0 ? 'Pérdida por estela: ' + fmt(100 * (1 - f.total / ideal), 1) + ' %' : (v >= 25 ? 'Corte por sobrevelocidad' : 'Bajo el arranque (3 m/s)'), CX + 8, PY + 78, { color: ideal > 0 ? ((1 - f.total / ideal) > 0.06 ? '#ff9a8a' : '#86e36f') : '#ffb93b' });
+      drawText(g, 'Arranque 3 · nominal 12 · corte 25 m/s', CX + 8, PY + 94, { font: 'tiny', color: '#cfd6f0' });
+      FIXSIMS_turbineBay(g, CX + CW - 34, PY + PH - 10, 50, this.t * P / 120, v >= 25, CX + CW - 70, 62, false);
+      if (Gui.button(g, 'hintb', CX + 8, PY + PH - 24, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
     }
     if (this.verdict) {
       const v = this.verdict;
@@ -465,9 +487,6 @@ const Sim05 = makeSim({
     const real = [], naive = [];
     for (let v = 0; v <= 30; v += 0.5) { real.push([v, WindModel.power(v)]); naive.push([v, Math.min(1400, WindModel.naiveCubic(v, 12))]); }
     Charts.line(g, x, y, w, h, [{ data: real, color: '#ffffff', label: 'curva real' }, { data: naive, color: '#f78acb', label: 'v³ ingenua' }], { xMin: 0, xMax: 30, yMin: 0, yMax: 1400, legend: true, xLabel: 'm/s', yLabel: 'kW', cursor: this.v, hlines: [{ v: 500, color: '#8ff5c8', label: 'nominal' }] });
-    // turbina dibujada que gira según el viento
-    const tx = x + w - 50, ty = y + h - 10;
-    ART.turbine(g, tx, ty, 60, this.t * WindModel.power(this.v) / 120, { col: '#ffffff', shade: '#c8d8e8', stopped: this.v >= 25 });
   },
   drawLayout(g, x, y, w, h) {
     frect(g, x, y, w, h, '#0e2a3a'); frect(g, x + 1, y + 1, w - 2, h - 2, '#13405a');
@@ -480,7 +499,24 @@ const Sim05 = makeSim({
       if (!this.done && Gui.button(g, 'cell' + r + '_' + c, cx, cy, cw - 1, rh - 1, '', { noDraw: true })) { if (!this.layout.some(t => t.x === c && t.y === r * 1.5)) { this.layout[this.selT] = { x: c, y: r * 1.5 }; Audio2.sfx('ui'); } }
     }
     // estelas
-    f.turbines.forEach((tb) => { const cx = x + 30 + tb.x * cw + cw / 2, cy = y + 18 + (tb.y / 1.5) * rh + rh / 2; for (let k = 1; k < 10; k++) fdither(g, cx + k * cw * 0.9, cy - 2 - k * 0.4, cw, 4 + k * 0.8, '#ff9a8a', clamp(0.35 - k * 0.03, 0, 0.4)); });
+    // sin tramado: bandas planas que se ensanchan y se desvanecen aguas abajo + chevrones de 1 px que avanzan con el viento
+    const xR = x + w - 3;
+    f.turbines.forEach((tb) => {
+      const cx = x + 30 + tb.x * cw + cw / 2, cy = Math.round(y + 18 + (tb.y / 1.5) * rh + rh / 2);
+      g.fillStyle = '#ff7a6a';
+      for (let k = 0; k < 10; k++) {
+        const bx = Math.round(cx + 7 + k * cw * 0.9), bw = Math.min(Math.ceil(cw * 0.9), xR - bx), hh = Math.round(4 + k * 1.1) | 1;
+        if (bw <= 0) break;
+        g.globalAlpha = clamp(0.5 - k * 0.042, 0.08, 0.5); g.fillRect(bx, cy - (hh >> 1), bw, hh);
+      }
+      const step = cw * 1.8, off = (this.t * 18) % step;
+      for (let k = 0; k < 5; k++) {
+        const ex = Math.round(cx + 8 + off + k * step); if (ex + 3 > xR) break;
+        g.globalAlpha = clamp(0.9 - k * 0.17, 0.2, 0.9);
+        fpx(g, ex, cy - 2, '#ffd8d0'); fpx(g, ex + 1, cy - 1, '#ffd8d0'); fpx(g, ex + 2, cy, '#ffd8d0'); fpx(g, ex + 1, cy + 1, '#ffd8d0'); fpx(g, ex, cy + 2, '#ffd8d0');
+      }
+      g.globalAlpha = 1;
+    });
     this.layout.forEach((t, i) => {
       const cx = x + 30 + t.x * cw + cw / 2, cy = y + 18 + (t.y / 1.5) * rh + rh / 2;
       const tb = f.turbines.find(q => q.x === t.x && q.y === t.y);
