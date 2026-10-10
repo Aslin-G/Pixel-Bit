@@ -11,18 +11,36 @@
    ===================================================================== */
 const PFBH2 = (() => {
   const K = PFK, B = PFB, I = PFInfra;
-  const WH = ['#141a32', '#222c4c', '#34406a', '#4a5888', '#6676a6', '#8696c2', '#a8b6da', '#cad4ee', '#e6ecfa', '#fdfdff'];
+  let WH = ['#141a32', '#222c4c', '#34406a', '#4a5888', '#6676a6', '#8696c2', '#a8b6da', '#cad4ee', '#e6ecfa', '#fdfdff'];
   const CY = ['#03243a', '#064866', '#0a7096', '#129cc4', '#26c4e8', '#6ae2f8', '#c4f8ff', '#ffffff'];
   const HG = ['#04261a', '#0a3e2a', '#11603e', '#1a8656', '#28ae6e', '#52d090', '#9cecc0', '#e4fff0'];
-  const NAVY = ['#070b1a', '#0e1630', '#18244a', '#243462', '#34487e', '#4c62a0', '#7088c0', '#a0b6e0'];
-  const CONC = ['#14182a', '#1e2438', '#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac', '#a2aac2', '#c2c8da'];
-  const STL = ['#141626', '#24283e', '#383e5a', '#525a7a', '#6e769a', '#8e96b8', '#b0b8d6', '#d4daee', '#f2f4fc'];
+  let NAVY = ['#070b1a', '#0e1630', '#18244a', '#243462', '#34487e', '#4c62a0', '#7088c0', '#a0b6e0'];
+  let CONC = ['#14182a', '#1e2438', '#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac', '#a2aac2', '#c2c8da'];
+  let STL = ['#141626', '#24283e', '#383e5a', '#525a7a', '#6e769a', '#8e96b8', '#b0b8d6', '#d4daee', '#f2f4fc'];
   const O2B = ['#0c1830', '#18305a', '#2a4c86', '#4270b0', '#6a96d0', '#a0c0ea', '#dceaff'];
   const CU = ['#2a1206', '#5a2a0e', '#8e4a18', '#c27028', '#e89a40', '#ffc878', '#fff0c8'];
   const AMB = ['#3a2604', '#7a5208', '#c08a14', '#e8b830', '#ffd860', '#fff2b0'];
   const RED = ['#2a0608', '#5e0e14', '#a01c22', '#d83a32', '#ff6a50', '#ffb0a0'];
-  const RIM = '#ffc8a8';
+  let RIM = '#ffc8a8';
   const R = { WH, CY, HG, NAVY, CONC, STL, O2B, CU, AMB, RED };
+  /* Temas de luz: 'dusk' (hora azul de la ciudadela, por defecto) y 'day' (pleno día con polvo, nivel 10) */
+  const THEMES = {
+    dusk: { WH, NAVY, CONC, STL, RIM },
+    day: {
+      WH: ['#2a1e1c', '#4a3630', '#6e5448', '#927462', '#b2967e', '#ccb49a', '#e0ccb2', '#efe0c8', '#f8eedc', '#fffaf0'],
+      NAVY: ['#0c0e1c', '#161a30', '#22284a', '#303a64', '#424e80', '#5a689c', '#7a88b8', '#a4b0d4'],
+      CONC: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8', '#e6d6c2'],
+      STL: ['#241c1c', '#3e3230', '#5a4c48', '#786a64', '#988a82', '#b6aaa0', '#d2c8be', '#ece4da', '#fcf8f0'],
+      RIM: '#fff1c8',
+    },
+  };
+  /** Ejecuta fn con las rampas de un tema (las funciones del kit leen las variables del módulo) */
+  function withTheme(name, fn) {
+    const T = THEMES[name] || THEMES.dusk, prev = { WH, NAVY, CONC, STL, RIM };
+    WH = T.WH; NAVY = T.NAVY; CONC = T.CONC; STL = T.STL; RIM = T.RIM;
+    R.WH = WH; R.NAVY = NAVY; R.CONC = CONC; R.STL = STL;
+    try { return fn(); } finally { WH = prev.WH; NAVY = prev.NAVY; CONC = prev.CONC; STL = prev.STL; RIM = prev.RIM; R.WH = WH; R.NAVY = NAVY; R.CONC = CONC; R.STL = STL; }
+  }
   const P = (r) => K.P32(r);
   const fin = (s, o = {}) => B.finish(s, Object.assign({ rimCol: RIM, rimK: 0.5 }, o));
   const rowT = (f) => f < 0.1 ? 1 : f < 0.25 ? 4 : f < 0.4 ? 6 : f < 0.58 ? 5 : f < 0.8 ? 3 : f < 0.92 ? 2 : 1;
@@ -721,5 +739,5 @@ const PFBH2 = (() => {
       for (let k = 0; k < 3; k++) { const a = t + k * TAU / 3; for (let j = 2; j < rx; j += 1.5) g.fillRect(Math.round(x + Math.cos(a) * j), Math.round(y + Math.sin(a) * j * ry / rx), 1, 1); }
     }
   }
-  return { R, RIM, fin, clad, lid, flank, box, plinth, stackPEM, roRack, ediSkid, upwTank, rectifier, transformer, cableTray, shed, header, pipeRack, compressor, sphere, o2Rack, protocolBoard, detector, thermalCam, windsock, ventMast, dryCooler, gatehouse, totem, boom, planter, controlRoom, coreGate, cone, reel, toolbox, trolley, aframe, pallet, stencil, extinguisher, drawValveSt, drawConsoleSt, drawFans };
+  return { R, THEMES, withTheme, get RIM() { return RIM; }, fin, clad, lid, flank, box, plinth, stackPEM, roRack, ediSkid, upwTank, rectifier, transformer, cableTray, shed, header, pipeRack, compressor, sphere, o2Rack, protocolBoard, detector, thermalCam, windsock, ventMast, dryCooler, gatehouse, totem, boom, planter, controlRoom, coreGate, cone, reel, toolbox, trolley, aframe, pallet, stencil, extinguisher, drawValveSt, drawConsoleSt, drawFans };
 })();
