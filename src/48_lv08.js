@@ -40,12 +40,12 @@ LEVELS[8] = {
     kitB: true,
     terrain: [
       { x0: 0, x1: 300, surf: 'sand', face: 'sandstone', depth: 12 },
-      { x0: 300, x1: 905, surf: 'path', face: 'terrace', depth: 16, falls: [362, 548, 716, 884], roots: [400, 452, 590, 640, 760, 820], tiers: [{ wall: 17, top: 10, channel: true, crop: 'lettuce' }, { wall: 14, top: 9, crop: 'bean' }] },
+      { x0: 300, x1: 905, surf: 'path', face: 'terrace', depth: 16, falls: [362, 548, 716, 884], roots: [400, 452, 590, 640, 760, 820], tiers: [{ wall: 18, top: 11, channel: true, crop: 'lettuce' }, { wall: 16, top: 10, crop: 'bean' }] },
       { x0: 905, x1: 1172, surf: 'path', face: 'soilcut', depth: 16, roots: [930, 980, 1040, 1100, 1150] },
       { x0: 1172, x1: 1268, surf: 'grass', face: 'soilcut', depth: 14 },
-      { x0: 1268, x1: 1600, surf: 'path', face: 'concrete', depth: 18 },
+      { x0: 1268, x1: 1600, surf: 'path', face: 'concrete', depth: 18, faceH: 22 },
       { x0: 1600, x1: 1960, surf: 'grass', face: 'soilcut', depth: 16, trail: true, roots: [1640, 1700, 1790, 1880, 1930] },
-      { x0: 1960, x1: 2250, surf: 'grass', face: 'terrace', depth: 16, trail: true, falls: [2110], tiers: [{ wall: 20, top: 11, channel: true, crop: 'chard' }] },
+      { x0: 1960, x1: 2250, surf: 'grass', face: 'terrace', depth: 16, trail: true, falls: [2110], tiers: [{ wall: 20, top: 12, channel: true, crop: 'cabbage' }, { wall: 16, top: 10, crop: 'marigold' }] },
       { x0: 2250, x1: 2610, surf: 'grass', face: 'soilcut', depth: 16, roots: [2330, 2380, 2420, 2440, 2470, 2520] },
       { x0: 2610, x1: 2800, surf: 'path', face: 'sandstone', depth: 14 },
     ],
@@ -67,12 +67,11 @@ LEVELS[8] = {
     { x: 628, y: 172, title: 'HUERTA', sub: 'Tomate · ají', kind: 'green', ax: 628, ay: 214, when: (sc) => !sc.state.rootsView },
     { x: 800, y: 150, title: 'SECANO', sub: 'Sorgo · nopal', kind: 'green', ax: 800, ay: 200 },
     { x: 628, y: 172, title: 'SAL EN LA RAÍZ', sub: 'CE suelo 3,4 dS/m · boro alto', kind: 'alert', ax: 628, ay: 300, when: (sc) => !!sc.state.rootsView },
-    { x: 452, y: 330, title: 'ZONA RADICULAR', sub: 'Humedad + raíces', kind: 'water', ax: 452, ay: 318, when: (sc) => !!sc.state.rootsView },
+    { x: 800, y: 308, title: 'ZONA RADICULAR', sub: 'Humedad + raíces', kind: 'water', ax: 780, ay: 322, when: (sc) => !!sc.state.rootsView },
     { x: 1300, y: 150, title: 'POZO 4', sub: 'Agua salobre', kind: 'solar', ax: 1300, ay: 196 },
     { x: 1356, y: 118, title: 'PERMEADO', sub: 'Agua de la planta OI', kind: 'water', ax: 1356, ay: 150 },
     { x: 1424, y: 196, title: 'CISTERNA', sub: 'Agua de lluvia', kind: 'green', ax: 1424, ay: 226 },
     { x: 1500, y: 132, title: 'MEZCLA DE RIEGO', sub: (sc) => (sc.state.blend && isFinite(sc.state.blend.ec)) ? ('EC ' + fmt(sc.state.blend.ec, 2) + ' dS/m · SAR ' + fmt(sc.state.blend.sar || 0, 1)) : 'EC · boro · SAR', kind: 'water', ax: 1490, ay: 180 },
-    { x: 1560, y: 190, title: 'COMPOST', sub: 'Materia orgánica', kind: 'green', ax: 1566, ay: 238 },
     { x: 1760, y: 176, title: 'PASTOREO', sub: 'Ruta de las cabras', kind: 'green', ax: 1760, ay: 236 },
     { x: 2010, y: 160, title: 'CORREDOR', sub: 'Polinizadores', kind: 'green', ax: 2010, ay: 222 },
   ],
@@ -89,10 +88,10 @@ LEVELS[8] = {
     for (let x = 10; x < 290; x += 26 + r.int(0, 20)) B.rocks(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x);
     F.scatter(pb, (x) => back(x) + 3, 0, 300, 801, { gap: 12, mix: { dry: 4, agave: 2, tuft: 1 } });
     F.agave(pb, 60, gy(60) - 4, 12, 802); F.agave(pb, 140, gy(140) - 4, 9, 803);
-    PFSigns.post(pb, 236, gy(236) - 6, [{ text: 'OASIS DE LAS RAÍCES' }, { text: 'MESA DEL NEXO' }, { text: 'DESIERTO', dir: -1 }], 17, { font: 'tiny' });
     // seto cortavientos (al borde del oasis)
-    for (let x = 268; x < 372; x += 12) F.bush(pb, x, back(x) + 2, 22, 22 + (x % 3) * 4, RAMP.foliageR, x);
+    for (let x = 300; x < 372; x += 12) F.bush(pb, x, back(x) + 2, 22, 22 + (x % 3) * 4, RAMP.foliageR, x);
     F.palm(pb, 330, back(330) + 2, 74, -6, 21); F.palm(pb, 882, back(882) + 2, 70, 6, 22);
+    PFSigns.post(pb, 226, gy(226) - 6, [{ text: 'OASIS DE LAS RAÍCES' }, { text: 'MESA DEL NEXO' }, { text: 'DESIERTO', dir: -1 }], 17, { font: 'tiny' });
     /* ===== 2. BANCALES (380–870): milpa, huerta, secano con goteo y sensores ===== */
     const plots = [
       [372, 524, ['maiz', 'frijol', 'ahuyama'], { mulch: true, seed: 11 }],

@@ -158,8 +158,8 @@ const PFAgro = (() => {
     }
     // malla: velo oscuro con trama fina sobre el volumen (frente + techo + lateral)
     const net = (xx, yy, a) => { const c = K.get(s, xx, yy); const m = ((xx + yy) % 2 === 0) ? 0.62 : 0.5; K.put(s, xx, yy, (c >>> 24) ? K.mixU(c, U('#141c18'), m * a) : (((a * 255) << 24) | 0x18201c) >>> 0); };
-    for (let yy = by - h; yy < by; yy++) for (let xx = 0; xx < w; xx++) net(xx, yy, 0.72);
-    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = off; xx < w + off; xx++) net(xx, by - h - 1 - r, 0.82); }
+    for (let yy = by - h; yy < by; yy++) for (let xx = 0; xx < w; xx++) net(xx, yy, 0.5);
+    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = off; xx < w + off; xx++) net(xx, by - h - 1 - r, 0.66); }
     PFK.polyFill(s, [[w, by - h], [w + dx, by - h - d], [w + dx, by - d], [w, by]], (xx, yy) => { const c = K.get(s, xx, yy); return (c >>> 24) ? K.mixU(c, U('#0e1410'), 0.7) : U('#1a221e'); });
     // marcos de madera
     for (const fx of [0, Math.round(w / 3), Math.round(2 * w / 3), w - 2]) for (let yy = by - h; yy < by; yy++) { K.put(s, fx, yy, Wd[6]); K.put(s, fx + 1, yy, Wd[3]); }
@@ -260,38 +260,50 @@ const PFAgro = (() => {
   /** Cují antiguo: tronco retorcido enorme con raíces, hueco luminoso y ramas horizontales que
       coinciden con las plataformas del nivel (branches:[{x,y,w}]). Copa amplia y aplanada (acacia). */
   function cuji(pb, x, y, h, branches, seed = 9) {
-    const r = RNG(seed), T = K.P32(['#140a06', '#24140a', '#3a2212', '#54341c', '#704a28', '#8e6436', '#ae8250', '#cca46c']);
-    // tronco (ensancha en la base) con surcos de corteza
+    const r = RNG(seed), T = K.P32(['#120804', '#22120a', '#361e10', '#4e2e18', '#683f22', '#84542e', '#a26e40', '#c08c58', '#dcae7a']);
+    const s = B.sprite(260, h + 70), ox = 110, b = h + 64; // sprite local: tronco en (ox, b)
+    // tronco retorcido (ensancha en la base) con surcos de corteza en espiral
     for (let yy = 0; yy < h; yy++) {
-      const t = yy / h, w = Math.round(lerp(30, 12, Math.pow(t, 0.6))), cx = x + Math.round(Math.sin(t * 2.4 + seed) * 6);
+      const t = yy / h, w = Math.round(lerp(40, 18, Math.pow(t, 0.55))), cx = ox + Math.round(Math.sin(t * 2.6 + seed) * 7);
       for (let k = 0; k < w; k++) {
-        const f = k / (w - 1); let ki = f < 0.12 ? 5 : f < 0.3 ? 4 : f < 0.6 ? 3 : f < 0.85 ? 2 : 1;
-        if (((k + Math.round(yy * 0.15)) % 5) === 0) ki -= 1;
-        if (K.cl(cx + k, yy, 2, seed) < 0.12) ki += 1;
-        K.put(pb, cx - (w >> 1) + k, y - yy, T[clamp(ki, 0, 7)]);
+        const f = k / (w - 1); let ki = f < 0.08 ? 4 : f < 0.22 ? 6 : f < 0.4 ? 5 : f < 0.62 ? 4 : f < 0.85 ? 2 : 1;
+        const gro = ((k * 3 + Math.round(yy * 0.6 + Math.sin(yy * 0.05) * 6)) % 9);
+        if (gro === 0) ki -= 2; else if (gro === 1) ki += 1;
+        if (K.cl(cx + k, yy, 2, seed) < 0.1) ki += 1;
+        K.put(s, cx - (w >> 1) + k, b - yy, T[clamp(ki, 0, 8)]);
       }
     }
     // raíces que se abren sobre el suelo
-    for (let i = 0; i < 7; i++) { const dir = i < 3 ? -1 : i > 3 ? 1 : 0, L = 14 + r.int(0, 14); for (let k = 0; k < L; k++) { const xx = x + dir * (8 + k) + (dir === 0 ? r.int(-4, 4) : 0), yy = y - 3 + Math.round(k * 0.18); K.put(pb, xx, yy, T[4]); K.put(pb, xx, yy + 1, T[2]); K.put(pb, xx, yy - 1, T[5 - (k > L * 0.6 ? 1 : 0)]); } }
+    for (let i = 0; i < 9; i++) { const dir = i < 4 ? -1 : i > 4 ? 1 : 0, L = 16 + r.int(0, 18); for (let k = 0; k < L; k++) { const xx = ox + dir * (10 + k) + (dir === 0 ? r.int(-6, 6) : 0), yy = b - 4 + Math.round(k * 0.2); const th = k < L * 0.5 ? 3 : 2; for (let q = 0; q < th; q++) K.put(s, xx, yy + q, T[q === 0 ? 6 : q === 1 ? 4 : 2]); } }
     // hueco (el brillo violeta de la memoria de KIRU lo pinta el nivel)
-    K.ellipseFn(pb, x + 2, y - 40, 5, 8, (nx, ny, d) => U(d > 0.7 ? '#24140a' : d > 0.45 ? '#140a06' : '#0a0408'));
-    // ramas hacia las plataformas: gruesas, horizontales, con cara superior iluminada
-    for (const b of branches) {
-      const bx0 = b.x, bx1 = b.x + b.w, by = b.y, from = x + (bx0 > x ? 6 : -6);
-      const xa = Math.min(from, bx0), xb = Math.max(from, bx1);
+    K.ellipseFn(s, ox + 3, b - 44, 6, 9, (nx, ny, d) => U(d > 0.72 ? '#2e1a0c' : d > 0.45 ? '#140a06' : '#0a0408'));
+    // ramas hacia las plataformas: gruesas, con lomo iluminado y musgo; nacen bajo la plataforma
+    for (const br of branches) {
+      const bx0 = br.x - x + ox, bx1 = br.x + br.w - x + ox, by = br.y - y + b;
+      const right = bx0 > ox - 4, from = ox + (right ? 6 : -6);
+      const xa = right ? from : bx0 - 4, xb = right ? bx1 + 4 : from;
       for (let xx = xa; xx <= xb; xx++) {
-        const t = (xx - xa) / Math.max(1, xb - xa), sag = Math.round(Math.sin(t * Math.PI) * 2);
-        const th = Math.round(lerp(9, 5, bx0 > x ? t : 1 - t));
-        const yy0 = by + sag - (xx < bx0 || xx > bx1 ? Math.round((xx < bx0 ? bx0 - xx : xx - bx1) * 0.5) : 0);
-        for (let k = 0; k < th; k++) K.put(pb, xx, yy0 + k, T[k === 0 ? 7 : k === 1 ? 5 : k < th - 1 ? 3 : 1]);
+        const t = (xx - xa) / Math.max(1, xb - xa), tip = right ? t : 1 - t;
+        const th = Math.round(lerp(12, 7, tip));
+        const outside = right ? (xx < bx0 ? bx0 - xx : 0) : (xx > bx1 ? xx - bx1 : 0);
+        const yy0 = by + Math.round(outside * 0.45) + (Math.abs(xx - (bx0 + bx1) / 2) < (bx1 - bx0) / 2 ? Math.round(Math.sin(t * Math.PI) * 1) : 0);
+        for (let k = 0; k < th; k++) { let ki = k === 0 ? 8 : k === 1 ? 6 : k < th * 0.5 ? 4 : k < th - 1 ? 3 : 1; if (((xx + k * 2) % 7) === 0 && k > 1) ki -= 1; K.put(s, xx, yy0 + k, T[clamp(ki, 0, 8)]); }
+        if (hash2(xx, 1, seed) < 0.35) K.put(s, xx, yy0, U(hash2(xx, 2, seed) < 0.5 ? '#76921e' : '#94ac2a'));
+        if (hash2(xx, 3, seed) < 0.05) for (let q = 0; q < 6 + (xx % 5); q++) K.put(s, xx, yy0 + th + q, U(q % 3 ? '#4a6a16' : '#2e4a14'));
       }
     }
-    // copa de acacia: varias masas aplanadas por encima de las ramas
-    const top = y - h - 6;
-    const masses = [[x - 50, top + 10, 46, 16], [x + 10, top - 4, 56, 18], [x + 70, top + 8, 44, 15], [x - 10, top + 22, 40, 12], [x + 60, top + 28, 36, 11]];
-    for (const [mx, my, rx, ry] of masses) { PFFlora.cluster(pb, mx, my, rx, ry, ['#0e1a08', '#1a2c0c', '#2c4614', '#42621c', '#5c7e24', '#7c9a30', '#a0b440', '#c4cc60'], seed + mx, { density: 0.45, leaf: [3, 6], bias: 0.05 }); }
-    for (let i = 0; i < 26; i++) { const fx = x - 80 + r() * 190, fy = top - 6 + r() * 34; K.put(pb, Math.round(fx), Math.round(fy), U(r() < 0.5 ? '#ffe14d' : '#fff6a0')); }
-    B.contact(pb, x + 6, y, 44, 3, -0.3);
+    // copa de acacia amplia y aplanada (masas oscuras detrás, claras delante)
+    const top = b - h - 4;
+    const DK = ['#081206', '#10200a', '#1a320e', '#284a14', '#38621a', '#4c7a20', '#64922a', '#88ac3a'];
+    const LT = ['#0e1a08', '#1a2c0c', '#2c4614', '#42621c', '#5c7e24', '#7c9a30', '#a0b440', '#c8d460'];
+    const back_ = [[ox - 70, top + 18, 50, 16], [ox + 80, top + 14, 52, 17], [ox + 10, top + 2, 70, 20]];
+    const front_ = [[ox - 44, top + 8, 44, 15], [ox + 30, top - 6, 56, 18], [ox + 104, top + 20, 40, 13], [ox - 6, top + 24, 46, 12], [ox + 66, top + 30, 38, 11], [ox - 84, top + 30, 30, 10]];
+    for (const [mx, my, rx, ry] of back_) PFFlora.cluster(s, mx, my, rx, ry, DK, seed + mx, { density: 0.42, leaf: [4, 7], bias: -0.05 });
+    for (const [mx, my, rx, ry] of front_) PFFlora.cluster(s, mx, my, rx, ry, LT, seed + mx * 3, { density: 0.48, leaf: [4, 7], bias: 0.06 });
+    for (let i = 0; i < 40; i++) { const fx = ox - 100 + r() * 220, fy = top - 10 + r() * 44; if (K.get(s, Math.round(fx), Math.round(fy)) >>> 24) K.put(s, Math.round(fx), Math.round(fy), U(r() < 0.5 ? '#ffe14d' : '#fff6a0')); }
+    B.finish(s, { rimK: 0.4, rimCol: '#fff0b0' });
+    K.blit(pb, s, x - ox, y - b);
+    B.contact(pb, x + 6, y, 52, 3, -0.32);
   }
   /** Pozo con brocal de piedra, bomba solar y salida de tubería ámbar */
   function well(pb, x, y) {

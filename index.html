@@ -15627,7 +15627,9 @@ const PFGround = (() => {
   function segAt(segs, x) { for (const s of segs) if (x >= s.x0 && x < s.x1) return s; return segs[segs.length - 1]; }
   function prep(world) {
     const P = world.def.pf || {};
-    return (P.terrain || []).map((s, i) => Object.assign({ seed: 211 + i * 41 }, s));
+    const segs = (P.terrain || []).map((s, i) => Object.assign({ seed: 211 + i * 41 }, s));
+    for (const s of segs) { s._bk = buildBlocks(s.x0 - 30, s.x1 + 30, s.seed + 5, s.blocks || {}); s._st = { ci: 0 }; s._tst = (s.tiers || []).map(() => ({ ci: 0 })); s._tbk = (s.tiers || []).map((T, i) => buildBlocks(s.x0 - 30, s.x1 + 30, s.seed + 31 * (i + 1), { wMin: 10, wMax: 26 })); }
+    return segs;
   }
   function backEdge(s, x, gy) {
     const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck'].includes(s.surf);
@@ -15874,6 +15876,70 @@ const PFGround = (() => {
     if (s.drains) { const dx = ((x % 120) + 120) % 120; if (dx > 40 && dx < 58 && ly > 2 && ly < 12) return U(((dx - 40) % 3 === 0) ? '#5a5658' : '#140e10'); }
     return K.shU(u, -0.06 * Math.floor(ly / 20), 235);
   }
+  /* ---------- bloques de roca redondeados (como el acantilado de la referencia) ---------- */
+  const LVB = (() => { const l = [-0.55, -0.72, 0.46], m = Math.hypot(...l); return l.map(v => v / m); })();
+  /** Columnas de bloques deterministas por semilla: [{x0,x1,p,seed,rows:[{y,h,alb,pro}]}] */
+  function buildBlocks(x0, x1, seed, o = {}) {
+    const r = RNG(seed), cols = [];
+    let x = x0 - r.int(4, 14);
+    const wMin = o.wMin || 13, wMax = o.wMax || 30, hMin = o.hMin || 16, hMax = o.hMax || 40;
+    while (x < x1 + 30) {
+      const w = r.int(wMin, wMax), rows = [];
+      let y = -r.int(0, 10);
+      while (y < 400) { const h = r.int(hMin, hMax); rows.push({ y, h, alb: (r() - 0.5) * 0.16, pro: r() < 0.45, tilt: (r() - 0.5) * 0.3 }); y += h; }
+      cols.push({ x0: x, x1: x + w, p: r(), seed: r.int(1, 1e6), rows });
+      x += w;
+    }
+    return cols;
+  }
+  function blockEdge(c, ly) { return c.x0 + Math.round((K.vn(ly * 0.05, c.seed * 0.001, 3) - 0.5) * 6); }
+  /** Píxel de una pared de bloques. ly = y local desde el borde superior, H = alto de la pared (o 999),
+      cols = buildBlocks(...), st = estado de cursor {ci}. P = rampa u32 (9 tonos claro al final). */
+  function blockPix(cols, st, x, ly, H, P, o = {}) {
+    let ci = st.ci || 0;
+    while (ci > 0 && cols[ci].x0 > x + 4) ci--;
+    while (ci < cols.length - 1 && cols[ci + 1].x0 <= x - 4) ci++;
+    if (ci < cols.length - 1 && x >= blockEdge(cols[ci + 1], ly)) ci++; else if (ci > 0 && x < blockEdge(cols[ci], ly)) ci--;
+    st.ci = ci;
+    const c = cols[ci], n = P.length;
+    const left = blockEdge(c, ly), right = ci < cols.length - 1 ? blockEdge(cols[ci + 1], ly) : c.x1;
+    const w = Math.max(6, right - left), dl = x - left, dr = right - 1 - x;
+    // fila del bloque (filas escalonadas por columna); en paredes bajas un solo bloque
+    let bt = 0, bb = H, alb = 0, pro = c.p > 0.5;
+    if (H > 60) { for (const rw of c.rows) { const off = Math.round(rw.tilt * (x - left - w / 2)); if (ly >= rw.y + off && ly < rw.y + rw.h + off) { bt = rw.y + off; bb = rw.y + rw.h + off; alb = rw.alb; pro = rw.pro; break; } } }
+    const dt = ly - Math.max(0, bt), db = Math.min(H, bb) - 1 - ly;
+    // grietas y juntas
+    if (dl <= 0 || (dl === 1 && K.cl(x, ly, 2, c.seed) < 0.5)) return P[ly < 3 ? 3 : 0];
+    if (dr <= 0 && K.cl(x, ly, 2, c.seed + 1) < 0.6) return P[1];
+    if (bt > 0 && dt <= 0) return P[0];
+    if (bt > 0 && dt === 1 && K.cl(x, ly, 2, c.seed + 3) < 0.55) return P[1];
+    // cara superior del bloque (banda clara de 2–4 px)
+    const capH = pro ? 4 : 2;
+    if (dt >= (bt > 0 ? 1 : 0) && dt < capH + (bt > 0 ? 1 : 0) && dl > 1 && dr > 1) {
+      let k = dt === (bt > 0 ? 1 : 0) ? n - 1 : n - 2;
+      if (K.cl(x, ly, 2, c.seed + 5) < 0.3) k--;
+      if (dr < 3) k -= 2;
+      return P[clamp(k - (ly > 120 ? 2 : 0), 2, n - 1)];
+    }
+    // normal de caja redondeada → Lambert
+    const rc = Math.min(8, w * 0.42), rT = pro ? 6 : 3, rB = 6;
+    let nx = 0, ny = 0;
+    if (dl < rc) nx = -(1 - dl / rc); else if (dr < rc + 1) nx = 1 - dr / (rc + 1);
+    if (dt < rT) ny = -(1 - dt / rT) * 0.9; else if (db < rB) ny = (1 - db / rB) * 0.9;
+    const nz = Math.sqrt(Math.max(0.02, 1 - nx * nx - ny * ny));
+    let t = 0.24 + Math.max(-0.2, nx * LVB[0] + ny * LVB[1] + nz * LVB[2]) * 0.82 + alb + (c.p - 0.5) * 0.18;
+    if (c.p < 0.3) t -= 0.1;
+    if (dl <= 3) t -= (4 - dl) * 0.05;
+    if (dl === 2 && dt > capH + 1) t += 0.12;
+    if (dr < 3) t -= (3 - dr) * 0.07;
+    if (!pro && dt < 4 && bt > 0) t -= 0.2 - dt * 0.05;
+    // textura pictórica: manchas, vetas verticales (chorreones), picaduras
+    t += (K.vn(x * 0.11, ly * 0.09, c.seed & 255) - 0.5) * 0.22 + (K.cl(x, ly, 2, c.seed + 9) - 0.5) * 0.12;
+    if (K.vn(x * 0.45, ly * 0.035, c.seed & 127) > 0.74) t -= 0.12;
+    const h = hash2(x, ly, c.seed); if (h < 0.025) t += 0.12; else if (h > 0.975) t -= 0.2;
+    t -= clamp((ly - (o.darkFrom ?? 60)) / 170, 0, 0.3);
+    return P[clamp(Math.round(t * (n - 0.6)), 0, n - 1)];
+  }
   /** Pila de bancales: niveles de muro + franja de cultivo + corte de suelo */
   function terracePix(s, x, d) {
     const tiers = s.tiers || [{ wall: 18, top: 9 }, { wall: 14, top: 8 }];
@@ -15881,7 +15947,12 @@ const PFGround = (() => {
     for (let i = 0; i < tiers.length; i++) {
       const T = tiers[i];
       const wh = Math.max(4, T.wall + Math.round((K.vn(x * 0.025, i * 3, s.seed) - 0.5) * (T.wave ?? 6)));
-      if (dd < wh) return wallPix(x, dd, wh, s.seed + i * 17, K.P32(T.ramp || s.wallRamp || PFB.R.STONE), { moss: true });
+      if (dd < wh) {
+        if (T.style === 'stone') return wallPix(x, dd, wh, s.seed + i * 17, K.P32(T.ramp || s.wallRamp || PFB.R.STONE), { moss: true });
+        const P_ = K.P32(T.ramp || s.wallRamp || RAMP.rockWarmR);
+        if (dd === 0) return U('#fde3a8');
+        return blockPix(s._tbk[i], s._tst[i], x, dd, wh, P_, { darkFrom: 30 });
+      }
       dd -= wh;
       const th = T.top;
       if (dd < th) {
@@ -15904,9 +15975,10 @@ const PFGround = (() => {
         if (d === 1) return K.P32(SOILT)[7];
         return soilPix(x, d - 2, s.seed);
       }
-      case 'sandstone': if (d === 0) return U('#fde3a8'); if (d === 1) return U('#f7c679'); return sandstonePix(x, d, s.seed);
+      case 'sandstone': if (d === 0) return U('#fde3a8'); if (d === 1 && hash2(x, 1, 3) < 0.6) return U('#f7c679'); return s.strata ? sandstonePix(x, d, s.seed) : blockPix(s._bk, s._st, x, d, 999, K.P32(s.ramp || RAMP.rockWarmR), { darkFrom: 50 });
+      case 'blocks': if (d === 0) return U('#fde3a8'); return blockPix(s._bk, s._st, x, d, 999, K.P32(s.ramp || RAMP.rockWarmR), { darkFrom: 50 });
       case 'metal': return metalFace(s, x, d);
-      case 'concrete': return concreteFace(s, x, d);
+      case 'concrete': if (s.faceH && d >= s.faceH) return blockPix(s._bk, s._st, x, d - s.faceH, 999, K.P32(s.ramp2 || RAMP.rockWarmR), { darkFrom: 30 }); return concreteFace(s, x, d);
       case 'hall': return hallFace(s, x, d);
       case 'curb': return curbFace(s, x, d);
     }
@@ -15946,13 +16018,13 @@ const PFGround = (() => {
     }
     if (s.face === 'terrace') {
       const tiers = s.tiers || [{ wall: 18, top: 9 }, { wall: 14, top: 8 }];
-      for (let x = s.x0 + 4; x < s.x1 - 4; x += 7 + r.int(0, 5)) {
+      for (let x = s.x0 + 3; x < s.x1 - 3; x += 4 + r.int(0, 3)) {
         let d = 0; const gy = world.ground[x];
         for (let i = 0; i < tiers.length; i++) {
           const T = tiers[i], wh = Math.max(4, T.wall + Math.round((K.vn(x * 0.025, i * 3, s.seed) - 0.5) * (T.wave ?? 6)));
           d += wh;
           const yTop = gy + d + Math.max(2, T.top - (T.channel ? 4 : 1));
-          if (T.crop !== false && hash2(x, i, s.seed + 4) < 0.85) lowCrop(pb, x, yTop, T.crop || ['lettuce', 'bean', 'chard', 'onion'][Math.floor(hash2(x, i, 5) * 4)], x * 7 + i, Math.min(T.wall - 2, 12));
+          if (T.crop !== false && hash2(x >> 3, i, s.seed + 4) < 0.92) lowCrop(pb, x, yTop, T.crop || ['lettuce', 'bean', 'chard', 'onion'][Math.floor(hash2(x >> 4, i, 5) * 4)], x * 7 + i, Math.min(T.wall - 2, 13));
           d += T.top;
         }
       }
@@ -15986,19 +16058,21 @@ const PFGround = (() => {
   }
   /** Cultivo bajo de bancal inferior (lechuga, frijol, acelga, cebolla) que no supera hMax */
   function lowCrop(pb, x, y, kind, seed, hMax = 10) {
-    const L = K.P32(RAMP.foliageR), r = RNG(seed);
-    const h = Math.min(hMax, kind === 'bean' ? 9 : kind === 'onion' ? 8 : 6);
-    if (kind === 'lettuce' || kind === 'chard') {
-      const ramp = kind === 'chard' ? ['#1a2a0c', '#2a4a14', '#3e6a1e', '#5a8a2a', '#86b03a', '#b6d45a'] : ['#1e3a10', '#2e5418', '#467a22', '#64a02e', '#8cc43e', '#c0e070'];
-      PFFlora.cluster(pb, x, y - 3, 4, 3, ramp, seed, { density: 0.9, leaf: [2, 3], core: true });
-      if (kind === 'chard') for (let k = 0; k < 3; k++) K.put(pb, x - 1 + k, y - 1, U('#e04a3a'));
-    } else if (kind === 'onion') {
-      for (let k = 0; k < 4; k++) for (let j = 0; j < h; j++) K.put(pb, x - 2 + k + Math.round((k - 1.5) * j * 0.15), y - j, L[clamp(3 + Math.floor(j / 3), 0, 7)]);
-      K.put(pb, x, y, U('#f4e8d6'));
-    } else {
-      PFFlora.cluster(pb, x, y - h * 0.5, 3, h * 0.5, RAMP.foliageR, seed, { density: 0.8, leaf: [2, 3] });
-      if (r() < 0.6) { K.put(pb, x + 2, y - 3, U('#8ab83a')); K.put(pb, x + 2, y - 2, U('#5a8a2a')); }
-    }
+    const r = RNG(seed);
+    const RAMPS = {
+      lettuce: ['#1e3a10', '#2e5418', '#467a22', '#64a02e', '#8cc43e', '#b4dc58', '#e2ee90'],
+      chard: ['#12240c', '#1e3a12', '#2e561a', '#447a22', '#64a02c', '#90c040', '#c4dc6a'],
+      bean: ['#14280c', '#22401a', '#345e22', '#4a7e2a', '#66a034', '#92c048', '#c4dc70'],
+      cabbage: ['#12242e', '#1e3a44', '#2e5a5c', '#467a72', '#68a08a', '#98c4a4', '#cce6c8'],
+      onion: ['#1a3010', '#2a4a18', '#3e6a22', '#58902c', '#7ab03c', '#a6cc5a', '#d4e88a'],
+      marigold: ['#14280c', '#22401a', '#345e22', '#4a7e2a', '#66a034', '#92c048', '#c4dc70'],
+    };
+    const ramp = RAMPS[kind] || RAMPS.lettuce, ry = Math.min(hMax / 2, kind === 'bean' || kind === 'onion' ? 5.5 : 4.2);
+    PFFlora.cluster(pb, x, y - ry, kind === 'cabbage' ? 4.5 : 5.2, ry, ramp, seed, { density: 0.95, leaf: [3, 4], core: true, bias: 0.08 });
+    if (kind === 'chard') for (let k = 0; k < 3; k++) K.put(pb, x - 1 + k, y - 1, U(k === 1 ? '#ff6a4a' : '#c8281e'));
+    else if (kind === 'bean' && r() < 0.5) { K.put(pb, x + 1, y - ry * 2 + 1, U('#f6f0ff')); K.put(pb, x - 2, y - ry - 1, U('#f6f0ff')); }
+    else if (kind === 'marigold') for (let k = 0; k < 3; k++) { const fx = x - 3 + k * 3, fy = y - ry * 2 + 1 + (k % 2); K.put(pb, fx, fy, U('#ffb020')); K.put(pb, fx + 1, fy, U('#ff7a10')); K.put(pb, fx, fy - 1, U('#ffe070')); }
+    else if (kind === 'cabbage') K.put(pb, x - 1, y - ry - 1, U('#e6f6e0'));
   }
   /** Geometría de los bancales inferiores en x: [{wallTop, wallH, topY, topH, channel}] (y de mundo) */
   function tierInfo(s, x, gy) {
@@ -16045,7 +16119,7 @@ const PFGround = (() => {
       }
     }
   }
-  return { surface, render, segAt, backEdge, depthOf, tierInfo, prep, roots, lowCrop, stoneCell, wallPix, soilPix, SOILT, GRASS, METALT, STREET, DECKW };
+  return { surface, render, segAt, backEdge, depthOf, tierInfo, prep, buildBlocks, blockPix, roots, lowCrop, stoneCell, wallPix, soilPix, SOILT, GRASS, METALT, STREET, DECKW };
 })();
 
 /* ---------- oclusores del plano frontal ---------- */
@@ -16306,8 +16380,8 @@ const PFAgro = (() => {
     }
     // malla: velo oscuro con trama fina sobre el volumen (frente + techo + lateral)
     const net = (xx, yy, a) => { const c = K.get(s, xx, yy); const m = ((xx + yy) % 2 === 0) ? 0.62 : 0.5; K.put(s, xx, yy, (c >>> 24) ? K.mixU(c, U('#141c18'), m * a) : (((a * 255) << 24) | 0x18201c) >>> 0); };
-    for (let yy = by - h; yy < by; yy++) for (let xx = 0; xx < w; xx++) net(xx, yy, 0.72);
-    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = off; xx < w + off; xx++) net(xx, by - h - 1 - r, 0.82); }
+    for (let yy = by - h; yy < by; yy++) for (let xx = 0; xx < w; xx++) net(xx, yy, 0.5);
+    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = off; xx < w + off; xx++) net(xx, by - h - 1 - r, 0.66); }
     PFK.polyFill(s, [[w, by - h], [w + dx, by - h - d], [w + dx, by - d], [w, by]], (xx, yy) => { const c = K.get(s, xx, yy); return (c >>> 24) ? K.mixU(c, U('#0e1410'), 0.7) : U('#1a221e'); });
     // marcos de madera
     for (const fx of [0, Math.round(w / 3), Math.round(2 * w / 3), w - 2]) for (let yy = by - h; yy < by; yy++) { K.put(s, fx, yy, Wd[6]); K.put(s, fx + 1, yy, Wd[3]); }
@@ -16408,38 +16482,50 @@ const PFAgro = (() => {
   /** Cují antiguo: tronco retorcido enorme con raíces, hueco luminoso y ramas horizontales que
       coinciden con las plataformas del nivel (branches:[{x,y,w}]). Copa amplia y aplanada (acacia). */
   function cuji(pb, x, y, h, branches, seed = 9) {
-    const r = RNG(seed), T = K.P32(['#140a06', '#24140a', '#3a2212', '#54341c', '#704a28', '#8e6436', '#ae8250', '#cca46c']);
-    // tronco (ensancha en la base) con surcos de corteza
+    const r = RNG(seed), T = K.P32(['#120804', '#22120a', '#361e10', '#4e2e18', '#683f22', '#84542e', '#a26e40', '#c08c58', '#dcae7a']);
+    const s = B.sprite(260, h + 70), ox = 110, b = h + 64; // sprite local: tronco en (ox, b)
+    // tronco retorcido (ensancha en la base) con surcos de corteza en espiral
     for (let yy = 0; yy < h; yy++) {
-      const t = yy / h, w = Math.round(lerp(30, 12, Math.pow(t, 0.6))), cx = x + Math.round(Math.sin(t * 2.4 + seed) * 6);
+      const t = yy / h, w = Math.round(lerp(40, 18, Math.pow(t, 0.55))), cx = ox + Math.round(Math.sin(t * 2.6 + seed) * 7);
       for (let k = 0; k < w; k++) {
-        const f = k / (w - 1); let ki = f < 0.12 ? 5 : f < 0.3 ? 4 : f < 0.6 ? 3 : f < 0.85 ? 2 : 1;
-        if (((k + Math.round(yy * 0.15)) % 5) === 0) ki -= 1;
-        if (K.cl(cx + k, yy, 2, seed) < 0.12) ki += 1;
-        K.put(pb, cx - (w >> 1) + k, y - yy, T[clamp(ki, 0, 7)]);
+        const f = k / (w - 1); let ki = f < 0.08 ? 4 : f < 0.22 ? 6 : f < 0.4 ? 5 : f < 0.62 ? 4 : f < 0.85 ? 2 : 1;
+        const gro = ((k * 3 + Math.round(yy * 0.6 + Math.sin(yy * 0.05) * 6)) % 9);
+        if (gro === 0) ki -= 2; else if (gro === 1) ki += 1;
+        if (K.cl(cx + k, yy, 2, seed) < 0.1) ki += 1;
+        K.put(s, cx - (w >> 1) + k, b - yy, T[clamp(ki, 0, 8)]);
       }
     }
     // raíces que se abren sobre el suelo
-    for (let i = 0; i < 7; i++) { const dir = i < 3 ? -1 : i > 3 ? 1 : 0, L = 14 + r.int(0, 14); for (let k = 0; k < L; k++) { const xx = x + dir * (8 + k) + (dir === 0 ? r.int(-4, 4) : 0), yy = y - 3 + Math.round(k * 0.18); K.put(pb, xx, yy, T[4]); K.put(pb, xx, yy + 1, T[2]); K.put(pb, xx, yy - 1, T[5 - (k > L * 0.6 ? 1 : 0)]); } }
+    for (let i = 0; i < 9; i++) { const dir = i < 4 ? -1 : i > 4 ? 1 : 0, L = 16 + r.int(0, 18); for (let k = 0; k < L; k++) { const xx = ox + dir * (10 + k) + (dir === 0 ? r.int(-6, 6) : 0), yy = b - 4 + Math.round(k * 0.2); const th = k < L * 0.5 ? 3 : 2; for (let q = 0; q < th; q++) K.put(s, xx, yy + q, T[q === 0 ? 6 : q === 1 ? 4 : 2]); } }
     // hueco (el brillo violeta de la memoria de KIRU lo pinta el nivel)
-    K.ellipseFn(pb, x + 2, y - 40, 5, 8, (nx, ny, d) => U(d > 0.7 ? '#24140a' : d > 0.45 ? '#140a06' : '#0a0408'));
-    // ramas hacia las plataformas: gruesas, horizontales, con cara superior iluminada
-    for (const b of branches) {
-      const bx0 = b.x, bx1 = b.x + b.w, by = b.y, from = x + (bx0 > x ? 6 : -6);
-      const xa = Math.min(from, bx0), xb = Math.max(from, bx1);
+    K.ellipseFn(s, ox + 3, b - 44, 6, 9, (nx, ny, d) => U(d > 0.72 ? '#2e1a0c' : d > 0.45 ? '#140a06' : '#0a0408'));
+    // ramas hacia las plataformas: gruesas, con lomo iluminado y musgo; nacen bajo la plataforma
+    for (const br of branches) {
+      const bx0 = br.x - x + ox, bx1 = br.x + br.w - x + ox, by = br.y - y + b;
+      const right = bx0 > ox - 4, from = ox + (right ? 6 : -6);
+      const xa = right ? from : bx0 - 4, xb = right ? bx1 + 4 : from;
       for (let xx = xa; xx <= xb; xx++) {
-        const t = (xx - xa) / Math.max(1, xb - xa), sag = Math.round(Math.sin(t * Math.PI) * 2);
-        const th = Math.round(lerp(9, 5, bx0 > x ? t : 1 - t));
-        const yy0 = by + sag - (xx < bx0 || xx > bx1 ? Math.round((xx < bx0 ? bx0 - xx : xx - bx1) * 0.5) : 0);
-        for (let k = 0; k < th; k++) K.put(pb, xx, yy0 + k, T[k === 0 ? 7 : k === 1 ? 5 : k < th - 1 ? 3 : 1]);
+        const t = (xx - xa) / Math.max(1, xb - xa), tip = right ? t : 1 - t;
+        const th = Math.round(lerp(12, 7, tip));
+        const outside = right ? (xx < bx0 ? bx0 - xx : 0) : (xx > bx1 ? xx - bx1 : 0);
+        const yy0 = by + Math.round(outside * 0.45) + (Math.abs(xx - (bx0 + bx1) / 2) < (bx1 - bx0) / 2 ? Math.round(Math.sin(t * Math.PI) * 1) : 0);
+        for (let k = 0; k < th; k++) { let ki = k === 0 ? 8 : k === 1 ? 6 : k < th * 0.5 ? 4 : k < th - 1 ? 3 : 1; if (((xx + k * 2) % 7) === 0 && k > 1) ki -= 1; K.put(s, xx, yy0 + k, T[clamp(ki, 0, 8)]); }
+        if (hash2(xx, 1, seed) < 0.35) K.put(s, xx, yy0, U(hash2(xx, 2, seed) < 0.5 ? '#76921e' : '#94ac2a'));
+        if (hash2(xx, 3, seed) < 0.05) for (let q = 0; q < 6 + (xx % 5); q++) K.put(s, xx, yy0 + th + q, U(q % 3 ? '#4a6a16' : '#2e4a14'));
       }
     }
-    // copa de acacia: varias masas aplanadas por encima de las ramas
-    const top = y - h - 6;
-    const masses = [[x - 50, top + 10, 46, 16], [x + 10, top - 4, 56, 18], [x + 70, top + 8, 44, 15], [x - 10, top + 22, 40, 12], [x + 60, top + 28, 36, 11]];
-    for (const [mx, my, rx, ry] of masses) { PFFlora.cluster(pb, mx, my, rx, ry, ['#0e1a08', '#1a2c0c', '#2c4614', '#42621c', '#5c7e24', '#7c9a30', '#a0b440', '#c4cc60'], seed + mx, { density: 0.45, leaf: [3, 6], bias: 0.05 }); }
-    for (let i = 0; i < 26; i++) { const fx = x - 80 + r() * 190, fy = top - 6 + r() * 34; K.put(pb, Math.round(fx), Math.round(fy), U(r() < 0.5 ? '#ffe14d' : '#fff6a0')); }
-    B.contact(pb, x + 6, y, 44, 3, -0.3);
+    // copa de acacia amplia y aplanada (masas oscuras detrás, claras delante)
+    const top = b - h - 4;
+    const DK = ['#081206', '#10200a', '#1a320e', '#284a14', '#38621a', '#4c7a20', '#64922a', '#88ac3a'];
+    const LT = ['#0e1a08', '#1a2c0c', '#2c4614', '#42621c', '#5c7e24', '#7c9a30', '#a0b440', '#c8d460'];
+    const back_ = [[ox - 70, top + 18, 50, 16], [ox + 80, top + 14, 52, 17], [ox + 10, top + 2, 70, 20]];
+    const front_ = [[ox - 44, top + 8, 44, 15], [ox + 30, top - 6, 56, 18], [ox + 104, top + 20, 40, 13], [ox - 6, top + 24, 46, 12], [ox + 66, top + 30, 38, 11], [ox - 84, top + 30, 30, 10]];
+    for (const [mx, my, rx, ry] of back_) PFFlora.cluster(s, mx, my, rx, ry, DK, seed + mx, { density: 0.42, leaf: [4, 7], bias: -0.05 });
+    for (const [mx, my, rx, ry] of front_) PFFlora.cluster(s, mx, my, rx, ry, LT, seed + mx * 3, { density: 0.48, leaf: [4, 7], bias: 0.06 });
+    for (let i = 0; i < 40; i++) { const fx = ox - 100 + r() * 220, fy = top - 10 + r() * 44; if (K.get(s, Math.round(fx), Math.round(fy)) >>> 24) K.put(s, Math.round(fx), Math.round(fy), U(r() < 0.5 ? '#ffe14d' : '#fff6a0')); }
+    B.finish(s, { rimK: 0.4, rimCol: '#fff0b0' });
+    K.blit(pb, s, x - ox, y - b);
+    B.contact(pb, x + 6, y, 52, 3, -0.32);
   }
   /** Pozo con brocal de piedra, bomba solar y salida de tubería ámbar */
   function well(pb, x, y) {
@@ -27639,12 +27725,12 @@ LEVELS[8] = {
     kitB: true,
     terrain: [
       { x0: 0, x1: 300, surf: 'sand', face: 'sandstone', depth: 12 },
-      { x0: 300, x1: 905, surf: 'path', face: 'terrace', depth: 16, falls: [362, 548, 716, 884], roots: [400, 452, 590, 640, 760, 820], tiers: [{ wall: 17, top: 10, channel: true, crop: 'lettuce' }, { wall: 14, top: 9, crop: 'bean' }] },
+      { x0: 300, x1: 905, surf: 'path', face: 'terrace', depth: 16, falls: [362, 548, 716, 884], roots: [400, 452, 590, 640, 760, 820], tiers: [{ wall: 18, top: 11, channel: true, crop: 'lettuce' }, { wall: 16, top: 10, crop: 'bean' }] },
       { x0: 905, x1: 1172, surf: 'path', face: 'soilcut', depth: 16, roots: [930, 980, 1040, 1100, 1150] },
       { x0: 1172, x1: 1268, surf: 'grass', face: 'soilcut', depth: 14 },
-      { x0: 1268, x1: 1600, surf: 'path', face: 'concrete', depth: 18 },
+      { x0: 1268, x1: 1600, surf: 'path', face: 'concrete', depth: 18, faceH: 22 },
       { x0: 1600, x1: 1960, surf: 'grass', face: 'soilcut', depth: 16, trail: true, roots: [1640, 1700, 1790, 1880, 1930] },
-      { x0: 1960, x1: 2250, surf: 'grass', face: 'terrace', depth: 16, trail: true, falls: [2110], tiers: [{ wall: 20, top: 11, channel: true, crop: 'chard' }] },
+      { x0: 1960, x1: 2250, surf: 'grass', face: 'terrace', depth: 16, trail: true, falls: [2110], tiers: [{ wall: 20, top: 12, channel: true, crop: 'cabbage' }, { wall: 16, top: 10, crop: 'marigold' }] },
       { x0: 2250, x1: 2610, surf: 'grass', face: 'soilcut', depth: 16, roots: [2330, 2380, 2420, 2440, 2470, 2520] },
       { x0: 2610, x1: 2800, surf: 'path', face: 'sandstone', depth: 14 },
     ],
@@ -27666,12 +27752,11 @@ LEVELS[8] = {
     { x: 628, y: 172, title: 'HUERTA', sub: 'Tomate · ají', kind: 'green', ax: 628, ay: 214, when: (sc) => !sc.state.rootsView },
     { x: 800, y: 150, title: 'SECANO', sub: 'Sorgo · nopal', kind: 'green', ax: 800, ay: 200 },
     { x: 628, y: 172, title: 'SAL EN LA RAÍZ', sub: 'CE suelo 3,4 dS/m · boro alto', kind: 'alert', ax: 628, ay: 300, when: (sc) => !!sc.state.rootsView },
-    { x: 452, y: 330, title: 'ZONA RADICULAR', sub: 'Humedad + raíces', kind: 'water', ax: 452, ay: 318, when: (sc) => !!sc.state.rootsView },
+    { x: 800, y: 308, title: 'ZONA RADICULAR', sub: 'Humedad + raíces', kind: 'water', ax: 780, ay: 322, when: (sc) => !!sc.state.rootsView },
     { x: 1300, y: 150, title: 'POZO 4', sub: 'Agua salobre', kind: 'solar', ax: 1300, ay: 196 },
     { x: 1356, y: 118, title: 'PERMEADO', sub: 'Agua de la planta OI', kind: 'water', ax: 1356, ay: 150 },
     { x: 1424, y: 196, title: 'CISTERNA', sub: 'Agua de lluvia', kind: 'green', ax: 1424, ay: 226 },
     { x: 1500, y: 132, title: 'MEZCLA DE RIEGO', sub: (sc) => (sc.state.blend && isFinite(sc.state.blend.ec)) ? ('EC ' + fmt(sc.state.blend.ec, 2) + ' dS/m · SAR ' + fmt(sc.state.blend.sar || 0, 1)) : 'EC · boro · SAR', kind: 'water', ax: 1490, ay: 180 },
-    { x: 1560, y: 190, title: 'COMPOST', sub: 'Materia orgánica', kind: 'green', ax: 1566, ay: 238 },
     { x: 1760, y: 176, title: 'PASTOREO', sub: 'Ruta de las cabras', kind: 'green', ax: 1760, ay: 236 },
     { x: 2010, y: 160, title: 'CORREDOR', sub: 'Polinizadores', kind: 'green', ax: 2010, ay: 222 },
   ],
@@ -27688,10 +27773,10 @@ LEVELS[8] = {
     for (let x = 10; x < 290; x += 26 + r.int(0, 20)) B.rocks(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x);
     F.scatter(pb, (x) => back(x) + 3, 0, 300, 801, { gap: 12, mix: { dry: 4, agave: 2, tuft: 1 } });
     F.agave(pb, 60, gy(60) - 4, 12, 802); F.agave(pb, 140, gy(140) - 4, 9, 803);
-    PFSigns.post(pb, 236, gy(236) - 6, [{ text: 'OASIS DE LAS RAÍCES' }, { text: 'MESA DEL NEXO' }, { text: 'DESIERTO', dir: -1 }], 17, { font: 'tiny' });
     // seto cortavientos (al borde del oasis)
-    for (let x = 268; x < 372; x += 12) F.bush(pb, x, back(x) + 2, 22, 22 + (x % 3) * 4, RAMP.foliageR, x);
+    for (let x = 300; x < 372; x += 12) F.bush(pb, x, back(x) + 2, 22, 22 + (x % 3) * 4, RAMP.foliageR, x);
     F.palm(pb, 330, back(330) + 2, 74, -6, 21); F.palm(pb, 882, back(882) + 2, 70, 6, 22);
+    PFSigns.post(pb, 226, gy(226) - 6, [{ text: 'OASIS DE LAS RAÍCES' }, { text: 'MESA DEL NEXO' }, { text: 'DESIERTO', dir: -1 }], 17, { font: 'tiny' });
     /* ===== 2. BANCALES (380–870): milpa, huerta, secano con goteo y sensores ===== */
     const plots = [
       [372, 524, ['maiz', 'frijol', 'ahuyama'], { mulch: true, seed: 11 }],
