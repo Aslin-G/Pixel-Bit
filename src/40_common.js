@@ -119,6 +119,22 @@ function simBackdrop() {
   b.globalAlpha = 0.5; b.fillStyle = '#020a1e'; b.fillRect(0, 0, W, 10); b.fillRect(0, H - 10, W, 10); b.globalAlpha = 1;
   _simBg = c; return c;
 }
+/** Fondo del gemelo digital (FIXUI H4): instantánea del propio nivel bajo un velo navy en dos bandas planas y la
+ * rejilla técnica tenue encima, compuesta una sola vez al abrir el simulador (sin la escena de juego, rejilla sola). */
+function FIXUI_simBackdrop(gp) {
+  if (!gp || !gp.render || !gp.world) return simBackdrop();
+  const c = makeCanvas(W, H);
+  // sin HUD, sin lente y sin etiquetas del mundo: su texto competiría con el de los paneles del simulador
+  const hh = gp.hideHUD, lt = gp.lensT, nl = gp.noLabels;
+  try { gp.hideHUD = true; gp.lensT = 0; gp.noLabels = true; gp.render(c.g); } catch (e) { return simBackdrop(); } finally { gp.hideHUD = hh; gp.lensT = lt; gp.noLabels = nl; }
+  const b = c.g;
+  b.globalAlpha = 0.66; b.fillStyle = '#041026'; b.fillRect(0, 0, W, H);
+  b.globalAlpha = 0.22; b.fillStyle = '#020a1e'; b.fillRect(0, Math.round(H * 0.42), W, H);
+  b.globalAlpha = 0.55; b.fillStyle = '#0e2a50'; for (let x = 8; x < W; x += 16) b.fillRect(x, 0, 1, H); for (let y = 8; y < H; y += 16) b.fillRect(0, y, W, 1);
+  b.globalAlpha = 0.8; b.fillStyle = '#1a3a6a'; for (let x = 8; x < W; x += 64) for (let y = 8; y < H; y += 64) b.fillRect(x - 1, y, 3, 1), b.fillRect(x, y - 1, 1, 3);
+  b.globalAlpha = 0.5; b.fillStyle = '#020a1e'; b.fillRect(0, 0, W, 10); b.fillRect(0, H - 10, W, 10); b.globalAlpha = 1;
+  return c;
+}
 function makeSim(def) {
   return Object.assign({
     overlay: true,
@@ -128,6 +144,9 @@ function makeSim(def) {
       this.p = p; this.onDone = p.onDone; this.gp = p.gameplay; this.t = 0; this.phase = p.phase || def.phases[0];
       this.hints = 0; this.attempts = 0; this.safeErr = null; this.msg = null; this.result = {}; this.startT = nowMs(); this.paused = false; this.speed = 1;
       this.ps = new Particles(600);
+      // fondo: el nivel de donde se abrió el simulador, atenuado (o la rejilla si no hay nivel debajo)
+      const below = Game.scenes[Game.scenes.length - 2];
+      this.bgC = FIXUI_simBackdrop(p.gameplay || (typeof GameplayScene !== 'undefined' && below === GameplayScene ? GameplayScene : null));
       Audio2.sfx('power', { vol: 0.5 });
       this.init && this.init(p);
       this.enterPhase(this.phase);
@@ -174,7 +193,7 @@ function makeSim(def) {
     },
     render(g) {
       // fondo de laboratorio: azul noche plano con rejilla de 16 px (prerenderizado, sin tramado)
-      g.drawImage(simBackdrop(), 0, 0);
+      g.drawImage(this.bgC || simBackdrop(), 0, 0);
       this.draw && this.draw(g);
       this.ps.render(g);
       // cabecera: insignia + título en negrita + fase + puntos de fase + RA

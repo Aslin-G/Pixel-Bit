@@ -207,7 +207,7 @@ const GameplayScene = {
     else if (this.grade) { g.globalCompositeOperation = this.grade.op || 'multiply'; g.globalAlpha = this.grade.a ?? 1; frect(g, 0, 0, W, H, this.grade.col); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     // etiquetas científicas en el mundo (texto nítido, tras la gradación y antes de la lente);
     // sus cajas quedan registradas para que la lente, los globos y las indicaciones las esquiven
-    FIXUI_labelRects = typeof WorldLabels !== 'undefined' ? FIXUI_drawLabels(g, this) : [];
+    FIXUI_labelRects = typeof WorldLabels !== 'undefined' && !this.noLabels ? FIXUI_drawLabels(g, this) : [];
     FIXUI_bodies = FIXUI_bodyRects(this);
     // Lente Nexo
     if (this.lensT > 0) this.renderLens(g, camI);
