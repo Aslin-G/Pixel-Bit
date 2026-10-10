@@ -696,7 +696,25 @@ const FONT_SRC = {
   '♥': ['.....', '.#.#.', '#####', '#####', '.###.', '..#..'],
   '★': ['..#..', '..#..', '#####', '.###.', '.#.#.', '#...#'],
   '♪': ['..##', '..#.', '..#.', '..#.', '###.', '###.'],
+  // notación científica (QA: antes caían en «?»)
+  '−': ['.....', '.....', '.....', '.....', '#####'],
+  '↔': ['.......', '.......', '.#...#.', '#.....#', '#######', '#.....#', '.#...#.'],
+  'Σ': ['#####', '#....', '.#...', '..#..', '.#...', '#....', '#####'],
+  '≠': ['....', '....', '...#', '####', '.##.', '####', '#...'],
+  'º': ['.#.', '#.#', '.#.', '...', '###'],
+  '✕': ['.....', '.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
+  '✗': ['.....', '.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
+  '§': ['.###', '#...', '.##.', '#..#', '.##.', '...#', '###.'],
+  '√': ['...##', '...#.', '...#.', '#..#.', '.#.#.', '.#.#.', '..#..'],
+  '½': ['#....#', '#...#.', '#..#..', '..#.##', '.#...#', '#...#.', '...###'],
+  'ρ': ['....', '....', '.##.', '#..#', '#..#', '#..#', '###.', '#...', '#...'],
+  '₃': ['...', '...', '...', '...', '##.', '.##', '..#', '##.'],
+  '₄': ['...', '...', '...', '...', '#.#', '###', '..#', '..#'],
+  'λ': ['#..', '.#.', '.#.', '.#.', '#.#', '#.#', '#.#'],
+  'Ω': ['.###.', '#...#', '#...#', '#...#', '.#.#.', '.#.#.', '##.##'],
 };
+/** Sustitutos tipográficos cuando una fuente no tiene el glifo (antes de recurrir a «?») */
+const GLYPH_FALLBACK = { '“': '"', '”': '"', '‘': "'", '’': "'", '−': '-', '–': '-', '—': '-', '•': '·', '✕': '×', '✗': '×', 'Η': 'H', 'Ρ': 'P', '´': "'", 'º': '°' };
 
 // marcas diacríticas (mínimas, se centran sobre el glifo base)
 const ACC_MARK = { '´': ['.#', '#.'], '¨': ['#.#', '...'], '˜': ['.#.#', '#.#.'] };
@@ -730,6 +748,14 @@ const TINY_SRC = {
   'η': ['##.', '#.#', '#.#', '#.#', '..#'], '|': ['#', '#', '#', '#', '#'], '$': ['.##', '##.', '.#.', '.##', '##.'],
   '≈': ['....', '.#.#', '#.#.', '.#.#', '#.#.'], 'π': ['####', '.#.#', '.#.#', '.#.#', '.#.#'], '≤': ['..##', '##..', '..##', '....', '####'], '≥': ['##..', '..##', '##..', '....', '####'], 'µ': ['#.#', '#.#', '#.#', '##.', '#..'], '—': ['....', '....', '####', '....', '....'], 'Ω': ['.#.', '#.#', '#.#', '.#.', '#.#'], '~': ['...', '.#.', '#.#', '...', '...'], '*': ['#.#', '.#.', '#.#', '...', '...'], '#': ['#.#', '###', '#.#', '###', '#.#'], '…': ['.....', '.....', '.....', '.....', '#.#.#'],
   ';': ['.', '#', '.', '#', '#'], "'": ['#', '#', '.', '.', '.'], '&': ['.#.', '#.#', '.#.', '#.#', '.##'], '"': ['#.#', '#.#', '...', '...', '...'],
+  // notación científica y viñetas (QA: antes caían en «?»)
+  '×': ['...', '#.#', '.#.', '#.#', '...'], '−': ['...', '...', '###', '...', '...'], '–': ['...', '...', '###', '...', '...'],
+  '±': ['.#.', '###', '.#.', '...', '###'], '«': ['....', '.#.#', '#.#.', '.#.#', '....'], '»': ['....', '#.#.', '.#.#', '#.#.', '....'],
+  '↔': ['......', '.#..#.', '######', '.#..#.', '......'], 'Σ': ['###', '#..', '.#.', '#..', '###'], '≠': ['..#', '###', '.#.', '###', '#..'],
+  '•': ['..', '##', '##', '..', '..'], '✓': ['....', '...#', '#.#.', '.#..', '....'], '★': ['..#..', '#####', '.###.', '.#.#.', '.....'],
+  '√': ['..##', '..#.', '#.#.', '.##.', '.#..'], 'ρ': ['.#.', '#.#', '##.', '#..', '#..'], '§': ['.##', '#..', '###', '..#', '##.'],
+  '½': ['#..#.', '#.#..', '..###', '.#..#', '#..##'], '₃': ['...', '...', '##.', '.##', '##.'], '₄': ['...', '...', '#.#', '###', '..#'],
+  '€': ['.##', '#..', '##.', '#..', '.##'], '♥': ['#.#', '###', '###', '.#.', '...'], 'λ': ['#..', '.#.', '.#.', '#.#', '#.#'],
 };
 const TINY_MAP = { 'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N', 'Ü': 'U', 'á': 'A', 'é': 'E', 'í': 'I', 'ó': 'O', 'ú': 'U', 'ñ': 'N', 'ü': 'U', '¿': '?', '¡': '!' };
 
@@ -790,9 +816,12 @@ class BitmapFont {
     return [out, false];
   }
   glyph(ch) {
-    if (this.upper) ch = this.map[ch] || ch.toUpperCase();
-    else ch = this.map[ch] || ch;
-    return this.glyphs.get(ch) || this.glyphs.get('?');
+    // 1) mapa explícito · 2) el propio carácter si existe (η, µ, ×…: no pasar a la mayúscula griega) · 3) mayúscula
+    let k = this.map[ch];
+    if (k === undefined) k = (!this.upper || this.glyphs.has(ch)) ? ch : ch.toUpperCase();
+    let gl = this.glyphs.get(k);
+    if (!gl) { const f = GLYPH_FALLBACK[ch] || GLYPH_FALLBACK[k]; if (f) gl = this.glyphs.get(f) || (this.upper ? this.glyphs.get(f.toUpperCase()) : null); }
+    return gl || this.glyphs.get('?');
   }
   tint(col) {
     let c = this.tints.get(col);
@@ -1623,15 +1652,27 @@ const Game = {
     // escenas: se dibujan desde la más baja opaca
     let start = 0;
     for (let i = this.scenes.length - 1; i >= 0; i--) { if (!this.scenes[i].overlay) { start = i; break; } }
-    for (let i = start; i < this.scenes.length; i++) { g.save(); this.scenes[i].render(g); g.restore(); }
+    // solo la escena superior recibe el puntero (los controles de las de abajo se dibujan inertes)
+    for (let i = start; i < this.scenes.length; i++) { Gui.inputScene = i === this.scenes.length - 1; g.save(); try { this.scenes[i].render(g); } finally { g.restore(); } }
+    Gui.inputScene = true;
     Touch.render(g);
     this.renderToasts(g);
     if (this.flash.a > 0) { g.globalAlpha = this.flash.a; frect(g, 0, 0, W, H, this.flash.color); g.globalAlpha = 1; }
-    if (this.fade.a > 0) {
-      // fundido tramado (pixel art) en lugar de transparencia suave
-      fdither(g, 0, 0, W, H, this.fade.color, this.fade.a);
-    }
+    if (this.fade.a > 0) this.renderFade(g, this.fade.a, this.fade.color);
     if (this.settings.showFps) drawText(g, fmt0(this.fps) + ' FPS', 4, H - 10, { font: 'tiny', color: '#86e36f', shadow: '#140d26' });
+  },
+  /** Fundido sin tramado (STYLE LOCK §1/§11): velo plano con alfa escalonada en 8 pasos, en 4 bandas
+   * horizontales que avanzan desde arriba con un pequeño desfase; con a ≥ 1 la pantalla queda cubierta. */
+  renderFade(g, a, col) {
+    if (a >= 1) { frect(g, 0, 0, W, H, col); return; }
+    const bh = H / 4;
+    g.fillStyle = col;
+    for (let k = 0; k < 4; k++) {
+      const ak = Math.round(clamp(a * 1.24 - k * 0.08, 0, 1) * 8) / 8;
+      if (ak <= 0) continue;
+      g.globalAlpha = ak; g.fillRect(0, Math.round(k * bh), W, Math.round((k + 1) * bh) - Math.round(k * bh));
+    }
+    g.globalAlpha = 1;
   },
   renderToasts(g) {
     // avisos abajo a la derecha, apilados hacia arriba; en el mapa quedan sobre la tira de capítulos
@@ -2066,9 +2107,12 @@ const BTN_STYLES = {
 };
 const Gui = {
   items: [], prev: [], focus: null, active: null, hot: null, keyNav: false, tooltip: null, sliderDrag: null,
+  // Solo la escena superior recibe puntero y teclado: las de abajo se dibujan pero sus controles quedan inertes
+  inputScene: true,
   begin() { this.prev = this.items; this.items = []; this.hot = null; this.tooltip = null; },
   /** Registrar elemento enfocable */
   _reg(id, x, y, w, h, kind) {
+    if (!this.inputScene) return false;
     const it = { id, x, y, w, h, kind };
     this.items.push(it);
     if (this.curIds) this.curIds.add(id);
@@ -2078,6 +2122,7 @@ const Gui = {
     return over;
   },
   end() {
+    if (!this.inputScene) return;
     // navegación por teclado entre elementos registrados en este cuadro
     const list = this.items;
     if (!list.length) return;
@@ -2114,13 +2159,13 @@ const Gui = {
     const over = this._reg(id, x, y, w, h, 'button');
     const p = Input.pointer;
     let clicked = false;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
       if (this.focus === id && (Input.pressed('confirm')) && !opts.noKey && this.wasShown(id)) clicked = true;
     }
     if (over && opts.tip) this.tooltip = opts.tip;
-    const focused = this.isFocused(id) || (over && !this.keyNav);
+    const focused = (this.inputScene && this.isFocused(id)) || (over && !this.keyNav);
     const pressed = this.active === id && over;
     if (!opts.noDraw) this.drawButton(g, x, y, w, h, label, Object.assign({}, opts, { focused, pressed }));
     else if (focused) { const c = '#e8f6ff'; frect(g, x, y, w, 1, c); frect(g, x, y + h - 1, w, 1, c); frect(g, x, y, 1, h, c); frect(g, x + w - 1, y, 1, h, c); }
@@ -2130,9 +2175,9 @@ const Gui = {
   /** Botón solo de puntero: no entra en la navegación por teclado (atajos que ya tienen tecla propia, tarjetas) */
   pbutton(g, id, x, y, w, h, label, opts = {}) {
     const p = Input.pointer;
-    const over = p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
+    const over = this.inputScene && p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
     let clicked = false;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
     }
@@ -2186,12 +2231,12 @@ const Gui = {
     const over = this._reg(id, x, y, w, h, 'button');
     const p = Input.pointer;
     let clicked = false;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
       if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) clicked = true;
     }
-    const focused = !opts.disabled && (this.isFocused(id) || (over && !this.keyNav));
+    const focused = !opts.disabled && ((this.inputScene && this.isFocused(id)) || (over && !this.keyNav));
     const st = opts.state; // 'correct' | 'wrong' | 'selected' | 'dim'
     let R = { ink: '#000633', rim: '#2b3b5d', inner: '#031632', fill: '#031632', text: '#ceddf8' };
     let L = { ink: '#000633', rim: '#9fb0ca', fill: '#05122d', text: '#ebfaff' };
@@ -2223,7 +2268,7 @@ const Gui = {
     const p = Input.pointer;
     const tx0 = x + 4, tw = w - 8, ty = y + 14;
     let v = value;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) { this.active = id; this.sliderDrag = id; }
       if (this.sliderDrag === id) {
         if (p.down) { v = min + clamp((p.x - tx0) / tw, 0, 1) * (max - min); }
@@ -2237,7 +2282,7 @@ const Gui = {
     }
     v = clamp(Math.round((v - min) / step) * step + min, min, max);
     v = parseFloat(v.toFixed(6));
-    const focused = this.isFocused(id) || (over && !this.keyNav) || this.sliderDrag === id;
+    const focused = this.inputScene && (this.isFocused(id) || (over && !this.keyNav) || this.sliderDrag === id);
     const col = opts.disabled ? '#4f5f7f' : (opts.color || '#56e5ff');
     // etiqueta y valor
     if (opts.label) drawText(g, opts.label, x, y + 1, { color: focused ? '#e6f8fe' : UI_INK.dim });
@@ -2269,10 +2314,12 @@ const Gui = {
     const over = this._reg(id, x, y, w, h, 'button');
     const p = Input.pointer;
     let changed = false;
-    if (over && p.pressed) this.active = id;
-    if (this.active === id && p.released) { if (over) changed = true; this.active = null; }
-    if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) changed = true;
-    const focused = this.isFocused(id) || (over && !this.keyNav);
+    if (this.inputScene) {
+      if (over && p.pressed) this.active = id;
+      if (this.active === id && p.released) { if (over) changed = true; this.active = null; }
+      if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) changed = true;
+    }
+    const focused = this.inputScene && (this.isFocused(id) || (over && !this.keyNav));
     const rim = focused ? '#e8f6ff' : on ? '#3fe0a0' : '#3a5a8a';
     frect(g, x + 1, y + 2, 20, 10, '#000633'); frect(g, x, y + 3, 22, 8, '#000633');
     frect(g, x + 1, y + 3, 20, 8, rim);
@@ -39187,9 +39234,13 @@ const TeacherScene = {
     const a = LearningModel.analytics();
     drawText(g, 'ERRORES FRECUENTES (concepciones erróneas detectadas)', x, y, { font: 'tiny', color: '#ffe14d' });
     let yy = y + 12;
-    if (!a.misconceptions.length) drawText(g, 'Sin registros todavía.', x, yy, { color: '#8a8fb8' });
-    for (const [m, n] of a.misconceptions.slice(0, 14)) { drawText(g, '×' + n, x, yy, { color: '#ff9a8a' }); drawTextBlock(g, m, x + 30, yy, W - 70, { color: '#fffaf0' }); yy += 13; }
-    yy += 6;
+    if (!a.misconceptions.length) { drawText(g, 'Sin registros todavía.', x, yy, { color: '#8a8fb8' }); yy += 14; }
+    for (const [m, n] of a.misconceptions.slice(0, 14)) {
+      if (yy > H - 112) break; // deja sitio al bloque de calibración
+      drawText(g, '×' + n, x, yy, { color: '#ff9a8a' });
+      yy += Math.max(13, drawTextBlock(g, m, x + 30, yy, W - 70, { color: '#fffaf0' }) + 2);
+    }
+    yy += 8;
     drawText(g, 'CONFIANZA DECLARADA VS. ACIERTO (calibración metacognitiva)', x, yy, { font: 'tiny', color: '#ffe14d' }); yy += 12;
     for (const k of ['poco', 'medio', 'mucho']) { const [n, c] = a.confidence[k]; drawText(g, k.toUpperCase() + ': ' + (n ? Math.round(100 * c / n) + ' % de acierto en ' + n + ' respuestas' : '—'), x, yy, { color: '#cfd6f0' }); yy += 12; }
   },
@@ -39226,23 +39277,32 @@ const PracticeScene = {
     drawTextBlock(g, 'Repasa con supercontextos de capítulos ya visitados, diagnósticos, cálculos y debates. Se priorizan los conceptos con menor dominio estimado.', 30, 38, W - 60, { color: '#eafff6' });
     const weak = LearningModel.weakest(3);
     drawText(g, 'Sugerido para ti: ' + weak.map(k => MASTERY_LABELS[k]).join(' · '), 30, 62, { font: 'tiny', color: '#ffe14d' });
-    let y = 76;
+    // filas medidas: el paso se ajusta a la altura disponible y nada pasa de H-20
     const visited = GS.s.unlocked.map(l => LEVEL_META[l].ra);
     const ras = [...new Set(visited)];
-    ras.forEach((ra, i) => {
-      for (let c = 1; c <= 3; c++) { const id = ra + '-C' + c; const C = CONTEXTS[id]; if (!C) continue; if (Gui.button(g, 'p' + id, 30 + (c - 1) * 196, y, 190, 16, id + ' ' + C.title.slice(0, 20), { style: 'ghost', align: 'left', tip: C.title })) Game.push(SOLOScene, { ctx: id }); }
-      y += 19;
-    });
-    y += 6;
     const pool = DIAGNOSTICS.filter(d => ras.includes(d.ra)).slice(0, 6);
-    pool.forEach((d, i) => { if (Gui.button(g, 'pd' + d.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * 19, 190, 16, 'Diagnóstico: ' + d.title.slice(0, 18), { style: 'choice', align: 'left', tip: d.title })) launchDiagnostic(d); });
-    y += 44;
     const cs = CALCS.filter(c => ras.includes(c.ra)).slice(0, 6);
-    cs.forEach((c, i) => { if (Gui.button(g, 'pc' + c.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * 19, 190, 16, 'Cálculo: ' + c.title, { style: 'primary', align: 'left' })) Game.push(NumericScene, { calc: c }); });
-    y += 44;
     const ds = DEBATES.filter(d => ras.includes(d.ra)).slice(0, 3);
-    ds.forEach((d, i) => { if (Gui.button(g, 'pb' + d.id, 30 + i * 196, y, 190, 16, 'Debate: ' + d.title.slice(0, 20), { style: 'gold', align: 'left' })) Game.push(DebateScene, { debate: d }); });
-    if (Gui.button(g, 'close', W - 120, H - 36, 90, 16, 'Cerrar', { style: 'ghost' })) Game.pop();
+    const nRows = ras.length + Math.ceil(pool.length / 3) + Math.ceil(cs.length / 3) + (ds.length ? 1 : 0);
+    const groups = (pool.length ? 1 : 0) + (cs.length ? 1 : 0) + (ds.length ? 1 : 0);
+    const y0 = 74, yMax = H - 22;
+    const pitch = clamp(Math.floor((yMax - y0 - groups * 5) / Math.max(1, nRows)), 15, 19), bh = Math.min(16, pitch - 2);
+    const lbl = (t) => fitText(t, 178);
+    let y = y0;
+    ras.forEach((ra) => {
+      for (let c = 1; c <= 3; c++) { const id = ra + '-C' + c; const C = CONTEXTS[id]; if (!C) continue; if (Gui.button(g, 'p' + id, 30 + (c - 1) * 196, y, 190, bh, lbl(id + ' ' + C.title), { style: 'ghost', align: 'left', tip: C.title })) Game.push(SOLOScene, { ctx: id }); }
+      y += pitch;
+    });
+    if (pool.length) y += 5;
+    pool.forEach((d, i) => { if (Gui.button(g, 'pd' + d.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * pitch, 190, bh, lbl('Diagnóstico: ' + d.title), { style: 'choice', align: 'left', tip: d.title })) launchDiagnostic(d); });
+    y += Math.ceil(pool.length / 3) * pitch;
+    if (cs.length) y += 5;
+    cs.forEach((c, i) => { if (Gui.button(g, 'pc' + c.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * pitch, 190, bh, lbl('Cálculo: ' + c.title), { style: 'primary', align: 'left', tip: c.title })) Game.push(NumericScene, { calc: c }); });
+    y += Math.ceil(cs.length / 3) * pitch;
+    if (ds.length) y += 5;
+    ds.forEach((d, i) => { if (Gui.button(g, 'pb' + d.id, 30 + i * 196, y, 190, bh, lbl('Debate: ' + d.title), { style: 'gold', align: 'left', tip: d.title })) Game.push(DebateScene, { debate: d }); });
+    // «Cerrar» en la cabecera: nunca se monta sobre las filas
+    if (Gui.button(g, 'close', W - 20 - 84, 17, 74, 15, 'Cerrar', { style: 'ghost', icon: 'cross' })) Game.pop();
     Gui.end();
     Gui.renderTooltip(g);
   },

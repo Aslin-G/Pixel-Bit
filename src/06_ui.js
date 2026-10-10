@@ -267,9 +267,12 @@ const BTN_STYLES = {
 };
 const Gui = {
   items: [], prev: [], focus: null, active: null, hot: null, keyNav: false, tooltip: null, sliderDrag: null,
+  // Solo la escena superior recibe puntero y teclado: las de abajo se dibujan pero sus controles quedan inertes
+  inputScene: true,
   begin() { this.prev = this.items; this.items = []; this.hot = null; this.tooltip = null; },
   /** Registrar elemento enfocable */
   _reg(id, x, y, w, h, kind) {
+    if (!this.inputScene) return false;
     const it = { id, x, y, w, h, kind };
     this.items.push(it);
     if (this.curIds) this.curIds.add(id);
@@ -279,6 +282,7 @@ const Gui = {
     return over;
   },
   end() {
+    if (!this.inputScene) return;
     // navegación por teclado entre elementos registrados en este cuadro
     const list = this.items;
     if (!list.length) return;
@@ -315,13 +319,13 @@ const Gui = {
     const over = this._reg(id, x, y, w, h, 'button');
     const p = Input.pointer;
     let clicked = false;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
       if (this.focus === id && (Input.pressed('confirm')) && !opts.noKey && this.wasShown(id)) clicked = true;
     }
     if (over && opts.tip) this.tooltip = opts.tip;
-    const focused = this.isFocused(id) || (over && !this.keyNav);
+    const focused = (this.inputScene && this.isFocused(id)) || (over && !this.keyNav);
     const pressed = this.active === id && over;
     if (!opts.noDraw) this.drawButton(g, x, y, w, h, label, Object.assign({}, opts, { focused, pressed }));
     else if (focused) { const c = '#e8f6ff'; frect(g, x, y, w, 1, c); frect(g, x, y + h - 1, w, 1, c); frect(g, x, y, 1, h, c); frect(g, x + w - 1, y, 1, h, c); }
@@ -331,9 +335,9 @@ const Gui = {
   /** Botón solo de puntero: no entra en la navegación por teclado (atajos que ya tienen tecla propia, tarjetas) */
   pbutton(g, id, x, y, w, h, label, opts = {}) {
     const p = Input.pointer;
-    const over = p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
+    const over = this.inputScene && p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
     let clicked = false;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
     }
@@ -387,12 +391,12 @@ const Gui = {
     const over = this._reg(id, x, y, w, h, 'button');
     const p = Input.pointer;
     let clicked = false;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) this.active = id;
       if (this.active === id && p.released) { if (over) clicked = true; this.active = null; }
       if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) clicked = true;
     }
-    const focused = !opts.disabled && (this.isFocused(id) || (over && !this.keyNav));
+    const focused = !opts.disabled && ((this.inputScene && this.isFocused(id)) || (over && !this.keyNav));
     const st = opts.state; // 'correct' | 'wrong' | 'selected' | 'dim'
     let R = { ink: '#000633', rim: '#2b3b5d', inner: '#031632', fill: '#031632', text: '#ceddf8' };
     let L = { ink: '#000633', rim: '#9fb0ca', fill: '#05122d', text: '#ebfaff' };
@@ -424,7 +428,7 @@ const Gui = {
     const p = Input.pointer;
     const tx0 = x + 4, tw = w - 8, ty = y + 14;
     let v = value;
-    if (!opts.disabled) {
+    if (!opts.disabled && this.inputScene) {
       if (over && p.pressed) { this.active = id; this.sliderDrag = id; }
       if (this.sliderDrag === id) {
         if (p.down) { v = min + clamp((p.x - tx0) / tw, 0, 1) * (max - min); }
@@ -438,7 +442,7 @@ const Gui = {
     }
     v = clamp(Math.round((v - min) / step) * step + min, min, max);
     v = parseFloat(v.toFixed(6));
-    const focused = this.isFocused(id) || (over && !this.keyNav) || this.sliderDrag === id;
+    const focused = this.inputScene && (this.isFocused(id) || (over && !this.keyNav) || this.sliderDrag === id);
     const col = opts.disabled ? '#4f5f7f' : (opts.color || '#56e5ff');
     // etiqueta y valor
     if (opts.label) drawText(g, opts.label, x, y + 1, { color: focused ? '#e6f8fe' : UI_INK.dim });
@@ -470,10 +474,12 @@ const Gui = {
     const over = this._reg(id, x, y, w, h, 'button');
     const p = Input.pointer;
     let changed = false;
-    if (over && p.pressed) this.active = id;
-    if (this.active === id && p.released) { if (over) changed = true; this.active = null; }
-    if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) changed = true;
-    const focused = this.isFocused(id) || (over && !this.keyNav);
+    if (this.inputScene) {
+      if (over && p.pressed) this.active = id;
+      if (this.active === id && p.released) { if (over) changed = true; this.active = null; }
+      if (this.focus === id && Input.pressed('confirm') && this.wasShown(id)) changed = true;
+    }
+    const focused = this.inputScene && (this.isFocused(id) || (over && !this.keyNav));
     const rim = focused ? '#e8f6ff' : on ? '#3fe0a0' : '#3a5a8a';
     frect(g, x + 1, y + 2, 20, 10, '#000633'); frect(g, x, y + 3, 22, 8, '#000633');
     frect(g, x + 1, y + 3, 20, 8, rim);

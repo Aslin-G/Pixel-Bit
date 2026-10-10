@@ -69,9 +69,13 @@ const TeacherScene = {
     const a = LearningModel.analytics();
     drawText(g, 'ERRORES FRECUENTES (concepciones erróneas detectadas)', x, y, { font: 'tiny', color: '#ffe14d' });
     let yy = y + 12;
-    if (!a.misconceptions.length) drawText(g, 'Sin registros todavía.', x, yy, { color: '#8a8fb8' });
-    for (const [m, n] of a.misconceptions.slice(0, 14)) { drawText(g, '×' + n, x, yy, { color: '#ff9a8a' }); drawTextBlock(g, m, x + 30, yy, W - 70, { color: '#fffaf0' }); yy += 13; }
-    yy += 6;
+    if (!a.misconceptions.length) { drawText(g, 'Sin registros todavía.', x, yy, { color: '#8a8fb8' }); yy += 14; }
+    for (const [m, n] of a.misconceptions.slice(0, 14)) {
+      if (yy > H - 112) break; // deja sitio al bloque de calibración
+      drawText(g, '×' + n, x, yy, { color: '#ff9a8a' });
+      yy += Math.max(13, drawTextBlock(g, m, x + 30, yy, W - 70, { color: '#fffaf0' }) + 2);
+    }
+    yy += 8;
     drawText(g, 'CONFIANZA DECLARADA VS. ACIERTO (calibración metacognitiva)', x, yy, { font: 'tiny', color: '#ffe14d' }); yy += 12;
     for (const k of ['poco', 'medio', 'mucho']) { const [n, c] = a.confidence[k]; drawText(g, k.toUpperCase() + ': ' + (n ? Math.round(100 * c / n) + ' % de acierto en ' + n + ' respuestas' : '—'), x, yy, { color: '#cfd6f0' }); yy += 12; }
   },
@@ -108,23 +112,32 @@ const PracticeScene = {
     drawTextBlock(g, 'Repasa con supercontextos de capítulos ya visitados, diagnósticos, cálculos y debates. Se priorizan los conceptos con menor dominio estimado.', 30, 38, W - 60, { color: '#eafff6' });
     const weak = LearningModel.weakest(3);
     drawText(g, 'Sugerido para ti: ' + weak.map(k => MASTERY_LABELS[k]).join(' · '), 30, 62, { font: 'tiny', color: '#ffe14d' });
-    let y = 76;
+    // filas medidas: el paso se ajusta a la altura disponible y nada pasa de H-20
     const visited = GS.s.unlocked.map(l => LEVEL_META[l].ra);
     const ras = [...new Set(visited)];
-    ras.forEach((ra, i) => {
-      for (let c = 1; c <= 3; c++) { const id = ra + '-C' + c; const C = CONTEXTS[id]; if (!C) continue; if (Gui.button(g, 'p' + id, 30 + (c - 1) * 196, y, 190, 16, id + ' ' + C.title.slice(0, 20), { style: 'ghost', align: 'left', tip: C.title })) Game.push(SOLOScene, { ctx: id }); }
-      y += 19;
-    });
-    y += 6;
     const pool = DIAGNOSTICS.filter(d => ras.includes(d.ra)).slice(0, 6);
-    pool.forEach((d, i) => { if (Gui.button(g, 'pd' + d.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * 19, 190, 16, 'Diagnóstico: ' + d.title.slice(0, 18), { style: 'choice', align: 'left', tip: d.title })) launchDiagnostic(d); });
-    y += 44;
     const cs = CALCS.filter(c => ras.includes(c.ra)).slice(0, 6);
-    cs.forEach((c, i) => { if (Gui.button(g, 'pc' + c.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * 19, 190, 16, 'Cálculo: ' + c.title, { style: 'primary', align: 'left' })) Game.push(NumericScene, { calc: c }); });
-    y += 44;
     const ds = DEBATES.filter(d => ras.includes(d.ra)).slice(0, 3);
-    ds.forEach((d, i) => { if (Gui.button(g, 'pb' + d.id, 30 + i * 196, y, 190, 16, 'Debate: ' + d.title.slice(0, 20), { style: 'gold', align: 'left' })) Game.push(DebateScene, { debate: d }); });
-    if (Gui.button(g, 'close', W - 120, H - 36, 90, 16, 'Cerrar', { style: 'ghost' })) Game.pop();
+    const nRows = ras.length + Math.ceil(pool.length / 3) + Math.ceil(cs.length / 3) + (ds.length ? 1 : 0);
+    const groups = (pool.length ? 1 : 0) + (cs.length ? 1 : 0) + (ds.length ? 1 : 0);
+    const y0 = 74, yMax = H - 22;
+    const pitch = clamp(Math.floor((yMax - y0 - groups * 5) / Math.max(1, nRows)), 15, 19), bh = Math.min(16, pitch - 2);
+    const lbl = (t) => fitText(t, 178);
+    let y = y0;
+    ras.forEach((ra) => {
+      for (let c = 1; c <= 3; c++) { const id = ra + '-C' + c; const C = CONTEXTS[id]; if (!C) continue; if (Gui.button(g, 'p' + id, 30 + (c - 1) * 196, y, 190, bh, lbl(id + ' ' + C.title), { style: 'ghost', align: 'left', tip: C.title })) Game.push(SOLOScene, { ctx: id }); }
+      y += pitch;
+    });
+    if (pool.length) y += 5;
+    pool.forEach((d, i) => { if (Gui.button(g, 'pd' + d.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * pitch, 190, bh, lbl('Diagnóstico: ' + d.title), { style: 'choice', align: 'left', tip: d.title })) launchDiagnostic(d); });
+    y += Math.ceil(pool.length / 3) * pitch;
+    if (cs.length) y += 5;
+    cs.forEach((c, i) => { if (Gui.button(g, 'pc' + c.id, 30 + (i % 3) * 196, y + Math.floor(i / 3) * pitch, 190, bh, lbl('Cálculo: ' + c.title), { style: 'primary', align: 'left', tip: c.title })) Game.push(NumericScene, { calc: c }); });
+    y += Math.ceil(cs.length / 3) * pitch;
+    if (ds.length) y += 5;
+    ds.forEach((d, i) => { if (Gui.button(g, 'pb' + d.id, 30 + i * 196, y, 190, bh, lbl('Debate: ' + d.title), { style: 'gold', align: 'left', tip: d.title })) Game.push(DebateScene, { debate: d }); });
+    // «Cerrar» en la cabecera: nunca se monta sobre las filas
+    if (Gui.button(g, 'close', W - 20 - 84, 17, 74, 15, 'Cerrar', { style: 'ghost', icon: 'cross' })) Game.pop();
     Gui.end();
     Gui.renderTooltip(g);
   },

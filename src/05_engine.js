@@ -111,15 +111,27 @@ const Game = {
     // escenas: se dibujan desde la más baja opaca
     let start = 0;
     for (let i = this.scenes.length - 1; i >= 0; i--) { if (!this.scenes[i].overlay) { start = i; break; } }
-    for (let i = start; i < this.scenes.length; i++) { g.save(); this.scenes[i].render(g); g.restore(); }
+    // solo la escena superior recibe el puntero (los controles de las de abajo se dibujan inertes)
+    for (let i = start; i < this.scenes.length; i++) { Gui.inputScene = i === this.scenes.length - 1; g.save(); try { this.scenes[i].render(g); } finally { g.restore(); } }
+    Gui.inputScene = true;
     Touch.render(g);
     this.renderToasts(g);
     if (this.flash.a > 0) { g.globalAlpha = this.flash.a; frect(g, 0, 0, W, H, this.flash.color); g.globalAlpha = 1; }
-    if (this.fade.a > 0) {
-      // fundido tramado (pixel art) en lugar de transparencia suave
-      fdither(g, 0, 0, W, H, this.fade.color, this.fade.a);
-    }
+    if (this.fade.a > 0) this.renderFade(g, this.fade.a, this.fade.color);
     if (this.settings.showFps) drawText(g, fmt0(this.fps) + ' FPS', 4, H - 10, { font: 'tiny', color: '#86e36f', shadow: '#140d26' });
+  },
+  /** Fundido sin tramado (STYLE LOCK §1/§11): velo plano con alfa escalonada en 8 pasos, en 4 bandas
+   * horizontales que avanzan desde arriba con un pequeño desfase; con a ≥ 1 la pantalla queda cubierta. */
+  renderFade(g, a, col) {
+    if (a >= 1) { frect(g, 0, 0, W, H, col); return; }
+    const bh = H / 4;
+    g.fillStyle = col;
+    for (let k = 0; k < 4; k++) {
+      const ak = Math.round(clamp(a * 1.24 - k * 0.08, 0, 1) * 8) / 8;
+      if (ak <= 0) continue;
+      g.globalAlpha = ak; g.fillRect(0, Math.round(k * bh), W, Math.round((k + 1) * bh) - Math.round(k * bh));
+    }
+    g.globalAlpha = 1;
   },
   renderToasts(g) {
     // avisos abajo a la derecha, apilados hacia arriba; en el mapa quedan sobre la tira de capítulos
