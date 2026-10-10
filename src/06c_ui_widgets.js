@@ -384,6 +384,12 @@ UIK.keycap = function (g, x, y, key) {
   drawText(g, key, x + Math.round(kw / 2), y + 2, { font: key.length > 1 ? 'tiny' : 'bold', color: '#e6f8fe', align: 'center' });
   return kw;
 };
+/** Ancho de la indicación «[E] Etiqueta» (para colocarla antes de dibujarla) */
+UIK.interactPromptW = function (label, key) {
+  key = key || (Input.touchMode ? 'E' : keyName(Input.codesFor('interact')[0]));
+  const kw = Math.max(11, FONTS.bold.measure(key) + 6);
+  return label ? FONTS.main.measure(label) + kw + 13 : kw + 18;
+};
 /** Indicación «[E] Etiqueta» centrada en cx: tecla + píldora navy (verde si ya se hizo) */
 UIK.interactPrompt = function (g, cx, y, label, o = {}) {
   const key = o.key || (Input.touchMode ? 'E' : keyName(Input.codesFor('interact')[0]));
@@ -466,22 +472,35 @@ UIK.speechBubble = function (g, ax, ay, o = {}) {
   const bodyH = (o.name ? 22 : 8) + lines.length * lineH + 6;
   const TH = 8, h = bodyH + TH;
   const minY = o.minY ?? 4, maxY = o.maxY ?? (H - 4);
-  const avoid = o.avoid || [];
+  // además del HUD, el globo esquiva lo que la escena de juego registró en este cuadro (etiquetas del mundo
+  // y cuerpos de los personajes), salvo el cuerpo de quien habla (contiene el punto de anclaje)
+  const wa = (UIK._worldAvoid && UIK._worldAvoid.frame === Game.frame) ? UIK._worldAvoid.rects : null;
+  const avoid = wa ? (o.avoid || []).concat(wa.filter(r => !(ax >= r.x && ax < r.x + r.w && ay + 8 >= r.y && ay + 8 < r.y + r.h))) : (o.avoid || []);
   const cands = [];
   const order = o.place || ['bl', 'br', 'tl', 'tr'];
+  const score = (r) => {
+    let pen = 0;
+    if (r.y < minY) pen += (minY - r.y) * 4;
+    if (r.y + h > maxY) pen += (r.y + h - maxY) * 4;
+    // solape ponderado por área (un roce de 2 px pesa menos que tapar una cara)
+    for (const a of avoid) if (rectsOverlap(r, a)) {
+      const ow = Math.min(r.x + r.w, a.x + a.w) - Math.max(r.x, a.x), oh = Math.min(r.y + r.h, a.y + a.h) - Math.max(r.y, a.y);
+      pen += (a.wt ?? 1) * (40 + ow * oh / 10);
+    }
+    return pen;
+  };
   for (const tail of order) {
     const left = tail[1] === 'l', up = tail[0] === 'b'; // cola abajo → globo arriba
     const tipDX = left ? 8 - Math.round(TH * 0.55) + 1 : w - 8 - 1 + Math.round(TH * 0.55) - 1;
     let bx = Math.round(ax - tipDX);
-    let by = up ? Math.round(ay - h) : Math.round(ay);
+    const by = up ? Math.round(ay - h) : Math.round(ay);
     bx = clamp(bx, 4, W - w - 4);
-    const r = { x: bx, y: by, w, h };
-    let pen = 0;
-    if (by < minY) pen += (minY - by) * 4;
-    if (by + h > maxY) pen += (by + h - maxY) * 4;
-    for (const a of avoid) if (rectsOverlap(r, a)) pen += 60 + Math.min(r.x + r.w, a.x + a.w) - Math.max(r.x, a.x);
-    if (Math.abs((bx + tipDX) - ax) > 6) pen += 10;
-    cands.push({ tail, r, pen: pen + cands.length * 2 });
+    const mis = Math.abs((bx + tipDX) - ax) > 6 ? 10 : 0;
+    // globo encima: si roza el HUD por pocos píxeles puede bajar un poco sobre la coronilla del hablante
+    for (const nudge of up && wa ? [0, 4, 8] : [0]) {
+      const r = { x: bx, y: by + nudge, w, h };
+      cands.push({ tail, r, pen: score(r) + mis + nudge * 2 + cands.length * 2 });
+    }
   }
   cands.sort((a, b) => a.pen - b.pen);
   const C = cands[0];

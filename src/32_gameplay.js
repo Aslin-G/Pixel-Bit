@@ -22,7 +22,8 @@ const GameplayScene = {
     this.pf = (def.pf && typeof PFStage !== 'undefined') ? PFStage.build(this) : null;
     const sp = (p.checkpoint && def.checkpoints && def.checkpoints[p.checkpoint]) || def.spawn;
     this.player = this.world.add(new Player({ x: sp.x, y: sp.y, facing: sp.facing || 1 }));
-    this.kiru = def.noKiru ? null : this.world.add(new Kiru({ x: sp.x - 30, y: sp.y }));
+    // KIRU nace detrás de Amaya; si eso lo deja contra el borde izquierdo del nivel, nace delante (FIXUI F23)
+    this.kiru = def.noKiru ? null : this.world.add(new Kiru({ x: sp.x - 30 < 24 ? sp.x + 30 : sp.x - 30, y: sp.y }));
     this.cam.bounds = { x: 0, y: 0, w: this.world.w, h: this.world.h };
     this.cam.snap(this.player);
     this.lens = false; this.lensT = 0;
@@ -42,6 +43,8 @@ const GameplayScene = {
     this.cam.snap(this.player);
   },
   resume() { Audio2.playMusic(this.musicOverride || this.def.music || 'coast'); },
+  /** Con un diálogo encima (p. ej. la intro de L10) la tarjeta de capítulo sigue su curso en lugar de quedar congelada como fantasma */
+  updateBelow(dt) { if (this.chapterCard && this.chapterCard.t < 4.2 && Game.top() === DialogueScene) this.chapterCard.t += dt; },
   exit() { },
   inputEnabled() { return this.cutscene === 0 && Game.top() === this && !Game.fade.busy; },
   /* ---------- API de guion ---------- */
@@ -200,12 +203,16 @@ const GameplayScene = {
     // gradación de luz / clima
     if (def.renderGrade) def.renderGrade(g, this);
     else if (this.grade) { g.globalCompositeOperation = this.grade.op || 'multiply'; g.globalAlpha = this.grade.a ?? 1; frect(g, 0, 0, W, H, this.grade.col); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
-    // etiquetas científicas en el mundo (texto nítido, tras la gradación y antes de la lente)
-    if (typeof WorldLabels !== 'undefined') WorldLabels.draw(g, this);
+    // etiquetas científicas en el mundo (texto nítido, tras la gradación y antes de la lente);
+    // sus cajas quedan registradas para que la lente, los globos y las indicaciones las esquiven
+    FIXUI_labelRects = typeof WorldLabels !== 'undefined' ? FIXUI_drawLabels(g, this) : [];
+    FIXUI_bodies = FIXUI_bodyRects(this);
     // Lente Nexo
     if (this.lensT > 0) this.renderLens(g, camI);
-    // globos
-    for (const e of this.world.entities) if (e.renderBubble) e.renderBubble(g, cam);
+    // globos (evitan HUD, etiquetas y cuerpos); con un menú modal encima no asoman por sus bordes
+    const top = Game.top(), modal = top !== this && top !== DialogueScene;
+    UIK._worldAvoid = { frame: Game.frame, rects: FIXUI_labelRects.map(r => Object.assign({ wt: 0.5 }, r)).concat(FIXUI_bodies.map(r => Object.assign({ wt: 1.3 }, r))) };
+    if (!modal) for (const e of this.world.entities) if (e.renderBubble) e.renderBubble(g, cam);
     // indicador de interacción
     if (this.inputEnabled()) { const it = this.nearestInteract(); if (it && it.renderPrompt) it.renderPrompt(g, cam, this.player); else if (it instanceof Actor) drawTalkPrompt(g, it, cam); }
     this.renderHUD(g);
@@ -215,13 +222,17 @@ const GameplayScene = {
     g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.55 * k; frect(g, 0, 0, W, H, '#3a4a8a'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     // rejilla técnica
     if (k > 0.5) { g.fillStyle = 'rgba(86,229,255,0.10)'; for (let x = -(cam.x % 32); x < W; x += 32) g.fillRect(Math.round(x), 0, 1, H); for (let y = -(cam.y % 32); y < H; y += 32) g.fillRect(0, Math.round(y), W, 1); }
-    if (this.def.lens) this.def.lens(g, this, cam, k);
-    // etiqueta de la Lente arriba al centro (no tapa el plano jugable ni las esquinas del HUD)
-    const lw = 190, lx = Math.round(W / 2 - lw / 2);
+    // etiqueta de la Lente arriba al centro (no tapa el plano jugable ni las esquinas del HUD), medida
+    const ttl = 'LENTE NEXO', sub = 'flujos · unidades · límites';
+    const bw = FONTS.bold.measure(ttl), lw = 22 + bw + 7 + FONTS.tiny.measure(sub) + 8, lx = Math.round(W / 2 - lw / 2);
+    // las etiquetas de la lente se colocan esquivando HUD, rótulo, etiquetas del mundo y personajes
+    FIXUI_LENS.placed = (UIK._hudRects || []).map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, k: 'hud' }))
+      .concat([{ x: lx - 2, y: 4, w: lw + 4, h: 22, k: 'hud' }], FIXUI_labelRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, k: 'label' })), FIXUI_bodies.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, k: 'body' })));
+    try { if (this.def.lens) this.def.lens(g, this, cam, k); } finally { FIXUI_LENS.placed = null; }
     UIK.panel(g, lx, 6, lw, 18, 'sheet', null, { chamfer: 2, key: false });
     Icons.draw(g, 'lens', lx + 5, 8);
-    drawText(g, 'LENTE NEXO', lx + 22, 11, { font: 'bold', color: '#e6f8fe' });
-    drawText(g, 'flujos · unidades · límites', lx + 92, 12, { font: 'tiny', color: '#8fdfff' });
+    drawText(g, ttl, lx + 22, 11, { font: 'bold', color: '#e6f8fe' });
+    drawText(g, sub, lx + 22 + bw + 7, 12, { font: 'tiny', color: '#8fdfff' });
   },
   renderHUD(g) {
     if (this.hideHUD) { UIK._hudRects = []; return; }
@@ -264,19 +275,58 @@ const GameplayScene = {
   },
 };
 
+/* ---------- Registro por cuadro de cajas en pantalla (FIXUI) ----------
+   FIXUI_labelRects: cajas de las etiquetas del mundo dibujadas en este cuadro (WorldLabels.lastRects si el kit
+   las publica; si no, se registran los blits de caja durante WorldLabels.draw). FIXUI_bodies: cuerpos de Amaya,
+   KIRU y los actores visibles (de la cabeza a los pies). */
+let FIXUI_labelRects = [];
+let FIXUI_bodies = [];
+function FIXUI_drawLabels(g, sc) {
+  const out = [];
+  const own = Object.prototype.hasOwnProperty.call(g, 'drawImage'), di = g.drawImage;
+  g.drawImage = function (img, x, y) { if (arguments.length === 3 && img && img.width) out.push({ x, y, w: img.width, h: img.height }); return di.apply(this, arguments); };
+  try { WorldLabels.draw(g, sc); } finally { if (own) g.drawImage = di; else delete g.drawImage; }
+  return Array.isArray(WorldLabels.lastRects) ? WorldLabels.lastRects : out;
+}
+function FIXUI_bodyRects(sc) {
+  const out = [], cam = sc.cam;
+  const add = (e, cid) => {
+    if (!e || e.hidden || e.dead) return;
+    const x = Math.round(e.x - cam.ox), y = Math.round(e.y - cam.oy);
+    if (x < -24 || x > W + 24 || y < -10 || y > H + 90) return;
+    const h = UIK.headTop(cid);
+    out.push({ x: x - 13, y: y - h - 2, w: 26, h: h + 2 });
+  };
+  add(sc.player, 'amaya');
+  add(sc.kiru, 'kiru');
+  for (const e of sc.world.entities) if (e instanceof Actor) add(e, e.charId);
+  return out;
+}
+/** Sube una indicación «[E]» (centrada en cx, de ancho w) por encima de la etiqueta del mundo que pise */
+function FIXUI_liftPrompt(cx, y, w, h = 20) {
+  const x = Math.round(cx - w / 2);
+  let yy = y;
+  for (let k = 0; k < 4; k++) {
+    const r = FIXUI_labelRects.find(q => x < q.x + q.w + 1 && q.x < x + w + 1 && yy < q.y + q.h + 1 && q.y < yy + h + 1);
+    if (!r) return y - yy > 48 ? y : yy;
+    yy = r.y - h - 2;
+  }
+  return y;
+}
 /** Indicación de conversación sobre un NPC: tecla + puntos animados, anclada sobre su cabeza real */
 function drawTalkPrompt(g, a, cam) {
   const x = Math.round(a.x - cam.ox);
   const head = Math.max(a.bubbleH || 0, UIK.headTop(a.charId));
   const y = Math.round(a.y - cam.oy - head - 24 + Math.sin(Game.time * 5) * 1.5);
-  UIK.interactPrompt(g, x, y, '', {});
+  UIK.interactPrompt(g, x, FIXUI_liftPrompt(x, y, UIK.interactPromptW('')), '', {});
 }
 /* Las indicaciones de estaciones usan el mismo lenguaje (tecla + píldora navy; verde si ya se completó).
    Se conserva la geometría original de Station.renderPrompt (altura hY). */
 if (typeof Station !== 'undefined') Station.prototype.renderPrompt = function (g, cam, P) {
   if (!this.near(P)) return;
   const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy - (this.hY || 30) - 22 + Math.sin(Game.time * 4) * 1.5);
-  UIK.interactPrompt(g, x, y, this.label, { done: this.done, key: Input.touchMode ? 'E' : keyName(Input.codesFor('interact')[0]) });
+  const key = Input.touchMode ? 'E' : keyName(Input.codesFor('interact')[0]);
+  UIK.interactPrompt(g, x, FIXUI_liftPrompt(x, y, UIK.interactPromptW(this.label, key)), this.label, { done: this.done, key });
 };
 function drawLadder(g, l, ox, oy) {
   const x = Math.round(l.x - ox), y0 = Math.round(l.y0 - oy), y1 = Math.round(l.y1 - oy);

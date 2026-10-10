@@ -660,11 +660,27 @@ const Charts = {
   flow(g, pts, kind, rate = 1, width = 3) {
     const K = FLOW_KINDS[kind] || FLOW_KINDS.water;
     const wdt = Math.max(1, Math.round(width));
+    const k0 = -Math.floor(wdt / 2), k1 = Math.floor((wdt - 1) / 2);
     for (let i = 0; i < pts.length - 1; i++) {
       const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
       const len = dist(x0, y0, x1, y1);
       const horiz = Math.abs(x1 - x0) >= Math.abs(y1 - y0);
-      for (let s = 0; s <= len; s++) {
+      // tramo fuera del encuadre: nada que dibujar
+      if (Math.max(x0, x1) < -6 || Math.min(x0, x1) > W + 6 || Math.max(y0, y1) < -6 || Math.min(y0, y1) > H + 6) continue;
+      const rx0 = Math.round(x0), ry0 = Math.round(y0), rx1 = Math.round(x1), ry1 = Math.round(y1);
+      if (ry0 === ry1 || rx0 === rx1) {
+        // tramo recto: un rectángulo por fila de trazo (claro / medio / oscuro) en lugar de un píxel por paso
+        const ax = Math.max(-2, Math.min(rx0, rx1)), bx = Math.min(W + 2, Math.max(rx0, rx1)), ay = Math.max(-2, Math.min(ry0, ry1)), by = Math.min(H + 2, Math.max(ry0, ry1));
+        if (horiz) {
+          frect(g, ax, ry0 + k0, bx - ax + 1, 1, K.hi);
+          if (k1 - k0 > 1) frect(g, ax, ry0 + k0 + 1, bx - ax + 1, k1 - k0 - 1, K.mid);
+          if (k1 > k0) frect(g, ax, ry0 + k1, bx - ax + 1, 1, K.lo);
+        } else {
+          frect(g, rx0 + k0, ay, 1, by - ay + 1, K.hi);
+          if (k1 - k0 > 1) frect(g, rx0 + k0 + 1, ay, k1 - k0 - 1, by - ay + 1, K.mid);
+          if (k1 > k0) frect(g, rx0 + k1, ay, 1, by - ay + 1, K.lo);
+        }
+      } else for (let s = 0; s <= len; s++) {
         const t = s / Math.max(1, len);
         const px = Math.round(lerp(x0, x1, t)), py = Math.round(lerp(y0, y1, t));
         for (let k = -Math.floor(wdt / 2); k <= Math.floor((wdt - 1) / 2); k++) {
@@ -678,6 +694,7 @@ const Charts = {
         for (let s = off; s < len; s += spacing) {
           const t = s / Math.max(1, len);
           const px = Math.round(lerp(x0, x1, t)), py = Math.round(lerp(y0, y1, t));
+          if (px < -3 || px > W + 3 || py < -3 || py > H + 3) continue;
           if (K.dot === 'bubble') { fpx(g, px, py - 1, K.pulse); fpx(g, px - 1, py, K.pulse); fpx(g, px + 1, py, K.pulse); fpx(g, px, py + 1, K.pulse); }
           else if (K.dot === 'spark') { fpx(g, px, py, '#ffffff'); fpx(g, px + (horiz ? -1 : 0), py + (horiz ? 0 : -1), K.pulse); }
           else frect(g, px - (horiz ? 1 : 0), py - (horiz ? 0 : 1), horiz ? 3 : 1, horiz ? 1 : 3, K.pulse);

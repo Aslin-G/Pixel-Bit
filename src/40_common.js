@@ -266,18 +266,94 @@ function drawLampPost(g, x, y, on = true, col = '#ffe14d') {
 function hudGauges(g, items, x = 6, y = H - 34) {
   UIK.instrumentPlates(g, items, x - 2, y - 2);
 }
+/* ---------- Lente Nexo: etiquetas y límites legibles ----------
+   Las etiquetas usan la fuente principal en mayúsculas y minúsculas (kWh, m³/h, µS/cm, Qp/Qf no se
+   deforman), se ajustan al encuadre y se apartan del HUD, de las etiquetas del mundo, de los
+   personajes y entre sí. FIXUI_LENS.placed lo llena GameplayScene.renderLens en cada cuadro. */
+const FIXUI_LENS = { placed: null };
+const FIXUI_LENS_DY = [0, 4, -4, 8, -8, 12, -12, 16, -16, 20, -20, 24, -24, 28, -28, 32, -32, 36, -36];
+// peso de tapar cada tipo de caja: el HUD y otras etiquetas de la lente pesan más que una etiqueta del mundo o un cuerpo
+const FIXUI_LENS_WT = { hud: 4, tag: 3, label: 1.5, body: 1 };
+/** Mejor posición para r entre desplazamientos {dx,dy}: sin solapes si es posible; si no, el menor solape ponderado */
+function FIXUI_bestPos(r, placed, cands, yMin = 2, yMax = H - 2) {
+  let best = null, bc = Infinity;
+  for (const c of cands) {
+    const x = r.x + c.dx, y = r.y + c.dy;
+    if (y < yMin || y + r.h > yMax || x < 2 || x + r.w > W - 2) continue;
+    let cost = Math.abs(c.dy) * 2 + Math.abs(c.dx) * 0.5;
+    for (const p of placed) {
+      const ow = Math.min(x + r.w, p.x + p.w) - Math.max(x, p.x), oh = Math.min(y + r.h, p.y + p.h) - Math.max(y, p.y);
+      if (ow > 0 && oh > 0) cost += (FIXUI_LENS_WT[p.k] || 1) * (60 + ow * oh);
+    }
+    if (cost < bc) { bc = cost; best = c; }
+  }
+  return best || { dx: 0, dy: 0 };
+}
 /** Etiqueta flotante para la Lente Nexo: píldora navy con borde del color del sistema */
 function lensTag(g, x, y, text, col = '#56e5ff', icon = null) {
-  const w = FONTS.tiny.measure(stripMarkup(text)) + (icon ? 18 : 8);
+  const tw = FONTS.main.measure(stripMarkup(text));
+  const w = tw + (icon ? 21 : 10);
   x = Math.round(x); y = Math.round(y);
-  frect(g, x, y - 1, w, 11, '#000633'); frect(g, x - 1, y, w + 2, 9, '#000633');
-  frect(g, x, y, w, 9, col); frect(g, x + 1, y + 1, w - 2, 7, '#031128'); frect(g, x + 1, y + 1, w - 2, 1, mixHex('#031128', col, 0.25));
-  if (icon) Icons.draw(g, icon, x + 2, y - 3);
-  drawText(g, text, x + (icon ? 16 : 4), y + 2, { font: 'tiny', color: mixHex(col, '#ffffff', 0.6) });
+  // fuera del encuadre: no se arrastra al borde (se amontonarían)
+  if (x > W - 12 || x + w < 12 || y < -12 || y > H + 4) return;
+  x = clamp(x, 4, W - 4 - w);
+  const placed = FIXUI_LENS.placed;
+  if (placed) {
+    const r = { x: x - 1, y: y - 3, w: w + 2, h: 16, k: 'tag' };
+    const c = FIXUI_bestPos(r, placed, FIXUI_LENS_DY.map(dy => ({ dx: 0, dy })));
+    y += c.dy; r.y += c.dy;
+    placed.push(r);
+  }
+  frect(g, x, y - 3, w, 16, '#000633'); frect(g, x - 1, y - 2, w + 2, 14, '#000633');
+  frect(g, x, y - 2, w, 14, col); frect(g, x + 1, y - 1, w - 2, 12, '#031128'); frect(g, x + 1, y - 1, w - 2, 1, mixHex('#031128', col, 0.3));
+  if (icon) Icons.draw(g, icon, x + 2, y - 1);
+  drawText(g, text, x + (icon ? 17 : 5), y + 1, { color: mixHex(col, '#ffffff', 0.62) });
+}
+/** Tramos [a,b) de una línea discontinua de 4 px que quedan visibles y fuera de los huecos */
+function FIXUI_dashes(g, a, b, t, holes, put) {
+  // fase del patrón: el píxel i está encendido si ((i + t) >> 2) & 1
+  let i = a;
+  while (i < b) {
+    const ph = (i + t) & 7;
+    if (ph < 4) { i += 4 - ph; continue; }
+    const inHole = holes.find(h => h[0] <= i && h[1] > i);
+    if (inHole) { i = inHole[1]; continue; }
+    let e = Math.min(b, i + (8 - ph));
+    for (const h of holes) if (h[0] > i && h[0] < e) e = h[0];
+    put(i, e - i);
+    i = e;
+  }
 }
 function lensBoundary(g, x, y, w, h, col = '#ffe14d', label = null) {
   const t = Math.floor(Game.time * 12);
-  for (let i = 0; i < w; i++) if (((i + t) >> 2) & 1) { fpx(g, x + i, y, col); fpx(g, x + i, y + h, col); }
-  for (let i = 0; i < h; i++) if (((i + t) >> 2) & 1) { fpx(g, x, y + i, col); fpx(g, x + w, y + i, col); }
-  if (label) drawText(g, label, x + 3, y + 3, { font: 'tiny', color: col });
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  if (x > W || x + w < 0 || y > H || y + h < 0) return;
+  const placed = FIXUI_LENS.placed;
+  // rótulo del límite: píldora navy dentro del encuadre (la palabra LÍMITE en la fuente diminuta)
+  let lr = null;
+  if (label) {
+    const lw = FONTS.tiny.measure(label) + 8;
+    const lx = clamp(x + 3, 4, Math.max(4, Math.min(W - 4 - lw, x + w - lw - 3)));
+    lr = { x: lx, y: y + 3, w: lw, h: 11, k: 'tag' };
+    if (placed) {
+      // a lo largo del borde superior: a la izquierda, a la derecha o algo más abajo, donde no tape etiquetas
+      const xr = clamp(x + w - lw - 3, 4, W - 4 - lw) - lx, cands = [];
+      for (const dy of [0, 3, 6, 9, 12, 15]) { cands.push({ dx: 0, dy }); if (xr > 0) cands.push({ dx: xr, dy }); }
+      const c = FIXUI_bestPos(lr, placed, cands); lr.x += c.dx; lr.y += c.dy;
+    }
+  }
+  // huecos: etiquetas del mundo y el propio rótulo (la línea no tacha texto)
+  const rects = (placed || []).filter(r => r.k === 'label' || r.k === 'tag').concat(lr ? [lr] : []);
+  const hx = (yy) => rects.filter(r => yy >= r.y && yy < r.y + r.h).map(r => [r.x - 1, r.x + r.w + 1]);
+  const hy = (xx) => rects.filter(r => xx >= r.x && xx < r.x + r.w).map(r => [r.y - 1, r.y + r.h + 1]);
+  g.fillStyle = col;
+  const x0 = Math.max(x, 0), x1 = Math.min(x + w, W), y0 = Math.max(y, 0), y1 = Math.min(y + h, H);
+  for (const yy of [y, y + h]) if (yy >= 0 && yy < H) FIXUI_dashes(g, x0, x1, t - x, hx(yy), (a, n) => g.fillRect(a, yy, n, 1));
+  for (const xx of [x, x + w]) if (xx >= 0 && xx < W) FIXUI_dashes(g, y0, y1, t - y, hy(xx), (a, n) => g.fillRect(xx, a, 1, n));
+  if (lr) {
+    frect(g, lr.x, lr.y, lr.w, lr.h, '#000633'); frect(g, lr.x + 1, lr.y + 1, lr.w - 2, lr.h - 2, '#031128');
+    frect(g, lr.x + 1, lr.y + lr.h - 2, lr.w - 2, 1, mixHex('#031128', col, 0.45));
+    drawText(g, label, lr.x + 4, lr.y + 3, { font: 'tiny', color: col });
+    if (placed) placed.push(lr);
+  }
 }
