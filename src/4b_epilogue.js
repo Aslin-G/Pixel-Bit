@@ -115,36 +115,15 @@ LEVELS[11] = {
   ground: [[0, 292], [1500, 292]],
   terrain: [{ x0: 0, x1: 1500, mat: 'plaza' }],
   cam: { look: 50, vy: 0.66 },
-  props(pb, world) {
-    const gy = 292, E = GS.s.ending || 'pacto';
-    ART.bunting(pb, 20, 170, 700, 176, 14, ['#ff6b6b', '#ffe14d', '#20d6c7', '#86e36f', '#f78acb'], 2);
-    ART.bunting(pb, 700, 176, 1400, 168, 14, ['#ffe14d', '#20d6c7', '#ff9f43', '#86e36f'], 5);
-    // puestos de la primera cosecha con cestas
-    const crops = ['maiz', 'frijol', 'ahuyama', 'tomate', 'aji', 'sorgo', 'nopal'];
-    for (let k = 0; k < 3; k++) {
-      const x = 120 + k * 120;
-      ART.stall(pb, x, gy, 70, { c1: ['#ff6b6b', '#20d6c7', '#ffb93b'][k], c2: '#fffaf0', h: 44 });
-      for (let j = 0; j < 4; j++) { const bx = x + 8 + j * 15; pb.ellipse(bx + 5, gy - 18, 6, 3, '#a87028'); pb.ellipse(bx + 5, gy - 20, 5, 2, ['#ffe14d', '#ff6b6b', '#86e36f', '#ff9f43'][(j + k) % 4]); }
-    }
-    for (let k = 0; k < 7; k++) ART.crop(pb, 500 + k * 18, gy, crops[k], 1, 70 + k, 0);
-    ART.dripLine(pb, 496, 626, gy - 1, 9);
-    drawSign(pb, 560, gy, 'PARCELA ESCOLAR', '#33a552');
-    // panel público de SYNARA 2.0
-    ART.bigScreen(pb, 720, gy, 170, 90);
-    drawSign(pb, 900, gy, 'PANEL PÚBLICO', '#56e5ff');
-    // laboratorio abierto a estudiantes
-    pb.rect(1000, gy - 70, 150, 70, '#1c3a5a'); pb.rect(1000, gy - 70, 150, 3, '#56e5ff');
-    for (let k = 0; k < 3; k++) { pb.rect(1012 + k * 46, gy - 58, 34, 24, '#0a1440'); pb.rect(1012 + k * 46, gy - 58, 34, 2, '#86e36f'); }
-    drawSign(pb, 1075, gy - 70, 'LABORATORIO ABIERTO', '#86e36f');
-    // variaciones según el final
-    if (E === 'pacto') { pb.rect(1190, gy - 64, 80, 52, '#8a5e14'); pb.rect(1192, gy - 62, 76, 48, '#fff4de'); for (let k = 0; k < 8; k++) pb.rect(1196 + (k % 4) * 18, gy - 58 + Math.floor(k / 4) * 22, 14, 14, ['#ffe14d', '#ff9a8a', '#a6f4ff', '#c2f58e'][k % 4]); pb.rect(1228, gy - 12, 4, 12, '#5a3826'); drawSign(pb, 1230, gy - 64, 'DECISIONES PENDIENTES', '#ff9f43'); }
-    if (E === 'tecnica') { pb.rect(1180, gy - 70, 100, 30, '#fffaf0'); pb.rect(1180, gy - 70, 100, 3, '#ff6b6b'); pb.rect(1184, gy - 40, 3, 40, '#5a3826'); pb.rect(1273, gy - 40, 3, 40, '#5a3826'); drawSign(pb, 1230, gy - 70, '¿QUIÉN DECIDE?', '#ff6b6b'); }
-    if (E === 'deuda') { for (let k = 0; k < 4; k++) { pb.rect(1180 + k * 26, gy - 14, 22, 14, '#8a5e14'); ART.mangrove(pb, 1191 + k * 26, gy - 14, 14, 9 + k); } drawSign(pb, 1230, gy - 30, 'RESTAURACIÓN DEL MANGLAR', '#1f854c'); }
-    if (E === 'mosaico') { for (let k = 0; k < 6; k++) pb.rect(1180 + k * 16, gy - 40, 14, 14, ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'][k]); drawSign(pb, 1228, gy - 40, 'MOSAICO VIVO', '#1f854c'); }
-    drawSign(pb, 1440, gy, 'MUELLE · MAR', '#1283bf');
-  },
+  /* plano jugable con kit PF al atardecer (19q_scb_lv11.js): mismo suelo, actores y guion */
+  pf: SCBL11.pf,
+  labels: SCBL11.labels,
+  props(pb, world) { SCBL11.props(pb, world); },
+  propsFront(pb, world) { SCBL11.propsFront(pb, world); },
+  renderBack(g, sc, cam) { SCBL11.renderBack(g, sc, cam); },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
+    SCBL11.renderMidFx(g, sc, cam);
     // pantalla: SYNARA 2.0 (el título que no cabe) → MOSAICO proyecta al final
     const x = 722 - ox, y = 292 - 118 - oy;
     if (x < -180 || x > W + 10) return;
