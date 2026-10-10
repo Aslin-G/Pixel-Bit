@@ -12,6 +12,8 @@
      SCBK.drawFireflies(g, n, t, seed, {x0,x1,y0,y1,col})   luciérnagas con halo 1 px (≤ 2n fillRect)
      SCBK.drawTwinkle(g, list, t)                           centelleo de estrellas brillantes
      SCBK.mosaicTiles(pb, x, y, w, h, seed, cols)           teselas de datos (mosaico comunitario)
+     SCBK.veil(g, x, y, w, h, col, a)                       velo plano con alfa (sustituye a fdither)
+     SCBK.drawBulbs(g, pts, t, cols, step) · SCBK.catenary(x0,y0,x1,y1,sag) guirnaldas de luces sin tramado
    ===================================================================== */
 const SCBK = (() => {
   const V = VISTA;
@@ -169,5 +171,23 @@ const SCBK = (() => {
       V.put(pb, x + xx, y + yy, c[2]); V.put(pb, x + xx + 1, y + yy, c[1]); V.put(pb, x + xx, y + yy + 1, c[1]); V.put(pb, x + xx + 1, y + yy + 1, c[0]);
     }
   }
-  return { grade, ledge, folk, stars, nightSky, moon, drawFireflies, drawTwinkle, mosaicTiles, SKINS, CLOTH };
+  /** Velo plano con alfa (sustituto sin tramado de fdither en las escenas B) */
+  function veil(g, x, y, w, h, col, a) {
+    if (a <= 0) return;
+    g.globalAlpha = Math.min(1, a); g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); g.globalAlpha = 1;
+  }
+  /** Guirnalda de bombillas (sin tramado): halo plano 5×5 al 18 % + 3×3 al 30 % + bombilla 2×2 con brillo */
+  function drawBulbs(g, pts, t, cols = ['#ffe14d', '#ff9f43', '#7ff0dc', '#ff8ab8'], step = 12) {
+    for (let i = 6, k = 0; i < pts.length - 4; i += step, k++) {
+      const [x, y] = pts[i], c = cols[k % cols.length], tw = 0.75 + 0.25 * Math.sin(t * 3 + k * 1.7);
+      g.fillStyle = c;
+      g.globalAlpha = 0.16 * tw; g.fillRect(x - 3, y - 2, 7, 7);
+      g.globalAlpha = 0.3 * tw; g.fillRect(x - 2, y - 1, 5, 5);
+      g.globalAlpha = 1; g.fillRect(x - 1, y + 1, 2, 2); g.fillStyle = '#fffaf0'; g.fillRect(x - 1, y + 1, 1, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Catenaria de puntos entre (x0,y0) y (x1,y1) con flecha sag */
+  function catenary(x0, y0, x1, y1, sag) { const pts = [], n = Math.max(2, Math.round(Math.abs(x1 - x0))); for (let i = 0; i <= n; i++) { const t = i / n; pts.push([Math.round(lerp(x0, x1, t)), Math.round(lerp(y0, y1, t) + Math.sin(t * Math.PI) * sag)]); } return pts; }
+  return { drawBulbs, catenary, veil, grade, ledge, folk, stars, nightSky, moon, drawFireflies, drawTwinkle, mosaicTiles, SKINS, CLOTH };
 })();

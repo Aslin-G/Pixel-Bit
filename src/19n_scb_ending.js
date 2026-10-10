@@ -245,6 +245,11 @@ const SCBEnd = (() => {
     // matas oscuras del borde derecho (oclusor frío)
     const clump = PFFlora.fgClump(80, 40, 9, { spikes: M.dust ? 0 : 3 });
     V.blit(fg, clump, 572, IH - 40);
+    // flores en el labio de la cornisa (más en el mosaico, ninguna en la deuda)
+    if (!M.dust) for (let x = 12; x < 220; x += M.festive ? 9 : 17) if (hash2(x, 3, 71) < 0.7) PFFlora.flowerPatch(fg, x, gy(x) + 1, 7, x + 3, M.cold ? ['#c8d0e0', '#e8ecf4', '#8a94ac', '#ffffff'] : undefined);
+    // follaje de encuadre que cuelga en la esquina superior izquierda (el plano más oscuro)
+    const canopyC = PFFlora.canopy(180, 56, 21, { side: -1, n: 9, vines: 2 }).toCanvas();
+
     // manglar seco (deuda): raíces grises sobre la orilla y plantones nuevos en cajas
     if (M.mangrove) {
       const DW = V.P32(['#2a2420', '#4a403a', '#6a5e56', '#8a7e74', '#a89c90']);
@@ -282,6 +287,8 @@ const SCBEnd = (() => {
       tecnica: [['amaya', 'think', 112, 1, { expr: 'thinking' }], ['operador', 'idle', 186, -1, {}]],
       deuda: [['amaya', 'determined', 104, 1, {}], ['marea', 'talk', 214, -1, {}]],
     }[id] || [];
+    // luz de borde de los personajes según la hora del final (rig: RIM_ENV)
+    const ENV = M.dust ? 'calima' : M.sunKind === 'dusk' ? 'dusk' : 'coast';
     const kiruExpr = { mosaico: 'happy', pacto: 'smile', tecnica: 'calm', deuda: 'brave' }[id];
     return {
       id, B, cast,
@@ -292,9 +299,10 @@ const SCBEnd = (() => {
         g.drawImage(surfC, 0, 0); g.drawImage(terrC, 0, 0);
         g.drawImage(fgC, 0, 0);
         g.drawImage(propsC, 0, 0);
-        for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, op);
-        drawChar(g, 'kiru', 'idle', t, 148, gy(148) - 10, 1, { expr: kiruExpr });
+        for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, Object.assign({ env: ENV }, op));
+        drawChar(g, 'kiru', 'idle', t, 148, gy(148) - 10, 1, { expr: kiruExpr, env: ENV });
         if (M.sunKind === 'dusk' || M.festive) V.drawMotes(g, 12, t, 13, { y0: 60, y1: 160, col: M.dust ? '#f0c890' : '#ffe8b0' });
+        g.drawImage(canopyC, -8 + Math.round(Math.sin(t * 1.1) * 1), -6);
         // borde inferior: sombra de contacto suave sobre el panel
         g.fillStyle = '#04142e'; g.globalAlpha = 0.5; g.fillRect(0, IH - 2, W, 2); g.globalAlpha = 1;
         g.restore();

@@ -330,12 +330,12 @@ const ChainScene = {
   cell(i) { const slots = [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [3, 1], [0, 2], [3, 2], [0, 3], [1, 3], [2, 3], [3, 3]]; const [c, r] = slots[i]; return [26 + c * 150, 50 + r * 60, 140, 52]; },
   render(g) {
     const t = Game.time;
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
+    SCBK.veil(g, 0, 0, W, H, '#05030f', 0.8);
     // marco de madera y corcho
     frect(g, 14, 14, W - 28, H - 28, '#3a1a10'); frect(g, 16, 16, W - 32, H - 32, '#7e4429'); frect(g, 16, 16, W - 32, 2, '#c97c38');
     frect(g, 20, 34, W - 40, H - 54, '#b8864e');
     for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(g, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
-    fdither(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+    SCBK.veil(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
     drawText(g, 'MURO DE EVIDENCIAS · ¿CÓMO OCURRIÓ?', 28, 21, { color: '#fff6d8', shadow: '#3a1a10' });
     drawText(g, 'Clava los factores que la evidencia respalda. Deja fuera los que los datos contradicen.', W - 28, 23, { font: 'tiny', color: '#ffe08a', align: 'right' });
     // foto central de la crisis
@@ -343,7 +343,7 @@ const ChainScene = {
     frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0');
     frect(g, cx + 6, cy + 6, cw - 12, ch - 34, '#0a0c22');
     for (let k = 0; k < 18; k++) { const bx = cx + 10 + k * 15, bh = 10 + (k * 13) % 30; frect(g, bx, cy + ch - 28 - bh, 12, bh, '#1c1f40'); if ((k * 7) % 5 === 0) fpx(g, bx + 4, cy + ch - 26 - bh + 4, '#ff6b6b'); }
-    fdither(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
+    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
     fdisc(g, cx + cw / 2, cy + 30, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 30, 5, '#0a0c22');
     drawText(g, 'APAGÓN DE SYNARA', cx + cw / 2, cy + ch - 22, { color: '#3a1a10', align: 'center' });
     drawText(g, 'No preguntes quién. Pregunta cómo.', cx + cw / 2, cy + ch - 11, { font: 'tiny', color: '#7e4429', align: 'center' });
@@ -479,7 +479,7 @@ const Sim09 = makeSim({
     drawText(g, '↑ DÉFICIT (m³/d)', X0 + 4, Y0 - 10, { font: 'tiny', color: '#eab02a' });
     const k = clamp(this.dT / 5, 0, 1), shown = MO_ALTS.filter((a, i) => i / MO_ALTS.length <= k), sid = new Set(shown.map(a => a.id));
     // región dominada por cada punto del frente (arriba y a la derecha)
-    two.filter(a => !a.dominated && sid.has(a.id)).forEach(a => fdither(g, px(a.crit.costo), py(a.crit.deficit) - (py(a.crit.deficit) - Y0), X1 - px(a.crit.costo), py(a.crit.deficit) - Y0, '#3a1a5a', 0.35));
+    two.filter(a => !a.dominated && sid.has(a.id)).forEach(a => SCBK.veil(g, px(a.crit.costo), py(a.crit.deficit) - (py(a.crit.deficit) - Y0), X1 - px(a.crit.costo), py(a.crit.deficit) - Y0, '#3a1a5a', 0.35));
     const front = two.filter(a => !a.dominated && sid.has(a.id)).sort((a, b) => a.crit.costo - b.crit.costo);
     for (let i = 1; i < front.length; i++) { const p0 = front[i - 1], p1 = front[i]; fline(g, px(p0.crit.costo), py(p0.crit.deficit), px(p1.crit.costo), py(p0.crit.deficit), '#86e36f'); fline(g, px(p1.crit.costo), py(p0.crit.deficit), px(p1.crit.costo), py(p1.crit.deficit), '#86e36f'); }
     fline(g, X0 + 14, Y1 - 14, X0 + 5, Y1 - 5, '#86e36f'); fline(g, X0 + 5, Y1 - 5, X0 + 5, Y1 - 9, '#86e36f'); fline(g, X0 + 5, Y1 - 5, X0 + 9, Y1 - 5, '#86e36f'); drawText(g, 'MEJOR', X0 + 16, Y1 - 18, { font: 'tiny', color: '#86e36f' });
@@ -549,10 +549,10 @@ const Sim09 = makeSim({
       // columna energética: base de agua esencial + excedente; línea del compromiso de H2
       const cx = bx + 14, cw = 26, base = by + 128, sc = 0.36;
       const wH = 40, sH = Math.round(r.surplus * sc), cH = Math.round(r.commit * sc);
-      frect(g, cx, base - wH, cw, wH, '#1c6fd0'); fdither(g, cx, base - wH, cw, wH, '#56e5ff', 0.2);
+      frect(g, cx, base - wH, cw, wH, '#1c6fd0'); SCBK.veil(g, cx, base - wH, cw, wH, '#56e5ff', 0.2);
       drawText(g, 'AGUA', cx + cw / 2, base - wH / 2 - 3, { font: 'tiny', align: 'center', color: '#fffaf0' });
-      frect(g, cx, base - wH - sH, cw, sH, '#1f854c'); fdither(g, cx, base - wH - sH, cw, sH, '#86e36f', 0.25);
-      if (r.water < 1) { const eat = Math.round((1 - r.water) * wH); fdither(g, cx, base - wH, cw, eat, '#ff4e5d', 0.6); }
+      frect(g, cx, base - wH - sH, cw, sH, '#1f854c'); SCBK.veil(g, cx, base - wH - sH, cw, sH, '#86e36f', 0.25);
+      if (r.water < 1) { const eat = Math.round((1 - r.water) * wH); SCBK.veil(g, cx, base - wH, cw, eat, '#ff4e5d', 0.6); }
       if (r.commit > 0) { const ly = base - wH - cH; for (let xx = cx - 4; xx < cx + cw + 4; xx += 2) fpx(g, xx, ly, '#ffe14d'); drawText(g, 'H2', cx + cw + 6, ly - 3, { font: 'tiny', color: '#ffe14d' }); }
       drawText(g, 'excedente', cx + cw + 6, base - wH - sH / 2 - 3, { font: 'tiny', color: '#86e36f' });
       const ty = base + 6;

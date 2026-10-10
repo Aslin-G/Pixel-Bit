@@ -111,7 +111,7 @@ const SCBL11 = (() => {
       if (pts[0][0] - ox > W + 40 || pts[pts.length - 1][0] - ox < -40) continue;
       g.fillStyle = '#3a2a22';
       for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0] - ox, Math.round(pts[i][1] - oy), 1, 1);
-      drawStringLights(g, pts.map(p => [p[0] - ox, p[1] - oy]), t, true);
+      SCBK.drawBulbs(g, pts.map(p => [p[0] - ox, p[1] - oy]), t);
     }
   }
   function renderMidFx(g, sc, cam) {

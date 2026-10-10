@@ -21282,6 +21282,8 @@ const PF_KIT_TEST = {
      SCBK.drawFireflies(g, n, t, seed, {x0,x1,y0,y1,col})   luciérnagas con halo 1 px (≤ 2n fillRect)
      SCBK.drawTwinkle(g, list, t)                           centelleo de estrellas brillantes
      SCBK.mosaicTiles(pb, x, y, w, h, seed, cols)           teselas de datos (mosaico comunitario)
+     SCBK.veil(g, x, y, w, h, col, a)                       velo plano con alfa (sustituye a fdither)
+     SCBK.drawBulbs(g, pts, t, cols, step) · SCBK.catenary(x0,y0,x1,y1,sag) guirnaldas de luces sin tramado
    ===================================================================== */
 const SCBK = (() => {
   const V = VISTA;
@@ -21439,7 +21441,25 @@ const SCBK = (() => {
       V.put(pb, x + xx, y + yy, c[2]); V.put(pb, x + xx + 1, y + yy, c[1]); V.put(pb, x + xx, y + yy + 1, c[1]); V.put(pb, x + xx + 1, y + yy + 1, c[0]);
     }
   }
-  return { grade, ledge, folk, stars, nightSky, moon, drawFireflies, drawTwinkle, mosaicTiles, SKINS, CLOTH };
+  /** Velo plano con alfa (sustituto sin tramado de fdither en las escenas B) */
+  function veil(g, x, y, w, h, col, a) {
+    if (a <= 0) return;
+    g.globalAlpha = Math.min(1, a); g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); g.globalAlpha = 1;
+  }
+  /** Guirnalda de bombillas (sin tramado): halo plano 5×5 al 18 % + 3×3 al 30 % + bombilla 2×2 con brillo */
+  function drawBulbs(g, pts, t, cols = ['#ffe14d', '#ff9f43', '#7ff0dc', '#ff8ab8'], step = 12) {
+    for (let i = 6, k = 0; i < pts.length - 4; i += step, k++) {
+      const [x, y] = pts[i], c = cols[k % cols.length], tw = 0.75 + 0.25 * Math.sin(t * 3 + k * 1.7);
+      g.fillStyle = c;
+      g.globalAlpha = 0.16 * tw; g.fillRect(x - 3, y - 2, 7, 7);
+      g.globalAlpha = 0.3 * tw; g.fillRect(x - 2, y - 1, 5, 5);
+      g.globalAlpha = 1; g.fillRect(x - 1, y + 1, 2, 2); g.fillStyle = '#fffaf0'; g.fillRect(x - 1, y + 1, 1, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  /** Catenaria de puntos entre (x0,y0) y (x1,y1) con flecha sag */
+  function catenary(x0, y0, x1, y1, sag) { const pts = [], n = Math.max(2, Math.round(Math.abs(x1 - x0))); for (let i = 0; i <= n; i++) { const t = i / n; pts.push([Math.round(lerp(x0, x1, t)), Math.round(lerp(y0, y1, t) + Math.sin(t * Math.PI) * sag)]); } return pts; }
+  return { drawBulbs, catenary, veil, grade, ledge, folk, stars, nightSky, moon, drawFireflies, drawTwinkle, mosaicTiles, SKINS, CLOTH };
 })();
 
 /* ===== 19n_scb_ending.js ===== */
@@ -21690,6 +21710,11 @@ const SCBEnd = (() => {
     // matas oscuras del borde derecho (oclusor frío)
     const clump = PFFlora.fgClump(80, 40, 9, { spikes: M.dust ? 0 : 3 });
     V.blit(fg, clump, 572, IH - 40);
+    // flores en el labio de la cornisa (más en el mosaico, ninguna en la deuda)
+    if (!M.dust) for (let x = 12; x < 220; x += M.festive ? 9 : 17) if (hash2(x, 3, 71) < 0.7) PFFlora.flowerPatch(fg, x, gy(x) + 1, 7, x + 3, M.cold ? ['#c8d0e0', '#e8ecf4', '#8a94ac', '#ffffff'] : undefined);
+    // follaje de encuadre que cuelga en la esquina superior izquierda (el plano más oscuro)
+    const canopyC = PFFlora.canopy(180, 56, 21, { side: -1, n: 9, vines: 2 }).toCanvas();
+
     // manglar seco (deuda): raíces grises sobre la orilla y plantones nuevos en cajas
     if (M.mangrove) {
       const DW = V.P32(['#2a2420', '#4a403a', '#6a5e56', '#8a7e74', '#a89c90']);
@@ -21727,6 +21752,8 @@ const SCBEnd = (() => {
       tecnica: [['amaya', 'think', 112, 1, { expr: 'thinking' }], ['operador', 'idle', 186, -1, {}]],
       deuda: [['amaya', 'determined', 104, 1, {}], ['marea', 'talk', 214, -1, {}]],
     }[id] || [];
+    // luz de borde de los personajes según la hora del final (rig: RIM_ENV)
+    const ENV = M.dust ? 'calima' : M.sunKind === 'dusk' ? 'dusk' : 'coast';
     const kiruExpr = { mosaico: 'happy', pacto: 'smile', tecnica: 'calm', deuda: 'brave' }[id];
     return {
       id, B, cast,
@@ -21737,9 +21764,10 @@ const SCBEnd = (() => {
         g.drawImage(surfC, 0, 0); g.drawImage(terrC, 0, 0);
         g.drawImage(fgC, 0, 0);
         g.drawImage(propsC, 0, 0);
-        for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, op);
-        drawChar(g, 'kiru', 'idle', t, 148, gy(148) - 10, 1, { expr: kiruExpr });
+        for (const [cid, anim, x, f, op] of cast) drawChar(g, cid, anim, t, x, gy(x), f, Object.assign({ env: ENV }, op));
+        drawChar(g, 'kiru', 'idle', t, 148, gy(148) - 10, 1, { expr: kiruExpr, env: ENV });
         if (M.sunKind === 'dusk' || M.festive) V.drawMotes(g, 12, t, 13, { y0: 60, y1: 160, col: M.dust ? '#f0c890' : '#ffe8b0' });
+        g.drawImage(canopyC, -8 + Math.round(Math.sin(t * 1.1) * 1), -6);
         // borde inferior: sombra de contacto suave sobre el panel
         g.fillStyle = '#04142e'; g.globalAlpha = 0.5; g.fillRect(0, IH - 2, W, 2); g.globalAlpha = 1;
         g.restore();
@@ -21836,8 +21864,10 @@ const SCBPost = (() => {
       void TA;
       const r = RNG(83);
       for (let x = 8; x < w; x += r.int(14, 30)) { const y = info.onSurf(x, r.int(2, 10)); if (y != null) V.cypress(pb, x, y + 1, r.int(8, 14), 600 + x, { k: 0.04 }); }
+      // depósito de agua del vivero sobre su torre
+      V.waterTower(pb, 548, (info.onSurf(548, 6) ?? info.top[548]) + 1, 30, { k: 0.04 });
       // casita del vivero con ventana encendida
-      const hs = V.townHouse(pb, 600, info.onSurf(600, 6) + 1, 22, 14, 77, { k: 0.02, roof: 'tiles', pal: 'white' });
+      const hs = V.townHouse(pb, 600, (info.onSurf(600, 6) ?? info.top[600]) + 1, 22, 14, 77, { k: 0.02, roof: 'tiles', pal: 'white' });
       fx.win.push(...hs.wins.slice(0, 2).map(([x, y, ww, hh]) => [x, 200 + y, ww, hh]));
     }, { tag: 'hills' });
     /* ---------- suelo (PFTerrain en hora azul), invernadero, faroles ---------- */
@@ -21868,6 +21898,7 @@ const SCBPost = (() => {
     greenhouseLight(art, 318, GY - 6);
     spill(surf, 318, GY - 6);
     const surfC = surf.toCanvas(), artC = art.toCanvas(), floraC = flora.toCanvas();
+    fx.wires = [SCBK.catenary(181, GY - 74, 318, GY - 62, 10), SCBK.catenary(486, GY - 70, 606, GY - 62, 9)];
     return {
       draw(g, t, o = {}) {
         B.render(g, { x: 0, y: V.CAMY });
@@ -21878,6 +21909,9 @@ const SCBPost = (() => {
         if (Math.floor(t * 1.5) % 2) V.drawGlow(g, fx.beacon[0], fx.beacon[1], 3, '#ff6a5a', 0.9);
         for (const [x, y, ww, hh] of fx.win) { g.fillStyle = '#ffc860'; g.fillRect(x, y, ww, hh); }
         g.drawImage(surfC, 0, 0); g.drawImage(artC, 0, 0);
+        // guirnalda de bombillas cálidas del farol al invernadero y del invernadero al farol del camino
+        g.fillStyle = '#141428'; for (const pts of fx.wires) for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0], pts[i][1], 1, 1);
+        for (const pts of fx.wires) SCBK.drawBulbs(g, pts, t, ['#ffd070', '#ffb050', '#fff0b0'], 10);
         // lámparas colgantes del invernadero (parpadeo cálido muy leve)
         for (const [x, y] of fx.ghLamps) V.drawSoftGlow(g, x, y, 14, '#ffb050', 0.18 + 0.03 * Math.sin(t * 5 + x), 5);
         // sensor: alarma amarilla que parpadea
@@ -22279,7 +22313,7 @@ const SCBL11 = (() => {
       if (pts[0][0] - ox > W + 40 || pts[pts.length - 1][0] - ox < -40) continue;
       g.fillStyle = '#3a2a22';
       for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0] - ox, Math.round(pts[i][1] - oy), 1, 1);
-      drawStringLights(g, pts.map(p => [p[0] - ox, p[1] - oy]), t, true);
+      SCBK.drawBulbs(g, pts.map(p => [p[0] - ox, p[1] - oy]), t);
     }
   }
   function renderMidFx(g, sc, cam) {
@@ -35316,12 +35350,12 @@ const ChainScene = {
   cell(i) { const slots = [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [3, 1], [0, 2], [3, 2], [0, 3], [1, 3], [2, 3], [3, 3]]; const [c, r] = slots[i]; return [26 + c * 150, 50 + r * 60, 140, 52]; },
   render(g) {
     const t = Game.time;
-    fdither(g, 0, 0, W, H, '#05030f', 0.8);
+    SCBK.veil(g, 0, 0, W, H, '#05030f', 0.8);
     // marco de madera y corcho
     frect(g, 14, 14, W - 28, H - 28, '#3a1a10'); frect(g, 16, 16, W - 32, H - 32, '#7e4429'); frect(g, 16, 16, W - 32, 2, '#c97c38');
     frect(g, 20, 34, W - 40, H - 54, '#b8864e');
     for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(g, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
-    fdither(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+    SCBK.veil(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
     drawText(g, 'MURO DE EVIDENCIAS · ¿CÓMO OCURRIÓ?', 28, 21, { color: '#fff6d8', shadow: '#3a1a10' });
     drawText(g, 'Clava los factores que la evidencia respalda. Deja fuera los que los datos contradicen.', W - 28, 23, { font: 'tiny', color: '#ffe08a', align: 'right' });
     // foto central de la crisis
@@ -35329,7 +35363,7 @@ const ChainScene = {
     frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0');
     frect(g, cx + 6, cy + 6, cw - 12, ch - 34, '#0a0c22');
     for (let k = 0; k < 18; k++) { const bx = cx + 10 + k * 15, bh = 10 + (k * 13) % 30; frect(g, bx, cy + ch - 28 - bh, 12, bh, '#1c1f40'); if ((k * 7) % 5 === 0) fpx(g, bx + 4, cy + ch - 26 - bh + 4, '#ff6b6b'); }
-    fdither(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
+    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
     fdisc(g, cx + cw / 2, cy + 30, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 30, 5, '#0a0c22');
     drawText(g, 'APAGÓN DE SYNARA', cx + cw / 2, cy + ch - 22, { color: '#3a1a10', align: 'center' });
     drawText(g, 'No preguntes quién. Pregunta cómo.', cx + cw / 2, cy + ch - 11, { font: 'tiny', color: '#7e4429', align: 'center' });
@@ -35465,7 +35499,7 @@ const Sim09 = makeSim({
     drawText(g, '↑ DÉFICIT (m³/d)', X0 + 4, Y0 - 10, { font: 'tiny', color: '#eab02a' });
     const k = clamp(this.dT / 5, 0, 1), shown = MO_ALTS.filter((a, i) => i / MO_ALTS.length <= k), sid = new Set(shown.map(a => a.id));
     // región dominada por cada punto del frente (arriba y a la derecha)
-    two.filter(a => !a.dominated && sid.has(a.id)).forEach(a => fdither(g, px(a.crit.costo), py(a.crit.deficit) - (py(a.crit.deficit) - Y0), X1 - px(a.crit.costo), py(a.crit.deficit) - Y0, '#3a1a5a', 0.35));
+    two.filter(a => !a.dominated && sid.has(a.id)).forEach(a => SCBK.veil(g, px(a.crit.costo), py(a.crit.deficit) - (py(a.crit.deficit) - Y0), X1 - px(a.crit.costo), py(a.crit.deficit) - Y0, '#3a1a5a', 0.35));
     const front = two.filter(a => !a.dominated && sid.has(a.id)).sort((a, b) => a.crit.costo - b.crit.costo);
     for (let i = 1; i < front.length; i++) { const p0 = front[i - 1], p1 = front[i]; fline(g, px(p0.crit.costo), py(p0.crit.deficit), px(p1.crit.costo), py(p0.crit.deficit), '#86e36f'); fline(g, px(p1.crit.costo), py(p0.crit.deficit), px(p1.crit.costo), py(p1.crit.deficit), '#86e36f'); }
     fline(g, X0 + 14, Y1 - 14, X0 + 5, Y1 - 5, '#86e36f'); fline(g, X0 + 5, Y1 - 5, X0 + 5, Y1 - 9, '#86e36f'); fline(g, X0 + 5, Y1 - 5, X0 + 9, Y1 - 5, '#86e36f'); drawText(g, 'MEJOR', X0 + 16, Y1 - 18, { font: 'tiny', color: '#86e36f' });
@@ -35535,10 +35569,10 @@ const Sim09 = makeSim({
       // columna energética: base de agua esencial + excedente; línea del compromiso de H2
       const cx = bx + 14, cw = 26, base = by + 128, sc = 0.36;
       const wH = 40, sH = Math.round(r.surplus * sc), cH = Math.round(r.commit * sc);
-      frect(g, cx, base - wH, cw, wH, '#1c6fd0'); fdither(g, cx, base - wH, cw, wH, '#56e5ff', 0.2);
+      frect(g, cx, base - wH, cw, wH, '#1c6fd0'); SCBK.veil(g, cx, base - wH, cw, wH, '#56e5ff', 0.2);
       drawText(g, 'AGUA', cx + cw / 2, base - wH / 2 - 3, { font: 'tiny', align: 'center', color: '#fffaf0' });
-      frect(g, cx, base - wH - sH, cw, sH, '#1f854c'); fdither(g, cx, base - wH - sH, cw, sH, '#86e36f', 0.25);
-      if (r.water < 1) { const eat = Math.round((1 - r.water) * wH); fdither(g, cx, base - wH, cw, eat, '#ff4e5d', 0.6); }
+      frect(g, cx, base - wH - sH, cw, sH, '#1f854c'); SCBK.veil(g, cx, base - wH - sH, cw, sH, '#86e36f', 0.25);
+      if (r.water < 1) { const eat = Math.round((1 - r.water) * wH); SCBK.veil(g, cx, base - wH, cw, eat, '#ff4e5d', 0.6); }
       if (r.commit > 0) { const ly = base - wH - cH; for (let xx = cx - 4; xx < cx + cw + 4; xx += 2) fpx(g, xx, ly, '#ffe14d'); drawText(g, 'H2', cx + cw + 6, ly - 3, { font: 'tiny', color: '#ffe14d' }); }
       drawText(g, 'excedente', cx + cw + 6, base - wH - sH / 2 - 3, { font: 'tiny', color: '#86e36f' });
       const ty = base + 6;

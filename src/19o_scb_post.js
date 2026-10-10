@@ -84,8 +84,10 @@ const SCBPost = (() => {
       void TA;
       const r = RNG(83);
       for (let x = 8; x < w; x += r.int(14, 30)) { const y = info.onSurf(x, r.int(2, 10)); if (y != null) V.cypress(pb, x, y + 1, r.int(8, 14), 600 + x, { k: 0.04 }); }
+      // depósito de agua del vivero sobre su torre
+      V.waterTower(pb, 548, (info.onSurf(548, 6) ?? info.top[548]) + 1, 30, { k: 0.04 });
       // casita del vivero con ventana encendida
-      const hs = V.townHouse(pb, 600, info.onSurf(600, 6) + 1, 22, 14, 77, { k: 0.02, roof: 'tiles', pal: 'white' });
+      const hs = V.townHouse(pb, 600, (info.onSurf(600, 6) ?? info.top[600]) + 1, 22, 14, 77, { k: 0.02, roof: 'tiles', pal: 'white' });
       fx.win.push(...hs.wins.slice(0, 2).map(([x, y, ww, hh]) => [x, 200 + y, ww, hh]));
     }, { tag: 'hills' });
     /* ---------- suelo (PFTerrain en hora azul), invernadero, faroles ---------- */
@@ -116,6 +118,7 @@ const SCBPost = (() => {
     greenhouseLight(art, 318, GY - 6);
     spill(surf, 318, GY - 6);
     const surfC = surf.toCanvas(), artC = art.toCanvas(), floraC = flora.toCanvas();
+    fx.wires = [SCBK.catenary(181, GY - 74, 318, GY - 62, 10), SCBK.catenary(486, GY - 70, 606, GY - 62, 9)];
     return {
       draw(g, t, o = {}) {
         B.render(g, { x: 0, y: V.CAMY });
@@ -126,6 +129,9 @@ const SCBPost = (() => {
         if (Math.floor(t * 1.5) % 2) V.drawGlow(g, fx.beacon[0], fx.beacon[1], 3, '#ff6a5a', 0.9);
         for (const [x, y, ww, hh] of fx.win) { g.fillStyle = '#ffc860'; g.fillRect(x, y, ww, hh); }
         g.drawImage(surfC, 0, 0); g.drawImage(artC, 0, 0);
+        // guirnalda de bombillas cálidas del farol al invernadero y del invernadero al farol del camino
+        g.fillStyle = '#141428'; for (const pts of fx.wires) for (let i = 0; i < pts.length; i += 2) g.fillRect(pts[i][0], pts[i][1], 1, 1);
+        for (const pts of fx.wires) SCBK.drawBulbs(g, pts, t, ['#ffd070', '#ffb050', '#fff0b0'], 10);
         // lámparas colgantes del invernadero (parpadeo cálido muy leve)
         for (const [x, y] of fx.ghLamps) V.drawSoftGlow(g, x, y, 14, '#ffb050', 0.18 + 0.03 * Math.sin(t * 5 + x), 5);
         // sensor: alarma amarilla que parpadea
