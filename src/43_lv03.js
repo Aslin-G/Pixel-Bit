@@ -7,101 +7,154 @@
 
 const BRINE_TINT = { tint: '#c86aa8', deep: '#621a66', caustic: '#f888b8', foam: '#ffd8ec' };
 
+/* ---------- anclas del plano jugable (kit PF + PFASalt) ---------- */
+const LV3_ANCH = { lamps: [], leds: [], screens: [] };
+/** Roca del cañón al atardecer: granate-magenta en sombra, melocotón en luz */
+const LV3_ROCK = ['#1e0a1e', '#341230', '#4e1c40', '#6a2a4c', '#8c3e52', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
+const LV3_FLOWS = [];
+
 LEVELS[3] = {
-  id: 3, title: 'Los Cañones de Sal', chapter: 'CAPÍTULO 03', biome: 'canyon', music: 'mystery', width: 2800, height: 360,
+  id: 3, title: 'Los Cañones de Sal', chapter: 'CAPÍTULO 03', biome: 'canyon', music: 'mystery', width: 2800, height: 420, fallY: 420,
   ambience: { wind: 0.5, sea: 0.35, birds: 0.4 },
   portraits: ['amaya', 'kiru', 'naira', 'dante', 'limen', 'marea', 'financia'],
   spawn: { x: 60, y: 292 },
   checkpoints: { station: { x: 1980, y: 280 } },
   ground: [[0, 292], [170, 292], [200, 306, 'lin'], [380, 306], [410, 286, 'lin'], [600, 280], [640, 306, 'lin'], [790, 306], [820, 270, 'lin'], [1000, 262], [1100, 276], [1300, 284], [1520, 292], [1560, 304, 'lin'], [1790, 304], [1830, 288, 'lin'], [2100, 276], [2300, 268], [2500, 262], [2800, 258]],
   terrain: [{ x0: 0, x1: 600, mat: 'salt' }, { x0: 600, x1: 1110, mat: 'rock' }, { x0: 1110, x1: 1530, mat: 'salt' }, { x0: 1530, x1: 1840, mat: 'grassland' }, { x0: 1840, x1: 2800, mat: 'rock' }],
+  /* Mismas aguas (x0, x1, y): canales de salmuera y humedal con agua en 3/4 del kit PF */
   water: [
-    Object.assign({ x0: 200, x1: 380, y: 296 }, BRINE_TINT),
-    Object.assign({ x0: 640, x1: 790, y: 296 }, BRINE_TINT),
-    { x0: 1560, x1: 1790, y: 294, tint: '#20b8a0', deep: '#0f4a5a', caustic: '#7fd394' },
+    Object.assign({ x0: 200, x1: 380, y: 296, pf: true, style: 'brineA', wade: '#5868be', wadeDeep: '#241f6a' }, BRINE_TINT),
+    Object.assign({ x0: 640, x1: 790, y: 296, pf: true, style: 'brineA', wade: '#5868be', wadeDeep: '#241f6a' }, BRINE_TINT),
+    { x0: 1560, x1: 1790, y: 294, tint: '#20b8a0', deep: '#0f4a5a', caustic: '#7fd394', pf: true, style: 'wetA', wade: '#1c8a7a', wadeDeep: '#0a3a42' },
   ],
+  /* Mismas plataformas (x, y, w): pilares de sal, chimeneas de roca, pasarelas del humedal y suelo de la estación */
   platforms: [
-    { x: 460, y: 252, w: 30, type: 'salt' }, { x: 520, y: 228, w: 30, type: 'salt' },
-    { x: 690, y: 256, w: 44, type: 'salt' }, { x: 860, y: 238, w: 40, type: 'rock' }, { x: 936, y: 214, w: 48, type: 'rock' },
-    { x: 1600, y: 262, w: 40, type: 'wood', post: 40 }, { x: 1690, y: 256, w: 50, type: 'wood', post: 46 },
-    { x: 2060, y: 214, w: 120, type: 'metal' },
+    { x: 460, y: 252, w: 30, type: 'salt', baked: true, art: 'none' }, { x: 520, y: 228, w: 30, type: 'salt', baked: true, art: 'none' },
+    { x: 690, y: 256, w: 44, type: 'salt', baked: true, art: 'none' }, { x: 860, y: 238, w: 40, type: 'rock', baked: true }, { x: 936, y: 214, w: 48, type: 'rock', baked: true },
+    { x: 1600, y: 262, w: 40, type: 'wood', post: 40, baked: true, art: 'none' }, { x: 1690, y: 256, w: 50, type: 'wood', post: 46, baked: true, art: 'none' },
+    { x: 2060, y: 214, w: 120, type: 'metal', baked: true, art: 'none' },
   ],
-  ladders: [{ x: 2070, y0: 214, y1: 276 }],
-  cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
+  ladders: [{ x: 2070, y0: 214, y1: 276, look: 'steel' }],
+  /* Cámara: el mundo crece 60 px hacia abajo (costra salina estratificada y acantilados del cañón) */
+  cam: { look: 50, vy: 0.6 },
+  pf: {
+    terrain: [
+      { x0: 0, x1: 600, surf: 'saltcrust', face: 'saltflat', depth: 14, seed: 1 },
+      { x0: 600, x1: 1110, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 3, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a' },
+      { x0: 1110, x1: 1530, surf: 'saltcrust', face: 'saltflat', depth: 14, seed: 5 },
+      { x0: 1530, x1: 1840, surf: 'meadow', face: 'saltflat', depth: 12, seed: 7, path: false },
+      { x0: 1840, x1: 2800, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 9, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a' },
+    ],
+    /** Primer plano: cristales de sal violetas y salicornia oscura en los bordes inferiores */
+    fg: [
+      { kind: 'aSalt', x: -20, w: 150, h: 72, seed: 1 },
+      { kind: 'aSalt', x: 720, w: 120, h: 60, seed: 2 },
+      { kind: 'aSalt', x: 1460, w: 150, h: 76, seed: 3 },
+      { kind: 'clump', x: 2160, w: 130, h: 84, seed: 4, spikes: 4, leaves: 9 },
+      { kind: 'aSalt', x: 2860, w: 150, h: 70, seed: 5 },
+      { kind: 'aSalt', x: 3400, w: 140, h: 74, seed: 6 },
+    ],
+    fauna: { gulls: [{ x: 900, y: 120, n: 3 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
+  },
+  /** Etiquetas científicas en el mundo (la sal se conserva: de la planta a la bahía) */
+  labels: [
+    { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 70 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
+    { x: 296, y: 248, title: 'CANAL DE SALMUERA', sub: 'Más densa: corre por el fondo', kind: 'brine', ax: 296, ay: 296 },
+    { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 540, ay: 226 },
+    { x: 1252, y: 186, title: 'CRUCE DE CANALES', sub: (sc) => sc.state.diverted ? '→ contingencia' : '→ costa', kind: 'alert', ax: 1252, ay: 210 },
+    { x: 1410, y: 236, title: 'LAGUNA DE CONTINGENCIA', sub: (sc) => fmt0(clamp(sc.state.pond ?? 0.22, 0, 1) * 100) + ' % llena', kind: 'brine', ax: 1410, ay: 266 },
+    { x: 1676, y: 200, title: 'HUMEDAL SALINO', sub: 'Manglar, aves y salicornia', kind: 'green', ax: 1676, ay: 232 },
+    { x: 1748, y: 262, title: 'BOYA DE SALINIDAD', sub: '36 g/L · mar abierto', kind: 'water', ax: 1748, ay: 284 },
+    { x: 2120, y: 84, title: 'VIGILANCIA COSTERA', sub: 'Bahía y difusor', kind: 'tech', ax: 2120, ay: 100 },
+    { x: 2262, y: 222, title: 'EMISARIO', sub: 'Hacia el difusor mar adentro', kind: 'brine', ax: 2262, ay: 256 },
+  ],
+  /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
+    const t0 = nowMs();
     const gy = (x) => world.groundAt(x);
-    // salida de concentrado de la planta → canal
-    ART.pipe(pb, 0, 270, 200, 270, 4, 'brine');
-    pb.rect(186, 260, 18, 22, '#3a3460'); pb.rect(188, 262, 14, 18, '#140d26'); for (let k = 0; k < 4; k++) pb.hline(188, 201, 265 + k * 4, '#5a44a8');
-    drawSign(pb, 110, gy(110), 'CONCENTRADO OI', '#8e2a80');
-    // costras de sal y cristales en el canal
-    for (let x = 200; x < 380; x += 7) { pb.set(x, 297, '#ffffff'); if (x % 21 === 0) ART.saltPile(pb, x, 306, 8, 4); }
-    for (let x = 30; x < 600; x += 46) ART.saltPile(pb, x + (x % 13), gy(x), 14 + (x % 3) * 4, 5 + (x % 4));
-    // columnas del cañón con vetas de sal
-    for (const [x, w, h] of [[606, 30, 150], [800, 26, 120], [1060, 40, 170]]) {
-      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
-        const y = gy(x) - yy; const t = xx / w;
-        let c = RAMP.mesa[t < 0.2 ? 6 : t < 0.6 ? 5 : t < 0.85 ? 4 : 3];
-        if (((yy + Math.floor(Math.sin(xx * 0.3) * 2)) % 11) === 0) c = '#ffe8f0';
-        if (((yy + 3) % 23) === 0) c = RAMP.mesa[3];
-        pb.set(x + xx, y, c);
-      }
-      for (let xx = 0; xx < w; xx++) pb.set(x + xx, gy(x) - h, '#ffe0b8');
-    }
-    // compuerta del cruce de canales (donde LIMEN desvía la salmuera)
-    const jx = 1220;
-    pb.rect(jx, gy(jx) - 56, 64, 56, '#4a3a6a'); pb.rect(jx, gy(jx) - 56, 64, 3, '#8a86b0'); pb.rect(jx + 60, gy(jx) - 56, 4, 56, '#2a2240');
-    pb.rect(jx + 8, gy(jx) - 46, 20, 30, '#140d26'); pb.rect(jx + 36, gy(jx) - 46, 20, 30, '#140d26');
-    drawSign(pb, jx + 32, gy(jx) - 56, 'CRUCE DE CANALES', '#5a44a8');
-    ART.pipe(pb, 1110, gy(1110) - 8, 1220, gy(1110) - 8, 3, 'brine');
-    ART.pipe(pb, 1284, gy(1284) - 8, 1320, gy(1284) - 8, 3, 'brine');
-    // laguna de contingencia
-    ART.evapPond(pb, 1324, gy(1324) - 8, 170, 8);
-    drawSign(pb, 1410, gy(1410) - 8, 'CONTINGENCIA', '#c06030');
-    // humedal: manglares y juncos
-    for (const [x, h] of [[1572, 50], [1630, 62], [1720, 56], [1772, 44]]) ART.mangrove(pb, x, 300, h, x);
-    for (let x = 1540; x < 1840; x += 5) if ((x * 7) % 3 === 0) { pb.vline(x, 292, 300, '#33946a'); pb.set(x, 291, '#7fd394'); }
-    // estación de vigilancia costera
-    const sx = 2056;
-    pb.rect(sx, 150, 128, 64, '#e8f0f4'); pb.rect(sx, 150, 128, 4, '#1491aa'); pb.rect(sx + 124, 150, 4, 64, '#a9bbd6');
-    for (let k = 0; k < 4; k++) { pb.rect(sx + 8 + k * 30, 162, 22, 18, '#1a2a4a'); pb.rect(sx + 8 + k * 30, 162, 22, 2, '#6aa0b4'); }
-    pb.vline(sx + 110, 90, 150, '#98c6d2'); pb.rect(sx + 104, 96, 14, 3, '#cfe8ee'); pb.rect(sx + 106, 110, 10, 2, '#cfe8ee'); pb.set(sx + 110, 89, '#ff4e5d');
-    ART.pvRow(pb, sx + 10, 148, 70, 3, { tilt: 5, depth: 5 });
-    for (const px of [sx + 4, sx + 60, sx + 120]) { pb.rect(px, 214, 4, gy(px) - 214, '#477a94'); }
-    drawSign(pb, sx + 64, 150, 'VIGILANCIA COSTERA', '#1491aa');
-    // mirador final
-    for (let x = 2300; x < 2800; x += 44) { const k = (x * 11) % 5; if (k < 2) ART.cactus(pb, x, gy(x) + 1, 18 + k * 6, x); else if (k < 4) ART.agave(pb, x, gy(x), 8); else ART.shrub(pb, x, gy(x) + 1, 5, x); }
-    drawSign(pb, 2740, gy(2740), 'DUNAS FOTÓNICAS', '#c8861a');
+    const segs = PFTerrain.surface(pb, world);
+    const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
+    const S = PFASalt, So = PFASolar, P = PFAPlant, I = PFInfra, A = PFArch, F = PFFlora, K = PFK, r = RNG(3003);
+    const N = LV3_ANCH; N.lamps = []; N.leds = []; N.screens = []; LV3_FLOWS.length = 0;
+    const flow = (pts, kind, rate) => LV3_FLOWS.push({ pts, kind, rate });
+    /* ===== 1. DESCARGA DEL CONCENTRADO Y SALINAS (0–600) ===== */
+    for (const [x, w, h] of [[34, 34, 16], [88, 26, 12], [236, 40, 18], [330, 30, 14], [430, 36, 16], [566, 28, 12]]) S.saltPile(pb, x, back(x) + 5, w, h, x);
+    I.pipe(pb, [[0, 270], [176, 270]], 5, 'brine', { flange: 26, supports: 34, supportTo: (x) => gy(x) - 4 });
+    flow([[0, 270], [176, 270]], 'brine', 1);
+    N.mouth = S.outfall(pb, 172, gy(172) + 4).mouth;
+    for (const x of [140, 152]) A.sack(pb, x, gy(x) - 6, { col: '#f2e4ea' });
+    // carretilla y rastrillo de las salineras
+    for (let k = 0; k < 18; k++) { K.put(pb, 60 + k, gy(60) - 14 + Math.round(k * 0.2), U('#94602e')); } K.ellipseFn(pb, 62, gy(62) - 9, 3, 3, (nx, ny, d) => d > 0.4 ? U('#2a282e') : U('#716f76'));
+    I.box3q(pb, 66, gy(66) - 10, 14, 6, 5, { ramp: PFInfra.STEEL });
+    K.lineFn(pb, 110, gy(110) - 4, 122, gy(110) - 40, () => U('#b88044'), 2); for (let k = -5; k <= 5; k++) K.put(pb, 122 + k, gy(110) - 40, U('#6e421e'));
+    for (const [x, y, w] of [[460, 252, 30], [520, 228, 30]]) S.saltPillar(pb, x, y, gy(x + w / 2) - 2, w, x);
+    for (let x = 384; x < 600; x += 18 + r.int(0, 14)) S.salicornia(pb, x, back(x) + 4, 14, x);
+    /* ===== 2. CAÑÓN DE ROCA CON CHIMENEAS Y SEGUNDO CANAL (600–1110) ===== */
+    for (const [x, w, h] of [[604, 30, 150], [798, 26, 120], [1058, 40, 170]]) S.hoodoo(pb, x, back(x + w / 2) + 6, w, h, LV3_ROCK, x);
+    S.saltPillar(pb, 690, 256, 304, 44, 690);
+    for (const [x, y, w] of [[860, 238, 40], [936, 214, 48]]) S.hoodoo(pb, x + 4, gy(x + w / 2) - 2, w - 8, Math.round(gy(x + w / 2) - 2 - y - 8), LV3_ROCK, x + 1);
+    for (let x = 640; x < 1110; x += 26 + r.int(0, 20)) { if (hash2(x, 1, 3) < 0.5) So.dryBush(pb, x, back(x) + 4, 16, 10, x); else So.stones(pb, x, back(x) + 4, 14, x); }
+    for (const x of [826, 1000]) if (typeof rockPile === 'function') rockPile(pb, x, back(x) + 6, 22, 9, x);
+    /* ===== 3. CRUCE DE CANALES Y LAGUNA DE CONTINGENCIA (1110–1530) ===== */
+    I.pipe(pb, [[1110, gy(1110) - 10], [1220, gy(1110) - 10]], 3, 'brine', { flange: 22, supports: 30, supportTo: (x) => gy(x) - 4 });
+    flow([[1110, gy(1110) - 10], [1220, gy(1110) - 10]], 'brine', 0.8);
+    const wr = S.weir(pb, 1218, gy(1218) - 4); N.gates = wr.gates; N.leds.push({ x: wr.led[0], y: wr.led[1], col: '#f27ee6', hz: 1.6 });
+    I.pipe(pb, [[1290, gy(1290) - 10], [1326, gy(1290) - 10]], 3, 'brine', { flange: 0 });
+    flow([[1290, gy(1290) - 10], [1326, gy(1290) - 10]], 'brine', (sc) => sc.state.diverted ? 1 : 0);
+    I.pipe(pb, [[1290, gy(1290) - 24], [1540, gy(1290) - 24]], 2, 'brine', { flange: 30, supports: 40, supportTo: (x) => gy(x) - 4 });
+    flow([[1290, gy(1290) - 24], [1540, gy(1290) - 24]], 'brine', (sc) => sc.state.diverted ? 0 : (sc.state.gateOpen ? 1 : 0.2));
+    const pd = S.pond(pb, 1328, 1494, gy(1328) - 6); N.pond = pd.surf;
+    PFSigns.post(pb, 1500, gy(1500) - 2, [{ text: 'CONTINGENCIA' }], 31, { font: 'tiny' });
+    for (let x = 1120; x < 1520; x += 22 + r.int(0, 14)) S.salicornia(pb, x, back(x) + 4, 16, x);
+    /* ===== 4. HUMEDAL SALINO CON MANGLAR (1530–1840) ===== */
+    S.reeds(pb, 1534, 1566, (x) => back(x) + 6, 5); S.reeds(pb, 1792, 1836, (x) => back(x) + 6, 7);
+    for (const [x, h] of [[1574, 54], [1650, 66], [1730, 58], [1780, 46]]) S.mangrove(pb, x, 300, h, x);
+    for (const [x, y, w, post] of [[1600, 262, 40, 40], [1690, 256, 50, 46]]) S.boardwalk(pb, x, y, w, y + post);
+    for (let x = 1540; x < 1840; x += 14) S.salicornia(pb, x, back(x) + 3, 12, x + 1);
+    /* ===== 5. ESTACIÓN DE VIGILANCIA COSTERA Y EMISARIO (1840–2300) ===== */
+    const st = S.station(pb, 2056, 2184, 214, gy(2120) - 4); N.radar = st.radar; N.stScr = st.screens; for (const l of st.lamps) N.lamps.push([l[0], l[1], '#fff0c8', 9]);
+    S.emissary(pb, 2196, 2300, (x) => back(x) + 10);
+    flow([[2196, back(2196) + 2], [2300, back(2300) + 2]], 'brine', 0.7);
+    A.lamp(pb, 1990, gy(1990) - 6, { h: 96, arms: 1 }); N.lamps.push([1990 + 10, gy(1990) - 100, '#ffd890', 10]);
+    P.pallet(pb, 1900, gy(1900) - 6, { n: 2, label: 'BOYAS' });
+    /* ===== 6. MIRADOR HACIA LAS DUNAS (2300–2800) ===== */
+    for (const [x, h] of [[2330, 36], [2470, 44], [2610, 30], [2700, 40]]) So.cactus(pb, x, back(x) + 7, h, x);
+    for (const x of [2380, 2560, 2660]) So.opuntia(pb, x, back(x) + 8, 0.9, x);
+    for (let x = 2310; x < 2800; x += 30 + r.int(0, 20)) { if (hash2(x, 2, 5) < 0.6) So.dryBush(pb, x, back(x) + 4, 16, 9, x); else F.agave(pb, x, back(x) + 4, 7, x); }
+    for (let x = 2520; x < 2600; x++) { K.put(pb, x, gy(x) - 22, U('#94602e')); K.put(pb, x, gy(x) - 12, U('#6e421e')); if (x % 10 === 0) for (let k = 0; k < 22; k++) K.put(pb, x, gy(x) - 2 - k, U('#7a4a24')); }
+    PFSigns.post(pb, 2724, gy(2724) - 2, [{ text: 'DUNAS FOTÓNICAS' }], 37, { font: 'tiny' });
+    LEVELS[3]._ms = Math.round(nowMs() - t0);
   },
   propsFront(pb, world) {
-    for (let x = 1530; x < 1840; x += 4) if ((x * 13) % 5 < 2) ART.grass(pb, x, world.groundAt(x) + 2, 2, x, RAMP.mangrove);
-    for (let x = 0; x < 600; x += 9) if ((x * 7) % 5 === 0) pb.set(x, world.groundAt(x) + 1, '#ffffff');
+    const gy = (x) => world.groundAt(x);
+    for (let x = 6; x < 600; x += 11) if ((x * 7) % 5 === 0 && (x < 200 || x > 380)) PFK.put(pb, x, gy(x) + 1, U('#ffffff'));
+    for (let x = 1536; x < 1840; x += 16) if (x < 1560 || x > 1790) PFFlora.tuft(pb, x, gy(x) + 3, 7, 7, x);
+    for (const x of [420, 1140, 1460]) PFASalt.salicornia(pb, x, gy(x) + 4, 14, x + 9);
   },
   /* ---------------- dinámico ---------------- */
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world;
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world, N = LV3_ANCH;
     const gy = (x) => w.groundAt(x) - oy;
-    // flujo de concentrado por la tubería y el canal
-    Charts.flow(g, [[0 - ox, 270 - oy], [200 - ox, 270 - oy]], 'brine', 1, 3);
-    Charts.flow(g, [[1110 - ox, gy(1110) - 8], [1220 - ox, gy(1110) - 8]], 'brine', 0.8, 2);
-    // salida del cruce: hacia la costa (cerrada) o a contingencia (abierta por LIMEN)
-    Charts.flow(g, [[1284 - ox, gy(1284) - 8], [1320 - ox, gy(1284) - 8]], 'brine', S.diverted ? 1 : 0, 2);
-    if (!S.diverted) Charts.flow(g, [[1284 - ox, gy(1284) - 20], [1540 - ox, gy(1284) - 20]], 'brine', S.gateOpen ? 1 : 0.2, 2);
-    // compuertas animadas
-    const jx = 1220 - ox, jy = gy(1220);
-    const gA = Math.round((S.diverted ? 1 : 0) * 30), gB = Math.round((S.diverted ? 0 : 1) * 30);
-    frect(g, jx + 8, jy - 46, 20, 30 - gA, '#8e2a80'); frect(g, jx + 36, jy - 46, 20, 30 - gB, '#8e2a80');
+    // flujo de concentrado por las tuberías (grafito con chevrones magenta)
+    PFDyn.flowsImg(g, sc, LV3_FLOWS);
+    PFInfra.drawLeds(g, sc, N.leds);
+    // chorro de salmuera desde la clapeta hacia el canal (se hunde: es más densa)
+    if (N.mouth) { const [mx, my] = N.mouth; for (let i = 0; i < 12; i++) { const ph = (t * 1.4 + i / 12) % 1, xx = mx + 6 + ph * 20, yy = my + ph * ph * 22; fpx(g, Math.round(xx - ox), Math.round(yy - oy), i % 3 ? '#793b82' : '#e5c8f6'); } for (let i = 0; i < 4; i++) fpx(g, Math.round(mx + 22 + Math.sin(t * 5 + i) * 4 - ox), Math.round(296 - oy - (i % 2)), '#ffffff'); }
+    // compuertas del cruce: tajaderas que suben y bajan
+    if (N.gates) { const gA = Math.round((S.diverted ? 1 : 0) * 28), gB = Math.round((S.diverted ? 0 : 1) * 28); N.gates.forEach(([gx, gy0, gw, gh], i) => { const open = i === 0 ? gA : gB; frect(g, gx - ox, gy0 - oy, gw, gh - open, '#584f56'); frect(g, gx - ox, gy0 - oy, gw, 1, '#9485ac'); for (let k = 3; k < gh - open; k += 5) frect(g, gx - ox, gy0 + k - oy, gw, 1, '#2a2c44'); }); }
     // cristales de LIMEN creciendo en el cruce
+    const jx = 1220 - ox, jy = gy(1220);
     if (S.crystals > 0) for (let i = 0; i < 10 * S.crystals; i++) { const cx = jx + 4 + (i * 13) % 60, cy = jy - 2 - ((i * 7) % 12); frect(g, cx, cy - 4, 2, 5, i % 2 ? '#c4fbff' : '#7ee8f0'); fpx(g, cx, cy - 5, '#ffffff'); }
-    // nivel de la laguna de contingencia
-    if (S.diverted) { const lv = clamp(S.pond || 0.3, 0, 1); frect(g, 1324 - ox, gy(1324) - 8, 170, 2, '#e0dafc'); g.globalAlpha = 0.45; frect(g, 1324 - ox, gy(1324) - 8, Math.round(170 * lv), 6, '#c86aa8'); g.globalAlpha = 1; }
+    // nivel de la laguna de contingencia (lámina rosada que crece)
+    if (N.pond) { const [px, py, pw, ph] = N.pond, lv = clamp(S.pond || 0.22, 0, 1); g.globalAlpha = 0.85; for (let r = 0; r < ph; r++) frect(g, Math.round(px + r * 0.7 - ox), py + ph - 1 - r - oy, Math.round(pw * lv), 1, r % 3 ? '#c86aa8' : '#e5a0c8'); g.globalAlpha = 1; if (S.diverted) fpx(g, Math.round(px + pw * lv * ((t * 0.3) % 1) - ox), py + 4 - oy, '#ffffff'); }
     // flamencos en el humedal
-    for (let i = 0; i < 4; i++) { const fx = 1590 + i * 52 + Math.sin(t * 0.3 + i) * 6; ART.flamingo(g, fx - ox, 300 - oy, t + i * 1.3, i % 2 ? 1 : -1); }
-    // radar de la estación
-    const rx = 2166 - ox, ry = 96 - oy, a = t * 2;
-    fline(g, rx, ry, rx + Math.cos(a) * 8, ry + Math.sin(a) * 3, '#56e5ff');
-    for (let k = 0; k < 4; k++) frect(g, 2066 + k * 30 - ox, 166 - oy, 4 + ((k * 5 + Math.floor(t * 3)) % 14), 1, '#56e5ff');
+    for (let i = 0; i < 4; i++) { const fx = 1596 + i * 50 + Math.sin(t * 0.3 + i) * 6; ART.flamingo(g, fx - ox, 300 - oy, t + i * 1.3, i % 2 ? 1 : -1); }
+    // boyas de salinidad
+    for (const bx of [1612, 1748]) PFASalt.drawBuoy(g, bx - ox, 296 - oy, t);
+    // estación: radar giratorio y pantallas de la bahía
+    if (N.radar) { const [rx, ry] = N.radar, a = t * 2; fline(g, rx - ox, ry - oy, rx - ox + Math.cos(a) * 9, ry - oy + Math.sin(a) * 3, '#56e5ff'); fpx(g, rx - ox, ry - oy - 1, '#ff4e5d'); }
+    if (N.stScr) for (const [x, y, ww, hh] of N.stScr) { const sx = x - ox; if (sx < -30 || sx > W + 10) continue; for (let i = 0; i < ww; i += 2) fpx(g, sx + i, Math.round(y - oy + hh * 0.6 - Math.sin((i + t * 15) * 0.15) * hh * 0.3), '#56e5ff'); frect(g, sx + Math.round(((t * 8) % ww)), y - oy + 2, 1, hh - 4, '#f888b8'); }
+    PFDyn.glows(g, cam, N.lamps, '#ffd890', 9, 0.32);
     // brújula de salmuera activa: flechas de flujo y balance de masa
     if (S.compassT > 0) this.drawCompass(g, sc, cam);
   },
@@ -366,9 +419,9 @@ const Sim03 = makeSim({
       const cx = Math.floor(x / BAY.px), cy = Math.floor(y / BAY.px);
       const coast = 4 + Math.round(1.5 * Math.sin(cx * 0.35) + (cx < 14 ? 3 : 0));
       const land = cy < coast && !(cx >= 19 && cx <= 21 && cy >= coast - 3);
-      if (land) { pb.set(x, y, rampDither(RAMP.sand, 0.7 + (fbm(x * 0.05, y * 0.05, 2, 5) - 0.5) * 0.4, x, y)); continue; }
+      if (land) { const rp = RAMP.sand, v = 0.7 + (fbm(x * 0.05, y * 0.05, 2, 5) - 0.5) * 0.4; pb.set(x, y, rp[clamp(Math.round(v * (rp.length - 1) + (PFK.cl(x, y, 2, 5) - 0.5) * 0.8), 0, rp.length - 1)]); continue; }
       const depth = clamp((cy - coast) / 30, 0, 1);
-      pb.set(x, y, rampDither(['#3a9a94', '#1f7a80', '#16606e', '#0f4a5a', '#0f3a4a'], depth * 0.9 + (fbm(x * 0.03, y * 0.03, 2, 7) - 0.5) * 0.15, x, y));
+      { const rp = ['#3a9a94', '#2a8a8a', '#1f7a80', '#1a6c76', '#16606e', '#125464', '#0f4a5a', '#0f3a4a'], v = depth * 0.9 + (fbm(x * 0.03, y * 0.03, 2, 7) - 0.5) * 0.15; pb.set(x, y, rp[clamp(Math.round(v * (rp.length - 1)), 0, rp.length - 1)]); }
     }
     // receptores pintados: manglar, pradera, arrecife
     for (let i = 0; i < 160; i++) { const x = 8 * BAY.px + Math.cos(i * 1.7) * 26 * Math.sqrt((i % 31) / 31), y = 9 * BAY.px + Math.sin(i * 2.3) * 14 * Math.sqrt((i % 17) / 17); pb.disc(x, y, 2, i % 3 ? '#185a4e' : '#33946a'); }
@@ -447,7 +500,7 @@ const Sim03 = makeSim({
     for (let y = 0; y < BAY.ny; y++) for (let x = 0; x < BAY.nx; x++) {
       const v = P.concAt(x, y); if (v < 0.03) continue;
       const k = clamp(v / 1.5, 0, 1);
-      fdither(g, X0 + x * BAY.px, Y0 + y * BAY.px, BAY.px, BAY.px, cols[Math.min(3, Math.floor(k * 3.2))], clamp(0.25 + k * 0.7, 0, 0.95));
+      PFDyn.veil(g, X0 + x * BAY.px, Y0 + y * BAY.px, BAY.px, BAY.px, cols[Math.min(3, Math.floor(k * 3.2))], clamp(0.25 + k * 0.7, 0, 0.95));
     }
     // flechas de corriente (marea)
     const s = Math.sin(TAU * P.t / 12.4), u = P.tideU();

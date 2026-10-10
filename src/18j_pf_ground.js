@@ -329,18 +329,32 @@ const PFGround = (() => {
   }
   /** Costra salina estratificada: capas blancas de sal, lodo violeta, vetas rosadas y filtraciones */
   function saltFlatFace(s, x, y, gy, world) {
-    const d = y - gy, P = PFK.P32(SALT), M = PFK.P32(MUD), B = PFK.P32(BRINEP);
+    const d = y - gy, P = PFK.P32(SALT), M = PFK.P32(MUD), B = PFK.P32(BRINEP), sd = 141 + ((s.seed | 0) % 30);
     if (d === 0) return P[8];
-    if (d < 4) return P[7 - d];
-    const wav = Math.round((PFK.vn(x * 0.03, 0, 141) - 0.5) * 6 + Math.sin(x * 0.02) * 2);
-    const z = d + wav, band = Math.floor(z / 9), by = z % 9;
-    const salt = band % 3 === 0;
+    if (d < 3) return P[8 - d];
+    // límites de capa irregulares (ruido de baja frecuencia), no bandas fijas
+    const n1 = (PFK.vn(x * 0.02, 0, sd) - 0.5) * 8 + (PFK.vn(x * 0.07, 1, sd) - 0.5) * 3;
+    const crust = 10 + n1, gyp = 40 + n1 * 1.4, deep = 72 + n1;
     let col;
-    if (salt) { let k = 6 - (by > 6 ? 2 : 0) + (by === 0 ? 1 : 0) + Math.round((PFK.cl(x, y, 2, 142) - 0.5) * 1.6); col = P[clamp(k - Math.floor(d / 40), 2, 8)]; }
-    else { let k = 3 - (by > 6 ? 1 : 0) + Math.round((PFK.cl(x, y, 2, 143) - 0.5) * 1.6) - Math.floor(d / 50); col = M[clamp(k, 0, 5)]; if (by === 0) col = P[3]; }
-    // cristales que brillan y filtraciones de salmuera
-    if (hash2(x, y, 144) < 0.012) col = P[8];
-    if (PFK.vn(x * 0.4, y * 0.02, 145) > 0.84 && !salt) col = B[2 + (hash2(x, y, 146) < 0.3 ? 1 : 0)];
+    if (d < crust) { // costra de sal en placas poligonales con grietas
+      const cx = Math.floor((x + Math.floor(d * 0.6)) / 11), cyc = Math.floor(d / 5);
+      const edge = ((x + Math.floor(d * 0.6)) % 11 === 0) || (d % 5 === 0 && hash1(cx, sd) < 0.6);
+      let k = 7 - Math.round(d / crust * 2) + (hash2(cx, cyc, sd) < 0.3 ? -1 : 0);
+      col = edge ? P[3] : P[clamp(k, 3, 8)];
+    } else if (d < gyp - 3 || (d >= gyp + 3 && d < deep)) { // lodo con lentes de sal y cristales
+      const lens = PFK.vn(x * 0.05, y * 0.12, sd + 2) > 0.66;
+      let k = 4 - Math.round((d - crust) / 40) + Math.round((PFK.cl(x, y, 2, sd + 3) - 0.5) * 1.6);
+      col = lens ? P[clamp(6 - Math.round((d - crust) / 30), 3, 7)] : M[clamp(k, 0, 5)];
+      if (!lens && PFK.vn(x * 0.4, y * 0.03, sd + 4) > 0.86) col = B[2 + (hash2(x, y, sd + 5) < 0.3 ? 1 : 0)];   // filtraciones de salmuera
+    } else if (d < deep) { // capa de yeso crema
+      col = PFK.P32(['#5a4a3a', '#8a7458', '#b89c78', '#d8c09a', '#ecd8b8'])[clamp(3 - Math.abs(Math.round(d - gyp)) + (PFK.cl(x, y, 2, sd + 6) < 0.2 ? -1 : 0), 0, 4)];
+    } else { // lodo profundo en sombra fría
+      let k = 2 - Math.round((d - deep) / 30) + Math.round((PFK.cl(x, y, 3, sd + 7) - 0.5) * 1.4);
+      col = M[clamp(k, 0, 5)];
+      if (PFK.vn(x * 0.06, y * 0.1, sd + 8) > 0.72) col = PFK.mixU(col, B[1], 0.5);
+    }
+    if (hash2(x, y, sd + 9) < 0.01) col = P[8];
+    if (d > 70) col = PFK.shU(col, -Math.min(0.45, (d - 70) * 0.006), 260);
     return col;
   }
 

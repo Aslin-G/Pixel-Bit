@@ -322,7 +322,8 @@ class Player extends Entity {
     const x = this.x - cam.ox, y = this.y - cam.oy;
     if (this.gliding) drawGlider(g, x + this.facing * 2, y - 102, this.facing); // vela sobre la cabeza (sprite de 74 px, puños en alto ≈ y−76)
     drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
-    if (this.wading) { const wy = Math.round(this.world.waterAt(this.x, this.y - 2).y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
+    const wadeW = this.wading && this.world.waterAt(this.x, this.y - 2);
+    if (wadeW) { const wy = Math.round(wadeW.y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, wadeW.wade || '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), wadeW.wadeDeep || '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
   }
 }
 /** Vela de Brisa: lona curva prerenderizada (3 cuadros de flameo) con franjas cian, luz arriba,
