@@ -29,8 +29,12 @@ const PFBGround = (() => {
   const STREET = ['#2a1a14', '#3e2a22', '#56402f', '#6e5440', '#886a52', '#a28466', '#ba9e7e', '#d2b896', '#e8d2b2'];
   const SANDT = PFTerrain.SANDF;
   const DECKW = ['#1e1008', '#341e10', '#4e2e18', '#6a4222', '#86582e', '#a2703c', '#bc8a4e', '#d4a666', '#e8c488'];
+  const EPOXY = ['#0c161c', '#132228', '#1a3036', '#223e44', '#2c4e52', '#385e60', '#476e6e', '#5a827e', '#729890', '#90b0a4'];
+  const CONCD = ['#14182a', '#1e2438', '#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac', '#a2aac2', '#c2c8da'];
+  const PAVERD = ['#181a28', '#22263a', '#2e334a', '#3c425a', '#4c536c', '#5e6680', '#727a94', '#8a92aa', '#a6acc0'];
+  const RT = (f) => f < 0.12 ? 1 : f < 0.3 ? 4 : f < 0.45 ? 5 : f < 0.62 ? 3 : f < 0.85 ? 2 : 1;
 
-  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16 }[s.surf] || 14); }
+  function depthOf(s) { return s.depth ?? ({ soil: 16, path: 14, grass: 14, sand: 12, metal: 18, grate: 16, tile: 22, street: 18, deck: 16, epoxy: 20 }[s.surf] || 14); }
   function segAt(segs, x) { for (const s of segs) if (x >= s.x0 && x < s.x1) return s; return segs[segs.length - 1]; }
   function prep(world) {
     const P = world.def.pf || {};
@@ -39,7 +43,7 @@ const PFBGround = (() => {
     return segs;
   }
   function backEdge(s, x, gy) {
-    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck'].includes(s.surf);
+    const D = depthOf(s), flat = ['metal', 'grate', 'tile', 'street', 'deck', 'epoxy'].includes(s.surf);
     return gy - D - (flat ? 0 : Math.round((K.vn(x * 0.07, 0, s.seed) - 0.5) * 6));
   }
   /** Filas en perspectiva: índice de fila y posición dentro de la fila para dz (1 = frente) */
@@ -131,6 +135,18 @@ const PFBGround = (() => {
         if (s.dust) { const d = K.vn(x * 0.02, y * 0.2, 82); if (d > 0.55) u = K.mixU(u, U(s.dust), clamp((d - 0.55) * 2.2, 0, 0.75)); }
         return u;
       }
+      case 'epoxy': {
+        const E = K.P32(s.ramp || EPOXY), n = E.length;
+        if (dz === 1) return E[n - 1];
+        if (dz === 2) return E[n - 2];
+        // líneas de pasillo ámbar: discontinua al fondo (pie de los equipos) y continua delante
+        if (s.lanes !== false && (dz === D - 4 || dz === 5)) { if (dz === 5 || ((x >> 3) & 1)) return U(dz === 5 ? '#d8a828' : '#e8b830'); }
+        if (s.lanes !== false && dz === 6) return E[2];
+        let tt = 0.6 - t * 0.3 + (K.vn(x * 0.03, y * 0.25, 41) - 0.5) * 0.14 + (K.cl(x, y, 2, 42) - 0.5) * 0.06;
+        if (((x + Math.round(Math.sin(y * 0.9) * 3)) % 37) === 0) tt += 0.05;
+        if (y - back < 1) tt = 0.1;
+        return reflect(s, x, y, E[clamp(Math.round(tt * (n - 1)), 1, n - 1)], 1 - t);
+      }
       case 'deck': {
         const Dk = K.P32(s.ramp || DECKW), n = Dk.length;
         if (dz === 1) return Dk[n - 1];
@@ -149,6 +165,14 @@ const PFBGround = (() => {
     for (let x = 0; x < wd; x++) {
       const s = segAt(segs, x), gy = world.ground[x], back = backEdge(s, x, gy), D = gy - back;
       for (let y = Math.max(0, back); y < gy; y++) { const u = surfPix(s, x, y, gy, D, back); if (u) pb.data[y * pb.w + x] = u; }
+    }
+    // charcos de luz de las lámparas sobre el suelo pulido (s.pools: [{x, r, col, k}])
+    for (const s of segs) for (const P_ of (s.pools || [])) {
+      const gy = world.ground[clamp(Math.round(P_.x), 0, wd - 1)], D = depthOf(s), cy = gy - D * 0.5, col = U(P_.col || '#fff0d0');
+      for (let y = gy - D; y < gy; y++) for (let x = Math.round(P_.x - P_.r); x <= Math.round(P_.x + P_.r); x++) {
+        const nx = (x - P_.x) / P_.r, ny = (y - cy) / (D * 0.62), d = nx * nx + ny * ny; if (d > 1) continue;
+        const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, col, (P_.k ?? 0.3) * (d < 0.35 ? 1 : d < 0.7 ? 0.62 : 0.3)));
+      }
     }
     // AO al pie de escalones
     for (let x = 1; x < wd - 1; x++) {
@@ -283,6 +307,89 @@ const PFBGround = (() => {
     if (s.drains) { const dx = ((x % 120) + 120) % 120; if (dx > 40 && dx < 58 && ly > 2 && ly < 12) return U(((dx - 40) % 3 === 0) ? '#5a5658' : '#140e10'); }
     return K.shU(u, -0.06 * Math.floor(ly / 20), 235);
   }
+  /** Galería de servicios en corte bajo un forjado de acero: viga de canto remachada con franja ámbar,
+      pilares cada s.bay px, bandeja de cables, tuberías por colores (s.pipes: [[dy, r, kind]]),
+      lámparas de pared con charcos de luz cálida y suelo de rejilla al fondo */
+  function galleryFace(s, x, d) {
+    const C = K.P32(s.ramp || CONCD), M = K.P32(METALT), n = C.length, x0 = s.x0 || 0;
+    if (d === 0) return M[9];
+    if (d === 1) return M[7];
+    if (d === 2) return M[5];
+    if (d < 5) return U((((x - d) >> 2) & 1) ? '#e8b830' : '#1c1c26');
+    if (d < 11) { let k = d === 5 ? 7 : d > 8 ? 4 : 6; if ((x % 16) === 4 && (d === 6 || d === 9)) k = 9; if ((x % 64) === 0) k = 2; return M[k]; }
+    if (d === 11) return M[1];
+    const bay = s.bay || 64, bx = ((x - x0) % bay + bay) % bay, dd = d - 12;
+    const lampEvery = bay * 2, lx = ((x - x0 - bay / 2) % lampEvery + lampEvery) % lampEvery, ldx = Math.min(lx, lampEvery - lx);
+    const pool = Math.max(0, 1 - Math.hypot(ldx / 1.7, (dd - 8) * 1.1) / 28);
+    if (bx < 5) { const k = [6, 8, 5, 3, 2][bx] - (dd > 40 ? 1 : 0); return K.mixU(M[clamp(k, 0, 9)], U('#ffd8a0'), pool * 0.3); }
+    if (bx === 5) return M[0];
+    if (dd >= 46) { const f = dd - 46; if (f === 0) return M[6]; if (f === 1) return M[4]; return K.mixU(((x % 3 === 0) || (f % 2 === 0)) ? M[1] : M[3], U('#ffd8a0'), pool * 0.25); }
+    if (dd < 3) return U('#05070e');
+    if (dd < 7) { if (dd === 3) return M[5]; if (dd === 6) return M[1]; return (x % 5 < 3) ? U(['#c8384a', '#2c6cc8', '#ecc030'][(Math.floor(x / 5) + dd) % 3]) : U('#1a2030'); }
+    if (dd >= 7 && dd <= 9 && ldx < 3) return U(dd === 7 ? '#5a6070' : '#fff0c0');
+    let shadow = 0;
+    for (const [py, r, kind] of (s.pipes || [[14, 3, s.pipe || 'upw'], [24, 2, 'cool'], [33, 3, 'h2']])) {
+      if (Math.abs(dd - py) <= r) {
+        const Pp = K.P32(PFInfra.PIPES[kind].ramp), f = (dd - py + r) / (2 * r);
+        let u = (((x - x0 + 20) % 52) < 2) ? Pp[Pp.length - 2] : Pp[clamp(RT(f) + 1, 0, Pp.length - 1)];
+        return K.mixU(u, U('#ffe8c0'), pool * 0.22);
+      }
+      if (dd > py + r && dd <= py + r + 2) shadow = 1;
+      if (((x - x0 + 26) % 52) < 2 && dd > py + r && dd < py + r + 5) return M[3];
+    }
+    let k = 3 + (dd % 14 === 0 ? -1 : 0) + ((bx % 32) === 6 ? -1 : 0) + Math.round((K.vn(x * 0.07, dd * 0.07, 5) - 0.5) * 1.2) - shadow - (dd > 38 ? 1 : 0);
+    return K.mixU(C[clamp(k, 0, n - 1)], U('#ffd8a0'), pool * 0.5);
+  }
+  /** Escalinata que baja hacia el espectador hasta una plaza inferior (variación de altura visual) */
+  function stepsFace(s, x, d) {
+    const C = K.P32(s.ramp || CONCD), n = C.length, sh = s.stepH || 7, st = s.steps || 4;
+    const i = Math.floor(d / sh), r = d - i * sh;
+    if (i < st) {
+      if (r === 0) return C[n - 1];
+      if (r < 3) return C[n - 2 - (r === 2 ? 1 : 0) - (((x + i * 13) % 40) === 0 ? 2 : 0)];
+      let k = n - 5 - ((r - 3) >> 1) + Math.round((K.cl(x, d, 2, 21) - 0.5) * 0.8);
+      if (r === sh - 1) k -= 1;
+      return C[clamp(k, 0, n - 1)];
+    }
+    const dd = d - st * sh;
+    if (dd === 0) return C[1];
+    const [ri, rp] = rowOf(dd, 60, 6), pw = Math.max(14, 30 - ri * 3), off = (ri % 2) * (pw >> 1), jx = ((x + off) % pw + pw) % pw;
+    let k = n - 3 - (ri < 2 ? 1 : 0) + Math.round((hash2(Math.floor((x + off) / pw), ri, 31) - 0.5) * 1.6);
+    if (rp === 0 || jx === 0) k = 2; else if (rp === 1) k += 1;
+    let u = C[clamp(k, 0, n - 1)];
+    if (s.dust) { const q = K.vn(x * 0.02, d * 0.2, 82); if (q > 0.55) u = K.mixU(u, U(s.dust), clamp((q - 0.55) * 2.2, 0, 0.7)); }
+    return u;
+  }
+  /** Zócalo de hormigón con zanja de servicios registrable: rejilla, tuberías (UPW cian, H₂ verde,
+      refrigeración azul) y bandeja de cables a la vista; canto con franja ámbar */
+  function trenchFace(s, x, d) {
+    const C = K.P32(s.ramp || CONCD), n = C.length;
+    if (d === 0) return C[n - 1];
+    if (d === 1) return C[n - 2];
+    if (d < 5) return U((((x - d) >> 2) & 1) ? '#e8b830' : '#1c1c26');
+    if (d === 5) return C[1];
+    const tw = s.tw || 96, pw = 18, ax = ((x - s.x0) % tw + tw) % tw;
+    if (ax >= pw && d >= 10 && d < 38) {
+      const dd = d - 10;
+      if (ax === pw || ax === tw - 1) return C[ax === pw ? 6 : 1];
+      if (dd === 0) return C[1];
+      if (dd === 27) return C[6];
+      if (dd < 3) return U('#070a16');
+      for (const [py, r, kind] of (s.pipes || [[6, 2, 'upw'], [13, 3, 'h2'], [20, 2, 'cool']])) if (Math.abs(dd - py) <= r) {
+        const Pp = K.P32(PFInfra.PIPES[kind].ramp), f = (dd - py + r) / (2 * r);
+        if (((x - s.x0) % 44) < 2) return Pp[1];
+        return Pp[clamp(RT(f) + 1, 0, Pp.length - 1)];
+      }
+      if (dd >= 23 && dd < 26) return (x % 5 < 3) ? U(['#c8384a', '#2c6cc8', '#ecc030'][(Math.floor(x / 5) + dd) % 3]) : U('#1a2030');
+      if (dd === 26) return U('#5a6070');
+      return U(dd < 8 ? '#0e1424' : '#141c30');
+    }
+    if (ax >= pw && d === 9) return C[1];
+    if (ax >= pw && d === 38) return C[7];
+    let u = concreteFace(s, x, d);
+    if (ax < pw && ax > 1 && d > 8 && d < 40) u = K.mixU(u, C[clamp(Math.round(n * 0.62) + (ax === 2 ? 2 : 0), 0, n - 1)], 0.5);
+    return u;
+  }
   /* ---------- bloques de roca redondeados (como el acantilado de la referencia) ---------- */
   const LVB = (() => { const l = [-0.55, -0.72, 0.46], m = Math.hypot(...l); return l.map(v => v / m); })();
   /** Columnas de bloques deterministas por semilla: [{x0,x1,p,seed,rows:[{y,h,alb,pro}]}] */
@@ -388,6 +495,9 @@ const PFBGround = (() => {
       case 'concrete': if (s.faceH && d >= s.faceH) return blockPix(s._bk, s._st, x, d - s.faceH, 999, K.P32(s.ramp2 || RAMP.rockWarmR), { darkFrom: 30 }); return concreteFace(s, x, d);
       case 'hall': return hallFace(s, x, d);
       case 'curb': return curbFace(s, x, d);
+      case 'trench': return trenchFace(s, x, d);
+      case 'gallery': return galleryFace(s, x, d);
+      case 'steps': return stepsFace(s, x, d);
     }
     return K.P32(SOILT)[4];
   }
@@ -517,6 +627,16 @@ const PFBGround = (() => {
       if (p.railing !== false) PFB.rail(pb, x, x + w - 1, y - 5, 22, { gap: 12 });
       return;
     }
+    if (look === 'slab') {
+      // forjado de hormigón con canto de acero y tira de luz (sala elevada)
+      const C = K.P32(p.ramp || CONCD), n = C.length, strip = U(p.strip || '#48dcf4');
+      for (let xx = x; xx < x + w; xx++) for (let k = 0; k < 12; k++) {
+        let u;
+        if (k === 0) u = C[n - 1]; else if (k < 3) u = C[n - 3]; else if (k === 3) u = U('#1a1e2e'); else if (k === 4) u = (xx % 24 < 20) ? strip : U('#7ae8f8'); else if (k < 7) u = U(k === 5 ? '#343a52' : '#262a3e'); else if (k < 11) u = C[clamp(5 - ((k - 7) >> 1) + ((xx % 48) === 0 ? -2 : 0), 0, n - 1)]; else u = C[0];
+        K.put(pb, xx, y + k, u);
+      }
+      return;
+    }
     if (look === 'ledge') {
       const S = K.P32(PFB.R.STONE);
       for (let xx = x - 2; xx < x + w + 2; xx++) {
@@ -526,7 +646,7 @@ const PFBGround = (() => {
       }
     }
   }
-  return { surface, render, segAt, backEdge, depthOf, tierInfo, prep, buildBlocks, blockPix, roots, lowCrop, stoneCell, wallPix, soilPix, SOILT, GRASS, METALT, STREET, DECKW };
+  return { surface, render, segAt, backEdge, depthOf, tierInfo, prep, buildBlocks, blockPix, roots, lowCrop, stoneCell, wallPix, soilPix, concreteFace, SOILT, GRASS, METALT, STREET, DECKW, EPOXY, CONCD, PAVERD };
 })();
 
 /* ---------- oclusores del plano frontal ---------- */

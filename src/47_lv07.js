@@ -36,73 +36,234 @@ LEVELS[7] = {
   checkpoints: { hall: { x: 1180, y: 290 }, safety: { x: 2000, y: 290 } },
   ground: [[0, 290], [2700, 290]],
   terrain: [{ x0: 0, x1: 2700, mat: 'metal' }],
-  platforms: [{ x: 1960, y: 212, w: 220, type: 'metal' }, { x: 640, y: 248, w: 60, type: 'metal' }, { x: 1500, y: 244, w: 80, type: 'metal' }],
-  ladders: [{ x: 1970, y0: 212, y1: 290 }],
+  platforms: [{ x: 1960, y: 212, w: 220, type: 'metal', baked: true, look: 'slab' }, { x: 640, y: 248, w: 60, type: 'metal', baked: true, look: 'grate' }, { x: 1500, y: 244, w: 80, type: 'metal', baked: true, look: 'grate' }],
+  ladders: [{ x: 1970, y0: 212, y1: 290, look: 'steel' }],
   cam: { look: 50, vy: 0.66 },
-  /* ---------------- accesorios estáticos ---------------- */
+  /* ---------------- plano jugable con kit PF (B) ----------------
+     Hora azul en la ciudadela. Suelo en 3/4: adoquín frío con bordillo en la entrada → cubierta de
+     chapa con bandejas bajo el forjado (agua ultrapura y rectificador) → resina epoxi con zanja de
+     servicios registrable bajo la nave de stacks → rejilla sobre galería de tuberías (compresión y
+     esferas) → adoquín en el patio de seguridad → baldosa bajo la sala de control → chapa junto a
+     los aerorrefrigeradores → baldosa pulida ante el portal del núcleo. La línea de paso es la misma. */
+  pf: {
+    kitB: true,
+    terrain: [
+      { x0: 0, x1: 330, surf: 'street', face: 'steps', depth: 20, steps: 4, stepH: 7, ramp: ['#181a28', '#22263a', '#2e334a', '#3c425a', '#4c536c', '#5e6680', '#727a94', '#8a92aa', '#a6acc0'], drains: true, pools: [{ x: 228, r: 30, col: '#ffe0b0', k: 0.28 }, { x: 54, r: 26, col: '#ffe0b0', k: 0.22 }] },
+      { x0: 330, x1: 760, surf: 'metal', face: 'gallery', depth: 20, pipes: [[14, 3, 'upw'], [24, 2, 'perm'], [33, 2, 'cool']], bay: 64, pools: [{ x: 520, r: 34, col: '#fff0d0', k: 0.24 }] },
+      { x0: 760, x1: 1272, surf: 'epoxy', face: 'trench', depth: 20, tw: 100, pools: [{ x: 786, r: 22 }, { x: 842, r: 22 }, { x: 898, r: 22 }, { x: 954, r: 22 }, { x: 1010, r: 22 }, { x: 1066, r: 22 }, { x: 1122, r: 22 }, { x: 1178, r: 22 }], refl: [{ x: 874, w: 4, col: '#52d090', k: 0.3 }, { x: 1024, w: 4, col: '#52d090', k: 0.3 }, { x: 1174, w: 4, col: '#52d090', k: 0.3 }] },
+      { x0: 1272, x1: 1760, surf: 'grate', face: 'gallery', depth: 20, pipes: [[13, 3, 'h2'], [22, 2, 'o2'], [31, 3, 'h2'], [40, 2, 'cool']], bay: 56, stripe: false },
+      { x0: 1760, x1: 1960, surf: 'street', face: 'curb', depth: 20, ramp: ['#181a28', '#22263a', '#2e334a', '#3c425a', '#4c536c', '#5e6680', '#727a94', '#8a92aa', '#a6acc0'], drains: true, pools: [{ x: 1860, r: 40, col: '#ffe0b0', k: 0.2 }] },
+      { x0: 1960, x1: 2190, surf: 'tile', face: 'concrete', depth: 20, checker: true, ramp: ['#141826', '#1e2436', '#2a3248', '#38425a', '#4a546e', '#5e6a84', '#76829c', '#909cb4', '#aeb8cc'], refl: [{ x: 2010, w: 8, col: '#48dcf4', k: 0.22 }, { x: 2120, w: 8, col: '#48dcf4', k: 0.22 }] },
+      { x0: 2190, x1: 2430, surf: 'metal', face: 'gallery', depth: 20, pipes: [[14, 3, 'cool'], [24, 2, 'upw'], [34, 3, 'cool']], bay: 48 },
+      { x0: 2430, x1: 2700, surf: 'tile', face: 'steps', depth: 20, steps: 3, stepH: 8, ramp: ['#141826', '#1e2436', '#2a3248', '#38425a', '#4a546e', '#5e6a84', '#76829c', '#909cb4', '#aeb8cc'], refl: [{ x: 2556, w: 30, col: '#52d090', k: 0.3 }, { x: 2484, w: 6, col: '#fff2d0', k: 0.3 }, { x: 2628, w: 6, col: '#fff2d0', k: 0.3 }] },
+    ],
+    fg: [
+      { kind: 'pillar', x: -8, w: 22, h: 360, ramp: ['#03040a', '#070a16', '#0c1222', '#141c32', '#1e2a44', '#2c3a58', '#ffb08a'], lit: true },
+      { kind: 'cables', x: 380, y: 0, w: 320, h: 44, seed: 71, n: 4 },
+      { kind: 'rail', x: 760, w: 240, h: 40 },
+      { kind: 'cables', x: 1250, y: 0, w: 260, h: 36, seed: 75, n: 3 },
+      { kind: 'rail', x: 1700, w: 200, h: 40 },
+      { kind: 'cables', x: 2050, y: 0, w: 280, h: 40, seed: 73, n: 3 },
+      { kind: 'rail', x: 2500, w: 220, h: 40 },
+      { kind: 'cables', x: 2900, y: 0, w: 300, h: 38, seed: 77, n: 4 },
+      { kind: 'pillar', x: 3270, w: 30, h: 360, ramp: ['#03040a', '#070a16', '#0c1222', '#141c32', '#1e2a44', '#2c3a58', '#ffb08a'], lit: true },
+    ],
+  },
+  /** Etiquetas científicas en el mundo */
+  labels: [
+    { x: 250, y: 172, title: 'OI · 2.º PASO', sub: 'Quita casi todos los iones', kind: 'water', ax: 250, ay: 196 },
+    { x: 356, y: 196, title: 'EDI', sub: 'Electrodesionización', kind: 'water', ax: 356, ay: 206 },
+    { x: 432, y: 132, title: 'AGUA ULTRAPURA', sub: (sc) => sc.state.waterReady ? '0,06 µS/cm · lista' : 'Meta: < 0,1 µS/cm', kind: 'water', ax: 432, ay: 152 },
+    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 196 },
+    { x: 836, y: 192, title: 'ELECTROLIZADOR PEM', sub: '2 H₂O → 2 H₂ + O₂', kind: 'green', ax: 826, ay: 212 },
+    { x: 1222, y: 98, title: 'O₂ (SUBPRODUCTO)', sub: '≈ 8 kg por kg de H₂', kind: 'tech', ax: 1250, ay: 104 },
+    { x: 1368, y: 188, title: 'COMPRESIÓN', sub: 'Más H₂ en menos volumen', kind: 'tech', ax: 1368, ay: 208 },
+    { x: 1584, y: 150, title: 'ALMACENAMIENTO H₂', sub: 'Vector: guarda energía', kind: 'green', ax: 1584, ay: 166 },
+    { x: 1756, y: 204, title: 'BOTELLAS DE O₂', sub: 'Posible ingreso, no promesa', kind: 'tech', ax: 1754, ay: 224 },
+    { x: 1860, y: 148, title: 'SEGURIDAD H₂', sub: 'A distancia y con sensores', kind: 'alert', ax: 1860, ay: 158 },
+    { x: 2242, y: 196, title: 'ENFRIAMIENTO', sub: 'El stack también da calor', kind: 'water', ax: 2242, ay: 210 },
+    { x: 2386, y: 94, title: 'VENTEO', sub: 'El H₂ es muy ligero: sube', kind: 'tech', ax: 2382, ay: 104 },
+  ],
+  /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
-    const gy = 290;
-    drawSign(pb, 90, gy, 'CIUDADELA H2', '#20d6c7');
-    // planta de agua ultrapura: segundo paso de OI + electrodesionización
-    ART.roRack(pb, 200, gy, 3, true, { tubeW: 70 });
-    for (let k = 0; k < 3; k++) { pb.rect(320 + k * 26, gy - 60, 20, 60, '#e8f0f4'); pb.rect(320 + k * 26, gy - 60, 20, 3, '#56e5ff'); for (let j = 0; j < 8; j++) pb.hline(322 + k * 26, 337 + k * 26, gy - 54 + j * 6, '#a9bbd6'); }
-    ART.tank(pb, 410, gy, 30, 64, RAMP.steelW, { band: '#56e5ff', label: true, ladder: true });
-    drawSign(pb, 330, gy - 62, 'AGUA ULTRAPURA', '#1491aa');
-    ART.pipe(pb, 440, gy - 20, 760, gy - 20, 2, 'water');
-    // nave de stacks (tres electrolizadores grandes)
-    for (let k = 0; k < 3; k++) ART.electrolyzer(pb, 780 + k * 150, gy, 120, 90);
-    drawSign(pb, 1000, gy - 104, 'NAVE DE ELECTROLIZADORES', '#86e36f');
-    ART.pipe(pb, 760, gy - 70, 1260, gy - 70, 2, 'h2');
-    // compresión y esferas de almacenamiento
-    for (let k = 0; k < 2; k++) { pb.rect(1300 + k * 50, gy - 40, 40, 40, '#c8d8e8'); pb.rect(1300 + k * 50, gy - 40, 40, 3, '#ffb93b'); pb.ellipse(1320 + k * 50, gy - 20, 10, 10, '#477a94'); }
+    const t0 = nowMs();
+    const gy = (x) => world.groundAt(x);
+    const segs = PFBGround.surface(pb, world);
+    const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
+    const H2 = PFBH2, B = PFB, I = PFInfra, F = PFFlora, D = LV7;
+    D.flows.length = 0; D.glows.length = 0; D.leds.length = 0; D.screens.length = 0; D.stacks.length = 0; D.fans.length = 0; D.cones.length = 0;
+    const yb = back(400) + 2; // pie de los equipos (borde trasero del suelo)
+    const on = (sc) => sc.state.stacks > 0 && !sc.state.leak;
+    const lampG = (x, y, r = 8, a = 0.34) => D.glows.push({ x, y, r, col: '#fff0d0', a, mode: 'flicker', ph: x });
+    /* ===== 0. RACK TRASERO DE TUBERÍAS (profundidad detrás de todo) ===== */
+    H2.pipeRack(pb, 430, 760, 214, [{ kind: 'perm', dy: 0, r: 2 }, { kind: 'cool', dy: 7, r: 2 }], { span: 66, footY: (x) => back(x) + 1 });
+    H2.pipeRack(pb, 1290, 1770, 182, [{ kind: 'h2', dy: 0, r: 3 }, { kind: 'o2', dy: 9, r: 2 }, { kind: 'cool', dy: 16, r: 2 }], { span: 60, footY: (x) => back(x) + 1 });
+    H2.pipeRack(pb, 2190, 2436, 200, [{ kind: 'cool', dy: 0, r: 3 }, { kind: 'upw', dy: 9, r: 2 }], { span: 62, footY: (x) => back(x) + 1 });
+    /* ===== 1. ENTRADA (0–330): caseta, tótem, barrera, jardineras, farolas ===== */
+    const gh = H2.gatehouse(pb, 16, yb, 72, 106);
+    lampG(gh.lamp[0], gh.lamp[1], 9, 0.3); D.glows.push({ x: gh.win[0], y: gh.win[1], r: 14, col: '#ffcf7a', a: 0.18, mode: 'steady' });
+    H2.planter(pb, 100, yb, 32, 3);
+    H2.totem(pb, 108, yb - 4, 96);
+    H2.boom(pb, 150, yb + 1);
+    F.palm(pb, 186, back(186) - 2, 78, -5, 41); F.palm(pb, 302, back(302) - 2, 70, 6, 42);
+    H2.planter(pb, 268, yb, 40, 5);
+    let lp = B.lampPost(pb, 226, yb + 1, 98, { dir: 1, ramp: H2.R.STL.slice(0, 10) }); lampG(lp.x, lp.y, 9, 0.4);
+    for (const x of [130, 300]) I.bollard(pb, x, yb + 4);
+    // permeado que llega de SYNARA (desde el fondo) hacia el bastidor de OI
+    I.pipe(pb, [[118, 236], [192, 236], [192, 258]], 2, 'perm', { flange: 24, supports: 36, supportTo: () => yb });
+    D.flows.push({ pts: [[118, 236], [192, 236], [192, 258]], kind: 'perm', rate: (sc) => sc.state.waterReady ? 1 : 0.5 });
+    /* ===== 2. AGUA ULTRAPURA (190–470): OI de 2.º paso, EDI, tanque y analizador ===== */
+    const ro = H2.roRack(pb, 196, yb, 104);
+    D.screens.push({ x: ro.hmi[0], y: ro.hmi[1], w: ro.hmi[2], h: ro.hmi[3], kind: 'bars', col: '#48dcf4' });
+    const edi = H2.ediSkid(pb, 322, yb, 3);
+    for (const s of edi.screens) D.screens.push({ x: s[0], y: s[1], w: s[2], h: s[3], kind: 'text', col: (sc) => sc.state.waterReady ? '#6ae2f8' : '#ffb93b' });
+    I.pipe(pb, [[304, 250], [320, 250]], 1, 'upw', { flange: 0 }); I.pipe(pb, [[390, 230], [404, 230], [404, 252], [410, 252]], 1, 'upw', { flange: 0 });
+    const tk = H2.upwTank(pb, 432, yb, 20, 96);
+    D.upwScreen = tk.screen;
+    D.glows.push({ x: 432, y: tk.base - 66, r: 12, col: '#48dcf4', a: 0.22, mode: 'pulse', hz: 0.35, on: (sc) => sc.state.waterReady });
+    // línea de agua ultrapura hacia la nave (sobre soportes bajos)
+    I.pipe(pb, [[452, 252], [776, 252]], 2, 'upw', { flange: 30, supports: 44, supportTo: () => yb });
+    D.flows.push({ pts: [[452, 252], [776, 252]], kind: 'upw', rate: (sc) => sc.state.waterReady ? 1 : 0.15 });
+    /* ===== 3. ELECTRICIDAD (480–760): trafo, rectificador, bandeja de potencia ===== */
+    H2.transformer(pb, 498, yb);
+    const rc = H2.rectifier(pb, 588, yb, 4);
+    for (const [x, y, col] of rc.leds) D.leds.push({ x, y, col, hz: 0.6 + (x % 5) * 0.2, ph: x * 0.1 });
+    lp = B.lampPost(pb, 718, yb + 1, 98, { dir: -1, ramp: H2.R.STL.slice(0, 10) }); lampG(lp.x, lp.y, 9, 0.38);
+    // subida de cables del rectificador a la bandeja de la nave
+    for (let yy = 140; yy < 204; yy++) for (let k = 0; k < 4; k++) PFK.put(pb, 600 + k, yy, U((yy % 4 < 2) ? ['#6e769a', '#ecc030', '#c8384a', '#383e5a'][k] : ['#6e769a', '#c49418', '#7a1a1c', '#383e5a'][k]));
+    H2.cableTray(pb, 600, 1236, 140, { hang: 56, hangTo: 132 });
+    D.flows.push({ pts: [[602, 204], [602, 140], [1236, 140]], kind: 'power', rate: (sc) => on(sc) ? 1 : 0 });
+    /* ===== 4. NAVE DE ELECTROLIZADORES (756–1240) ===== */
+    const sh = H2.shed(pb, 756, 1240, yb, 118, [760, 917, 1067, 1217], 'NAVE DE ELECTROLIZADORES');
+    for (const [x, y] of sh.lamps) D.glows.push({ x, y: y + 2, r: 12, col: '#fff2d0', a: 0.26, mode: 'steady' });
+    for (const [x, y] of sh.beacons) D.glows.push({ x, y, r: 6, col: '#ffb93b', a: 0.7, mode: 'blink', hz: 1.6, on: (sc) => !!sc.state.leak, core: '#fff2b0' });
+    // colector de agua ultrapura tras los plintos (se ve en los huecos)
+    I.pipe(pb, [[776, 252], [1222, 252]], 2, 'upw', { flange: 0 });
+    // colectores de gases colgados de la cercha
+    H2.header(pb, 870, 1292, 162, 3, 'h2', 134);
+    H2.header(pb, 896, 1250, 150, 2, 'o2', 134);
     for (let k = 0; k < 3; k++) {
-      const cx = 1460 + k * 90, cy = gy - 52, R = 34;
-      pb.rect(cx - 30, gy - 30, 4, 30, '#477a94'); pb.rect(cx + 26, gy - 30, 4, 30, '#477a94'); pb.rect(cx - 2, gy - 22, 4, 22, '#345a78');
-      for (let yy = -R; yy <= R; yy++) for (let xx = -R; xx <= R; xx++) {
-        const d2 = xx * xx + yy * yy; if (d2 > R * R) continue;
-        const l = (-(xx) * 0.6 - yy * 0.8) / R + Math.sqrt(Math.max(0, 1 - d2 / (R * R))) * 0.4;
-        const c = l > 0.75 ? '#ffffff' : l > 0.35 ? '#eef6fa' : l > 0 ? '#c8d8e8' : l > -0.35 ? '#a9bbd6' : '#8396ba';
-        pb.set(cx + xx, cy + yy, (Math.abs(yy - 2) < 2) ? (l > 0 ? '#40d0d4' : '#22a2b2') : c);
-      }
-      pb.ellipseOutline(cx, cy, R, R, '#5b6f96');
+      const x = 782 + k * 150;
+      const st = H2.stackPEM(pb, x, yb, k);
+      D.stacks.push(st);
+      I.pipe(pb, [[st.h2Out[0], st.h2Out[1] + 6], [st.h2Out[0], 162]], 2, 'h2', { flange: 0 });
+      I.pipe(pb, [[st.o2Out[0], st.o2Out[1] + 4], [st.o2Out[0], 150]], 1, 'o2', { flange: 0 });
+      // bajantes de potencia desde la bandeja hasta las barras de cobre
+      for (const [bx, by] of st.bus) { for (let yy = 144; yy < by; yy++) { PFK.put(pb, bx - 1, yy, U('#7a1a1c')); PFK.put(pb, bx, yy, U((yy % 6 < 3) ? '#ecc030' : '#c49418')); } D.flows.push({ pts: [[bx, 144], [bx, by]], kind: 'power', rate: (sc) => (sc.state.stacks > k && !sc.state.leak) ? 1 : 0 }); }
+      D.flows.push({ pts: [[st.h2Out[0], st.h2Out[1] + 6], [st.h2Out[0], 162]], kind: 'h2', rate: (sc) => (sc.state.stacks > k && !sc.state.leak) ? 1 : 0 });
+      D.flows.push({ pts: [[st.upwIn[0], st.upwIn[1]], [st.upwIn[0] + 10, st.upwIn[1]]], kind: 'upw', rate: (sc) => sc.state.waterReady ? 0.6 : 0 });
     }
-    drawSign(pb, 1550, gy - 92, 'ALMACENAMIENTO H2', '#22a2b2');
-    // zona de seguridad con franjas ámbar y sala de control
-    for (let x = 760; x < 1260; x++) { pb.set(x, gy + 2, ((x >> 3) & 1) ? '#ffb93b' : '#263442'); }
-    const sx = 1960;
-    pb.rect(sx, 130, 220, 82, '#101c4c'); pb.rect(sx, 130, 220, 3, '#ffb93b'); pb.rect(sx + 216, 130, 4, 82, '#05081d');
-    for (let k = 0; k < 3; k++) { pb.rect(sx + 12 + k * 68, 142, 56, 30, '#05081d'); pb.rect(sx + 12 + k * 68, 142, 56, 2, '#56e5ff'); }
-    drawSign(pb, sx + 110, 130, 'CONTROL DE SEGURIDAD', '#ffb93b');
-    // pasillo al núcleo (puerta sellada lejana)
-    pb.rect(2400, 150, 200, 140, '#0a1236'); pb.rect(2404, 154, 192, 136, '#05081d');
-    for (let k = 0; k < 6; k++) pb.rect(2420 + k * 28, 170, 16, 100, '#101c4c');
-    drawSign(pb, 2500, 150, 'HACIA EL NÚCLEO · OASIS', '#86e36f');
+    D.flows.push({ pts: [[870, 162], [1292, 162]], kind: 'h2', rate: (sc) => on(sc) ? 1 : 0 });
+    D.flows.push({ pts: [[896, 150], [1250, 150], [1250, 102]], kind: 'o2', rate: (sc) => on(sc) ? 0.7 : 0 });
+    // venteo de O₂ sobre la cubierta
+    I.pipe(pb, [[1250, 150], [1250, 98]], 2, 'o2', { flange: 20 });
+    for (let k = 0; k < 6; k++) PFK.put(pb, 1247 + k, 97, U('#dceaff'));
+    /* ===== 5. CONSOLA DEL SINCRONIZADOR (1240–1290) — estación con dibujo propio ===== */
+    lp = B.lampPost(pb, 1282, yb + 1, 98, { dir: -1, ramp: H2.R.STL.slice(0, 10) }); lampG(lp.x, lp.y, 9, 0.38);
+    /* ===== 6. COMPRESIÓN (1296–1440) ===== */
+    const c1 = H2.compressor(pb, 1300, yb), c2 = H2.compressor(pb, 1372, yb);
+    I.pipe(pb, [[1292, 162], [1292, 210], [c1.in[0], 210]], 2, 'h2', { flange: 0 });
+    I.pipe(pb, [[c1.out[0], 210], [c2.in[0], 210]], 2, 'h2', { flange: 0 });
+    I.pipe(pb, [[c2.out[0], 210], [1440, 210], [1440, 182]], 2, 'h2', { flange: 0 });
+    D.flows.push({ pts: [[1292, 162], [1292, 210], [c1.in[0], 210]], kind: 'h2', rate: (sc) => on(sc) ? 1 : 0 }, { pts: [[c2.out[0], 210], [1440, 210], [1440, 182], [1770, 182]], kind: 'h2', rate: (sc) => on(sc) ? 1.2 : 0 });
+    for (const c of [c1, c2]) D.leds.push({ x: c.led[0], y: c.led[1], col: '#3fe0a0', hz: 1.2, ph: c.led[0] });
+    /* ===== 7. ALMACENAMIENTO (1436–1780): esferas y botellas de O₂ ===== */
+    for (const cx of [1484, 1584, 1684]) { const sp = H2.sphere(pb, cx, yb, 40, { lift: 50 }); D.glows.push({ x: cx, y: sp.top - 2, r: 4, col: '#ff6a50', a: 0.8, mode: 'blink', hz: 0.5, ph: cx, core: '#ffb0a0' }); }
+    H2.o2Rack(pb, 1736, yb, 4);
+    /* ===== 8. PATIO DE SEGURIDAD (1760–1960): panel de protocolo, detectores, cámara térmica ===== */
+    H2.windsock(pb, 1774, yb, 96);
+    const d1 = H2.detector(pb, 1788, yb, 48), d2 = H2.detector(pb, 1934, yb, 48);
+    for (const d of [d1, d2]) D.glows.push({ x: d.led[0], y: d.led[1], r: 3, col: (sc) => sc.state.leak ? '#ff6a50' : '#3fe0a0', a: 0.8, mode: 'blink', hz: 1.4, core: '#ffffff' });
+    H2.protocolBoard(pb, 1801, yb, 118);
+    const tc = H2.thermalCam(pb, 1950, yb, 74);
+    D.glows.push({ x: tc.lens[0], y: tc.lens[1], r: 4, col: '#b49cff', a: 0.5, mode: 'pulse', hz: 0.8 });
+    for (const x of [1770, 1830, 1890, 1950]) I.bollard(pb, x, yb + 4);
+    /* ===== 9. SALA DE CONTROL DE SEGURIDAD elevada (1960–2190) ===== */
+    // sala eléctrica bajo el forjado
+    for (let k = 0; k < 5; k++) H2.box(pb, 2000 + k * 28, yb, 24, 44, 8, { ramp: H2.R.NAVY, pw: 12 });
+    for (let k = 0; k < 5; k++) for (let j = 0; j < 3; j++) D.leds.push({ x: 2004 + k * 28 + j * 4, y: yb - 38, col: ['#3fe0a0', '#48dcf4', '#ffd84a'][j], hz: 0.5 + j * 0.3, ph: k + j });
+    const cr = H2.controlRoom(pb, 1960, 2180, 212, 98, yb, 'CONTROL DE SEGURIDAD');
+    for (const s of cr.screens) D.screens.push(Object.assign({ col: (sc) => sc.state.leak ? '#ffb93b' : (s.small ? '#86e36f' : '#56e5ff'), col2: '#ffd84a' }, s));
+    for (const [x, y] of cr.lamps) D.glows.push({ x, y: y + 1, r: 10, col: '#fff2d0', a: 0.26, mode: 'steady' });
+    for (const [x, y, col] of cr.leds) D.leds.push({ x, y, col, hz: 0.9, ph: x * 0.07 });
+    D.glows.push({ x: cr.beacon[0], y: cr.beacon[1], r: 4, col: '#ff6a50', a: 0.8, mode: 'blink', hz: 0.6, core: '#ffb0a0' });
+    // sombra del forjado sobre la sala eléctrica
+    B.shade(pb, 1960, 224, 230, 10, -0.22); B.shade(pb, 1960, 234, 230, 8, -0.12);
+    /* ===== 10. AEROREFRIGERACIÓN y VENTEO (2190–2430) ===== */
+    const dc = H2.dryCooler(pb, 2196, yb, 84, 3);
+    D.fans.push(...dc.fans);
+    lp = B.lampPost(pb, 2316, yb + 1, 98, { dir: 1, ramp: H2.R.STL.slice(0, 10) }); lampG(lp.x, lp.y, 9, 0.38);
+    const vm = H2.ventMast(pb, 2384, yb, 162);
+    for (const [x, y] of vm.beacons) D.glows.push({ x, y, r: 5, col: '#ff6a50', a: 0.85, mode: 'blink', hz: 0.7, ph: y, core: '#ffb0a0' });
+    B.tank(pb, 2346, yb, 9, 44, { ramp: PFInfra.STEEL, band: ['#0c1830', '#18305a', '#2a4c86', '#4270b0', '#6a96d0', '#a0c0ea'], bands: [{ y: 6, h: 3 }, { y: 30, h: 2 }], label: 'O₂', labelBg: '#18305a', labelBd: '#a0c0ea' });
+    /* ===== 11. PORTAL AL NÚCLEO (2436–2700) ===== */
+    const cg = H2.coreGate(pb, 2440, yb, 236, 150, 'HACIA EL NÚCLEO · OASIS');
+    for (const [x, y] of cg.lights) D.glows.push({ x, y, r: 10, col: '#fff2d0', a: 0.4, mode: 'steady' });
+    D.glows.push({ x: cg.door[0], y: cg.door[1], r: 16, col: '#52d090', a: 0.25, mode: 'pulse', hz: 0.3 });
+    H2.planter(pb, 2410, yb, 30, 9);
+    /* ===== objetos menudos sobre el pasillo y rótulos pintados en el suelo ===== */
+    const wy = (x) => back(x) + 7;
+    H2.cone(pb, 136, wy(136)); H2.cone(pb, 244, wy(244));
+    H2.aframe(pb, 320, wy(320), 'ZONA H₂');
+    H2.reel(pb, 470 + 26, wy(496)); H2.toolbox(pb, 536, wy(536)); H2.extinguisher(pb, 566, wy(566));
+    H2.pallet(pb, 704, wy(704), 26, 3);
+    H2.stencil(pb, 810, back(810) + 9, 'H₂', '#52d090', 0.5); H2.stencil(pb, 960, back(960) + 9, 'STACK 2', '#e8b830', 0.45); H2.stencil(pb, 1110, back(1110) + 9, 'H₂', '#52d090', 0.5);
+    H2.trolley(pb, 1244, wy(1244)); H2.extinguisher(pb, 1430, wy(1430));
+    H2.cone(pb, 1530, wy(1530)); H2.cone(pb, 1640, wy(1640)); H2.reel(pb, 1708, wy(1708));
+    H2.aframe(pb, 1946, wy(1946) + 1, 'A DISTANCIA', { bd: '#ff6a50', col: '#ffd0c0' });
+    H2.toolbox(pb, 2050, wy(2050)); H2.pallet(pb, 2150, wy(2150), 24, 7);
+    H2.cone(pb, 2296 - 30, wy(2266)); H2.trolley(pb, 2420, wy(2420));
+    H2.stencil(pb, 2520, back(2520) + 9, 'NÚCLEO →', '#52d090', 0.45);
+    // conos de luz de las lámparas de la nave y de la sala de control
+    for (const [x, y] of sh.lamps) D.cones.push([x, y, 10, 56, yb + 8 - y]);
+    for (const [x, y] of cr.lamps) D.cones.push([x, y, 12, 44, 212 - y]);
+    for (const [x, y] of cg.lights) D.cones.push([x, y, 6, 30, yb + 10 - y]);
+    LEVELS[7]._propsMs = Math.round(nowMs() - t0);
+  },
+  /** Primer plano a ras de suelo: balizas bajas y tapas de registro delante de los pies */
+  propsFront(pb, world) {
+    const gy = (x) => world.groundAt(x), S = PFK.P32(PFBH2.R.AMB);
+    const post = (x) => { const y = gy(x) + 1; for (let yy = y - 9; yy < y; yy++) { PFK.put(pb, x, yy, S[4]); PFK.put(pb, x + 1, yy, S[3]); PFK.put(pb, x + 2, yy, S[1]); } for (let k = 0; k < 3; k++) PFK.put(pb, x + k, y - 6, U('#1c1c26')); PFK.put(pb, x, y - 10, S[5]); PFK.put(pb, x + 1, y - 10, S[4]); };
+    for (const x of [756, 1236, 1300, 1440, 1770, 1950, 2196, 2286]) post(x);
+    // luces empotradas en el suelo del portal
+    for (let x = 2470; x < 2650; x += 30) { PFK.put(pb, x, gy(x) - 1, U('#9cecc0')); PFK.put(pb, x + 1, gy(x) - 1, U('#52d090')); }
   },
   /* ---------------- dinámico ---------------- */
   renderMid(g, sc, cam) {
-    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, gy = 290 - oy;
-    // burbujas de H2/O2 en los stacks activos
-    for (let k = 0; k < 3; k++) {
-      const x = 780 + k * 150 - ox; if (x < -140 || x > W + 20) continue;
-      const on = S.stacks > k && !S.leak;
-      if (on) { drawGasBubbles(g, x + 10, gy - 8, 56, 40, t + k, 1.2); drawGasBubbles(g, x + 82, gy - 60, 10, 30, t + k * 0.7, 1.0); }
-      frect(g, x + 8, gy - 70, 4, 3, on ? '#86e36f' : (S.leak && k === 1 ? ((Math.floor(t * 6) % 2) ? '#ff4e5d' : '#ffb93b') : '#3a3a4a'));
-    }
-    // flujo de agua ultrapura y de H2
-    VISTA.flowClip(g, [[440 - ox, gy - 20], [760 - ox, gy - 20]], 'water', S.waterReady ? 1 : 0.2, 2);
-    VISTA.flowClip(g, [[760 - ox, gy - 70], [1260 - ox, gy - 70]], 'h2', S.stacks && !S.leak ? 1 : 0, 2);
-    // fuga simulada: llama invisible (solo se ve con la cámara térmica)
-    if (S.leak) {
-      const lx = 950 - ox, ly = gy - 40;
+    const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV7;
+    // conos de luz (bandas de alfa, sin tramado)
+    g.globalCompositeOperation = 'lighter';
+    for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#fff0c8', 0.16), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
+    g.globalCompositeOperation = 'source-over';
+    PFInfra.drawFlows(g, sc, D.flows);
+    // stacks: burbujas en las mirillas de los separadores y torre de señales
+    D.stacks.forEach((st, k) => {
+      const x = st.cells[0] - ox; if (x < -170 || x > W + 30) return;
+      const run = S.stacks > k && !S.leak;
+      if (run) {
+        drawGasBubbles(g, st.sepH[0] - ox, st.sepH[1] + st.sepH[3] - oy, 3, st.sepH[3] - 2, t + k, 1.0, '#d4ffe6');
+        drawGasBubbles(g, st.sepO[0] - ox, st.sepO[1] + st.sepO[3] - oy, 3, st.sepO[3] - 2, t + k * 0.7, 0.6, '#e8f0ff');
+        g.fillStyle = '#9cecc0'; for (let i = 0; i < 4; i++) { const ph = (t * 0.9 + i * 0.25) % 1; g.fillRect(Math.round(st.cells[0] + 6 + i * 11 - ox), Math.round(st.cells[1] + 2 - ph * 4 - oy), 1, 1); }
+      }
+      const leakHere = S.leak && k === 1;
+      const L = run ? st.led : leakHere ? ((Math.floor(t * 6) % 2) ? st.ledRed : st.ledAmb) : null;
+      if (L) { const col = run ? '#3fe0a0' : (Math.floor(t * 6) % 2) ? '#ff4e5d' : '#ffb93b'; g.fillStyle = col; g.fillRect(Math.round(L[0] - 2 - ox), Math.round(L[1] - 1 - oy), 5, 3); PFK.drawGlow(g, L[0] - ox, L[1] - oy, 7, col, 0.55); }
+    });
+    PFBH2.drawFans(g, sc, D.fans, true);
+    PFInfra.drawLeds(g, sc, D.leds);
+    PFB.screens(g, sc, D.screens);
+    PFB.glows(g, sc, D.glows);
+    // analizador de conductividad del tanque de agua ultrapura
+    if (D.upwScreen) { const [x, y, w] = D.upwScreen; const ready = S.waterReady; g.fillStyle = ready ? '#6ae2f8' : ((Math.floor(t * 2) % 2) ? '#ffb93b' : '#7a5208'); g.fillRect(Math.round(x - ox), Math.round(y - oy), ready ? 2 : w, 2); if (ready) { g.fillStyle = '#c4f8ff'; g.fillRect(Math.round(x + 3 - ox), Math.round(y - oy), 4, 1); g.fillRect(Math.round(x + 3 - ox), Math.round(y + 2 - oy), 4, 1); } }
+    // fuga simulada: llama invisible en el stack 2 (solo se ve con la cámara térmica)
+    if (S.leak && D.stacks[1]) {
+      const c = D.stacks[1].cells, lx = c[0] + c[2] * 0.5 - ox, ly = c[1] - 4 - oy;
       if (S.thermal) { for (let i = 0; i < 30; i++) { const a = Math.random() * 0.8 - 0.4, r = Math.random() * 18; fpx(g, lx + Math.sin(a) * r, ly - Math.cos(a) * r, ['#ffe14d', '#ff9f43', '#ff4e5d', '#ffffff'][i % 4]); } }
       else if (Math.random() < 0.3) fpx(g, lx + (Math.random() - 0.5) * 6, ly - Math.random() * 10, '#c6d8ff');
-      // luces de alarma ámbar
-      if ((Math.floor(t * 3) % 2) === 0) { VISTA.veil(g, 760 - ox, 150 - oy, 500, 140, '#ffb93b', 0.08); }
+      if ((Math.floor(t * 3) % 2) === 0) VISTA.veil(g, 756 - ox, 118 - oy, 484, 172, '#ffb93b', 0.07);
     }
     // escudo cristalino de LIMEN protegiendo al equipo
-    if (S.shield > 0) { const sx = S.shieldX - ox, sy = gy - 40; for (let a = 0; a < 40; a++) { const an = a / 40 * Math.PI; fpx(g, sx + Math.cos(an) * 46, sy - Math.sin(an) * 40, (a + Math.floor(t * 10)) % 3 ? '#7ee8f0' : '#ffffff'); } VISTA.veil(g, sx - 44, sy - 40, 88, 40, '#c4fbff', 0.12 * S.shield); }
-    // pantallas de seguridad
-    for (let k = 0; k < 3; k++) { const x = 1972 + k * 68 - ox, y = 142 - oy; for (let i = 0; i < 5; i++) frect(g, x + 4, y + 4 + i * 5, 6 + ((i * 9 + Math.floor(t * 3) + k) % 40), 1, S.leak ? '#ffb93b' : '#56e5ff'); }
+    if (S.shield > 0) { const gy = 290 - oy, sx = S.shieldX - ox, sy = gy - 40; for (let a = 0; a < 40; a++) { const an = a / 40 * Math.PI; fpx(g, sx + Math.cos(an) * 46, sy - Math.sin(an) * 40, (a + Math.floor(t * 10)) % 3 ? '#7ee8f0' : '#ffffff'); } VISTA.veil(g, sx - 44, sy - 40, 88, 40, '#c4fbff', 0.12 * S.shield); }
   },
   renderGrade(g, sc) { const S = sc.state; if (S.thermal) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.5; frect(g, 0, 0, W, H, '#5a3a8a'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; } },
   lens(g, sc, cam, k) {
@@ -144,14 +305,14 @@ LEVELS[7] = {
     naira.onTalk = async (sc2) => { await sc2.say([['naira', 'thinking', 'Cada kilo de hidrógeno se lleva casi catorce litros de agua tratada. En Los Médanos eso es el agua de una familia por varios días.']]); };
     dante.onTalk = async (sc2) => sideThirst(sc2);
     ledesma.onTalk = async (sc2) => sideOxygen(sc2);
-    sc.station({ id: 'upw', x: 410, kind: 'valve', label: 'Preparar agua ultrapura', glow: '#56e5ff', onUse: async (sc2, st) => prepareWater(sc2, st) });
-    sc.station({ id: 'h2Sim', x: 1260, kind: 'sim', label: 'Sincronizador H2', glow: '#86e36f', hidden: true, onUse: async (sc2, st) => h2Flow(sc2, st) });
-    sc.station({ id: 'record', x: 2140, y: 212, kind: 'clue', label: 'Grabación de la Dra. Rojas', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => { st.done = true; await elianaRecording(sc2); } });
+    sc.station({ id: 'upw', x: 410, kind: 'valve', label: 'Preparar agua ultrapura', glow: '#56e5ff', draw: PFBH2.drawValveSt, onUse: async (sc2, st) => prepareWater(sc2, st) });
+    sc.station({ id: 'h2Sim', x: 1260, kind: 'sim', label: 'Sincronizador H2', glow: '#86e36f', hidden: true, draw: PFBH2.drawConsoleSt, onUse: async (sc2, st) => h2Flow(sc2, st) });
+    sc.station({ id: 'record', x: 2140, y: 212, kind: 'clue', label: 'Grabación de la Dra. Rojas', glow: '#b49cff', hidden: true, draw: PFB.drawClue, onUse: async (sc2, st) => { st.done = true; await elianaRecording(sc2); } });
     sc.station({ id: 'solo', x: 2300, kind: 'solo', label: 'Puerta de Evidencia', glow: '#b49cff', hidden: true, onUse: async (sc2, st) => {
       const r = await sc2.open(SOLOScene, { ctx: 'RA-06-C1' });
       st.progress = r.correct; if (r.correct >= 3) { st.done = true; GS.lp(7).solo = true; S.soloDone = true; Codex.unlock('h2_verde'); }
     } });
-    sc.station({ id: 'exit', x: 2500, kind: 'clue', label: 'Ir al Oasis de las Raíces', glow: '#ffe14d', hidden: true, onUse: async (sc2) => finishLevel7(sc2) });
+    sc.station({ id: 'exit', x: 2500, kind: 'clue', label: 'Ir al Oasis de las Raíces', glow: '#ffe14d', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel7(sc2) });
     sc.setObjective('Prepara el agua ultrapura para los electrolizadores', ['¿Puede un electrolizador usar agua de mar o permeado directamente?', 'La planta de agua ultrapura está a la derecha de Naira.']);
     Codex.unlock('electrolisis');
     if (p.checkpoint === 'hall') { S.waterReady = true; sc.world.find('h2Sim').hidden = false; sc.setObjective('Opera el Sincronizador H2', []); }
@@ -160,12 +321,16 @@ LEVELS[7] = {
   update(sc, dt) {
     const S = sc.state;
     if (S.shield > 0 && !S.leak) S.shield = Math.max(0, S.shield - dt * 0.3);
-    if (Math.random() < 0.06) sc.world.ps.emit('vapor', 780 + Math.random() * 420, 230, 0, -12, 1);
+    if (Math.random() < 0.06) sc.world.ps.emit('vapor', 1250, 96, 0, -12, 1);
+    if (Math.random() < 0.03) sc.world.ps.emit('vapor', 2384, 100, 0, -10, 1);
   },
   triggers: [
     { x: 500, w: 40, run: (sc) => { sc.kiru && sc.kiru.say('Greenwash Phantoms: pegan la etiqueta "verde" sin mirar la electricidad. Corrígelos con {y}Q{/}.', 'alarmado', 4); } },
   ],
 };
+
+/* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
+const LV7 = { flows: [], glows: [], leds: [], screens: [], stacks: [], fans: [], cones: [], upwScreen: null };
 
 /* ---------------- piezas del guion del nivel 07 ---------------- */
 async function prepareWater(sc, st) {
