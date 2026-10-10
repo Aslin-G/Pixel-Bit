@@ -160,13 +160,24 @@ const CreditsScene = {
       ['', ''], ['h', 'Nota'], ['', 'Aridia es un territorio ficticio inspirado en costas áridas del Caribe.'], ['', 'Los datos de escenario son supuestos de simulación para fines educativos.'], ['', 'Ningún resultado constituye asesoría técnica, operativa ni financiera.'], ['', ''],
       ['h', 'Ningún dato es ruido hasta entender su historia.'], ['', ''], ['', 'Gracias por jugar.'],
     ];
+    // columna de lectura: velo navy plano en dos bandas (sin tramado) a la derecha de Amaya y KIRU,
+    // con las líneas fundiéndose en los 20 px superiores e inferiores
+    const cx = 392, colX = 158, colW = W - colX - 14, fw = colW - 28;
+    g.globalAlpha = 0.5; frect(g, colX, 0, colW, H, '#071430');
+    g.globalAlpha = 0.28; frect(g, colX + 12, 0, colW - 24, H, '#030a1e');
+    g.globalAlpha = 0.5; frect(g, colX, 0, 1, H, '#3a64b0'); frect(g, colX + colW - 1, 0, 1, H, '#3a64b0'); g.globalAlpha = 1;
+    const fadeA = (yy, hh) => clamp(Math.min(yy + hh, H - 18 - yy) / 20, 0, 1);
     let y = H - this.t * 18;
     for (const [k, txt] of lines) {
-      if (k === 't') { if (y > -40 && y < H) drawTitleText(g, txt, W / 2, y, 3, ['#fff6d8', '#ffe14d', '#ff7656'], { align: 'center', shadow: '#2a1040' }); y += 38; continue; }
-      if (k === 's') { if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#56e5ff' }); y += 20; continue; }
-      if (k === 'h') { if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#ffe14d' }); y += 14; continue; }
-      if (k === 'f') { const hh = textHeight(txt, 520, { lineH: 11 }); if (y > -60 && y < H) drawTextBlock(g, txt, 60, y, 520, { color: '#b8c8e8', align: 'center', lineH: 11 }); y += hh + 4; continue; }
-      if (y > -20 && y < H) drawText(g, txt, W / 2, y, { align: 'center', color: '#fffaf0' }); y += 12;
+      if (k === 't') { if (y > -40 && y < H) { g.globalAlpha = fadeA(y, 30); drawTitleText(g, txt, cx, y, 3, ['#fff6d8', '#ffe14d', '#ff7656'], { align: 'center', shadow: '#2a1040' }); g.globalAlpha = 1; } y += 38; continue; }
+      if (k === 's') { if (y > -20 && y < H) { g.globalAlpha = fadeA(y, 9); drawText(g, txt, cx, y, { align: 'center', color: '#56e5ff' }); g.globalAlpha = 1; } y += 20; continue; }
+      if (k === 'h') { if (y > -20 && y < H) { g.globalAlpha = fadeA(y, 9); drawText(g, txt, cx, y, { align: 'center', color: '#ffe14d' }); g.globalAlpha = 1; } y += 14; continue; }
+      if (k === 'f') {
+        const ls = wrapText(txt, fw);
+        for (const ln of ls) { if (y > -20 && y < H) { g.globalAlpha = fadeA(y, 9); drawText(g, ln, cx, y, { color: '#b8c8e8', align: 'center' }); g.globalAlpha = 1; } y += 11; }
+        y += 4; continue;
+      }
+      if (y > -20 && y < H) { g.globalAlpha = fadeA(y, 9); drawText(g, txt, cx, y, { align: 'center', color: '#fffaf0' }); g.globalAlpha = 1; } y += 12;
     }
     UIK.pill(g, W - 6, H - 14, 'ESC: cerrar · mantén ENTER: acelerar', { align: 'right', rim: '#3a5a8a', fill: '#041533', color: '#93a6c8' });
   },

@@ -441,8 +441,25 @@ function textHeight(text, maxW, opts = {}) {
 }
 
 /** Texto de título: escalado, relleno en degradado por filas, contorno y sombra profunda */
+// los lienzos de un título (relleno en rampa, sombra y contorno) se componen una vez por texto/estilo
+const FIXUI_titleCache = new Map();
 function drawTitleText(g, text, x, y, scale, ramp, opts = {}) {
   const fname = opts.font || 'main';
+  const tk = fname + '|' + text + '|' + ramp.join(',') + '|' + (opts.inner || '') + '|' + (opts.shadow || '') + '|' + (opts.outline || '');
+  let T = FIXUI_titleCache.get(tk);
+  if (!T) {
+    if (FIXUI_titleCache.size > 96) FIXUI_titleCache.clear();
+    T = FIXUI_titleBuild(text, fname, ramp, opts);
+    FIXUI_titleCache.set(tk, T);
+  }
+  const { cc, sc, oc } = T, c = cc;
+  const dx = Math.round(opts.align === 'center' ? x - (c.width * scale) / 2 : x), dy = Math.round(y);
+  if (sc) for (let k = 1; k <= (opts.depth || 2); k++) g.drawImage(sc, dx + k * Math.max(1, scale / 2), dy + k * Math.max(1, scale / 2), c.width * scale, c.height * scale);
+  if (oc) for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) g.drawImage(oc, dx + ox * scale / 2, dy + oy * scale / 2, c.width * scale, c.height * scale);
+  g.drawImage(cc, dx, dy, c.width * scale, c.height * scale);
+  return c.width * scale;
+}
+function FIXUI_titleBuild(text, fname, ramp, opts) {
   const font = FONTS[fname];
   const w = font.measure(text);
   const c = makeCanvas(w + 4, font.cellH + 4);
@@ -460,15 +477,8 @@ function drawTitleText(g, text, x, y, scale, ramp, opts = {}) {
   const pb = new PixelBuffer(c.width, c.height); pb.data.set(d);
   if (opts.inner) pb.outline(opts.inner);
   const cc = pb.toCanvas();
-  const dx = Math.round(opts.align === 'center' ? x - (c.width * scale) / 2 : x), dy = Math.round(y);
-  if (opts.shadow) {
-    const sc = makeCanvas(c.width, c.height); sc.g.drawImage(cc, 0, 0); sc.g.globalCompositeOperation = 'source-in'; sc.g.fillStyle = opts.shadow; sc.g.fillRect(0, 0, sc.width, sc.height);
-    for (let k = 1; k <= (opts.depth || 2); k++) g.drawImage(sc, dx + k * Math.max(1, scale / 2), dy + k * Math.max(1, scale / 2), c.width * scale, c.height * scale);
-  }
-  if (opts.outline) {
-    const oc = makeCanvas(c.width, c.height); oc.g.drawImage(cc, 0, 0); oc.g.globalCompositeOperation = 'source-in'; oc.g.fillStyle = opts.outline; oc.g.fillRect(0, 0, oc.width, oc.height);
-    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) g.drawImage(oc, dx + ox * scale / 2, dy + oy * scale / 2, c.width * scale, c.height * scale);
-  }
-  g.drawImage(cc, dx, dy, c.width * scale, c.height * scale);
-  return c.width * scale;
+  let sc = null, oc = null;
+  if (opts.shadow) { sc = makeCanvas(c.width, c.height); sc.g.drawImage(cc, 0, 0); sc.g.globalCompositeOperation = 'source-in'; sc.g.fillStyle = opts.shadow; sc.g.fillRect(0, 0, sc.width, sc.height); }
+  if (opts.outline) { oc = makeCanvas(c.width, c.height); oc.g.drawImage(cc, 0, 0); oc.g.globalCompositeOperation = 'source-in'; oc.g.fillStyle = opts.outline; oc.g.fillRect(0, 0, oc.width, oc.height); }
+  return { cc, sc, oc };
 }

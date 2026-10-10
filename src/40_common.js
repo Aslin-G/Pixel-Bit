@@ -72,6 +72,29 @@ const LevelCompleteScene = {
     const dt = '{y}Debrief:{/} ' + M.debrief, dh = textHeight(dt, w - 52) + 12;
     UIK.panel(g, x + 16, yy, w - 32, dh, 'sheet', null, { chamfer: 2, key: false });
     drawTextBlock(g, dt, x + 26, yy + 6, w - 52, { color: UI_INK.body });
+    yy += dh + 8;
+    // dominio estimado de los conceptos del RA del capítulo (barras que se llenan) y tarjeta del capítulo siguiente
+    const cs = (typeof RA_CONCEPTS !== 'undefined' && RA_CONCEPTS[M.ra]) || [];
+    const bw2 = 236, kk = Math.min(1, Math.max(0, this.t - 0.6) * 1.2);
+    drawText(g, 'DOMINIO ESTIMADO · ' + M.ra, x + 18, yy, { font: 'tiny', color: '#ffd23a' });
+    cs.slice(0, 3).forEach((c, i) => {
+      const v = clamp((GS.s.mastery[c] || 0) / 100, 0, 1), by2 = yy + 10 + i * 16;
+      drawText(g, fitText(MASTERY_LABELS[c] || c, 120), x + 18, by2 + 1, { color: UI_INK.body });
+      UIK.bar(g, x + 142, by2 + 1, bw2 - 160, 8, v * kk, v >= 0.6 ? '#3fe0a0' : v >= 0.3 ? '#ffd23a' : '#ff9a8a');
+      drawText(g, Math.round(v * 100 * kk) + ' %', x + 18 + bw2 - 2, by2 + 1, { font: 'tiny', color: '#cfe7ff', align: 'right' });
+    });
+    const nx = x + 18 + bw2 + 12, nwid = x + w - 18 - nx, nid = this.id + 1, NM = LEVEL_META[nid];
+    if (NM) {
+      UIK.panel(g, nx, yy - 2, nwid, 52, 'hud', null, { chamfer: 2, key: false, spark: false });
+      const th = LevelThumbs.get(nid);
+      if (th) g.drawImage(th, nx + 5, yy + 3, Math.min(th.width, 70), Math.min(th.height, 41));
+      else frect(g, nx + 5, yy + 3, 70, 41, '#0b2444');
+      drawText(g, 'SIGUIENTE · ' + NM.chapter, nx + 82, yy + 4, { font: 'tiny', color: '#8fdfff' });
+      drawTextBlock(g, NM.title, nx + 82, yy + 14, nwid - 88, { font: 'bold', color: '#edfcfe' });
+    } else {
+      UIK.panel(g, nx, yy - 2, nwid, 52, 'hud', null, { chamfer: 2, key: false, spark: false });
+      drawTextBlock(g, 'Último capítulo del Nexo: el epílogo decide qué ciudad queda.', nx + 8, yy + 6, nwid - 16, { color: UI_INK.body });
+    }
     Gui.begin();
     if (this.t > 1 && Gui.button(g, 'cont', W / 2 - 80, y + h - 28, 160, 20, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone(); }
     Gui.end();

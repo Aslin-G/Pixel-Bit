@@ -237,7 +237,8 @@ const GameplayScene = {
     drawText(g, sub, lx + 22 + bw + 7, 12, { font: 'tiny', color: '#8fdfff' });
   },
   renderHUD(g) {
-    if (this.hideHUD) { UIK._hudRects = []; return; }
+    // sin HUD con la tarjeta de capítulo completado encima (no asoman retazos por los lados)
+    if (this.hideHUD || Game.top() === LevelCompleteScene) { UIK._hudRects = []; return; }
     const def = this.def, P = this.player;
     const rects = [];
     // cinta de capítulo (sin caja que oscurezca el cielo)
