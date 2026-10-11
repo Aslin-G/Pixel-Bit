@@ -548,6 +548,8 @@ const FACE2 = {
     const pal = { K: F.lash || '#1a0604', h: '#ffffff', w: F.white || '#fff4ea', D: iris[0], M: iris[1], L: iris[2], s: skin[3], S: skin[4], t: '#a6f4ff' };
     const palFar = Object.assign({}, pal, { K: F.lashFar || pal.K });
     let k = pose.blink ? 'blink' : (E.eye2 || EYE_V1_TO_V2[E.eyes] || 'open');
+    // r2-chars: mirar alrededor en reposo (solo con el ojo abierto)
+    if (pose.eyeLook && k === 'open') k = 'look';
     let kf = pose.blink ? 'blink' : k;
     // ojo lejano primero (queda parcialmente tapado por el perfil)
     if (!F.noFar) FACE2.eyeFar(pb, fx, ey, kf, palFar, F.eyesFar);
@@ -615,7 +617,7 @@ const R2CHARS_IDLE = {
   look(p, t, P) { const f = Math.floor(t * 6 + 1e-6); if (f === 1 || f === 2) { p.expr = p.expr || null; p.eyeLook = 1; p.headDX = 0.6; p.headTilt = -0.04; } else if (f === 4) { p.eyeLook = -1; p.headDX = -0.5; p.headTilt = 0.03; } },
   gesture(p, t, P) { const f = Math.floor(t * 6 + 1e-6); if (f >= 2 && f <= 4) { const k = f === 3 ? 1 : 0.6; p.shF = 0.5 + 0.5 * k; p.elF = 1.1 + 0.3 * k; p.handF = 'open'; p.headTilt = 0.04 * k; } },
   shift(p, t, P) { const w = Math.sin(P); p.lean = 0.03 * w; p.hipF = 0.1 + 0.08 * w; p.hipB = -0.07 + 0.08 * w; p.kneeF = -0.04 - Math.max(0, -w) * 0.25; p.kneeB = 0.02 - Math.max(0, w) * 0.25; p.headTilt = -0.03 * w; },
-  crossed(p) { p.shF = 0.55; p.elF = 2.15; p.handF = 'fist'; p.shB = 0.45; p.elB = 2.0; p.handB = 'fist'; },
+  crossed(p) { p.shF = 0.15; p.elF = 1.65; p.handF = 'fist'; p.shB = 0.1; p.elB = 1.75; p.handB = 'fist'; },
   behind(p) { p.shF = -0.35; p.elF = 0.5; p.shB = -0.45; p.elB = 0.45; },
   hips(p) { p.shF = -0.45; p.elF = 2.0; p.handF = 'fist'; },
   stretch(p, t) { const f = Math.floor(t * 6 + 1e-6); if (f === 2 || f === 3) { p.shF = 2.9; p.elF = 0.3; p.shB = 2.7; p.elB = 0.3; p.handF = 'fist'; p.handB = 'fist'; p.headTilt = -0.08; p.blink = true; } },
@@ -1330,6 +1332,13 @@ const SpriteCache = {
 /* Personajes registrados (se definen en 11_chars.js) */
 const CHARS = {};
 
+/** Desfase estable (s) por id de personaje para el reposo */
+const _r2chPhase = new Map();
+function R2CHARS_phase(id) {
+  let v = _r2chPhase.get(id);
+  if (v == null) { let h = 7; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0; v = ((h >>> 0) % 997) / 997 * 3.6; _r2chPhase.set(id, v); }
+  return v;
+}
 /** Dibuja personaje: (x,y) = pies en el mundo (coordenadas de pantalla) */
 function drawChar(g, charId, anim, time, x, y, facing = 1, opts = {}) {
   const def = CHARS[charId];
@@ -1338,8 +1347,14 @@ function drawChar(g, charId, anim, time, x, y, facing = 1, opts = {}) {
   if (!SpriteCache._warmed.has(charId)) { SpriteCache._warmed.add(charId); SpriteCache.warm(charId, def.warmAnims || ['idle', 'walk', 'run', 'jump', 'fall', 'land']); }
   if (typeof Game !== 'undefined' && Game.frame !== SpriteCache._lastPump) { SpriteCache._lastPump = Game.frame; if (SpriteCache.queue.length) SpriteCache.pump(2); }
   const A = ANIMS[anim] || ANIMS.idle;
-  let frame = Math.floor(time * A.fps * (opts.speed || 1));
+  // r2-chars: reposo desfasado por personaje (la multitud no respira al unísono) y parpadeo solo
+  // una de cada tres vueltas (antes 1 de cada 6 cuadros: los NPC salían a menudo con los ojos cerrados)
+  const idleLike = anim === 'idle' || anim === 'talk';
+  const tt = idleLike && opts.sync !== true ? time + R2CHARS_phase(charId) : time;
+  let frame = Math.floor(tt * A.fps * (opts.speed || 1));
+  const loop = Math.floor(frame / A.frames);
   frame = A.loop ? frame % A.frames : Math.min(frame, A.frames - 1);
+  if (anim === 'idle' && frame === (def.blinkFrame ?? 4) && loop % 3 !== 1) frame = (def.blinkFrame ?? 4) - 1;
   const c = SpriteCache.get(charId, anim, frame, opts);
   const ox = def.ox ?? 30, oy = def.oy ?? 78;
   const dx = Math.round(x), dy = Math.round(y);

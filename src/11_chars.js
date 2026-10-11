@@ -633,7 +633,7 @@ function R2CHARS_kiruThrust(pb, a, t, hx, hy, py, podTrail) {
     if (ph < 0.3) put(sx + 1, sy, HOT);
   }
 }
-CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30 + R2CHARS_KIRU_PAD, oy: 70 + KIRU_LIFT, shadowR: 6, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
+CHARS.kiru = { name: 'KIRU', blinkFrame: 5, render: renderKiru, ox: 30 + R2CHARS_KIRU_PAD, oy: 70 + KIRU_LIFT, shadowR: 6, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
 
 /* ------------------------------------------------------------------ */
 /* Peinados v1 (se conservan por compatibilidad)                         */
@@ -752,7 +752,7 @@ const PROP = { cane: 'cane', basket: 'basket', crate: 'crate', tablet: 'tablet',
 /* ------------------------------------------------------------------ */
 const NAIRA_D = Object.assign(makeBody('adult', { headRX: 10.5, headRY: 11 }), {
   face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6.5, mouthY: 7, noseX: 10.5, noseY: 3.5, iris: ['#160a14', '#3a2440', '#6a4a6e'], lash: '#0a0816', blush: '#b8604a', browCol: '#15132a' },
-  defaultExpr: 'calm', energetic: 0.8, shortSleeve: 0, sole: '#2a1410', laces: null, bootTall: 3, shadowR: 12,
+  defaultExpr: 'smile', idleStyle: 'look', energetic: 0.8, shortSleeve: 0, sole: '#2a1410', laces: null, bootTall: 3, shadowR: 12,
   prepare() {
     if (this.mat) return;
     const leather = Mat({ ramp: MAT.leather, outline: '#1a0a06' });
@@ -789,7 +789,7 @@ CHARS.naira = { name: 'Naira', render: (a, t, op) => renderHumanoid('naira', NAI
 /* ------------------------------------------------------------------ */
 const DANTE_D = Object.assign(makeBody('adult', { thigh: 14, shin: 14, torsoW: 18, chestH: 17, armW: 3.0, legW: 3.5, headRX: 10.5, headRY: 10.8, footL: 7.5, handR: 2.5 }), {
   face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6.5, mouthY: 6.5, noseX: 10.5, noseY: 3, iris: ['#0e2a16', '#2a5a3a', '#5a8a5a'], lash: '#1a0806', browCol: '#46180f' },
-  freckles: true, energetic: 1.3, sole: '#1a0c08', laces: '#c8a070', bootTall: 4.5, shortSleeve: 0.6, jaw: 'square', noseSize: 1.4, shadowR: 13,
+  freckles: true, idleStyle: 'hips', energetic: 1.3, sole: '#1a0c08', laces: '#c8a070', bootTall: 4.5, shortSleeve: 0.6, jaw: 'square', noseSize: 1.4, shadowR: 13,
   prepare() {
     if (this.mat) return;
     const skin = Mat({ ramp: RAMP.skinD, outline: '#3a160e' });
@@ -823,7 +823,7 @@ CHARS.dante = { name: 'Dante', render: (a, t, op) => renderHumanoid('dante', DAN
 /* ------------------------------------------------------------------ */
 const ELIANA_D = Object.assign(makeBody('tall', { torsoW: 14, armW: 2.4, legW: 2.8, headRX: 10.2, headRY: 10.8 }), {
   face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6.5, mouthY: 7, noseX: 10.5, noseY: 3.5, iris: ['#1a0e06', '#4a3020', '#7a5a3a'], lash: '#1a0e0a', browCol: '#3a3c5c' },
-  energetic: 0.7, sole: '#1a0c10', bootTall: 2.5, jaw: 'long', shadowR: 12,
+  energetic: 0.7, idleStyle: 'behind', sole: '#1a0c10', bootTall: 2.5, jaw: 'long', shadowR: 12,
   prepare() {
     if (this.mat) return;
     const skin = Mat({ ramp: RAMP.skinE, outline: '#1e100a' });
@@ -952,7 +952,7 @@ function renderLimen(anim, t, opts) {
   pb.anchors = { head: { x: cx * CH_SCALE, y: hy * CH_SCALE }, core: { x: cx * CH_SCALE, y: cy * CH_SCALE } };
   return pb;
 }
-CHARS.limen = { name: 'LIMEN', render: renderLimen, ox: 46, oy: 123, shadowR: 13, warmAnims: ['idle', 'talk'] };
+CHARS.limen = { name: 'LIMEN', blinkFrame: 5, render: renderLimen, ox: 46, oy: 123, shadowR: 13, warmAnims: ['idle', 'talk'] };
 
 /* ------------------------------------------------------------------ */
 /* MIRAGE / MOSAICO — gemelo digital (×1,28, lienzo 132×172)             */
@@ -1213,6 +1213,9 @@ function makeNPC(id, cfg) {
     },
   });
   if (cfg.posture === 'stoop') D.stoop = 0.16;
+  // r2-chars: variante de reposo propia (RNG aparte: no altera los sorteos de ropa/sombrero)
+  { const r2 = RNG((cfg.seed || 1) + 991), prop = cfg.prop || B.prop;
+    D.idleStyle = cfg.idleStyle !== undefined ? cfg.idleStyle : prop ? r2.pick(['look', 'shift', 'look']) : r2.pick(['look', 'shift', 'gesture', 'crossed', 'behind', 'hips', 'look', 'shift', 'stretch']); }
   CHARS[id] = { name: cfg.name || id, render: (a, t, op) => renderHumanoid(id, D, a, t, op), ox: HUM_OX, oy: HUM_OY, shadowR: D.shadowR, D };
   return D;
 }
@@ -1228,19 +1231,19 @@ makeNPC('financia', { name: 'Sr. Ledesma', seed: 88, skin: 'skinE', hair: RAMP.h
    crowd1 conserva el diseño anterior de Amaya (piel oscura, moño rizado, chaqueta coral y
    camiseta turquesa) para mantener la diversidad del elenco. */
 const CROWD_CFG = [
-  { body: 'tall', style: 'short', skin: 'skinDeep', hair: RAMP_CH.blackHair, outfit: 'tee', top: RAMP_CH.teal, legs: RAMP_CH.denim, beard: '#140a08', shortSleeve: true },
-  { body: 'adult', style: 'puff', skin: 'skinA', hair: RAMP.hairA, outfit: 'jacket', top: MAT.amayaShirt, jacket: MAT.amayaJacket, legs: MAT.amayaPants, shoes: MAT.sneakerY, iris: ['#1a0f20', '#5a3354', '#8a5a7a'], earring: '#ffe14d' },
-  { body: 'stocky', style: 'short', skin: 'skinTan', hair: RAMP_CH.greyHair, hat: 'bucket', hatCol: RAMP_CH.sage, outfit: 'overalls', top: NPC_CLOTH[6], bib: RAMP_CH.mustard, legs: RAMP_CH.mustard, beard: '#9696a4', prop: 'net', wrinkles: true },
-  { child: true, style: 'ponytail', skin: 'skinPale', hair: RAMP_CH.redHair, outfit: 'dress', top: RAMP_CH.skyTop, legs: RAMP_CH.skyTop, pigtails: true, tie: RAMP.yellow },
-  { body: 'elder', style: 'long', skin: 'skinM', hair: RAMP_CH.greyHair, headscarf: RAMP_CH.plum, scarfDot: '#ffe14d', outfit: 'poncho', top: NPC_CLOTH[4], poncho: RAMP_CH.teal, stripe: '#f4a050', legs: RAMP_CH.charcoal, prop: 'cane', wrinkles: true },
-  { body: 'adult', style: 'bun', skin: 'skinN', hair: RAMP.hairN, outfit: 'apron', top: RAMP_CH.pinkTop, apron: RAMP_CH.cream, legs: RAMP_CH.khaki, prop: 'basket', earring: '#56e5ff' },
-  { body: 'teen', style: 'afro', skin: 'skinDeep', hair: RAMP_CH.blackHair, outfit: 'jacket', top: NPC_CLOTH[2], jacket: RAMP_CH.skyTop, legs: RAMP_CH.charcoal, backpack: RAMP_CH.terracotta },
-  { child: true, style: 'short', skin: 'skinTan', hair: RAMP_CH.brownHair, hat: 'cap', hatCol: NPC_CLOTH[7], outfit: 'tee', top: NPC_CLOTH[3], legs: RAMP_CH.denim, shortSleeve: true },
-  { child: true, style: 'ponytail', skin: 'skinE', hair: RAMP_CH.blondHair, outfit: 'tee', top: NPC_CLOTH[0], legs: RAMP_CH.teal, shortSleeve: true, tie: RAMP.cyan },
-  { child: true, style: 'buzz', skin: 'skinD', hair: RAMP.hairD, outfit: 'overalls', top: NPC_CLOTH[11], bib: RAMP_CH.denim, legs: RAMP_CH.denim },
-  { body: 'stocky', style: 'buzz', skin: 'skinDeep', hair: RAMP_CH.blackHair, hat: 'hard', hatCol: MAT.hardhat, outfit: 'hivis', top: NPC_CLOTH[6], vest: RAMP_CH.hivis, legs: RAMP_CH.denim, prop: 'toolbox' },
-  { body: 'tall', style: 'long', skin: 'skinPale', hair: RAMP_CH.brownHair, outfit: 'dress', top: RAMP_CH.terracotta, legs: RAMP_CH.terracotta, prop: 'wateringCan', earring: '#ffd84a' },
-  { body: 'elder', style: 'buzz', skin: 'skinE', hair: RAMP_CH.greyHair, outfit: 'labcoat', top: NPC_CLOTH[1], coat: RAMP_CH.cream, legs: RAMP_CH.charcoal, glasses: '#3a2a20', roundGlasses: true, mustache: '#bcbcc8', wrinkles: true, pens: false },
-  { body: 'adult', style: 'doubleBraids', skin: 'skinM', hair: RAMP_CH.blackHair, outfit: 'overalls', top: RAMP_CH.mustard, bib: RAMP_CH.sage, legs: RAMP_CH.sage, prop: 'hoe', tie: RAMP.coral },
+  { body: 'tall', style: 'short', skin: 'skinDeep', hair: RAMP_CH.blackHair, outfit: 'tee', top: RAMP_CH.teal, legs: RAMP_CH.denim, beard: '#140a08', shortSleeve: true , idleStyle: 'crossed' },
+  { body: 'adult', style: 'puff', skin: 'skinA', hair: RAMP.hairA, outfit: 'jacket', top: MAT.amayaShirt, jacket: MAT.amayaJacket, legs: MAT.amayaPants, shoes: MAT.sneakerY, iris: ['#1a0f20', '#5a3354', '#8a5a7a'], earring: '#ffe14d' , idleStyle: 'gesture' },
+  { body: 'stocky', style: 'short', skin: 'skinTan', hair: RAMP_CH.greyHair, hat: 'bucket', hatCol: RAMP_CH.sage, outfit: 'overalls', top: NPC_CLOTH[6], bib: RAMP_CH.mustard, legs: RAMP_CH.mustard, beard: '#9696a4', prop: 'net', wrinkles: true , idleStyle: 'shift' },
+  { child: true, style: 'ponytail', skin: 'skinPale', hair: RAMP_CH.redHair, outfit: 'dress', top: RAMP_CH.skyTop, legs: RAMP_CH.skyTop, pigtails: true, tie: RAMP.yellow , idleStyle: 'look' },
+  { body: 'elder', style: 'long', skin: 'skinM', hair: RAMP_CH.greyHair, headscarf: RAMP_CH.plum, scarfDot: '#ffe14d', outfit: 'poncho', top: NPC_CLOTH[4], poncho: RAMP_CH.teal, stripe: '#f4a050', legs: RAMP_CH.charcoal, prop: 'cane', wrinkles: true , idleStyle: 'shift' },
+  { body: 'adult', style: 'bun', skin: 'skinN', hair: RAMP.hairN, outfit: 'apron', top: RAMP_CH.pinkTop, apron: RAMP_CH.cream, legs: RAMP_CH.khaki, prop: 'basket', earring: '#56e5ff' , idleStyle: 'look' },
+  { body: 'teen', style: 'afro', skin: 'skinDeep', hair: RAMP_CH.blackHair, outfit: 'jacket', top: NPC_CLOTH[2], jacket: RAMP_CH.skyTop, legs: RAMP_CH.charcoal, backpack: RAMP_CH.terracotta , idleStyle: 'hips' },
+  { child: true, style: 'short', skin: 'skinTan', hair: RAMP_CH.brownHair, hat: 'cap', hatCol: NPC_CLOTH[7], outfit: 'tee', top: NPC_CLOTH[3], legs: RAMP_CH.denim, shortSleeve: true , idleStyle: 'stretch' },
+  { child: true, style: 'ponytail', skin: 'skinE', hair: RAMP_CH.blondHair, outfit: 'tee', top: NPC_CLOTH[0], legs: RAMP_CH.teal, shortSleeve: true, tie: RAMP.cyan , idleStyle: 'look' },
+  { child: true, style: 'buzz', skin: 'skinD', hair: RAMP.hairD, outfit: 'overalls', top: NPC_CLOTH[11], bib: RAMP_CH.denim, legs: RAMP_CH.denim , idleStyle: 'shift' },
+  { body: 'stocky', style: 'buzz', skin: 'skinDeep', hair: RAMP_CH.blackHair, hat: 'hard', hatCol: MAT.hardhat, outfit: 'hivis', top: NPC_CLOTH[6], vest: RAMP_CH.hivis, legs: RAMP_CH.denim, prop: 'toolbox' , idleStyle: 'look' },
+  { body: 'tall', style: 'long', skin: 'skinPale', hair: RAMP_CH.brownHair, outfit: 'dress', top: RAMP_CH.terracotta, legs: RAMP_CH.terracotta, prop: 'wateringCan', earring: '#ffd84a' , idleStyle: 'shift' },
+  { body: 'elder', style: 'buzz', skin: 'skinE', hair: RAMP_CH.greyHair, outfit: 'labcoat', top: NPC_CLOTH[1], coat: RAMP_CH.cream, legs: RAMP_CH.charcoal, glasses: '#3a2a20', roundGlasses: true, mustache: '#bcbcc8', wrinkles: true, pens: false , idleStyle: 'behind' },
+  { body: 'adult', style: 'doubleBraids', skin: 'skinM', hair: RAMP_CH.blackHair, outfit: 'overalls', top: RAMP_CH.mustard, bib: RAMP_CH.sage, legs: RAMP_CH.sage, prop: 'hoe', tie: RAMP.coral , idleStyle: 'look' },
 ];
 CROWD_CFG.forEach((c, i) => makeNPC('crowd' + i, Object.assign({ seed: 100 + i * 7 }, c)));
