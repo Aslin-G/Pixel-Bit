@@ -5,6 +5,18 @@
    Segundo giro mayor: Amaya eliminó demandas estacionales del modelo.
    ===================================================================== */
 
+/* FIXLB: los adversarios de los niveles 6–10 (y los mismos tipos en otros niveles) se dibujan con las
+   tiras animadas de FIXLB_ADV (18q_pfb_core.js); el resto sigue con el dibujo base de 30_world.js */
+if (typeof Adversary !== 'undefined' && typeof FIXLB_ADV !== 'undefined') {
+  const FIXLB_baseAdvRender = Adversary.prototype.render;
+  Adversary.prototype.render = function (g, cam) {
+    if (!FIXLB_ADV.has(this.type)) return FIXLB_baseAdvRender.call(this, g, cam);
+    const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy);
+    if (x < -40 || x > W + 40) return;
+    FIXLB_ADV.draw(g, this, x, y, this.calm ? clamp(1 - (this.calmT || 0) / 1.2, 0, 1) : 1);
+  };
+}
+
 const VAULT_RACKS = [360, 440, 520, 600, 680, 760, 1800, 1880, 1960, 2040];
 const ARCS = [{ x: 1000, w: 22 }, { x: 1090, w: 22 }, { x: 1180, w: 22 }];
 

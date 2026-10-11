@@ -18844,6 +18844,158 @@ const PFB = (() => {
   }
 })();
 
+/* =====================================================================
+   FIXLB_ADV — adversarios conceptuales de los niveles 6–10 como criaturas
+   legibles (antes: disco de 5 px con píxeles orbitando). Tiras animadas
+   precalculadas (6–8 cuadros, 30–36 px de ancho, 26–44 de alto) con rampas
+   desplazadas de tono, luz de borde arriba-izquierda y contorno selectivo;
+   en juego: 1 halo aditivo + 1 drawImage por adversario. Lo instala
+   Adversary.prototype.render en 46_lv06.js (la clase se define en 30_world.js).
+   ===================================================================== */
+const FIXLB_ADV = (() => {
+  const K = PFK, cache = new Map();
+  const R = {
+    dust: ['#2a0e06', '#4a1c0c', '#6a2a14', '#8e4220', '#a85024', '#c8742e', '#e2a052', '#f4c27a', '#ffe0b0'],
+    gust: ['#1e2840', '#2a3656', '#3a4a6e', '#5a6e94', '#8396ba', '#a8bcd8', '#cbdaea', '#eef4fb'],
+    soc: ['#0c0824', '#1a1240', '#2c1e6a', '#40289a', '#5a38b8', '#7a5ad0', '#a08ae6', '#cfc2f6'],
+    lime: ['#3a5a10', '#6a9a20', '#b6f05a', '#e6ffc0'],
+    ghost: ['#10262a', '#1a3a3a', '#28544c', '#3c7262', '#56907a', '#78ae96', '#a6ceb8', '#dcf0e4'],
+    leaf: ['#1e5a12', '#3a9a1c', '#6cd030', '#a2ec4a', '#d2fa8a', '#f2ffd0'],
+    salt: ['#2a0a2e', '#4a1250', '#621a66', '#8e2a7e', '#bc3e92', '#e06aac', '#f888b8', '#ffc4dc', '#fff0f6'],
+    gold: ['#2a1806', '#4a2e0a', '#6a420e', '#9a6414', '#c8861a', '#e0a830', '#ffd84a', '#fff0a0', '#fffbe6'],
+    ribbon: ['#4e0e12', '#7a1a1c', '#a82a26', '#d04434', '#ec6a4a'],
+  };
+  const P = (k) => K.P32(R[k]);
+  const put = (pb, x, y, u) => K.put(pb, Math.round(x), Math.round(y), u);
+  const eye = (pb, x, y, white = '#ffffff', pupil = '#140d26') => { for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(pb, x + dx, y + dy, U(pupil)); put(pb, x, y, U(white)); };
+  const B = {
+    /** Remolino de polvo: embudo en espiral con bandas ocres, nube en la boca, guijarros y brasas por ojos */
+    dust: { n: 8, w: 32, h: 44, glow: '#ff8a3a', hue: 18, draw(pb, i) {
+      const C = P('dust'), n = C.length, ph = i / 8 * TAU;
+      for (let y = 4; y < 42; y++) {
+        const t = (y - 4) / 37, r = lerp(12.5, 2.2, Math.pow(t, 0.85)), cx = 16 + Math.sin(ph + t * 3.4) * (0.8 + t * 2.4);
+        for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+          const nx = (x + 0.5 - cx) / r; if (Math.abs(nx) > 1) continue;
+          if (Math.abs(nx) > 0.8 && hash2(x, y, i + 3) < 0.45) continue;
+          const band = ((Math.floor(y * 0.5 + Math.asin(clamp(nx, -1, 1)) * 2.4 - i * 0.75) % 3) + 3) % 3;
+          const k = Math.round(3.2 - nx * 2.2 - t * 1.2 + (band === 0 ? -1.4 : band === 2 ? 1 : 0));
+          put(pb, x, y, C[clamp(k, 0, n - 2)]);
+        }
+      }
+      // nube de polvo en la boca del embudo
+      for (let k = 0; k < 4; k++) { const bx = 16 + (k - 1.5) * 6 + Math.sin(ph + k) * 1.2, by = 5 + (k % 2); K.ellipseFn(pb, bx, by, 5, 3.6, (nx, ny) => C[clamp(Math.round(5 - nx * 1.4 - ny * 2.2), 0, n - 1)]); }
+      // guijarros que giran (solo los de delante)
+      for (let k = 0; k < 5; k++) { const a = ph + k * 1.26, yy = 10 + k * 6, rr = lerp(13, 4, (yy - 4) / 37) + 1.5, xx = 16 + Math.cos(a) * rr; if (Math.sin(a) < -0.2) continue; put(pb, xx, yy, U('#4a1c0c')); put(pb, xx, yy - 1, U('#c8742e')); }
+      // brasas de MIRAGE por ojos
+      for (const ex of [11, 19]) { put(pb, ex, 13, U('#fff0b8')); put(pb, ex + 1, 13, U('#ffd890')); put(pb, ex, 14, U('#ff8a3a')); put(pb, ex + 1, 14, U('#c84a1a')); }
+    } },
+    /** Bucle de ráfaga: espiral de viento con cara y estelas que se alargan */
+    gust: { n: 6, w: 36, h: 30, glow: '#cbdaea', hue: 225, rim: '#f4f8ff', draw(pb, i) {
+      const C = P('gust'), n = C.length, ph = i / 6 * TAU, cx = 14, cy = 15;
+      for (let y = 0; y < 30; y++) for (let x = 0; x < 30; x++) {
+        const dx = x + 0.5 - cx, dy = (y + 0.5 - cy) * 1.2, r = Math.hypot(dx, dy); if (r < 2.5 || r > 12.5) continue;
+        const th = (Math.atan2(dy, dx) + ph + TAU * 2) % TAU, u = r - 2.4 - th / TAU * 5.6, m = ((u % 5.6) + 5.6) % 5.6;
+        if (m >= 2.8) continue;
+        put(pb, x, y, C[clamp(Math.round(4 - dx / 10 * 1.6 - dy / 10 * 1.6 + (m < 1 ? 1 : m > 2 ? -1 : 0)), 0, n - 1)]);
+      }
+      K.ellipseFn(pb, cx, cy, 4.2, 3.6, (nx, ny) => C[clamp(Math.round(6 - nx - ny * 1.5), 0, n - 1)]);
+      eye(pb, cx - 3, cy - 1); eye(pb, cx + 1, cy - 1);
+      // estelas de viento a sotavento
+      for (const [yy, L0] of [[9, 6], [15, 9], [21, 5]]) { const L = L0 + Math.round((Math.sin(ph + yy) + 1) * 2); for (let k = 0; k < L; k++) put(pb, 26 + k, yy + (k > L * 0.6 ? 1 : 0), C[k < L * 0.5 ? 6 : 4]); }
+    } },
+    /** Ácaro de batería: celda con patas que se bebe su propia barra de SOC */
+    socEater: { n: 6, w: 34, h: 26, glow: '#b6f05a', hue: 250, draw(pb, i) {
+      const C = P('soc'), L = P('lime'), n = C.length;
+      const x0 = 7, x1 = 28, y0 = 6, y1 = 18;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        if ((x === x0 || x === x1) && (y === y0 || y === y1)) continue;
+        const u = (x - x0) / (x1 - x0), v = (y - y0) / (y1 - y0);
+        put(pb, x, y, C[clamp(Math.round(5.6 - u * 2 - v * 3 + (y === y0 ? 1.4 : 0)), 0, n - 1)]);
+      }
+      // borne y barra de SOC que se vacía cuadro a cuadro
+      for (let y = 10; y <= 14; y++) { put(pb, x1 + 1, y, U('#d8d0f0')); put(pb, x1 + 2, y, U(y === 10 ? '#ffffff' : '#9a90c0')); }
+      const lvl = Math.round(lerp(13, 3, i / 5));
+      for (let y = 10; y <= 14; y++) for (let x = 11; x <= 25; x++) put(pb, x, y, (x - 11) < lvl ? L[y === 10 ? 3 : y === 14 ? 1 : 2] : U(y === 10 ? '#2c1e6a' : '#140a2a'));
+      for (const [px, py] of [[18, 7], [17, 8], [18, 8], [19, 8]]) put(pb, px, py, U('#e6ffc0'));
+      // mandíbulas que se abren y cierran
+      const op = i % 3;
+      for (let k = 0; k < 4; k++) { put(pb, x0 - 1 - k, 12 - op - Math.floor(k / 2), L[k < 2 ? 2 : 3]); put(pb, x0 - 1 - k, 15 + op + Math.floor(k / 2), L[k < 2 ? 1 : 2]); }
+      eye(pb, x0 + 1, 7, '#e6ffc0', '#0c0824');
+      // antenas y patas alternas
+      K.lineFn(pb, 9, y0 - 1, 5 + (i % 2), 1, () => C[6]); K.lineFn(pb, 12, y0 - 1, 11 - (i % 2), 0, () => C[5]);
+      for (let k = 0; k < 3; k++) { const lx = 11 + k * 7, s = ((i + k) % 2) ? 1 : -1; K.lineFn(pb, lx, y1 + 1, lx + s * 2, y1 + 5, () => C[2]); put(pb, lx + s * 2, y1 + 6, C[1]); }
+    } },
+    /** Fantasma del lavado verde: sábana verde con jirones y una máscara de hoja sobre la cara */
+    greenwash: { n: 6, w: 30, h: 36, glow: '#86e36f', hue: 150, draw(pb, i) {
+      const C = P('ghost'), Lf = P('leaf'), n = C.length, ph = i / 6 * TAU;
+      for (let y = 2; y < 34; y++) for (let x = 2; x < 28; x++) {
+        const dx = x + 0.5 - 15, inside = y < 13 ? Math.hypot(dx, (y + 0.5 - 13) * 1.05) <= 11 : Math.abs(dx) <= 11 - Math.max(0, y - 22) * 0.25;
+        const bot = 31 + Math.round(Math.sin(x * 0.95 + ph) * 2); if (!inside || y > bot) continue;
+        put(pb, x, y, C[clamp(Math.round(5.4 - dx / 11 * 1.8 - (y - 2) / 32 * 2.6 + (Math.sin(x * 0.7 + y * 0.2) > 0.6 ? 0.8 : 0)), 0, n - 1)]);
+      }
+      // bracitos
+      for (const s of [-1, 1]) { const ax = 15 + s * 11, ay = 20 + Math.round(Math.sin(ph + (s > 0 ? 1 : 0)) * 1.5); for (let k = 0; k < 4; k++) put(pb, ax + s * k, ay - Math.floor(k / 2), C[k === 3 ? 6 : 4]); }
+      // máscara de hoja inclinada con ojos huecos
+      for (let y = 6; y < 19; y++) for (let x = 5; x < 26; x++) {
+        const u = x + 0.5 - 15.5, v = y + 0.5 - 12.5, a = 0.32, ru = u * Math.cos(a) + v * Math.sin(a), rv = -u * Math.sin(a) + v * Math.cos(a);
+        const half = 4.6 * Math.sqrt(Math.max(0, 1 - (ru / 9.5) * (ru / 9.5))); if (Math.abs(rv) > half) continue;
+        put(pb, x, y, Math.abs(rv) < 0.6 ? Lf[1] : Lf[clamp(Math.round(3.4 - rv / 4 - ru / 12), 0, Lf.length - 1)]);
+      }
+      for (const ex of [11, 18]) { eye(pb, ex, 12, '#04120a', '#04120a'); put(pb, ex + 1, 12, U('#e6ffc0')); }
+      put(pb, 25, 7, Lf[0]); put(pb, 26, 6, Lf[0]);
+    } },
+    /** Espejismo de sal: racimo de cristales rosados que reverbera como el aire caliente */
+    saltMirage: { n: 6, w: 30, h: 36, glow: '#f888b8', hue: 300, draw(pb, i) {
+      const C = P('salt'), n = C.length, ph = i / 6 * TAU;
+      const tmp = new PixelBuffer(30, 36);
+      for (const [cx, hh, hw] of [[8, 13, 3], [21, 15, 3], [15, 23, 4], [11, 9, 2], [24, 9, 2]]) {
+        const yb = 32;
+        for (let y = yb - hh; y <= yb; y++) for (let x = cx - hw; x <= cx + hw; x++) {
+          const tip = (yb - hh) + Math.abs(x - cx) * 1.2; if (y < tip) continue;
+          put(tmp, x, y, C[clamp(x === cx ? 7 : x < cx ? 6 - Math.round((y - tip) / hh * 2) : 4 - Math.round((y - tip) / hh * 2), 0, n - 1)]);
+        }
+      }
+      for (let x = 4; x < 27; x++) { put(tmp, x, 33, C[x < 15 ? 7 : 6]); put(tmp, x, 34, C[3]); }
+      // reverberación: las filas altas ondulan como el aire caliente
+      for (let y = 0; y < 36; y++) { const s = y < 26 ? Math.round(Math.sin(y * 0.5 + ph) * 1.2) : 0; for (let x = 0; x < 30; x++) { const c = tmp.data[y * 30 + x]; if (c >>> 24) put(pb, x + s, y, c); } }
+      eye(pb, 13, 18, '#ffffff', '#2a0a2e'); eye(pb, 16, 18, '#ffffff', '#2a0a2e');
+      put(pb, 15, 21 + (i % 2), U('#2a0a2e'));
+    } },
+    /** MonoScore: medalla dorada con «100» que lo resume todo, cintas al viento y mirada satisfecha */
+    monoscore: { n: 6, w: 32, h: 38, glow: '#ffd84a', hue: 30, draw(pb, i) {
+      const G = P('gold'), Rb = P('ribbon'), n = G.length, ph = i / 6 * TAU;
+      for (const s of [-1, 1]) { const sway = Math.sin(ph + (s > 0 ? 1.2 : 0)) * 1.5; for (let y = 21; y < 35; y++) { const xx = 16 + s * (3 + (y - 21) * 0.32) + sway * (y - 21) / 14; for (let k = 0; k < 4; k++) { if (y > 32 && k > 0 && k < 3) continue; put(pb, xx + k - 2, y, Rb[clamp(k === 0 ? 4 : k === 3 ? 1 : 3 - ((y >> 2) % 2), 0, 4)]); } } }
+      for (let y = 0; y < 28; y++) for (let x = 2; x < 30; x++) {
+        const dx = x + 0.5 - 16, dy = y + 0.5 - 13.5, r = Math.hypot(dx, dy), R0 = 11.5 + Math.cos(Math.atan2(dy, dx) * 14) * 0.8; if (r > R0) continue;
+        let k = Math.round(5.2 - dx / 12 * 1.6 - dy / 12 * 2);
+        if (r > R0 - 1.6) k += 1; else if (r > 8 && r < 9.2) k -= 2;
+        if (((x + y) - i * 6 + 60) % 36 < 3 && r < 8) k += 2; // destello que barre la cara
+        put(pb, x, y, G[clamp(k, 0, n - 1)]);
+      }
+      K.text(pb, '100', 16 - Math.round(K.measure('100', { font: 'tiny' }) / 2), 13, U('#4a2e0a'), { font: 'tiny', shadow: U('#fff0a0') });
+      for (const ex of [11, 19]) { put(pb, ex, 8, U('#2a1806')); put(pb, ex + 1, 8, U('#2a1806')); put(pb, ex + 2, 9, U('#2a1806')); }
+      for (const s of [-1, 1]) { const lx = 16 + s * 5, st = (i + (s > 0 ? 3 : 0)) % 6 < 3 ? 0 : 1; put(pb, lx, 25, G[2]); put(pb, lx, 26, G[2]); put(pb, lx + s * st, 27, G[1]); put(pb, lx + s * (st + 1), 27, G[1]); }
+    } },
+  };
+  function strip(type) {
+    let s = cache.get(type); if (s) return s;
+    const D = B[type];
+    s = K.strip(D.n, D.w, D.h, (f, i) => { D.draw(f, i); K.rim(f, U(D.rim || '#fff1c8'), 0.4, -1, -1); K.selOut(f, -0.62, 'lrtb', D.hue); });
+    cache.set(type, s); return s;
+  }
+  /** Dibuja el adversario e (Adversary) centrado en (x, y) de pantalla; k = 1 activo → 0 calmado */
+  function draw(g, e, x, y, k) {
+    const s = strip(e.type), D = B[e.type];
+    const vx = Math.cos(e.t * e.speed / e.range + e.phase), flip = e.type === 'socEater' ? vx > 0 : e.type === 'gust' ? vx < 0 : false;
+    const fi = Math.floor(e.t * (e.type === 'dust' ? 12 : 8)), yy = y - (1 - k) * 10;
+    K.drawGlow(g, x, yy, Math.round(D.w * 0.55), D.glow, 0.22 * k);
+    if (k < 1) g.globalAlpha = Math.max(0, k);
+    K.drawStrip(g, s, fi, Math.round(x - D.w / 2), Math.round(yy - D.h / 2), flip);
+    if (k < 1) g.globalAlpha = 1;
+  }
+  return { has: (type) => !!B[type], draw, strip, B };
+})();
+
 /* ===== 18r_pfb_ground.js ===== */
 /* =====================================================================
    18r_pfb_ground.js — Suelo del plano jugable del kit B (niveles 6–10).
@@ -35739,6 +35891,18 @@ const Sim05 = makeSim({
    RA-05 · Cambio de Reserva · Guardián: El Devorador de Reserva
    Segundo giro mayor: Amaya eliminó demandas estacionales del modelo.
    ===================================================================== */
+
+/* FIXLB: los adversarios de los niveles 6–10 (y los mismos tipos en otros niveles) se dibujan con las
+   tiras animadas de FIXLB_ADV (18q_pfb_core.js); el resto sigue con el dibujo base de 30_world.js */
+if (typeof Adversary !== 'undefined' && typeof FIXLB_ADV !== 'undefined') {
+  const FIXLB_baseAdvRender = Adversary.prototype.render;
+  Adversary.prototype.render = function (g, cam) {
+    if (!FIXLB_ADV.has(this.type)) return FIXLB_baseAdvRender.call(this, g, cam);
+    const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy);
+    if (x < -40 || x > W + 40) return;
+    FIXLB_ADV.draw(g, this, x, y, this.calm ? clamp(1 - (this.calmT || 0) / 1.2, 0, 1) : 1);
+  };
+}
 
 const VAULT_RACKS = [360, 440, 520, 600, 680, 760, 1800, 1880, 1960, 2040];
 const ARCS = [{ x: 1000, w: 22 }, { x: 1090, w: 22 }, { x: 1180, w: 22 }];
