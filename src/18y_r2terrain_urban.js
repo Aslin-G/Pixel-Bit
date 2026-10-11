@@ -40,7 +40,7 @@ const R2TERRAIN_Urban = (() => {
   const MOS = ['#a24a2a', '#c8643a', '#f6ead0', '#e8d6b0', '#127a70', '#1aa894', '#2e5a9a', '#3e7ac0', '#f0c040'];
   const MOSS = ['#2e3a14', '#46561c', '#62742a', '#84983a'];
   const IRON = ['#0c0a10', '#1c1a22', '#34323c', '#545260'];
-  const SKY = ['#5aa8d8', '#8cc8ec', '#c4e6f8', '#ffffff'];
+  const SKY = ['#3a6e98', '#5aa0cc', '#8cc8ec', '#e8f8ff'];
 
   /* ---------------- sombreado genérico ---------------- */
   function shade(o) {
@@ -80,7 +80,7 @@ const R2TERRAIN_Urban = (() => {
           continue;
         }
         let t = A[i] * (0.22 + 0.78 * lam * (1 - 0.7 * sh)) - ao - depthK;
-        t += (hash2((o.bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * nA;
+        t += (hash2((o.bx0 + x) >> (o.grain1 ? 0 : 1), y >> 1, sd + 31) - 0.5) * nA;
         if (fl === 2) t = Math.min(t, 0.16);
         const R = mats[M[i]] || mats[0], N1 = R.lit.length - 1;
         const k = clamp(Math.round(t * N1), 1, N1);
@@ -195,7 +195,7 @@ const R2TERRAIN_Urban = (() => {
               const pro = hb * 1.7, R = 2 + (hb > 0.7 ? 1 : 0);
               const ex = Math.min(dl - 1, dr), ey = Math.min(dt - 1, db);
               const e = (ex < R && ey < R) ? R - Math.hypot(R - ex, R - ey) : Math.min(ex, ey);
-              hg = pro - (e < R ? (R - e) * (R - e) / R * 1.3 : 0);
+              hg = pro - (e < R ? (R - e) * (R - e) / R * 1.3 : 0) + (K.vn(x * 0.55, y * 0.55, seed + 49) - 0.5) * 0.7;
               alb = 1 + (hb - 0.5) * 0.2 + (K.vn(x * 0.07, y * 0.09, seed + 52) - 0.5) * 0.12;
               // esquina desportillada y sillar erosionado (picado)
               if (hb < 0.22 && dl < 5 && dt < 4 + (hb * 20 | 0) % 3) hg -= 1.8;
@@ -298,7 +298,7 @@ const R2TERRAIN_Urban = (() => {
               const pw = 22 + (hash1(Math.floor((x + 4150) / 560), seed + 67) * 18 | 0);
               if (Math.abs(pxm) < pw && Math.abs(pym) < 5) {
                 const pq = (pxm * pxm) / (pw * pw) + (pym * pym) / 25 + (K.vn(x * 0.15, y * 0.3, seed + 68) - 0.5) * 0.5;
-                if (pq < 1) { hg = tilt - 2; fix = SK[clamp(Math.floor(1 + (1 - pq) * 1.6 + (K.vn(x * 0.4, 0, 69) > 0.7 ? 1 : 0)), 0, 3)]; if (pym < -3) fix = SK[0]; }
+                if (pq < 1) { hg = tilt - 2; fl = 3; fix = SK[clamp(Math.floor((1 - pq) * 1.5 + (K.vn(x * 0.4, y, 69) > 0.78 ? 1 : 0)), 0, 2)]; if (pym < -3 || pq > 0.8) fix = SK[0]; if (hash2(x, y, 70) < 0.02) fix = SK[3]; }
               }
             }
           }
@@ -308,7 +308,7 @@ const R2TERRAIN_Urban = (() => {
     }
     const R = R2TERRAIN_Rock.ramp17;
     const mats = [R(s.wallRamp || ASHLAR, '#2a0c2e'), R(KERB, '#2a1438'), R(COBW, '#1e0c2a'), R(SANDJ, '#2a0c2e'), R(PILW, '#2a0c2e')];
-    const buf = shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed, dark: [wallH + 16, 100, 0.38], noise: 0.04 });
+    const buf = shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed, dark: [wallH + 16, 100, 0.38], noise: 0.06, grain1: true });
     return { bx0, w, h, buf, LY, wallH, gut };
   }
   function wallPix(s, x, y, gy, world) {
