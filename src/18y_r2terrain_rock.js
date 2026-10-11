@@ -245,7 +245,7 @@ const R2TERRAIN_Rock = (() => {
         let lam = (nx * L0 + ny * L1 + L2) / Math.sqrt(nx * nx + ny * ny + 1); if (lam < 0) lam = 0;
         // sombra arrojada (marcha hacia la luz)
         let sh = 0;
-        for (let k = 2; k <= 24; k += 2) {
+        for (let k = 2; k <= 24; k += 3) {
           const sx = x + Math.round(SDX * k), sy = y + Math.round(SDY * k); if (sx < 0 || sy < 0) break;
           const hs = H[sy * w + sx]; if (hs <= NONE) continue;
           const ex = hs - h0 - SLOPE * k; if (ex > 0) { sh = Math.max(sh, Math.min(1, ex / 1.6)); if (sh >= 1) break; }
