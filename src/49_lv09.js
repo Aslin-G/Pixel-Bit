@@ -102,6 +102,7 @@ LEVELS[9] = {
     for (const [x, k] of [[34, 0], [576, 1], [1290, 2], [1650, 3], [2060, 4]]) M.pot(pb, x, yb(x) + 2, k);
     /* ===== 2. MESA DEL CONSEJO (600–1100) ===== */
     const tb = M.councilTable(pb, 622, yb(850), 456, { chairs: 9, seed: 9 });
+    D.tableYb = yb(850); // pie de la mesa: los consejeros sentados se recortan por su canto trasero (FIXLB_seat)
     for (const [x, y] of tb.cups) D.glows.push({ x, y, r: 3, col: '#bff4ff', a: 0.3, mode: 'steady' });
     /* ===== 3. MURO DE EVIDENCIAS (1096–1230) ===== */
     M.corkboard(pb, 1098, yb(1157), 118, 84);
@@ -152,13 +153,15 @@ LEVELS[9] = {
   setup(sc, p) {
     const S = sc.state;
     Object.assign(S, { mosaicBoard: false, calimaK: 0, criteriaShown: 2 });
-    const ruth = sc.actor('ruth', 'consejal', 700, { facing: 1 });
-    const ledesma = sc.actor('ledesma', 'financia', 940, { facing: -1 });
-    const celia = sc.actor('celia', 'pastora', 760, { facing: 1 });
-    const marea = sc.actor('marea', 'marea', 1000, { facing: -1 });
-    const ivan = sc.actor('ivan', 'operador', 1060, { facing: -1 });
-    const naira = sc.actor('naira', 'naira', 840, { facing: 1 });
-    const dante = sc.actor('dante', 'dante', 890, { facing: -1 });
+    // sesión del consejo: cuatro sentados tras la mesa (sillas 3, 5, 7 y 8), tres de pie escalonados; Ruth preside bajo el estandarte
+    const seatY = (LV9.tableYb || sc.world.groundAt(850) - 16) - 14;
+    const ruth = sc.actor('ruth', 'consejal', 900, { facing: -1 });
+    const ledesma = FIXLB_seat(sc.actor('ledesma', 'financia', 949, { facing: -1, fly: true, y: seatY }));
+    const celia = FIXLB_seat(sc.actor('celia', 'pastora', 751, { facing: 1, fly: true, y: seatY }));
+    const marea = FIXLB_seat(sc.actor('marea', 'marea', 998, { facing: -1, fly: true, y: seatY }));
+    const ivan = sc.actor('ivan', 'operador', 1062, { facing: -1 });
+    const naira = FIXLB_seat(sc.actor('naira', 'naira', 850, { facing: 1, fly: true, y: seatY }));
+    const dante = sc.actor('dante', 'dante', 690, { facing: 1 });
     const limen = sc.actor('limen', 'limen', 1150, { fly: true, y: 214, hidden: true, talkable: false });
     sc.world.add(new Pickup({ kind: 'echo', x: 1840, y: 206, onPick: () => kiruEcho(sc, 'l9a', 'KIRU: "Las 120 familias de Los Médanos tienen nombre. Ahora también están en el modelo."') }));
     sc.world.add(new Pickup({ kind: 'echo', x: 300, y: 180, onPick: () => kiruEcho(sc, 'l9b', 'KIRU: "Primer recuerdo recuperado: la plaza, una cabra, un discurso. Sigo siendo yo."') }));
@@ -186,7 +189,18 @@ LEVELS[9] = {
 };
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
-const LV9 = { glows: [], cones: [], leds: [], holo: [], obsScr: [] };
+const LV9 = { glows: [], cones: [], leds: [], holo: [], obsScr: [], tableYb: 0 };
+/** Consejero sentado tras la mesa: se dibuja recortado por el canto trasero del tablero (solo asoman cabeza y hombros) */
+function FIXLB_seat(a) {
+  a.render = function (g, cam) {
+    if (this.hidden || !LV9.tableYb) return Actor.prototype.render.call(this, g, cam);
+    const cy = Math.round(LV9.tableYb - 54 - cam.oy);
+    g.save(); g.beginPath(); g.rect(-64, -64, W + 128, cy + 64); g.clip();
+    Actor.prototype.render.call(this, g, cam);
+    g.restore();
+  };
+  return a;
+}
 
 /* ---------------- piezas del guion del nivel 09 ---------------- */
 async function councilScene(sc) {

@@ -787,7 +787,7 @@ LEVELS[10] = {
     sc.actor('cobre', 'cobre', 2120, { facing: -1 });
     sc.actor('ledesma', 'financia', 2400, { facing: -1 });
     sc.actor('alma', 'alma', 2620, { facing: 1 });
-    sc.actor('mirageBig', 'mirage', CAL_X.core, { fly: true, y: 150, talkable: false });
+    sc.actor('mirageBig', 'mirage', CAL_X.core, { fly: true, y: 164, talkable: false }); // y 164: la cabeza y el halo caben bajo el borde superior (cam.y = 0)
     sc.actor('eliana', 'eliana', CAL_X.core, { hidden: true, talkable: false });
     const A = (id) => sc.world.find(id);
     A('naira').onTalk = async (s2) => s2.say([['naira', 'determined', 'Cada tarjeta es un subsistema. La cuarta opción es cómo se hablan entre ellos.']]);
@@ -1097,7 +1097,7 @@ async function mosaicTransform(sc) {
     ['narr', null, 'Los mapas perfectos de MIRAGE se fragmentan. No se destruyen: se separan en capas — agua, energía, cultivos, ecosistemas, personas, costos, incertidumbre.'],
   ]);
   const mb = sc.world.find('mirageBig'); if (mb) mb.dead = true;
-  sc.actor('mosaico', 'mosaico', CAL_X.core, { fly: true, y: 150, talkable: false });
+  sc.actor('mosaico', 'mosaico', CAL_X.core, { fly: true, y: 164, talkable: false });
   S.transformed = true; GS.flag('transformedMirage', true); GS.flag('survivedCalima', true);
   Audio2.sfx('unlock'); Audio2.playMusic('ending'); sc.musicOverride = 'ending';
   await sc.say([
