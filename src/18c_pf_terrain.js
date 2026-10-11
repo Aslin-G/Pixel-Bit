@@ -144,7 +144,7 @@ const PFTerrain = (() => {
     const RW = PFK.P32(s.ramp || RAMP.rockWarmR);
     const sea = s._sea && x >= s._sea.x0 && x <= s._sea.x1 ? s._sea.y : null;
     switch (s.face) {
-      case 'cliff': return cliffPix(s, x, y, gy, RW);
+      case 'cliff': return (s.r2 !== false && typeof R2TERRAIN_Rock !== 'undefined') ? R2TERRAIN_Rock.pix(s, x, y, gy, world) : cliffPix(s, x, y, gy, RW);
       case 'rocks': {
         if (d <= 1) return U(d === 0 ? (s.lip || LIP) : (s.lip2 || '#e29441'));
         // bajo la línea de agua solo queda la base del roquedal (cantos cuyo centro está a ≤ 9 px):
@@ -348,7 +348,7 @@ const PFTerrain = (() => {
     // pilotes del muelle (delante del corte submarino)
     for (const s of segs) if (s.face === 'pier' && s._hole) piles(pb, world, s);
     // plantas en repisas del acantilado
-    for (const s of segs) if (s.face === 'cliff' && s.ledgePlants !== false) ledgePlants(pb, world, s);
+    for (const s of segs) if (s.face === 'cliff') { if (s._r2) R2TERRAIN_Rock.post(pb, world, s); else if (s.ledgePlants !== false) ledgePlants(pb, world, s); }
     // labios y retoques de materiales registrados
     for (const s of segs) { if (EXT.post[s.face]) EXT.post[s.face](pb, world, s); if (s.post) s.post(pb, world, s); }
     // plataformas estáticas
