@@ -23027,7 +23027,7 @@ const R2TERRAIN_Rock = (() => {
         const mean = cnt ? (S[yb * SW + xb] - S[ya * SW + xb] - S[yb * SW + xa] + S[ya * SW + xa]) / cnt : h0;
         const ao = Math.min(0.2, Math.max(0, mean - h0) * 0.028);
         const d = y - gyA[x], fl = F[i];
-        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 50) / 170, 0, 0.4);
+        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 60) / 170, 0, 0.34);
         t += (hash2((bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * 0.042;
         if (fl === 1 || fl === 2) t = Math.min(t, fl === 2 ? 0.13 + (d < 8 ? 0.2 : 0) : 0.24);
         else if (fl === 6) t = Math.min(t, 0.1 + lam * 0.12);
@@ -23225,7 +23225,7 @@ const R2TERRAIN_Salt = (() => {
           const pro = (hash1(ti, sd + 14) * 4 + (K.vn(x * 0.018, ti, sd + 15) - 0.5) * 5) * (d < deep ? 1 : 0.6);
           const top = tb, bot = th - 1 - tb;
           hg = pro + (top < 2.5 ? -(2.5 - top) * (2.5 - top) * 0.55 : 0) - (bot < 2 ? (2 - bot) * 1.1 : 0);
-          const band = ((ti % 3) + 3) % 3; alb = 1.06 + (band === 1 ? -0.08 : band === 2 ? 0.05 : 0) - Math.min(0.2, dd / 220);
+          const band = ((ti % 3) + 3) % 3; alb = 1.14 + (band === 1 ? -0.08 : band === 2 ? 0.05 : 0) - Math.min(0.2, dd / 220);
           if (band === 2) fix = 0;
           // lentes de sal en relieve
           const lv = L(x, y);
@@ -23253,7 +23253,7 @@ const R2TERRAIN_Salt = (() => {
     }
     const R = R2TERRAIN_Rock.ramp17;
     const mats = [R(s.ramp || SALT, '#2a1846'), R(MUD, '#120a24'), R(GYPS, '#2a1438'), R(MUD.slice(0, 6), '#0e0a2a')];
-    const buf = R2TERRAIN_Urban.shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed: sd, dark: [70, 120, 0.32], darkHue: '#1a0a2e', noise: 0.05, grain1: true });
+    const buf = R2TERRAIN_Urban.shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed: sd, dark: [80, 140, 0.28], darkHue: '#1a0a2e', noise: 0.05, grain1: true });
     return { bx0, w, h, buf };
   }
   function pix(s, x, y, gy, world) {

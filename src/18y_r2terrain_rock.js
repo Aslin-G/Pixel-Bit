@@ -255,7 +255,7 @@ const R2TERRAIN_Rock = (() => {
         const mean = cnt ? (S[yb * SW + xb] - S[ya * SW + xb] - S[yb * SW + xa] + S[ya * SW + xa]) / cnt : h0;
         const ao = Math.min(0.2, Math.max(0, mean - h0) * 0.028);
         const d = y - gyA[x], fl = F[i];
-        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 50) / 170, 0, 0.4);
+        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 60) / 170, 0, 0.34);
         t += (hash2((bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * 0.042;
         if (fl === 1 || fl === 2) t = Math.min(t, fl === 2 ? 0.13 + (d < 8 ? 0.2 : 0) : 0.24);
         else if (fl === 6) t = Math.min(t, 0.1 + lam * 0.12);

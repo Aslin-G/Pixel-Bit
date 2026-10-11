@@ -81,7 +81,7 @@ const R2TERRAIN_Salt = (() => {
           const pro = (hash1(ti, sd + 14) * 4 + (K.vn(x * 0.018, ti, sd + 15) - 0.5) * 5) * (d < deep ? 1 : 0.6);
           const top = tb, bot = th - 1 - tb;
           hg = pro + (top < 2.5 ? -(2.5 - top) * (2.5 - top) * 0.55 : 0) - (bot < 2 ? (2 - bot) * 1.1 : 0);
-          const band = ((ti % 3) + 3) % 3; alb = 1.06 + (band === 1 ? -0.08 : band === 2 ? 0.05 : 0) - Math.min(0.2, dd / 220);
+          const band = ((ti % 3) + 3) % 3; alb = 1.14 + (band === 1 ? -0.08 : band === 2 ? 0.05 : 0) - Math.min(0.2, dd / 220);
           if (band === 2) fix = 0;
           // lentes de sal en relieve
           const lv = L(x, y);
@@ -109,7 +109,7 @@ const R2TERRAIN_Salt = (() => {
     }
     const R = R2TERRAIN_Rock.ramp17;
     const mats = [R(s.ramp || SALT, '#2a1846'), R(MUD, '#120a24'), R(GYPS, '#2a1438'), R(MUD.slice(0, 6), '#0e0a2a')];
-    const buf = R2TERRAIN_Urban.shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed: sd, dark: [70, 120, 0.32], darkHue: '#1a0a2e', noise: 0.05, grain1: true });
+    const buf = R2TERRAIN_Urban.shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed: sd, dark: [80, 140, 0.28], darkHue: '#1a0a2e', noise: 0.05, grain1: true });
     return { bx0, w, h, buf };
   }
   function pix(s, x, y, gy, world) {
