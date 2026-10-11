@@ -259,8 +259,9 @@ function R2CHARS_pony(R, o, H, tie, pose) {
   // base < 0 → la coleta se estira hacia atrás (carrera, caída) y el abanico se cierra;
   // base > 0 → cae más (despegue, aterrizaje); hp.up rota el abanico hacia arriba (flotar al caer)
   const b = clamp(hp.base, -1, 1);
-  const sp = b < 0 ? 1 + b * 0.75 : 1 + b * 0.15, cf = b < 0 ? 1 + b * 0.7 : 1 + b * 0.55;
-  const off = (hp.up || 0) - (b > 0 ? b * 0.32 : 0);
+  // b > 0: el abanico gira hacia abajo-atrás y se endereza (estela bajo la nuca, no una melena vertical)
+  const sp = b < 0 ? 1 + b * 0.75 : 1 - b * 0.25, cf = b < 0 ? 1 + b * 0.7 : 1 - b * 0.55;
+  const off = (hp.up || 0) - (b > 0 ? b * 0.8 : 0);
   const segs = 6, lines = [];
   R2CHARS_PONY_CLUMPS.forEach(([a0, len, r0, curl, dk], i) => {
     const sl = len * (b < 0 ? 1 - b * 0.1 : 1) / segs;
