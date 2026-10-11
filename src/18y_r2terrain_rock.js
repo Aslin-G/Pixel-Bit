@@ -26,6 +26,8 @@
      field(o) → buf genérico (otros kits): {x0,x1,h,gyAt,ramp,seed,…}
    Se activa por defecto para toda cara 'cliff' (s.r2 === false → antigua).
    ===================================================================== */
+/** Hierba seca (calima, arenisca) para flecos y matas */
+const R2TERRAIN_DRYGRASS = ['#3a2a10', '#5a4418', '#7e6424', '#a08436', '#c0a44c', '#d8c06a', '#ecd88e'];
 const R2TERRAIN_Rock = (() => {
   const K = PFK;
   const LV = (() => { const v = [-0.45, -0.8, 0.4], m = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / m); })();

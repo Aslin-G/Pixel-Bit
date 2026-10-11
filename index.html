@@ -20494,8 +20494,23 @@ const PFBGround = (() => {
     }
     return soilPix(x, dd, s.seed, { wet: true });
   }
+  /** Ronda 2: roca esculpida (R2TERRAIN_Rock.field) para 'sandstone', 'blocks' y el pie de 'concrete' con faceH.
+      s.r2 === false conserva el aparejo antiguo. */
+  function r2Rock(s, world) {
+    if (s.r2 === false || typeof R2TERRAIN_Rock === 'undefined') return null;
+    if (s.face === 'concrete' && !s.faceH) return null;
+    const off = s.face === 'concrete' ? s.faceH : 0, strata = s.face === 'sandstone' && s.strata, sd = s.seed | 0;
+    return R2TERRAIN_Rock.field({
+      x0: s.x0, x1: s.x1, h: world.h, gyAt: (x) => world.ground[clamp(Math.round(x), 0, world.w)] + off,
+      ramp: s.face === 'concrete' ? (s.ramp2 || RAMP.rockWarmR) : (strata ? PFB.R.STONE : (s.ramp || RAMP.rockWarmR)), seed: sd + 11,
+      cMin: strata ? 22 : 14, cMax: strata ? 52 : 34, mMin: strata ? 90 : 64, mMax: strata ? 220 : 170, screeD: 130, caves: !strata,
+      alb: strata ? (x, y, d) => (((d + Math.round((K.vn(x * 0.013, 2.2, sd) - 0.5) * 14)) % 12 + 12) % 12 < 2 ? -0.1 : 0) : null,
+    });
+  }
+  function r2At(s, x, y) { const R = s._r2s; if (!R) return 0; const xi = x - R.bx0; return (xi < 0 || xi >= R.w || y < 0 || y >= R.h) ? 0 : R.buf[y * R.w + xi]; }
   function facePix(s, x, y, gy) {
     const d = y - gy;
+    if (s._r2s && d > 1 && (s.face !== 'concrete' || d >= s.faceH)) { const u = r2At(s, x, y); if (u) return u; }
     switch (s.face) {
       case 'terrace': return terracePix(s, x, d);
       case 'soilcut': {
@@ -20519,6 +20534,7 @@ const PFBGround = (() => {
   function render(world) {
     const def = world.def, wd = world.w, hd = world.h;
     const pb = new PixelBuffer(wd, hd), segs = prep(world);
+    for (const s of segs) if (s.face === 'sandstone' || s.face === 'blocks' || s.face === 'concrete') s._r2s = r2Rock(s, world);
     for (let x = 0; x < wd; x++) {
       const s = segAt(segs, x), gy = world.ground[x];
       const nearB = segs.some(o => o !== s && (Math.abs(x - o.x0) < 10 || Math.abs(x - o.x1) < 10));
@@ -20536,6 +20552,7 @@ const PFBGround = (() => {
       if (gy < gl - 3) for (let y = gy; y < gl + 26; y++) { const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, U('#fff1c8'), 0.25)); }
     }
     for (const s of segs) if (s.face === 'terrace' || s.face === 'soilcut') decorateSoil(pb, world, s);
+    for (const s of segs) if (s._r2s && s.face !== 'concrete') R2TERRAIN_Rock.post(pb, world, Object.assign({}, s, { _r2: s._r2s, ledgePlants: s.ledgePlants ?? (s.strata ? false : undefined), fringeRamp: s.fringeRamp || (s.strata ? R2TERRAIN_DRYGRASS : undefined), tuftRamp: s.tuftRamp || (s.strata ? R2TERRAIN_DRYGRASS : undefined) }));
     for (const p of world.platforms) if (p.baked) platform(pb, world, p);
     if (def.pf && def.pf.decorateFace) def.pf.decorateFace(pb, world, segs);
     return pb.toCanvas();
@@ -22745,6 +22762,8 @@ const PFBM = (() => {
      field(o) → buf genérico (otros kits): {x0,x1,h,gyAt,ramp,seed,…}
    Se activa por defecto para toda cara 'cliff' (s.r2 === false → antigua).
    ===================================================================== */
+/** Hierba seca (calima, arenisca) para flecos y matas */
+const R2TERRAIN_DRYGRASS = ['#3a2a10', '#5a4418', '#7e6424', '#a08436', '#c0a44c', '#d8c06a', '#ecd88e'];
 const R2TERRAIN_Rock = (() => {
   const K = PFK;
   const LV = (() => { const v = [-0.45, -0.8, 0.4], m = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / m); })();
