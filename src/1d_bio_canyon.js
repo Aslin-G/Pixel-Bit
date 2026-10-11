@@ -39,7 +39,7 @@ BIOMES.canyon = function (L) {
   B.cloudDeck({ n: 7, seed: 93, f: [0.03, 0.07], y: [10, 90], w: [60, 130], bias: 0.6, speed: [1.5, 3], sunX: SUN.x, pal: DUSK });
   /* ---------------- borde lejano del cañón (0,05) ---------------- */
   P(0.05, 108, 62, (pb, w, h) => {
-    V.mesas(pb, { yBase: h - 1, seed: 97, k: 0.3, hMin: 14, hMax: 44, ramp: V.hz(CANYON, 0.25, '#c87aa8') });
+    V.mesas3q(pb, { yBase: h - 1, seed: 97, k: 0.3, hMin: 14, hMax: 44, ramp: V.hz(CANYON, 0.25, '#c87aa8') });
     V.rim(pb, U('#ffb8a0'), 0.55, 1, -1);
   }, { tag: 'far' });
   /* ---------------- mar del ocaso (0,08) ---------------- */
@@ -49,9 +49,8 @@ BIOMES.canyon = function (L) {
   B.cloudDeck({ n: 4, seed: 95, f: [0.08, 0.1], y: [70, 118], w: [90, 140], speed: [1, 2], sunX: SUN.x, tall: true, haze: 0.08, hazeCol: '#c88ab0', pal: DUSK });
   /* ---------------- paredes medias azul-violeta con vetas (0,14) ---------------- */
   P(0.14, 70, 150, (pb, w, h) => {
-    V.mesas(pb, { yBase: h - 1, seed: 103, k: 0.1, hMin: 46, hMax: 120, ramp: CANYON });
-    V.rim(pb, U('#ffb8a0'), 0.7, 1, -1);
-    V.saltVeins(pb, { seed: 105, every: 9, col: '#ffe0f0' });
+    V.mesas3q(pb, { yBase: h - 1, seed: 103, k: 0.1, hMin: 46, hMax: 120, ramp: CANYON });
+    V.saltVeins(pb, { seed: 105, every: 13, col: '#ffe0f0' });
     // niebla rosada en el pie de las paredes
     for (let y = h - 26; y < h; y++) { const kk = 0.55 * Math.pow((y - (h - 26)) / 26, 1.4); for (let x = 0; x < w; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], U('#d890b0'), kk); } }
   }, { tag: 'walls' });

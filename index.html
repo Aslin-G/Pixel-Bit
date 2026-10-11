@@ -8710,7 +8710,10 @@ function drawStringLights(g, pts, t, on = true, cols = ['#ffe14d', '#ff9f43', '#
     const c = cols[k % cols.length];
     if (!on) { fpx(g, x, y + 1, '#3a3050'); continue; }
     const tw = 0.7 + 0.3 * Math.sin(t * 3 + k * 1.7);
-    fdither(g, x - 3, y - 2, 7, 7, c, 0.22 * tw);
+    // halo en anillos (núcleo + anillo exterior al 50 %), aditivo y con pulso: sin tramado (STYLE §1/§6)
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * tw;
+    g.drawImage(PFK.glow(3, c, 2, 0.5), Math.round(x) - 4, Math.round(y) - 2);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     frect(g, x - 1, y + 1, 2, 2, c); fpx(g, x - 1, y + 1, '#fffaf0');
   }
 }
@@ -12096,6 +12099,60 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
     }
     return { top, x0 };
   };
+  /**
+   * Paredes del cañón en 3/4 (sustituyen a las losas planas de V.mesas en el Nivel 03): mesetas con cara superior
+   * visible (plano claro de 3–6 px), filo de luz cálida #fbc371 de 1 px, estratos en bandas con desplome y sombra
+   * bajo cada repisa (rampa con desplazamiento de tono), cárcavas verticales con arista iluminada, lado de sombra,
+   * talud de derrubios y contorno sel-out. Sin tramado: todo en bandas.
+   */
+  V.mesas3q = function (pb, o = {}) {
+    const r = RNG(o.seed || 5), k = o.k || 0, R = ramp(o.ramp || V.RAMPS.canyonDusk, k), n = R.length, yB = o.yBase ?? pb.h - 1;
+    const WARM = U(V.hzc(o.warm || '#fbc371', k)), seed = o.seed || 5;
+    const top = new Int16Array(pb.w).fill(yB), id = new Int16Array(pb.w).fill(-1), M = [];
+    for (let x = -40; x < pb.w + 40;) {
+      const w = r.int(50, 170), h = r.int(o.hMin || 14, o.hMax || 40), talus = r.int(10, 22);
+      if (r.chance(0.22)) { x += r.int(20, 60); continue; }
+      const m = { x0: x, x1: x + w, h, tf: clamp(Math.round(h * 0.05) + 2, 3, 6), lh: r.int(5, 8), ph: r.range(0, 9) };
+      M.push(m);
+      for (let xx = x - talus; xx < x + w + talus; xx++) {
+        if (xx < 0 || xx >= pb.w) continue;
+        const edge = xx < x ? (xx - (x - talus)) / talus : xx >= x + w ? 1 - (xx - (x + w)) / talus : 1;
+        const hh = Math.round(h * (edge < 1 ? Math.pow(edge, 1.5) * 0.7 : 1) + (fbm1(xx * 0.08, 2, seed) - 0.5) * 3);
+        if (yB - hh < top[xx]) { top[xx] = yB - hh; id[xx] = edge < 1 ? -2 - (M.length - 1) : M.length - 1; }
+      }
+      x += w + r.int(8, 50);
+    }
+    for (let x = 0; x < pb.w; x++) {
+      const t0 = top[x]; if (t0 >= yB) continue;
+      const mi = id[x], talus = mi < -1, m = M[talus ? -2 - mi : mi];
+      if (!m) continue;
+      const u = clamp((x - m.x0) / Math.max(1, m.x1 - m.x0), 0, 1);
+      const shade = talus ? (x > m.x1 ? -2 : -1) : (u > 0.78 ? -1 : 0) + (u < 0.06 ? 1 : 0);
+      const gul = !talus && PFK.vn(x * 0.21, 0, seed + 3) > 0.7, gulLen = Math.round(m.h * (0.35 + PFK.vn(x * 0.05, 2, seed + 4) * 0.5));
+      const gulEdge = !talus && !gul && PFK.vn((x + 1) * 0.21, 0, seed + 3) > 0.7;
+      const tl = top[Math.max(0, x - 1)], tr = top[Math.min(pb.w - 1, x + 1)];
+      for (let y = t0; y <= yB; y++) {
+        const d = y - t0;
+        let i;
+        if (!talus && d < m.tf) i = d === 0 ? n - 1 : (d < m.tf - 1 ? n - 2 : n - 3);       // cara superior al sol
+        else {
+          const sv = y + Math.round(PFK.vn(x * 0.03, 0, seed + 1) * 4 + m.ph), L = Math.floor(sv / m.lh), ly = sv - L * m.lh;
+          const base = [5, 4, 6, 4, 5, 3, 4, 6][((L % 8) + 8) % 8];
+          i = base + (ly === 0 ? 1 : ly === m.lh - 1 ? -1 : 0) + shade - Math.floor((d / Math.max(1, m.h)) * 2.2);
+          if (talus) i = 3 + shade - Math.floor((y - t0) / 6);
+          if (gul && d >= m.tf && d < gulLen) i -= 2;
+          else if (gulEdge && d >= m.tf && d < gulLen) i += 1;
+        }
+        let c = R[clamp(i, 0, n - 1)];
+        // contorno sel-out: el borde de la silueta se oscurece con la propia rampa (no negro)
+        if (d > 0 && ((tl > y && x > 0) || (tr > y && x < pb.w - 1))) c = R[clamp(i - 2, 1, n - 1)];
+        if (d === 0 && !talus) c = V.mixU(R[n - 1], WARM, 0.6);
+        else if (d === 0) c = V.mixU(R[clamp(5 + shade, 0, n - 1)], WARM, 0.35);
+        V.put(pb, x, y, c);
+      }
+    }
+    return { top };
+  };
   /* ---------------- dinámicos ---------------- */
   V.drawStars = function (g, n, t, seed, o = {}) {
     for (let i = 0; i < n; i++) {
@@ -15027,7 +15084,7 @@ const PFInfra = (() => {
    · PFSigns.post(pb, x, yGround, items): poste de madera con tablones
      en flecha (veta, clavos, texto crema con sombra) como en la referencia.
    · WorldLabels.draw(g, sc): etiquetas científicas en el mundo (relleno
-     navy, borde 1 px del color del sistema + halo, MAYÚSCULAS en negrita,
+     navy, borde 1 px del color del sistema + halo, MAYÚSCULAS de 7 px,
      subtítulo en tipo oración, tallo de 1 px con remache). Dibuja
      sc.def.labels + BIOME_LABELS[sc.def.biome] cada cuadro (texto nítido
      desde lienzos cacheados).
@@ -15128,14 +15185,35 @@ const WorldLabels = (() => {
     alert: { fill: '#2a0610', border: '#ff7a6a', glow: '#8a2030', rim: '#c04a4a', text: '#fff4f0', sub: '#ffd0c8' },
   };
   const cache = new Map();
+  /* Mayúsculas de rótulo 4×7 (trazo de 1 px, contraformas abiertas, tilde en su propia fila): el ancho por letra
+     es el de la antigua negrita diminuta (5 px con el espacio), así que las cajas no crecen en horizontal. Las letras
+     que piden 5 columnas (M, Q, T, V, W, X, Y) y las cifras/símbolos salen de FONTS.main. */
+  const CAPS = {
+    'A': ['.##.', '#..#', '#..#', '####', '#..#', '#..#', '#..#'], 'B': ['###.', '#..#', '#..#', '###.', '#..#', '#..#', '###.'],
+    'C': ['.##.', '#..#', '#...', '#...', '#...', '#..#', '.##.'], 'D': ['###.', '#..#', '#..#', '#..#', '#..#', '#..#', '###.'],
+    'E': ['####', '#...', '#...', '###.', '#...', '#...', '####'], 'F': ['####', '#...', '#...', '###.', '#...', '#...', '#...'],
+    'G': ['.##.', '#..#', '#...', '#.##', '#..#', '#..#', '.###'], 'H': ['#..#', '#..#', '#..#', '####', '#..#', '#..#', '#..#'],
+    'I': ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '###'], 'J': ['..##', '...#', '...#', '...#', '#..#', '#..#', '.##.'],
+    'K': ['#..#', '#..#', '#.#.', '##..', '#.#.', '#..#', '#..#'], 'L': ['#...', '#...', '#...', '#...', '#...', '#...', '####'],
+    'N': ['#..#', '##.#', '##.#', '#.##', '#.##', '#..#', '#..#'], 'O': ['.##.', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.'],
+    'P': ['###.', '#..#', '#..#', '###.', '#...', '#...', '#...'], 'R': ['###.', '#..#', '#..#', '###.', '#.#.', '#..#', '#..#'],
+    'S': ['.##.', '#..#', '#...', '.##.', '...#', '#..#', '.##.'], 'U': ['#..#', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.'],
+    'Z': ['####', '...#', '..#.', '.##.', '.#..', '#...', '####'],
+  };
+  function capsFont() {
+    if (!FONTS.labelCaps) FONTS.labelCaps = new BitmapFont(Object.assign({}, FONT_SRC, CAPS), { cellH: 11, top: 2, lineH: 11, accented: ACCENTED });
+    return 'labelCaps';
+  }
   /** Lienzo de la caja (sin tallo) */
   function box(title, sub, kind) {
     const key = title + '|' + (sub || '') + '|' + kind;
     let c = cache.get(key); if (c) return c;
     if (cache.size > 80) cache.clear();
     const K = KINDS[kind] || KINDS.water;
-    const tw = PFK.measure(title, { font: 'tiny', bold: true }), sw = sub ? PFK.measure(sub, { font: 'main' }) : 0;
-    const w = Math.max(tw, sw) + 10, h = sub ? 21 : 11;
+    // título en mayúsculas limpias de 7 px (sin dilatar: contraformas abiertas, acentos en su fila)
+    const TF = capsFont();
+    const tw = PFK.measure(title, { font: TF }), sw = sub ? PFK.measure(sub, { font: 'main' }) : 0;
+    const w = Math.max(tw, sw) + 10, h = sub ? 23 : 13;
     const pb = new PixelBuffer(w + 2, h + 2);
     const ox = 1, oy = 1;
     // halo exterior 1 px (oscuro del sistema), chaflanes de 1 px
@@ -15152,8 +15230,8 @@ const WorldLabels = (() => {
       else col = (y < 3 ? mixHex(K.fill, K.border, 0.08) : K.fill);
       PFK.put(pb, x + ox, y + oy, U(col));
     }
-    PFK.text(pb, title, ox + Math.round((w - tw) / 2), oy + 3, U(K.text), { font: 'tiny', bold: true });
-    if (sub) PFK.text(pb, sub, ox + Math.round((w - sw) / 2), oy + 11, U(K.sub), { font: 'main' });
+    PFK.text(pb, title, ox + Math.round((w - tw) / 2), oy + 3, U(K.text), { font: TF, shadow: U(mixHex(K.fill, '#000633', 0.6)) });
+    if (sub) PFK.text(pb, sub, ox + Math.round((w - sw) / 2), oy + 13, U(K.sub), { font: 'main' });
     c = { c: pb.toCanvas(), w: w + 2, h: h + 2, K };
     cache.set(key, c); return c;
   }
@@ -15175,15 +15253,15 @@ const WorldLabels = (() => {
     const B = box(L.title, sub, L.kind || 'water');
     return { x: sx - Math.floor(B.w / 2), y: sy - B.h, w: B.w, h: B.h, B, sub };
   }
-  function drawOne(g, L, cam, sc, alpha = 1, dy = 0) {
+  function drawOne(g, L, cam, sc, alpha = 1, dy = 0, dx = 0) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
-    const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy) + dy;
-    if (sx < -120 || sx > W + 120 || sy < -40 || sy > H + 60) return;
+    const sx0 = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy) + dy;
+    if (sx0 < -120 || sx0 > W + 120 || sy < -40 || sy > H + 60) return;
     if (L.when && !L.when(sc)) return;
     const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
     const B = box(L.title, sub, L.kind || 'water');
-    const bx = sx - Math.floor(B.w / 2), by = sy - B.h;
-    // tallo de 1 px hacia el objeto con remache
+    const sx = sx0 + dx, bx = sx - Math.floor(B.w / 2), by = sy - B.h;
+    // tallo de 1 px hacia el objeto con remache (si la caja se desplazó en x, el tallo dobla en codo a la altura del ancla)
     const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
     if (alpha < 1) g.globalAlpha = alpha;
     if (ay > sy) {
@@ -15197,9 +15275,45 @@ const WorldLabels = (() => {
     if (alpha < 1) g.globalAlpha = 1;
   }
   const hit = (a, b, m = 2) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+  /** Segmentos del tallo (vertical + codo) como rectángulos de pantalla para una caja R desplazada (dx, dy) */
+  function stemRects(L, cam, R, dx, dy) {
+    const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+    const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
+    const bx = R.x + dx, sy = R.y + dy + R.h - 1;
+    if (ay <= sy) return [];
+    const stx = clamp(ax, bx + 4, bx + R.w - 3);
+    const out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    if (stx !== ax) out.push({ x: Math.min(stx, ax) - 1, y: ay - 1, w: Math.abs(ax - stx) + 3, h: 3 });
+    return out;
+  }
+  /** Cajas en pantalla de la jugadora, KIRU y los actores visibles (obstáculos blandos: se evitan si se puede) */
+  function actorRects(sc, cam) {
+    const out = [];
+    if (!sc || !sc.world || !sc.world.entities) return out;
+    for (const e of sc.world.entities) {
+      if (e.hidden || e.dead) continue;
+      const isK = (typeof Kiru !== 'undefined' && e instanceof Kiru), isP = (typeof Player !== 'undefined' && e instanceof Player);
+      if (!isK && !isP && !(typeof Actor !== 'undefined' && e instanceof Actor)) continue;
+      const x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y) + (isK ? (e.dropY || 0) : 0);
+      if (x < -40 || x > W + 40) continue;
+      if (isK) out.push({ x: x - 22, y: y - 114, w: 44, h: 62 });
+      else out.push({ x: x - 16, y: y - 74, w: 32, h: 72 });
+    }
+    return out;
+  }
+  // desplazamientos candidatos [dx, dy]: primero en vertical (las lejanas solo suben), luego en horizontal
+  const NEAR_TRY = [[0, 0]], FAR_TRY = [[0, 0]];
+  for (let d = -3; d >= -18; d -= 3) { NEAR_TRY.push([0, d]); FAR_TRY.push([0, d]); }
+  for (let d = 3; d <= 30; d += 3) NEAR_TRY.push([0, d]);
+  for (let k = 8; k <= 80; k += 8) for (const sgn of [1, -1]) {
+    for (const d of [0, -9, 9, 18]) NEAR_TRY.push([k * sgn, d]);
+    if (k <= 40) for (const d of [0, -9]) FAR_TRY.push([k * sgn, d]);
+  }
   /**
    * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
-   * Una etiqueta lejana que choca con otra ya colocada o con el HUD sube hasta 18 px; si aún choca, se omite.
+   * Obstáculos duros: el HUD, las cajas y los tallos ya colocados. Obstáculos blandos: la jugadora, KIRU y los NPC.
+   * Cada etiqueta prueba desplazamientos verticales y luego horizontales (±8..±80 px; ±40 las lejanas) y toma el
+   * primero libre de todo; si no lo hay, el primero libre de obstáculos duros; si tampoco, no se dibuja (nunca bajo el HUD).
    * L.camX = [x0, x1] limita una etiqueta a un tramo de cámara (fundido de 40 px en los bordes).
    * Títulos repetidos en pantalla se dibujan una sola vez.
    */
@@ -15207,6 +15321,9 @@ const WorldLabels = (() => {
     const cam = sc.cam ? { x: sc.cam.ox, y: sc.cam.oy } : { x: 0, y: 0 };
     const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
     const placed = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const soft = actorRects(sc, cam);
+    // rótulos horneados en el mundo que las etiquetas no deben tapar (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo)
+    if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0) soft.push({ x, y, w: r.w, h: r.h }); }
     const seen = new Set();
     for (const L of all) {
       let alpha = 1;
@@ -15219,15 +15336,26 @@ const WorldLabels = (() => {
       const R = rectOf(L, cam, sc); if (!R) continue;
       if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
-      const far = (L.f ?? 1) !== 1;
-      let dy = 0, ok = !placed.some(p => hit(R, p));
-      if (!ok && far) for (dy = -3; dy >= -18; dy -= 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } }
-      if (!ok && far) continue;
-      // las del plano jugable se dibujan siempre (son del guion): si chocan, bajan hacia su objeto
-      if (!ok) { ok = false; for (dy = 3; dy <= 30; dy += 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } } if (!ok) dy = 0; }
-      placed.push({ x: R.x, y: R.y + dy, w: R.w, h: R.h });
+      const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
+      let best = null, fallback = null;
+      // histéresis: se prueba antes el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
+      const tries = L._fixlaOff ? [L._fixlaOff].concat(far ? FAR_TRY : NEAR_TRY) : (far ? FAR_TRY : NEAR_TRY);
+      for (const [dx, dy] of tries) {
+        const R2 = { x: R.x + dx, y: R.y + dy, w: R.w, h: R.h };
+        if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1) continue;
+        if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
+        const st = stemRects(L, cam, R, dx, dy);
+        if (st.some(s => placed.some(p => !p.hud && hit(s, p, 0)))) continue;
+        if (!fallback) fallback = { dx, dy, R2, st };
+        if (!soft.some(a => hit(R2, a, 1))) { best = { dx, dy, R2, st }; break; }
+      }
+      const P_ = best || fallback;
+      if (!P_) { L._fixlaOff = null; continue; }
+      L._fixlaOff = [P_.dx, P_.dy];
+      placed.push(P_.R2);
+      for (const s of P_.st) placed.push(s);
       seen.add(L.title);
-      drawOne(g, L, cam, sc, alpha, dy);
+      drawOne(g, L, cam, sc, alpha, P_.dy, P_.dx);
     }
   }
   function gallery(g) {
@@ -24828,7 +24956,7 @@ BIOMES.canyon = function (L) {
   B.cloudDeck({ n: 7, seed: 93, f: [0.03, 0.07], y: [10, 90], w: [60, 130], bias: 0.6, speed: [1.5, 3], sunX: SUN.x, pal: DUSK });
   /* ---------------- borde lejano del cañón (0,05) ---------------- */
   P(0.05, 108, 62, (pb, w, h) => {
-    V.mesas(pb, { yBase: h - 1, seed: 97, k: 0.3, hMin: 14, hMax: 44, ramp: V.hz(CANYON, 0.25, '#c87aa8') });
+    V.mesas3q(pb, { yBase: h - 1, seed: 97, k: 0.3, hMin: 14, hMax: 44, ramp: V.hz(CANYON, 0.25, '#c87aa8') });
     V.rim(pb, U('#ffb8a0'), 0.55, 1, -1);
   }, { tag: 'far' });
   /* ---------------- mar del ocaso (0,08) ---------------- */
@@ -24838,9 +24966,8 @@ BIOMES.canyon = function (L) {
   B.cloudDeck({ n: 4, seed: 95, f: [0.08, 0.1], y: [70, 118], w: [90, 140], speed: [1, 2], sunX: SUN.x, tall: true, haze: 0.08, hazeCol: '#c88ab0', pal: DUSK });
   /* ---------------- paredes medias azul-violeta con vetas (0,14) ---------------- */
   P(0.14, 70, 150, (pb, w, h) => {
-    V.mesas(pb, { yBase: h - 1, seed: 103, k: 0.1, hMin: 46, hMax: 120, ramp: CANYON });
-    V.rim(pb, U('#ffb8a0'), 0.7, 1, -1);
-    V.saltVeins(pb, { seed: 105, every: 9, col: '#ffe0f0' });
+    V.mesas3q(pb, { yBase: h - 1, seed: 103, k: 0.1, hMin: 46, hMax: 120, ramp: CANYON });
+    V.saltVeins(pb, { seed: 105, every: 13, col: '#ffe0f0' });
     // niebla rosada en el pie de las paredes
     for (let y = h - 26; y < h; y++) { const kk = 0.55 * Math.pow((y - (h - 26)) / 26, 1.4); for (let x = 0; x < w; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], U('#d890b0'), kk); } }
   }, { tag: 'walls' });
@@ -31368,7 +31495,7 @@ LEVELS[0] = {
     { x: 1437, y: 168, title: 'PRIMER AGUA', sub: 'Agua tratada', kind: 'water', ax: 1437, ay: 184 },
     { x: 1570, y: 214, title: 'RIEGO POR GOTEO', sub: (sc) => sc.state.irrig && !sc.state.dark ? 'Activo' : 'Cerrado', kind: 'green', ax: 1570, ay: 250 },
     { x: 1702, y: 196, title: 'ELECTROLIZADOR', sub: 'Agua + energía → H₂ + O₂', kind: 'green', ax: 1700, ay: 230 },
-    { x: 2000, y: 150, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1962, ay: 160 },
+    { x: 2000, y: 175, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1962, ay: 185 },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
@@ -33010,7 +33137,7 @@ LEVELS[2] = {
     { x: 1156, y: 136, title: 'TREN C', sub: 'Membranas OI', kind: 'water', ax: 1156, ay: 150 },
     { x: 1318, y: 184, title: 'AGUA PERMEADA', sub: '(Producto)', kind: 'water', ax: 1318, ay: 196 },
     { x: 1376, y: 224, title: 'CALCITA', sub: 'Remineraliza', kind: 'green', ax: 1372, ay: 234 },
-    { x: 1535, y: 86, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 92 },
+    { x: 1535, y: 140, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 152 },
     { x: 1756, y: 208, title: 'LIMPIEZA CIP', sub: 'Solo si el flujo cae', kind: 'tech', ax: 1752, ay: 222 },
     { x: 2104, y: 196, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
     { x: 2203, y: 176, title: 'DESPACHO', sub: 'Controlador', kind: 'tech', ax: 2203, ay: 192 },
@@ -33022,6 +33149,7 @@ LEVELS[2] = {
     const t0 = nowMs();
     PFTerrain.surface(pb, world);
     const P = PFAPlant, I = PFInfra, A = PFArch, K = PFK, G = 290, fb = G - 12;
+    LEVELS[2].labelAvoid = []; // rótulos de zona horneados (las etiquetas científicas los esquivan)
     const N = LV2_ANCH; N.leds = []; N.lamps = []; N.screens = []; LV2_FLOWS.length = 0;
     const flow = (pts, kind, rate) => LV2_FLOWS.push({ pts, kind, rate });
     const U_ = (c) => U(c);
@@ -33176,8 +33304,11 @@ LEVELS[2] = {
     for (const x of [252, 656, 1268, 1676, 2166]) P.sign(pb, x, 136, 'warn');
     /* ===== conductos, rótulos de zona, bandejas y luminarias colgantes en toda la nave ===== */
     P.duct(pb, 0, 2600, 82, 7, { top: 40, diff: 130 });
-    for (const [x, txt, col] of [[110, 'ZONA 1 · CARTUCHOS', '#7aaad6'], [380, 'ZONA 2 · ALTA PRESIÓN', '#4a8ee2'], [1268, 'ZONA 4 · POSTRATAMIENTO', '#48d4f0'], [1690, 'ZONA 5 · CIP', '#ff9f43'], [1960, 'ZONA 6 · AGUA PRODUCTO', '#48d4f0'], [2260, 'ZONA 7 · DESPACHO', '#f27ee6']]) P.hangSign(pb, x, 132, txt, col, { top: 90 });
-    P.hangSign(pb, 820, 100, 'ZONA 3 · TRENES DE OSMOSIS INVERSA', '#11bedd', { top: 90 });
+    for (const [x, txt, col] of [[110, 'ZONA 1 · CARTUCHOS', '#7aaad6'], [380, 'ZONA 2 · ALTA PRESIÓN', '#4a8ee2'], [1268, 'ZONA 4 · POSTRATAMIENTO', '#48d4f0'], [1690, 'ZONA 5 · CIP', '#ff9f43'], [1960, 'ZONA 6 · AGUA PRODUCTO', '#48d4f0'], [2260, 'ZONA 7 · DESPACHO', '#f27ee6'], [820, 'ZONA 3 · TRENES DE ÓSMOSIS INVERSA', '#11bedd']]) {
+      const y = txt.startsWith('ZONA 3') ? 100 : 146; // bajo la banda del HUD (y de pantalla ≥ 106); la de los trenes va sobre los bastidores
+      P.hangSign(pb, x, y, txt, col, { top: 90 });
+      LEVELS[2].labelAvoid.push({ x, y, w: K.measure(txt, { font: 'tiny' }) + 10, h: 11 });
+    }
     P.tray(pb, 0, 680, 108, 12); P.tray(pb, 1262, 1418, 108, 12); P.tray(pb, 1652, 2160, 108, 12);
     for (const x of [120, 300, 480, 1300, 1760, 1990]) { P.vline(pb, x, 96, 118, U_('#2a282e')); P.rect(pb, x - 7, 118, 15, 3, U_('#4f4d51')); P.hline(pb, x - 6, x + 6, 121, U_('#fff6d8')); N.lamps.push([x, 124, '#fff0c8', 12]); }
     LEVELS[2]._ms = Math.round(nowMs() - t0);
@@ -33842,7 +33973,7 @@ LEVELS[3] = {
   },
   /** Etiquetas científicas en el mundo (la sal se conserva: de la planta a la bahía) */
   labels: [
-    { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 70 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
+    { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 60 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
     { x: 296, y: 248, title: 'CANAL DE SALMUERA', sub: 'Más densa: corre por el fondo', kind: 'brine', ax: 296, ay: 296 },
     { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 540, ay: 226 },
     { x: 1252, y: 186, title: 'CRUCE DE CANALES', sub: (sc) => sc.state.diverted ? '→ contingencia' : '→ costa', kind: 'alert', ax: 1252, ay: 210 },
@@ -34539,9 +34670,10 @@ LEVELS[4] = {
     for (const x of [2370, 2530, 2680]) S.stones(pb, x, gy(x) - 3, 16, x);
     N.pump = S.windPump(pb, 2596, back(2596) + 4, 118);
     // manga de viento: apunta hacia las Torres de Brisa
-    for (let y = gy(2722) - 70; y < gy(2722) - 4; y++) { K.put(pb, 2722, y, U('#d2d6dc')); K.put(pb, 2723, y, U('#6c7280')); }
-    N.sock = [2724, gy(2722) - 68];
-    PFSigns.post(pb, 2744, gy(2744) - 2, [{ text: 'TORRES DE BRISA' }], 47, { font: 'tiny' });
+    for (let y = gy(2668) - 70; y < gy(2668) - 4; y++) { K.put(pb, 2668, y, U('#d2d6dc')); K.put(pb, 2669, y, U('#6c7280')); }
+    N.sock = [2670, gy(2668) - 68];
+    // el letrero cabe entero antes del borde del mundo (x + w ≤ 2790): la cámara se detiene en 2160
+    PFSigns.post(pb, 2700, gy(2700) - 2, [{ text: 'TORRES DE BRISA' }], 47, { font: 'tiny' });
     LEVELS[4]._ms = Math.round(nowMs() - t0);
   },
   propsFront(pb, world) {
@@ -35012,7 +35144,7 @@ LEVELS[5] = {
     { x: 1112, y: 214, title: 'ESTELA', sub: 'Detrás de cada rotor el viento es más lento', kind: 'water', ax: 1100, ay: 150 },
     { x: 1436, y: 168, title: 'GARGANTA', sub: 'Planea con la Vela de Brisa', kind: 'water', ax: 1440, ay: 206 },
     { x: 1810, y: 132, title: 'LIDAR EÓLICO', sub: 'Mide el viento a distancia', kind: 'tech', ax: 1824, ay: 176 },
-    { x: 2420, y: 74, title: 'MÁSTIL AGUAS ARRIBA', sub: (sc) => fmt(sc.state.wind ?? 11, 1) + ' m/s', kind: 'tech', ax: 2420, ay: 92 },
+    { x: 2420, y: 132, title: 'MÁSTIL AGUAS ARRIBA', sub: (sc) => fmt(sc.state.wind ?? 11, 1) + ' m/s', kind: 'tech', ax: 2420, ay: 150 },
     { x: 2496, y: 176, title: 'AVES MARINAS', sub: 'Rutas de vuelo', kind: 'green', ax: 2496, ay: 196 },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */

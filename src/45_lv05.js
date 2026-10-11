@@ -54,7 +54,7 @@ LEVELS[5] = {
     { x: 1112, y: 214, title: 'ESTELA', sub: 'Detrás de cada rotor el viento es más lento', kind: 'water', ax: 1100, ay: 150 },
     { x: 1436, y: 168, title: 'GARGANTA', sub: 'Planea con la Vela de Brisa', kind: 'water', ax: 1440, ay: 206 },
     { x: 1810, y: 132, title: 'LIDAR EÓLICO', sub: 'Mide el viento a distancia', kind: 'tech', ax: 1824, ay: 176 },
-    { x: 2420, y: 74, title: 'MÁSTIL AGUAS ARRIBA', sub: (sc) => fmt(sc.state.wind ?? 11, 1) + ' m/s', kind: 'tech', ax: 2420, ay: 92 },
+    { x: 2420, y: 132, title: 'MÁSTIL AGUAS ARRIBA', sub: (sc) => fmt(sc.state.wind ?? 11, 1) + ' m/s', kind: 'tech', ax: 2420, ay: 150 },
     { x: 2496, y: 176, title: 'AVES MARINAS', sub: 'Rutas de vuelo', kind: 'green', ax: 2496, ay: 196 },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */

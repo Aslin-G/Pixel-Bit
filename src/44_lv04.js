@@ -141,9 +141,10 @@ LEVELS[4] = {
     for (const x of [2370, 2530, 2680]) S.stones(pb, x, gy(x) - 3, 16, x);
     N.pump = S.windPump(pb, 2596, back(2596) + 4, 118);
     // manga de viento: apunta hacia las Torres de Brisa
-    for (let y = gy(2722) - 70; y < gy(2722) - 4; y++) { K.put(pb, 2722, y, U('#d2d6dc')); K.put(pb, 2723, y, U('#6c7280')); }
-    N.sock = [2724, gy(2722) - 68];
-    PFSigns.post(pb, 2744, gy(2744) - 2, [{ text: 'TORRES DE BRISA' }], 47, { font: 'tiny' });
+    for (let y = gy(2668) - 70; y < gy(2668) - 4; y++) { K.put(pb, 2668, y, U('#d2d6dc')); K.put(pb, 2669, y, U('#6c7280')); }
+    N.sock = [2670, gy(2668) - 68];
+    // el letrero cabe entero antes del borde del mundo (x + w ≤ 2790): la cámara se detiene en 2160
+    PFSigns.post(pb, 2700, gy(2700) - 2, [{ text: 'TORRES DE BRISA' }], 47, { font: 'tiny' });
     LEVELS[4]._ms = Math.round(nowMs() - t0);
   },
   propsFront(pb, world) {

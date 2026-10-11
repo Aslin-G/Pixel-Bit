@@ -58,7 +58,7 @@ LEVELS[3] = {
   },
   /** Etiquetas científicas en el mundo (la sal se conserva: de la planta a la bahía) */
   labels: [
-    { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 70 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
+    { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 60 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
     { x: 296, y: 248, title: 'CANAL DE SALMUERA', sub: 'Más densa: corre por el fondo', kind: 'brine', ax: 296, ay: 296 },
     { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 540, ay: 226 },
     { x: 1252, y: 186, title: 'CRUCE DE CANALES', sub: (sc) => sc.state.diverted ? '→ contingencia' : '→ costa', kind: 'alert', ax: 1252, ay: 210 },

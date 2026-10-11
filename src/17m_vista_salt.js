@@ -127,6 +127,60 @@
     }
     return { top, x0 };
   };
+  /**
+   * Paredes del cañón en 3/4 (sustituyen a las losas planas de V.mesas en el Nivel 03): mesetas con cara superior
+   * visible (plano claro de 3–6 px), filo de luz cálida #fbc371 de 1 px, estratos en bandas con desplome y sombra
+   * bajo cada repisa (rampa con desplazamiento de tono), cárcavas verticales con arista iluminada, lado de sombra,
+   * talud de derrubios y contorno sel-out. Sin tramado: todo en bandas.
+   */
+  V.mesas3q = function (pb, o = {}) {
+    const r = RNG(o.seed || 5), k = o.k || 0, R = ramp(o.ramp || V.RAMPS.canyonDusk, k), n = R.length, yB = o.yBase ?? pb.h - 1;
+    const WARM = U(V.hzc(o.warm || '#fbc371', k)), seed = o.seed || 5;
+    const top = new Int16Array(pb.w).fill(yB), id = new Int16Array(pb.w).fill(-1), M = [];
+    for (let x = -40; x < pb.w + 40;) {
+      const w = r.int(50, 170), h = r.int(o.hMin || 14, o.hMax || 40), talus = r.int(10, 22);
+      if (r.chance(0.22)) { x += r.int(20, 60); continue; }
+      const m = { x0: x, x1: x + w, h, tf: clamp(Math.round(h * 0.05) + 2, 3, 6), lh: r.int(5, 8), ph: r.range(0, 9) };
+      M.push(m);
+      for (let xx = x - talus; xx < x + w + talus; xx++) {
+        if (xx < 0 || xx >= pb.w) continue;
+        const edge = xx < x ? (xx - (x - talus)) / talus : xx >= x + w ? 1 - (xx - (x + w)) / talus : 1;
+        const hh = Math.round(h * (edge < 1 ? Math.pow(edge, 1.5) * 0.7 : 1) + (fbm1(xx * 0.08, 2, seed) - 0.5) * 3);
+        if (yB - hh < top[xx]) { top[xx] = yB - hh; id[xx] = edge < 1 ? -2 - (M.length - 1) : M.length - 1; }
+      }
+      x += w + r.int(8, 50);
+    }
+    for (let x = 0; x < pb.w; x++) {
+      const t0 = top[x]; if (t0 >= yB) continue;
+      const mi = id[x], talus = mi < -1, m = M[talus ? -2 - mi : mi];
+      if (!m) continue;
+      const u = clamp((x - m.x0) / Math.max(1, m.x1 - m.x0), 0, 1);
+      const shade = talus ? (x > m.x1 ? -2 : -1) : (u > 0.78 ? -1 : 0) + (u < 0.06 ? 1 : 0);
+      const gul = !talus && PFK.vn(x * 0.21, 0, seed + 3) > 0.7, gulLen = Math.round(m.h * (0.35 + PFK.vn(x * 0.05, 2, seed + 4) * 0.5));
+      const gulEdge = !talus && !gul && PFK.vn((x + 1) * 0.21, 0, seed + 3) > 0.7;
+      const tl = top[Math.max(0, x - 1)], tr = top[Math.min(pb.w - 1, x + 1)];
+      for (let y = t0; y <= yB; y++) {
+        const d = y - t0;
+        let i;
+        if (!talus && d < m.tf) i = d === 0 ? n - 1 : (d < m.tf - 1 ? n - 2 : n - 3);       // cara superior al sol
+        else {
+          const sv = y + Math.round(PFK.vn(x * 0.03, 0, seed + 1) * 4 + m.ph), L = Math.floor(sv / m.lh), ly = sv - L * m.lh;
+          const base = [5, 4, 6, 4, 5, 3, 4, 6][((L % 8) + 8) % 8];
+          i = base + (ly === 0 ? 1 : ly === m.lh - 1 ? -1 : 0) + shade - Math.floor((d / Math.max(1, m.h)) * 2.2);
+          if (talus) i = 3 + shade - Math.floor((y - t0) / 6);
+          if (gul && d >= m.tf && d < gulLen) i -= 2;
+          else if (gulEdge && d >= m.tf && d < gulLen) i += 1;
+        }
+        let c = R[clamp(i, 0, n - 1)];
+        // contorno sel-out: el borde de la silueta se oscurece con la propia rampa (no negro)
+        if (d > 0 && ((tl > y && x > 0) || (tr > y && x < pb.w - 1))) c = R[clamp(i - 2, 1, n - 1)];
+        if (d === 0 && !talus) c = V.mixU(R[n - 1], WARM, 0.6);
+        else if (d === 0) c = V.mixU(R[clamp(5 + shade, 0, n - 1)], WARM, 0.35);
+        V.put(pb, x, y, c);
+      }
+    }
+    return { top };
+  };
   /* ---------------- dinámicos ---------------- */
   V.drawStars = function (g, n, t, seed, o = {}) {
     for (let i = 0; i < n; i++) {

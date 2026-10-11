@@ -3,7 +3,7 @@
    · PFSigns.post(pb, x, yGround, items): poste de madera con tablones
      en flecha (veta, clavos, texto crema con sombra) como en la referencia.
    · WorldLabels.draw(g, sc): etiquetas científicas en el mundo (relleno
-     navy, borde 1 px del color del sistema + halo, MAYÚSCULAS en negrita,
+     navy, borde 1 px del color del sistema + halo, MAYÚSCULAS de 7 px,
      subtítulo en tipo oración, tallo de 1 px con remache). Dibuja
      sc.def.labels + BIOME_LABELS[sc.def.biome] cada cuadro (texto nítido
      desde lienzos cacheados).
@@ -104,14 +104,35 @@ const WorldLabels = (() => {
     alert: { fill: '#2a0610', border: '#ff7a6a', glow: '#8a2030', rim: '#c04a4a', text: '#fff4f0', sub: '#ffd0c8' },
   };
   const cache = new Map();
+  /* Mayúsculas de rótulo 4×7 (trazo de 1 px, contraformas abiertas, tilde en su propia fila): el ancho por letra
+     es el de la antigua negrita diminuta (5 px con el espacio), así que las cajas no crecen en horizontal. Las letras
+     que piden 5 columnas (M, Q, T, V, W, X, Y) y las cifras/símbolos salen de FONTS.main. */
+  const CAPS = {
+    'A': ['.##.', '#..#', '#..#', '####', '#..#', '#..#', '#..#'], 'B': ['###.', '#..#', '#..#', '###.', '#..#', '#..#', '###.'],
+    'C': ['.##.', '#..#', '#...', '#...', '#...', '#..#', '.##.'], 'D': ['###.', '#..#', '#..#', '#..#', '#..#', '#..#', '###.'],
+    'E': ['####', '#...', '#...', '###.', '#...', '#...', '####'], 'F': ['####', '#...', '#...', '###.', '#...', '#...', '#...'],
+    'G': ['.##.', '#..#', '#...', '#.##', '#..#', '#..#', '.###'], 'H': ['#..#', '#..#', '#..#', '####', '#..#', '#..#', '#..#'],
+    'I': ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '###'], 'J': ['..##', '...#', '...#', '...#', '#..#', '#..#', '.##.'],
+    'K': ['#..#', '#..#', '#.#.', '##..', '#.#.', '#..#', '#..#'], 'L': ['#...', '#...', '#...', '#...', '#...', '#...', '####'],
+    'N': ['#..#', '##.#', '##.#', '#.##', '#.##', '#..#', '#..#'], 'O': ['.##.', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.'],
+    'P': ['###.', '#..#', '#..#', '###.', '#...', '#...', '#...'], 'R': ['###.', '#..#', '#..#', '###.', '#.#.', '#..#', '#..#'],
+    'S': ['.##.', '#..#', '#...', '.##.', '...#', '#..#', '.##.'], 'U': ['#..#', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.'],
+    'Z': ['####', '...#', '..#.', '.##.', '.#..', '#...', '####'],
+  };
+  function capsFont() {
+    if (!FONTS.labelCaps) FONTS.labelCaps = new BitmapFont(Object.assign({}, FONT_SRC, CAPS), { cellH: 11, top: 2, lineH: 11, accented: ACCENTED });
+    return 'labelCaps';
+  }
   /** Lienzo de la caja (sin tallo) */
   function box(title, sub, kind) {
     const key = title + '|' + (sub || '') + '|' + kind;
     let c = cache.get(key); if (c) return c;
     if (cache.size > 80) cache.clear();
     const K = KINDS[kind] || KINDS.water;
-    const tw = PFK.measure(title, { font: 'tiny', bold: true }), sw = sub ? PFK.measure(sub, { font: 'main' }) : 0;
-    const w = Math.max(tw, sw) + 10, h = sub ? 21 : 11;
+    // título en mayúsculas limpias de 7 px (sin dilatar: contraformas abiertas, acentos en su fila)
+    const TF = capsFont();
+    const tw = PFK.measure(title, { font: TF }), sw = sub ? PFK.measure(sub, { font: 'main' }) : 0;
+    const w = Math.max(tw, sw) + 10, h = sub ? 23 : 13;
     const pb = new PixelBuffer(w + 2, h + 2);
     const ox = 1, oy = 1;
     // halo exterior 1 px (oscuro del sistema), chaflanes de 1 px
@@ -128,8 +149,8 @@ const WorldLabels = (() => {
       else col = (y < 3 ? mixHex(K.fill, K.border, 0.08) : K.fill);
       PFK.put(pb, x + ox, y + oy, U(col));
     }
-    PFK.text(pb, title, ox + Math.round((w - tw) / 2), oy + 3, U(K.text), { font: 'tiny', bold: true });
-    if (sub) PFK.text(pb, sub, ox + Math.round((w - sw) / 2), oy + 11, U(K.sub), { font: 'main' });
+    PFK.text(pb, title, ox + Math.round((w - tw) / 2), oy + 3, U(K.text), { font: TF, shadow: U(mixHex(K.fill, '#000633', 0.6)) });
+    if (sub) PFK.text(pb, sub, ox + Math.round((w - sw) / 2), oy + 13, U(K.sub), { font: 'main' });
     c = { c: pb.toCanvas(), w: w + 2, h: h + 2, K };
     cache.set(key, c); return c;
   }
@@ -151,15 +172,15 @@ const WorldLabels = (() => {
     const B = box(L.title, sub, L.kind || 'water');
     return { x: sx - Math.floor(B.w / 2), y: sy - B.h, w: B.w, h: B.h, B, sub };
   }
-  function drawOne(g, L, cam, sc, alpha = 1, dy = 0) {
+  function drawOne(g, L, cam, sc, alpha = 1, dy = 0, dx = 0) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
-    const sx = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy) + dy;
-    if (sx < -120 || sx > W + 120 || sy < -40 || sy > H + 60) return;
+    const sx0 = Math.round(L.x - cam.x * f), sy = Math.round(L.y - cam.y * fy) + dy;
+    if (sx0 < -120 || sx0 > W + 120 || sy < -40 || sy > H + 60) return;
     if (L.when && !L.when(sc)) return;
     const sub = typeof L.sub === 'function' ? L.sub(sc) : L.sub;
     const B = box(L.title, sub, L.kind || 'water');
-    const bx = sx - Math.floor(B.w / 2), by = sy - B.h;
-    // tallo de 1 px hacia el objeto con remache
+    const sx = sx0 + dx, bx = sx - Math.floor(B.w / 2), by = sy - B.h;
+    // tallo de 1 px hacia el objeto con remache (si la caja se desplazó en x, el tallo dobla en codo a la altura del ancla)
     const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
     if (alpha < 1) g.globalAlpha = alpha;
     if (ay > sy) {
@@ -173,9 +194,45 @@ const WorldLabels = (() => {
     if (alpha < 1) g.globalAlpha = 1;
   }
   const hit = (a, b, m = 2) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+  /** Segmentos del tallo (vertical + codo) como rectángulos de pantalla para una caja R desplazada (dx, dy) */
+  function stemRects(L, cam, R, dx, dy) {
+    const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+    const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
+    const bx = R.x + dx, sy = R.y + dy + R.h - 1;
+    if (ay <= sy) return [];
+    const stx = clamp(ax, bx + 4, bx + R.w - 3);
+    const out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    if (stx !== ax) out.push({ x: Math.min(stx, ax) - 1, y: ay - 1, w: Math.abs(ax - stx) + 3, h: 3 });
+    return out;
+  }
+  /** Cajas en pantalla de la jugadora, KIRU y los actores visibles (obstáculos blandos: se evitan si se puede) */
+  function actorRects(sc, cam) {
+    const out = [];
+    if (!sc || !sc.world || !sc.world.entities) return out;
+    for (const e of sc.world.entities) {
+      if (e.hidden || e.dead) continue;
+      const isK = (typeof Kiru !== 'undefined' && e instanceof Kiru), isP = (typeof Player !== 'undefined' && e instanceof Player);
+      if (!isK && !isP && !(typeof Actor !== 'undefined' && e instanceof Actor)) continue;
+      const x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y) + (isK ? (e.dropY || 0) : 0);
+      if (x < -40 || x > W + 40) continue;
+      if (isK) out.push({ x: x - 22, y: y - 114, w: 44, h: 62 });
+      else out.push({ x: x - 16, y: y - 74, w: 32, h: 72 });
+    }
+    return out;
+  }
+  // desplazamientos candidatos [dx, dy]: primero en vertical (las lejanas solo suben), luego en horizontal
+  const NEAR_TRY = [[0, 0]], FAR_TRY = [[0, 0]];
+  for (let d = -3; d >= -18; d -= 3) { NEAR_TRY.push([0, d]); FAR_TRY.push([0, d]); }
+  for (let d = 3; d <= 30; d += 3) NEAR_TRY.push([0, d]);
+  for (let k = 8; k <= 80; k += 8) for (const sgn of [1, -1]) {
+    for (const d of [0, -9, 9, 18]) NEAR_TRY.push([k * sgn, d]);
+    if (k <= 40) for (const d of [0, -9]) FAR_TRY.push([k * sgn, d]);
+  }
   /**
    * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
-   * Una etiqueta lejana que choca con otra ya colocada o con el HUD sube hasta 18 px; si aún choca, se omite.
+   * Obstáculos duros: el HUD, las cajas y los tallos ya colocados. Obstáculos blandos: la jugadora, KIRU y los NPC.
+   * Cada etiqueta prueba desplazamientos verticales y luego horizontales (±8..±80 px; ±40 las lejanas) y toma el
+   * primero libre de todo; si no lo hay, el primero libre de obstáculos duros; si tampoco, no se dibuja (nunca bajo el HUD).
    * L.camX = [x0, x1] limita una etiqueta a un tramo de cámara (fundido de 40 px en los bordes).
    * Títulos repetidos en pantalla se dibujan una sola vez.
    */
@@ -183,6 +240,9 @@ const WorldLabels = (() => {
     const cam = sc.cam ? { x: sc.cam.ox, y: sc.cam.oy } : { x: 0, y: 0 };
     const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
     const placed = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const soft = actorRects(sc, cam);
+    // rótulos horneados en el mundo que las etiquetas no deben tapar (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo)
+    if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0) soft.push({ x, y, w: r.w, h: r.h }); }
     const seen = new Set();
     for (const L of all) {
       let alpha = 1;
@@ -195,15 +255,26 @@ const WorldLabels = (() => {
       const R = rectOf(L, cam, sc); if (!R) continue;
       if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
-      const far = (L.f ?? 1) !== 1;
-      let dy = 0, ok = !placed.some(p => hit(R, p));
-      if (!ok && far) for (dy = -3; dy >= -18; dy -= 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } }
-      if (!ok && far) continue;
-      // las del plano jugable se dibujan siempre (son del guion): si chocan, bajan hacia su objeto
-      if (!ok) { ok = false; for (dy = 3; dy <= 30; dy += 3) { const R2 = Object.assign({}, R, { y: R.y + dy }); if (!placed.some(p => hit(R2, p))) { ok = true; break; } } if (!ok) dy = 0; }
-      placed.push({ x: R.x, y: R.y + dy, w: R.w, h: R.h });
+      const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
+      let best = null, fallback = null;
+      // histéresis: se prueba antes el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
+      const tries = L._fixlaOff ? [L._fixlaOff].concat(far ? FAR_TRY : NEAR_TRY) : (far ? FAR_TRY : NEAR_TRY);
+      for (const [dx, dy] of tries) {
+        const R2 = { x: R.x + dx, y: R.y + dy, w: R.w, h: R.h };
+        if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1) continue;
+        if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
+        const st = stemRects(L, cam, R, dx, dy);
+        if (st.some(s => placed.some(p => !p.hud && hit(s, p, 0)))) continue;
+        if (!fallback) fallback = { dx, dy, R2, st };
+        if (!soft.some(a => hit(R2, a, 1))) { best = { dx, dy, R2, st }; break; }
+      }
+      const P_ = best || fallback;
+      if (!P_) { L._fixlaOff = null; continue; }
+      L._fixlaOff = [P_.dx, P_.dy];
+      placed.push(P_.R2);
+      for (const s of P_.st) placed.push(s);
       seen.add(L.title);
-      drawOne(g, L, cam, sc, alpha, dy);
+      drawOne(g, L, cam, sc, alpha, P_.dy, P_.dx);
     }
   }
   function gallery(g) {
