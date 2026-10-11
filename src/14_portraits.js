@@ -307,8 +307,8 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
 /* ---------- Ojos del busto (48): plantillas a mano por forma; fila 0 = cy − 2 ---------- */
 const PEYE_MINI = {
   near: {
-    open: ['KKKKKK', '.whDDK', '.wDDD.', '.wDPD.', '.wMMD.', '..LL..'],
-    look: ['KKKKKK', '.wwhDK', '.wwDD.', '.wwDD.', '.wwML.', '......'],
+    open: ['..KKK.', 'KKKKKK', '.whhDD', '.wDPPD', '.wDPPD', '.wMLLD', '..ss..'],
+    look: ['.KKKK.', 'KKKKKK', '.wwhhD', '.wwDPD', '.wwDPD', '.wwMLD', '..ss..'],
     half: ['......', 'KKKKKK', '.whDD.', '.wDPD.', '.wMMD.', '..LL..'],
     soft: ['......', '......', 'KKKKK.', '.wMMD.', '..ss..', '......'],
     tired: ['......', '......', '......', 'KKKKKK', '.wMMD.', '.ssss.'],
@@ -323,8 +323,8 @@ const PEYE_MINI = {
     blink: ['......', '......', '......', '......', 'KKKKKK', '..ss..'],
   },
   far: {
-    open: ['KKKKK', 'whDDK', 'wDDD.', 'wDPD.', 'wMMD.', '.LL..'],
-    look: ['KKKKK', 'wwhDK', 'wwDD.', 'wwDD.', 'wwML.', '.....'],
+    open: ['KKKK.', 'KKKKK', 'whhD.', 'wDPD.', 'wDPD.', 'wMLD.', '.ss..'],
+    look: ['KKKK.', 'KKKKK', 'wwhh.', 'wwDP.', 'wwDP.', 'wwML.', '.ss..'],
     half: ['.....', 'KKKKK', 'whDD.', 'wDPD.', 'wMMD.', '.LL..'],
     soft: ['.....', '.....', 'KKKK.', 'wMMD.', '.ss..', '.....'],
     tired: ['.....', '.....', '.....', 'KKKKK', 'wMMD.', 'ssss.'],
@@ -534,7 +534,8 @@ PDEFS.amaya = () => {
     tie: PK.mat(C.tieAm, '#2a1404', C.tieAm[1]),
   };
   return {
-    M, iris: { R: '#0c0201', D: '#1a0603', P: '#060100', M: '#33120a', L: '#5e2c16', l: '#9a5a32' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
+    // r2-chars: iris castaño legible (pupila oscura, iris que aclara hacia abajo con ámbar)
+    M, iris: { R: '#140402', D: '#3e160a', P: '#0e0301', M: '#6e2e12', L: '#a85e2a', l: '#e09a52' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
     lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff7a6a', blushAlways: 0.5, rimColor: '#ffc89a', rimK: 0.16,
     build(P, A) {
       // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
@@ -640,9 +641,13 @@ PDEFS.amaya = () => {
 const PSCALE = {
   P: { w: 96, h: 96, S: 1, ox: 0, oy: 0 },
   B: { w: 48, h: 46, S: 0.5, ox: 0, oy: 2 },
+  // r2-chars: busto humano del HUD re-encuadrado sobre la cara 3/4 (como el retrato del HUD de la referencia)
+  BH: { w: 48, h: 46, S: 0.535, ox: 7, oy: 5 },
 };
+/** Escala efectiva: los humanos usan el encuadre cercano BH para el busto */
+function R2CHARS_pscale(def, scale) { return scale === 'B' && !def.custom && !def.faceFn ? PSCALE.BH : PSCALE[scale]; }
 function buildPortraitBase(id, scale) {
-  const def = pdef(id), sc = PSCALE[scale];
+  const def = pdef(id), sc = R2CHARS_pscale(def, scale);
   const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
   const A = phHead(def);
   def.build && def.build(P, A);
@@ -773,7 +778,7 @@ const Portraits = {
   },
   /** Centro de la cara en el lienzo (c.faceX, c.faceY): para recortes 1:1 en la interfaz */
   anchor(c, id, scale) {
-    const def = pdef(PDEFS[id] ? id : 'amaya'), sc = PSCALE[scale];
+    const def = pdef(PDEFS[id] ? id : 'amaya'), sc = R2CHARS_pscale(def, scale);
     const f = def.faceAt || [66 + (def.turn ?? R2CHARS_TURN) * 0.8, 52];
     c.faceX = Math.round((f[0] - sc.ox) * sc.S); c.faceY = Math.round((f[1] - sc.oy) * sc.S);
     return c;
