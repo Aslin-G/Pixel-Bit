@@ -34,12 +34,16 @@ function buildCalima(L) {
   // cielo de tormenta (bandas óxido → ocre, sol pálido difuso) y cielo despejado para el final
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, { horizonY: HZ, stops: D.sky, haze: ['#f2b860', '#f6c470', '#f8cc7c', '#fad488'], bands: 24, curve: 0.9 });
-    // sol velado: disco pálido sin rayos y corona ocre en anillos
-    for (let y = SUN.y - 30; y <= SUN.y + 30; y++) for (let x = SUN.x - 30; x <= SUN.x + 30; x++) {
-      const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 1.4;
-      if (d <= SUN.r) V.put(pb, x, y, U(d > SUN.r - 1 ? '#f6dcae' : '#fbecc8'));
-      else if (d < 30) V.put(pb, x, y, V.mixU(V.get(pb, x, y), U('#f0c890'), [0.5, 0.36, 0.24, 0.14, 0.07][Math.min(4, Math.floor((d - SUN.r) / 4.2))]));
+    // sol velado por el polvo: disco apagado y difuso (sin borde nítido) y corona ocre ancha en anillos
+    for (let y = SUN.y - 40; y <= SUN.y + 40; y++) for (let x = SUN.x - 40; x <= SUN.x + 40; x++) {
+      const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2((x / 3) | 0, (y / 2) | 0, 3) - 0.5) * 2.2;
+      const c0 = V.get(pb, x, y);
+      if (d <= SUN.r - 3) V.put(pb, x, y, V.mixU(c0, U('#f8dcaa'), 0.62));
+      else if (d <= SUN.r + 1) V.put(pb, x, y, V.mixU(c0, U('#f2c88e'), 0.46));
+      else if (d < 40) V.put(pb, x, y, V.mixU(c0, U('#e8b070'), [0.34, 0.26, 0.19, 0.13, 0.08, 0.04][Math.min(5, Math.floor((d - SUN.r - 1) / 5))]));
     }
+    // color medio de cada fila del cielo (para que los velos lejanos se fundan con él)
+    FIXLB_CAL.skyRows = []; for (let y = 0; y < pb.h; y++) { let r = 0, g2 = 0, b = 0; for (let x = 8; x < 200; x += 8) { const u = pb.data[y * pb.w + x]; r += u & 255; g2 += (u >>> 8) & 255; b += (u >>> 16) & 255; } FIXLB_CAL.skyRows.push([r / 24, g2 / 24, b / 24]); }
     return pb.toCanvas();
   });
   B.skyClear = V.timed('skyClear', () => V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas());
@@ -56,7 +60,10 @@ function buildCalima(L) {
     // brasas de MIRAGE dentro del muro (se apagan cuando se transforma en MOSAICO)
     if (!S.transformed && S.storm > 0.4) { const p = 0.35 + 0.25 * Math.sin(T() * 1.3); for (const [ex, ey] of eyes) { V.drawGlow(g, ex + ox, ey + y, 6, '#ff8a3a', p * S.storm); g.fillStyle = '#ffd8a0'; g.globalAlpha = p * S.storm; g.fillRect(ex + ox - 1, ey + y, 3, 1); g.globalAlpha = 1; } }
   }, { tag: 'wall' });
-  B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], pal: D.pal, sunX: SUN.x, haze: 0.12, hazeCol: '#c46a34' });
+  // nubes de polvo → cúmulos blancos al despejar (misma semilla: mismas formas y posiciones, fundido cruzado)
+  const dustDeck = B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], pal: D.pal, sunX: SUN.x, haze: 0.12, hazeCol: '#c46a34' });
+  const clearDeck = B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], sunX: SUN.x, haze: 0.06, hazeCol: '#f2e2d0' });
+  FIXLB_fadeDeck(B, dustDeck, () => 1 - st().clear); FIXLB_fadeDeck(B, clearDeck, () => st().clear);
   /* ---------------- cordillera disuelta (0,05) ---------------- */
   B.vplane(0.05, at(0.05, HZ - 56), 58, (pb, w, h) => {
     const r = RNG(1021), peaks = [];
@@ -79,6 +86,8 @@ function buildCalima(L) {
     V.drawVeil(g, veils[i], y + Math.round(S.clear * 30), cam.x * f + T() * sp * (0.6 + S.gust), a);
   }, { tag: 'veil' + i });
   veilLayer(0, 0.05, HZ - 44, 14, 0.9);
+  // cortina de polvo: con la tormenta plena la cordillera se disuelve en el cielo (visibilidad 200 m)
+  FIXLB_curtain(B, 0.05, at(0.05, HZ - 62), 70, 0.62, 0.92, st, 0.3);
   /* ---------------- ARIDIA en el cabo con luces de emergencia (0,09) ---------------- */
   const ariFx = { beacons: [], lights: [] };
   B.vplane(0.09, at(0.09, HZ - 70), 82, (pb, w, h) => {
@@ -102,6 +111,7 @@ function buildCalima(L) {
     },
   });
   veilLayer(1, 0.1, HZ - 40, 22, 0.85);
+  FIXLB_curtain(B, 0.09, at(0.09, HZ - 76), 92, 0.5, 0.8, st, 0.35);
   /* ---------------- SYNARA bajo el polvo (0,18) ---------------- */
   const synFx = { turb: [], beacons: [], glows: [] };
   B.vplane(0.18, at(0.18, 96), 140, (pb, w, h) => {
@@ -142,6 +152,7 @@ function buildCalima(L) {
     },
   });
   veilLayer(2, 0.2, 112, 34, 0.75);
+  FIXLB_curtain(B, 0.18, at(0.18, 92), 120, 0.3, 0.55, st, 0.4);
   /* ---------------- pueblo con persianas cerradas (0,32) ---------------- */
   const townFx = { lights: [], beacons: [], crests: [], lit: [] };
   B.vplane(0.32, at(0.32, 132), 156, (pb, w, h) => {
@@ -182,3 +193,39 @@ function buildCalima(L) {
 }
 
 BIOME_LABELS.calima = BIOME_LABELS.calima || [];
+
+/* FIXLB: cortinas de polvo que funden los planos lejanos con el cielo de tormenta.
+   Lienzo W×h con alfa en 6 bandas (borde de banda en clusters 3×2, sin tramado) y color de cada
+   fila tomado del cielo; se dibuja con alfa ∝ intensidad de la tormenta (0 al despejar). */
+const FIXLB_CAL = { skyRows: null, cache: new Map() };
+function FIXLB_curtainCanvas(y0, h, a0, a1) {
+  const key = y0 + '|' + h + '|' + a0 + '|' + a1; let c = FIXLB_CAL.cache.get(key); if (c) return c;
+  const pb = new PixelBuffer(W, h), rows = FIXLB_CAL.skyRows || [], nb = 6;
+  for (let y = 0; y < h; y++) {
+    const sy = clamp(Math.round(y0 + y), 0, Math.max(0, rows.length - 1)), rc = rows[sy] || [226, 140, 70];
+    const col = ((Math.round(Math.min(255, rc[2] * 1.04)) << 16) | (Math.round(Math.min(255, rc[1] * 1.04)) << 8) | Math.round(Math.min(255, rc[0] * 1.03))) >>> 0;
+    const v = y / Math.max(1, h - 1), top = Math.min(1, v * 4);
+    for (let x = 0; x < W; x++) {
+      const f = clamp((a0 + (a1 - a0) * v) * top + (hash2((x / 3) | 0, (y / 2) | 0, 77) - 0.5) / nb * 0.9, 0, 1);
+      const lv = Math.round(f * nb); if (!lv) continue;
+      pb.data[y * W + x] = ((Math.round(lv / nb * 255) << 24) | col) >>> 0;
+    }
+  }
+  c = pb.toCanvas(); FIXLB_CAL.cache.set(key, c); return c;
+}
+/** Atenúa una cubierta de nubes con k() (0..1); por debajo de 0,02 solo avanza las nubes (siguen sincronizadas) */
+function FIXLB_fadeDeck(B, deck, k) {
+  const f = deck.L.dyn;
+  deck.L.dyn = (g, cam, L) => {
+    const a = clamp(k(), 0, 1);
+    if (a < 0.02) { const wind = 0.6 + (B.weather.wind || 0) * 0.8; for (const c of deck.clouds) { c.x += c.speed * Game.dt * wind; if (c.x > c.span) c.x -= c.span + c.w; } return; }
+    const ga = g.globalAlpha; g.globalAlpha = ga * a; f(g, cam, L); g.globalAlpha = ga;
+  };
+}
+function FIXLB_curtain(B, f, y, h, a0, a1, st, from) {
+  B.vdyn(f, (g, cam) => {
+    const S = st(), a = clamp((S.storm - from) / (1 - from), 0, 1); if (a <= 0.02) return;
+    const yy = y - Math.round(cam.y * f * 0.3);
+    g.globalAlpha = a; g.drawImage(FIXLB_curtainCanvas(y, h, a0, a1), 0, yy); g.globalAlpha = 1;
+  }, { tag: 'fixlbCurtain' });
+}

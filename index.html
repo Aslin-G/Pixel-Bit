@@ -18804,16 +18804,33 @@ const PFB = (() => {
     x = Math.round(x); y = Math.round(y);
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const u = typeof fn === 'function' ? fn(xx, yy, (xx - x) / Math.max(1, w - 1), (yy - y) / Math.max(1, h - 1)) : fn; if (u) K.put(pb, xx, yy, u); }
   }
+  /** Sombra que respeta el material: sobre superficies cálidas (arena, arenisca, adobe) un tono
+      frío lejano haría girar el matiz por rojo/magenta y ganar croma (#ea5c39 sobre arena).
+      Ahí se oscurece por multiplicación con un tinte pardo-violáceo (menos croma, matiz estable);
+      en superficies frías se mantiene el desplazamiento de matiz hacia hue. Cacheado. */
+  const _shS = new Map();
+  function shS(u, amt, hue = 235) {
+    const key = u + '|' + amt + '|' + hue; let v = _shS.get(key); if (v !== undefined) return v;
+    const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, a = u >>> 24;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0;
+    let h = 0; if (mx !== mn) { h = mx === r ? ((g - b) / (mx - mn)) % 6 : mx === g ? (b - r) / (mx - mn) + 2 : (r - g) / (mx - mn) + 4; h = (h * 60 + 360) % 360; }
+    const warm = (h < 80 || h > 330) && sat > 0.12, far = hue !== null && Math.abs(((hue - h + 540) % 360) - 180) > 90;
+    if (amt < 0 && warm && far) {
+      const k = -amt, f = (c, m) => clamp(Math.round(c * (1 - k * m)), 0, 255);
+      v = ((a << 24) | (f(b, 1.0) << 16) | (f(g, 1.1) << 8) | f(r, 0.9)) >>> 0;
+    } else v = K.shU(u, amt, hue);
+    _shS.set(key, v); return v;
+  }
   /** Oscurece píxeles opacos en un rect (sombra pintada, sin tramado) */
   function shade(pb, x, y, w, h, amt = -0.25, hue = 235) {
     x = Math.round(x); y = Math.round(y);
-    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, amt, hue)); }
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, shS(c, amt, hue)); }
   }
   /** Sombra de contacto elíptica bajo un objeto (2 anillos) */
   function contact(pb, cx, y, rx, ry = 2, amt = -0.3) {
     for (let yy = Math.floor(y - ry); yy <= Math.ceil(y + ry); yy++) for (let xx = Math.floor(cx - rx); xx <= Math.ceil(cx + rx); xx++) {
       const nx = (xx - cx) / rx, ny = (yy - y) / (ry + 0.01), d = nx * nx + ny * ny; if (d > 1) continue;
-      const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, d < 0.45 ? amt : amt * 0.55, 235));
+      const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, shS(c, d < 0.45 ? amt : amt * 0.55, 235));
     }
   }
   /** Sombra proyectada hacia atrás-derecha (luz arriba-izquierda) sobre el suelo ya pintado.
@@ -18823,7 +18840,7 @@ const PFB = (() => {
     for (let s = 0; s <= len; s++) {
       const yy = Math.round(y - s * up); if (yy < yMin) break;
       const a = s > len * 0.7 ? amt * 0.55 : amt;
-      for (let xx = Math.round(x0 + s); xx <= Math.round(x1 + s); xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, a, hue)); }
+      for (let xx = Math.round(x0 + s); xx <= Math.round(x1 + s); xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, shS(c, a, hue)); }
     }
   }
   /* ---------- arquitectura a escala de personaje ---------- */
@@ -19004,7 +19021,7 @@ const PFB = (() => {
     }
     return out;
   }
-  return { R, P, LIGHT, sprite, finish, chunkFlow, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
+  return { R, P, LIGHT, sprite, finish, chunkFlow, stamp, rect, shS, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
 })();
 
 /* ---------- extensiones compatibles de los kits PF ---------- */
@@ -19073,6 +19090,158 @@ const PFB = (() => {
       g.drawImage(c, x - 9, y0 - 2);
     };
   }
+})();
+
+/* =====================================================================
+   FIXLB_ADV — adversarios conceptuales de los niveles 6–10 como criaturas
+   legibles (antes: disco de 5 px con píxeles orbitando). Tiras animadas
+   precalculadas (6–8 cuadros, 30–36 px de ancho, 26–44 de alto) con rampas
+   desplazadas de tono, luz de borde arriba-izquierda y contorno selectivo;
+   en juego: 1 halo aditivo + 1 drawImage por adversario. Lo instala
+   Adversary.prototype.render en 46_lv06.js (la clase se define en 30_world.js).
+   ===================================================================== */
+const FIXLB_ADV = (() => {
+  const K = PFK, cache = new Map();
+  const R = {
+    dust: ['#2a0e06', '#4a1c0c', '#6a2a14', '#8e4220', '#a85024', '#c8742e', '#e2a052', '#f4c27a', '#ffe0b0'],
+    gust: ['#1e2840', '#2a3656', '#3a4a6e', '#5a6e94', '#8396ba', '#a8bcd8', '#cbdaea', '#eef4fb'],
+    soc: ['#0c0824', '#1a1240', '#2c1e6a', '#40289a', '#5a38b8', '#7a5ad0', '#a08ae6', '#cfc2f6'],
+    lime: ['#3a5a10', '#6a9a20', '#b6f05a', '#e6ffc0'],
+    ghost: ['#10262a', '#1a3a3a', '#28544c', '#3c7262', '#56907a', '#78ae96', '#a6ceb8', '#dcf0e4'],
+    leaf: ['#1e5a12', '#3a9a1c', '#6cd030', '#a2ec4a', '#d2fa8a', '#f2ffd0'],
+    salt: ['#2a0a2e', '#4a1250', '#621a66', '#8e2a7e', '#bc3e92', '#e06aac', '#f888b8', '#ffc4dc', '#fff0f6'],
+    gold: ['#2a1806', '#4a2e0a', '#6a420e', '#9a6414', '#c8861a', '#e0a830', '#ffd84a', '#fff0a0', '#fffbe6'],
+    ribbon: ['#4e0e12', '#7a1a1c', '#a82a26', '#d04434', '#ec6a4a'],
+  };
+  const P = (k) => K.P32(R[k]);
+  const put = (pb, x, y, u) => K.put(pb, Math.round(x), Math.round(y), u);
+  const eye = (pb, x, y, white = '#ffffff', pupil = '#140d26') => { for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(pb, x + dx, y + dy, U(pupil)); put(pb, x, y, U(white)); };
+  const B = {
+    /** Remolino de polvo: embudo en espiral con bandas ocres, nube en la boca, guijarros y brasas por ojos */
+    dust: { n: 8, w: 32, h: 44, glow: '#ff8a3a', hue: 18, draw(pb, i) {
+      const C = P('dust'), n = C.length, ph = i / 8 * TAU;
+      for (let y = 4; y < 42; y++) {
+        const t = (y - 4) / 37, r = lerp(12.5, 2.2, Math.pow(t, 0.85)), cx = 16 + Math.sin(ph + t * 3.4) * (0.8 + t * 2.4);
+        for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+          const nx = (x + 0.5 - cx) / r; if (Math.abs(nx) > 1) continue;
+          if (Math.abs(nx) > 0.8 && hash2(x, y, i + 3) < 0.45) continue;
+          const band = ((Math.floor(y * 0.5 + Math.asin(clamp(nx, -1, 1)) * 2.4 - i * 0.75) % 3) + 3) % 3;
+          const k = Math.round(3.2 - nx * 2.2 - t * 1.2 + (band === 0 ? -1.4 : band === 2 ? 1 : 0));
+          put(pb, x, y, C[clamp(k, 0, n - 2)]);
+        }
+      }
+      // nube de polvo en la boca del embudo
+      for (let k = 0; k < 4; k++) { const bx = 16 + (k - 1.5) * 6 + Math.sin(ph + k) * 1.2, by = 5 + (k % 2); K.ellipseFn(pb, bx, by, 5, 3.6, (nx, ny) => C[clamp(Math.round(5 - nx * 1.4 - ny * 2.2), 0, n - 1)]); }
+      // guijarros que giran (solo los de delante)
+      for (let k = 0; k < 5; k++) { const a = ph + k * 1.26, yy = 10 + k * 6, rr = lerp(13, 4, (yy - 4) / 37) + 1.5, xx = 16 + Math.cos(a) * rr; if (Math.sin(a) < -0.2) continue; put(pb, xx, yy, U('#4a1c0c')); put(pb, xx, yy - 1, U('#c8742e')); }
+      // brasas de MIRAGE por ojos
+      for (const ex of [11, 19]) { put(pb, ex, 13, U('#fff0b8')); put(pb, ex + 1, 13, U('#ffd890')); put(pb, ex, 14, U('#ff8a3a')); put(pb, ex + 1, 14, U('#c84a1a')); }
+    } },
+    /** Bucle de ráfaga: espiral de viento con cara y estelas que se alargan */
+    gust: { n: 6, w: 36, h: 30, glow: '#cbdaea', hue: 225, rim: '#f4f8ff', draw(pb, i) {
+      const C = P('gust'), n = C.length, ph = i / 6 * TAU, cx = 14, cy = 15;
+      for (let y = 0; y < 30; y++) for (let x = 0; x < 30; x++) {
+        const dx = x + 0.5 - cx, dy = (y + 0.5 - cy) * 1.2, r = Math.hypot(dx, dy); if (r < 2.5 || r > 12.5) continue;
+        const th = (Math.atan2(dy, dx) + ph + TAU * 2) % TAU, u = r - 2.4 - th / TAU * 5.6, m = ((u % 5.6) + 5.6) % 5.6;
+        if (m >= 2.8) continue;
+        put(pb, x, y, C[clamp(Math.round(4 - dx / 10 * 1.6 - dy / 10 * 1.6 + (m < 1 ? 1 : m > 2 ? -1 : 0)), 0, n - 1)]);
+      }
+      K.ellipseFn(pb, cx, cy, 4.2, 3.6, (nx, ny) => C[clamp(Math.round(6 - nx - ny * 1.5), 0, n - 1)]);
+      eye(pb, cx - 3, cy - 1); eye(pb, cx + 1, cy - 1);
+      // estelas de viento a sotavento
+      for (const [yy, L0] of [[9, 6], [15, 9], [21, 5]]) { const L = L0 + Math.round((Math.sin(ph + yy) + 1) * 2); for (let k = 0; k < L; k++) put(pb, 26 + k, yy + (k > L * 0.6 ? 1 : 0), C[k < L * 0.5 ? 6 : 4]); }
+    } },
+    /** Ácaro de batería: celda con patas que se bebe su propia barra de SOC */
+    socEater: { n: 6, w: 34, h: 26, glow: '#b6f05a', hue: 250, draw(pb, i) {
+      const C = P('soc'), L = P('lime'), n = C.length;
+      const x0 = 7, x1 = 28, y0 = 6, y1 = 18;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        if ((x === x0 || x === x1) && (y === y0 || y === y1)) continue;
+        const u = (x - x0) / (x1 - x0), v = (y - y0) / (y1 - y0);
+        put(pb, x, y, C[clamp(Math.round(5.6 - u * 2 - v * 3 + (y === y0 ? 1.4 : 0)), 0, n - 1)]);
+      }
+      // borne y barra de SOC que se vacía cuadro a cuadro
+      for (let y = 10; y <= 14; y++) { put(pb, x1 + 1, y, U('#d8d0f0')); put(pb, x1 + 2, y, U(y === 10 ? '#ffffff' : '#9a90c0')); }
+      const lvl = Math.round(lerp(13, 3, i / 5));
+      for (let y = 10; y <= 14; y++) for (let x = 11; x <= 25; x++) put(pb, x, y, (x - 11) < lvl ? L[y === 10 ? 3 : y === 14 ? 1 : 2] : U(y === 10 ? '#2c1e6a' : '#140a2a'));
+      for (const [px, py] of [[18, 7], [17, 8], [18, 8], [19, 8]]) put(pb, px, py, U('#e6ffc0'));
+      // mandíbulas que se abren y cierran
+      const op = i % 3;
+      for (let k = 0; k < 4; k++) { put(pb, x0 - 1 - k, 12 - op - Math.floor(k / 2), L[k < 2 ? 2 : 3]); put(pb, x0 - 1 - k, 15 + op + Math.floor(k / 2), L[k < 2 ? 1 : 2]); }
+      eye(pb, x0 + 1, 7, '#e6ffc0', '#0c0824');
+      // antenas y patas alternas
+      K.lineFn(pb, 9, y0 - 1, 5 + (i % 2), 1, () => C[6]); K.lineFn(pb, 12, y0 - 1, 11 - (i % 2), 0, () => C[5]);
+      for (let k = 0; k < 3; k++) { const lx = 11 + k * 7, s = ((i + k) % 2) ? 1 : -1; K.lineFn(pb, lx, y1 + 1, lx + s * 2, y1 + 5, () => C[2]); put(pb, lx + s * 2, y1 + 6, C[1]); }
+    } },
+    /** Fantasma del lavado verde: sábana verde con jirones y una máscara de hoja sobre la cara */
+    greenwash: { n: 6, w: 30, h: 36, glow: '#86e36f', hue: 150, draw(pb, i) {
+      const C = P('ghost'), Lf = P('leaf'), n = C.length, ph = i / 6 * TAU;
+      for (let y = 2; y < 34; y++) for (let x = 2; x < 28; x++) {
+        const dx = x + 0.5 - 15, inside = y < 13 ? Math.hypot(dx, (y + 0.5 - 13) * 1.05) <= 11 : Math.abs(dx) <= 11 - Math.max(0, y - 22) * 0.25;
+        const bot = 31 + Math.round(Math.sin(x * 0.95 + ph) * 2); if (!inside || y > bot) continue;
+        put(pb, x, y, C[clamp(Math.round(5.4 - dx / 11 * 1.8 - (y - 2) / 32 * 2.6 + (Math.sin(x * 0.7 + y * 0.2) > 0.6 ? 0.8 : 0)), 0, n - 1)]);
+      }
+      // bracitos
+      for (const s of [-1, 1]) { const ax = 15 + s * 11, ay = 20 + Math.round(Math.sin(ph + (s > 0 ? 1 : 0)) * 1.5); for (let k = 0; k < 4; k++) put(pb, ax + s * k, ay - Math.floor(k / 2), C[k === 3 ? 6 : 4]); }
+      // máscara de hoja inclinada con ojos huecos
+      for (let y = 6; y < 19; y++) for (let x = 5; x < 26; x++) {
+        const u = x + 0.5 - 15.5, v = y + 0.5 - 12.5, a = 0.32, ru = u * Math.cos(a) + v * Math.sin(a), rv = -u * Math.sin(a) + v * Math.cos(a);
+        const half = 4.6 * Math.sqrt(Math.max(0, 1 - (ru / 9.5) * (ru / 9.5))); if (Math.abs(rv) > half) continue;
+        put(pb, x, y, Math.abs(rv) < 0.6 ? Lf[1] : Lf[clamp(Math.round(3.4 - rv / 4 - ru / 12), 0, Lf.length - 1)]);
+      }
+      for (const ex of [11, 18]) { eye(pb, ex, 12, '#04120a', '#04120a'); put(pb, ex + 1, 12, U('#e6ffc0')); }
+      put(pb, 25, 7, Lf[0]); put(pb, 26, 6, Lf[0]);
+    } },
+    /** Espejismo de sal: racimo de cristales rosados que reverbera como el aire caliente */
+    saltMirage: { n: 6, w: 30, h: 36, glow: '#f888b8', hue: 300, draw(pb, i) {
+      const C = P('salt'), n = C.length, ph = i / 6 * TAU;
+      const tmp = new PixelBuffer(30, 36);
+      for (const [cx, hh, hw] of [[8, 13, 3], [21, 15, 3], [15, 23, 4], [11, 9, 2], [24, 9, 2]]) {
+        const yb = 32;
+        for (let y = yb - hh; y <= yb; y++) for (let x = cx - hw; x <= cx + hw; x++) {
+          const tip = (yb - hh) + Math.abs(x - cx) * 1.2; if (y < tip) continue;
+          put(tmp, x, y, C[clamp(x === cx ? 7 : x < cx ? 6 - Math.round((y - tip) / hh * 2) : 4 - Math.round((y - tip) / hh * 2), 0, n - 1)]);
+        }
+      }
+      for (let x = 4; x < 27; x++) { put(tmp, x, 33, C[x < 15 ? 7 : 6]); put(tmp, x, 34, C[3]); }
+      // reverberación: las filas altas ondulan como el aire caliente
+      for (let y = 0; y < 36; y++) { const s = y < 26 ? Math.round(Math.sin(y * 0.5 + ph) * 1.2) : 0; for (let x = 0; x < 30; x++) { const c = tmp.data[y * 30 + x]; if (c >>> 24) put(pb, x + s, y, c); } }
+      eye(pb, 13, 18, '#ffffff', '#2a0a2e'); eye(pb, 16, 18, '#ffffff', '#2a0a2e');
+      put(pb, 15, 21 + (i % 2), U('#2a0a2e'));
+    } },
+    /** MonoScore: medalla dorada con «100» que lo resume todo, cintas al viento y mirada satisfecha */
+    monoscore: { n: 6, w: 32, h: 38, glow: '#ffd84a', hue: 30, draw(pb, i) {
+      const G = P('gold'), Rb = P('ribbon'), n = G.length, ph = i / 6 * TAU;
+      for (const s of [-1, 1]) { const sway = Math.sin(ph + (s > 0 ? 1.2 : 0)) * 1.5; for (let y = 21; y < 35; y++) { const xx = 16 + s * (3 + (y - 21) * 0.32) + sway * (y - 21) / 14; for (let k = 0; k < 4; k++) { if (y > 32 && k > 0 && k < 3) continue; put(pb, xx + k - 2, y, Rb[clamp(k === 0 ? 4 : k === 3 ? 1 : 3 - ((y >> 2) % 2), 0, 4)]); } } }
+      for (let y = 0; y < 28; y++) for (let x = 2; x < 30; x++) {
+        const dx = x + 0.5 - 16, dy = y + 0.5 - 13.5, r = Math.hypot(dx, dy), R0 = 11.5 + Math.cos(Math.atan2(dy, dx) * 14) * 0.8; if (r > R0) continue;
+        let k = Math.round(5.2 - dx / 12 * 1.6 - dy / 12 * 2);
+        if (r > R0 - 1.6) k += 1; else if (r > 8 && r < 9.2) k -= 2;
+        if (((x + y) - i * 6 + 60) % 36 < 3 && r < 8) k += 2; // destello que barre la cara
+        put(pb, x, y, G[clamp(k, 0, n - 1)]);
+      }
+      K.text(pb, '100', 16 - Math.round(K.measure('100', { font: 'tiny' }) / 2), 13, U('#4a2e0a'), { font: 'tiny', shadow: U('#fff0a0') });
+      for (const ex of [11, 19]) { put(pb, ex, 8, U('#2a1806')); put(pb, ex + 1, 8, U('#2a1806')); put(pb, ex + 2, 9, U('#2a1806')); }
+      for (const s of [-1, 1]) { const lx = 16 + s * 5, st = (i + (s > 0 ? 3 : 0)) % 6 < 3 ? 0 : 1; put(pb, lx, 25, G[2]); put(pb, lx, 26, G[2]); put(pb, lx + s * st, 27, G[1]); put(pb, lx + s * (st + 1), 27, G[1]); }
+    } },
+  };
+  function strip(type) {
+    let s = cache.get(type); if (s) return s;
+    const D = B[type];
+    s = K.strip(D.n, D.w, D.h, (f, i) => { D.draw(f, i); K.rim(f, U(D.rim || '#fff1c8'), 0.4, -1, -1); K.selOut(f, -0.62, 'lrtb', D.hue); });
+    cache.set(type, s); return s;
+  }
+  /** Dibuja el adversario e (Adversary) centrado en (x, y) de pantalla; k = 1 activo → 0 calmado */
+  function draw(g, e, x, y, k) {
+    const s = strip(e.type), D = B[e.type];
+    const vx = Math.cos(e.t * e.speed / e.range + e.phase), flip = e.type === 'socEater' ? vx > 0 : e.type === 'gust' ? vx < 0 : false;
+    const fi = Math.floor(e.t * (e.type === 'dust' ? 12 : 8)), yy = y - (1 - k) * 10;
+    K.drawGlow(g, x, yy, Math.round(D.w * 0.55), D.glow, 0.22 * k);
+    if (k < 1) g.globalAlpha = Math.max(0, k);
+    K.drawStrip(g, s, fi, Math.round(x - D.w / 2), Math.round(yy - D.h / 2), flip);
+    if (k < 1) g.globalAlpha = 1;
+  }
+  return { has: (type) => !!B[type], draw, strip, B };
 })();
 
 /* ===== 18r_pfb_ground.js ===== */
@@ -19270,8 +19439,8 @@ const PFBGround = (() => {
     // AO al pie de escalones
     for (let x = 1; x < wd - 1; x++) {
       const g0 = world.ground[x - 1], g1 = world.ground[x];
-      if (g0 < g1 - 4) for (let k = 0; k < 5; k++) for (let y = g1 - 10; y < g1; y++) { const c = K.get(pb, x + k, y); if (c >>> 24) K.put(pb, x + k, y, K.shU(c, -0.22 + k * 0.04, 235)); }
-      if (g1 < g0 - 4) for (let k = 0; k < 4; k++) for (let y = g0 - 8; y < g0; y++) { const c = K.get(pb, x - 1 - k, y); if (c >>> 24) K.put(pb, x - 1 - k, y, K.shU(c, -0.18 + k * 0.04, 235)); }
+      if (g0 < g1 - 4) for (let k = 0; k < 5; k++) for (let y = g1 - 10; y < g1; y++) { const c = K.get(pb, x + k, y); if (c >>> 24) K.put(pb, x + k, y, PFB.shS(c, -0.22 + k * 0.04, 235)); }
+      if (g1 < g0 - 4) for (let k = 0; k < 4; k++) for (let y = g0 - 8; y < g0; y++) { const c = K.get(pb, x - 1 - k, y); if (c >>> 24) K.put(pb, x - 1 - k, y, PFB.shS(c, -0.18 + k * 0.04, 235)); }
     }
     return segs;
   }
@@ -19322,22 +19491,27 @@ const PFBGround = (() => {
     if (o.wet && d > 4 && d < h2) k -= 1;
     return S[clamp(k - (d > 70 ? 1 : 0), 0, n - 1)];
   }
+  /** Arenisca en hiladas: estratos horizontales con bisel iluminado arriba y pie en sombra,
+      juntas verticales escalonadas por hilada (media pieza + desfase) y sin chorreones translúcidos */
+  const _ssRows = new Map();
   function sandstonePix(x, d, seed) {
     const S = K.P32(PFB.R.STONE), n = S.length;
-    const yy = d + Math.round((K.vn(x * 0.012, 0, seed) - 0.5) * 10);
-    const band = Math.floor(yy / 9), lb = yy - band * 9;
-    let k = 5 + Math.round((hash1(band, seed) - 0.5) * 3) + Math.round((K.vn(x * 0.06, yy * 0.1, seed + 1) - 0.5) * 1.6);
-    if (lb === 0) k -= 2; else if (lb === 1) k += 1;
-    // estratificación cruzada
-    if (((x * 0.35 + yy * 1.1 + band * 7) % 11) < 1 && lb > 2) k -= 1;
-    // fisuras verticales
-    const fx = Math.floor(x / 23), fpos = fx * 23 + Math.floor(hash1(fx, seed + 2) * 18);
-    if (Math.abs(x - fpos) < 1 && hash2(fx, band, seed) < 0.6) k = 1;
-    else if (x - fpos === 1 && hash2(fx, band, seed) < 0.6) k += 1;
-    // barniz del desierto
-    if (K.vn(x * 0.3, d * 0.02, seed + 3) > 0.74) k -= 1;
-    k -= Math.floor(d / 34);
-    return S[clamp(k, 0, n - 1)];
+    // hiladas planas de 8–11 px (alturas por semilla, tabla cacheada)
+    let T = _ssRows.get(seed);
+    if (!T) { T = []; let y0 = 0; for (let b = 0; y0 < 400; b++) { const h = 8 + Math.floor(hash1(b, seed + 11) * 4); for (let i = 0; i < h; i++) T.push([b, i, h]); y0 += h; } _ssRows.set(seed, T); }
+    const yy = Math.max(0, d), [band, lb, bh] = T[Math.min(T.length - 1, yy)];
+    const bw = 26 + Math.floor(hash1(band, seed + 4) * 10);
+    const off = (band & 1) * Math.floor(bw / 2) + Math.floor(hash1(band, seed + 6) * 6);
+    const bx = x + off, bi = Math.floor(bx / bw), lx = bx - bi * bw;
+    const deep = Math.floor(d / 34);
+    if (lb === 0) return S[clamp(1 - (deep > 1 ? 1 : 0), 0, n - 1)];
+    if (lx === 0) return S[clamp(2 - deep, 0, n - 1)];
+    let k = 5 + Math.round((hash2(bi, band, seed) - 0.5) * 2.2) + Math.round((hash1(band, seed) - 0.5) * 1.4);
+    if (lb === 1) k += 2; else if (lb === 2) k += 1; else if (lb >= bh - 2) k -= 1;
+    if (lx === 1 && lb > 1) k += 1; else if (lx === bw - 1) k -= 1;
+    if (lb === (bh >> 1) + 1 && hash2(bi, band, seed + 8) < 0.45) k -= 1;
+    if (lb > 2 && K.cl(x, yy, 2, seed + 3) < 0.06) k -= 1;
+    return S[clamp(k - deep, 0, n - 1)];
   }
   function metalFace(s, x, d) {
     const M = K.P32(s.ramp || METALT), n = M.length;
@@ -19398,7 +19572,7 @@ const PFBGround = (() => {
     const u = wallPix(x, ly + 2, 80, s.seed, S, { rh: 9, sw: 18 });
     // imbornales
     if (s.drains) { const dx = ((x % 120) + 120) % 120; if (dx > 40 && dx < 58 && ly > 2 && ly < 12) return U(((dx - 40) % 3 === 0) ? '#5a5658' : '#140e10'); }
-    return K.shU(u, -0.06 * Math.floor(ly / 20), 235);
+    return PFB.shS(u, -0.06 * Math.floor(ly / 20), 235);
   }
   /** Galería de servicios en corte bajo un forjado de acero: viga de canto remachada con franja ámbar,
       pilares cada s.bay px, bandeja de cables, tuberías por colores (s.pipes: [[dy, r, kind]]),
@@ -19611,7 +19785,7 @@ const PFBGround = (() => {
     // sombra de contacto en escalones del suelo
     for (let x = 1; x < wd; x++) {
       const gl = world.ground[x - 1], gy = world.ground[x];
-      if (gl < gy - 3) for (let y = gl; y < gy + 26; y++) { const c = K.get(pb, x - 1, y); if (c >>> 24) K.put(pb, x - 1, y, K.shU(c, -0.3, 235)); }
+      if (gl < gy - 3) for (let y = gl; y < gy + 26; y++) { const c = K.get(pb, x - 1, y); if (c >>> 24) K.put(pb, x - 1, y, PFB.shS(c, -0.3, 235)); }
       if (gy < gl - 3) for (let y = gy; y < gl + 26; y++) { const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, U('#fff1c8'), 0.25)); }
     }
     for (const s of segs) if (s.face === 'terrace' || s.face === 'soilcut') decorateSoil(pb, world, s);
@@ -26420,12 +26594,16 @@ function buildCalima(L) {
   // cielo de tormenta (bandas óxido → ocre, sol pálido difuso) y cielo despejado para el final
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, { horizonY: HZ, stops: D.sky, haze: ['#f2b860', '#f6c470', '#f8cc7c', '#fad488'], bands: 24, curve: 0.9 });
-    // sol velado: disco pálido sin rayos y corona ocre en anillos
-    for (let y = SUN.y - 30; y <= SUN.y + 30; y++) for (let x = SUN.x - 30; x <= SUN.x + 30; x++) {
-      const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 1.4;
-      if (d <= SUN.r) V.put(pb, x, y, U(d > SUN.r - 1 ? '#f6dcae' : '#fbecc8'));
-      else if (d < 30) V.put(pb, x, y, V.mixU(V.get(pb, x, y), U('#f0c890'), [0.5, 0.36, 0.24, 0.14, 0.07][Math.min(4, Math.floor((d - SUN.r) / 4.2))]));
+    // sol velado por el polvo: disco apagado y difuso (sin borde nítido) y corona ocre ancha en anillos
+    for (let y = SUN.y - 40; y <= SUN.y + 40; y++) for (let x = SUN.x - 40; x <= SUN.x + 40; x++) {
+      const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2((x / 3) | 0, (y / 2) | 0, 3) - 0.5) * 2.2;
+      const c0 = V.get(pb, x, y);
+      if (d <= SUN.r - 3) V.put(pb, x, y, V.mixU(c0, U('#f8dcaa'), 0.62));
+      else if (d <= SUN.r + 1) V.put(pb, x, y, V.mixU(c0, U('#f2c88e'), 0.46));
+      else if (d < 40) V.put(pb, x, y, V.mixU(c0, U('#e8b070'), [0.34, 0.26, 0.19, 0.13, 0.08, 0.04][Math.min(5, Math.floor((d - SUN.r - 1) / 5))]));
     }
+    // color medio de cada fila del cielo (para que los velos lejanos se fundan con él)
+    FIXLB_CAL.skyRows = []; for (let y = 0; y < pb.h; y++) { let r = 0, g2 = 0, b = 0; for (let x = 8; x < 200; x += 8) { const u = pb.data[y * pb.w + x]; r += u & 255; g2 += (u >>> 8) & 255; b += (u >>> 16) & 255; } FIXLB_CAL.skyRows.push([r / 24, g2 / 24, b / 24]); }
     return pb.toCanvas();
   });
   B.skyClear = V.timed('skyClear', () => V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas());
@@ -26442,7 +26620,10 @@ function buildCalima(L) {
     // brasas de MIRAGE dentro del muro (se apagan cuando se transforma en MOSAICO)
     if (!S.transformed && S.storm > 0.4) { const p = 0.35 + 0.25 * Math.sin(T() * 1.3); for (const [ex, ey] of eyes) { V.drawGlow(g, ex + ox, ey + y, 6, '#ff8a3a', p * S.storm); g.fillStyle = '#ffd8a0'; g.globalAlpha = p * S.storm; g.fillRect(ex + ox - 1, ey + y, 3, 1); g.globalAlpha = 1; } }
   }, { tag: 'wall' });
-  B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], pal: D.pal, sunX: SUN.x, haze: 0.12, hazeCol: '#c46a34' });
+  // nubes de polvo → cúmulos blancos al despejar (misma semilla: mismas formas y posiciones, fundido cruzado)
+  const dustDeck = B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], pal: D.pal, sunX: SUN.x, haze: 0.12, hazeCol: '#c46a34' });
+  const clearDeck = B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], sunX: SUN.x, haze: 0.06, hazeCol: '#f2e2d0' });
+  FIXLB_fadeDeck(B, dustDeck, () => 1 - st().clear); FIXLB_fadeDeck(B, clearDeck, () => st().clear);
   /* ---------------- cordillera disuelta (0,05) ---------------- */
   B.vplane(0.05, at(0.05, HZ - 56), 58, (pb, w, h) => {
     const r = RNG(1021), peaks = [];
@@ -26465,6 +26646,8 @@ function buildCalima(L) {
     V.drawVeil(g, veils[i], y + Math.round(S.clear * 30), cam.x * f + T() * sp * (0.6 + S.gust), a);
   }, { tag: 'veil' + i });
   veilLayer(0, 0.05, HZ - 44, 14, 0.9);
+  // cortina de polvo: con la tormenta plena la cordillera se disuelve en el cielo (visibilidad 200 m)
+  FIXLB_curtain(B, 0.05, at(0.05, HZ - 62), 70, 0.62, 0.92, st, 0.3);
   /* ---------------- ARIDIA en el cabo con luces de emergencia (0,09) ---------------- */
   const ariFx = { beacons: [], lights: [] };
   B.vplane(0.09, at(0.09, HZ - 70), 82, (pb, w, h) => {
@@ -26488,6 +26671,7 @@ function buildCalima(L) {
     },
   });
   veilLayer(1, 0.1, HZ - 40, 22, 0.85);
+  FIXLB_curtain(B, 0.09, at(0.09, HZ - 76), 92, 0.5, 0.8, st, 0.35);
   /* ---------------- SYNARA bajo el polvo (0,18) ---------------- */
   const synFx = { turb: [], beacons: [], glows: [] };
   B.vplane(0.18, at(0.18, 96), 140, (pb, w, h) => {
@@ -26528,6 +26712,7 @@ function buildCalima(L) {
     },
   });
   veilLayer(2, 0.2, 112, 34, 0.75);
+  FIXLB_curtain(B, 0.18, at(0.18, 92), 120, 0.3, 0.55, st, 0.4);
   /* ---------------- pueblo con persianas cerradas (0,32) ---------------- */
   const townFx = { lights: [], beacons: [], crests: [], lit: [] };
   B.vplane(0.32, at(0.32, 132), 156, (pb, w, h) => {
@@ -26568,6 +26753,42 @@ function buildCalima(L) {
 }
 
 BIOME_LABELS.calima = BIOME_LABELS.calima || [];
+
+/* FIXLB: cortinas de polvo que funden los planos lejanos con el cielo de tormenta.
+   Lienzo W×h con alfa en 6 bandas (borde de banda en clusters 3×2, sin tramado) y color de cada
+   fila tomado del cielo; se dibuja con alfa ∝ intensidad de la tormenta (0 al despejar). */
+const FIXLB_CAL = { skyRows: null, cache: new Map() };
+function FIXLB_curtainCanvas(y0, h, a0, a1) {
+  const key = y0 + '|' + h + '|' + a0 + '|' + a1; let c = FIXLB_CAL.cache.get(key); if (c) return c;
+  const pb = new PixelBuffer(W, h), rows = FIXLB_CAL.skyRows || [], nb = 6;
+  for (let y = 0; y < h; y++) {
+    const sy = clamp(Math.round(y0 + y), 0, Math.max(0, rows.length - 1)), rc = rows[sy] || [226, 140, 70];
+    const col = ((Math.round(Math.min(255, rc[2] * 1.04)) << 16) | (Math.round(Math.min(255, rc[1] * 1.04)) << 8) | Math.round(Math.min(255, rc[0] * 1.03))) >>> 0;
+    const v = y / Math.max(1, h - 1), top = Math.min(1, v * 4);
+    for (let x = 0; x < W; x++) {
+      const f = clamp((a0 + (a1 - a0) * v) * top + (hash2((x / 3) | 0, (y / 2) | 0, 77) - 0.5) / nb * 0.9, 0, 1);
+      const lv = Math.round(f * nb); if (!lv) continue;
+      pb.data[y * W + x] = ((Math.round(lv / nb * 255) << 24) | col) >>> 0;
+    }
+  }
+  c = pb.toCanvas(); FIXLB_CAL.cache.set(key, c); return c;
+}
+/** Atenúa una cubierta de nubes con k() (0..1); por debajo de 0,02 solo avanza las nubes (siguen sincronizadas) */
+function FIXLB_fadeDeck(B, deck, k) {
+  const f = deck.L.dyn;
+  deck.L.dyn = (g, cam, L) => {
+    const a = clamp(k(), 0, 1);
+    if (a < 0.02) { const wind = 0.6 + (B.weather.wind || 0) * 0.8; for (const c of deck.clouds) { c.x += c.speed * Game.dt * wind; if (c.x > c.span) c.x -= c.span + c.w; } return; }
+    const ga = g.globalAlpha; g.globalAlpha = ga * a; f(g, cam, L); g.globalAlpha = ga;
+  };
+}
+function FIXLB_curtain(B, f, y, h, a0, a1, st, from) {
+  B.vdyn(f, (g, cam) => {
+    const S = st(), a = clamp((S.storm - from) / (1 - from), 0, 1); if (a <= 0.02) return;
+    const yy = y - Math.round(cam.y * f * 0.3);
+    g.globalAlpha = a; g.drawImage(FIXLB_curtainCanvas(y, h, a0, a1), 0, yy); g.globalAlpha = 1;
+  }, { tag: 'fixlbCurtain' });
+}
 
 /* ===== 1e_bio_citadel.js ===== */
 /* =====================================================================
@@ -36334,6 +36555,18 @@ const Sim05 = makeSim({
    Segundo giro mayor: Amaya eliminó demandas estacionales del modelo.
    ===================================================================== */
 
+/* FIXLB: los adversarios de los niveles 6–10 (y los mismos tipos en otros niveles) se dibujan con las
+   tiras animadas de FIXLB_ADV (18q_pfb_core.js); el resto sigue con el dibujo base de 30_world.js */
+if (typeof Adversary !== 'undefined' && typeof FIXLB_ADV !== 'undefined') {
+  const FIXLB_baseAdvRender = Adversary.prototype.render;
+  Adversary.prototype.render = function (g, cam) {
+    if (!FIXLB_ADV.has(this.type)) return FIXLB_baseAdvRender.call(this, g, cam);
+    const x = Math.round(this.x - cam.ox), y = Math.round(this.y - cam.oy);
+    if (x < -40 || x > W + 40) return;
+    FIXLB_ADV.draw(g, this, x, y, this.calm ? clamp(1 - (this.calmT || 0) / 1.2, 0, 1) : 1);
+  };
+}
+
 const VAULT_RACKS = [360, 440, 520, 600, 680, 760, 1800, 1880, 1960, 2040];
 const ARCS = [{ x: 1000, w: 22 }, { x: 1090, w: 22 }, { x: 1180, w: 22 }];
 
@@ -39315,7 +39548,8 @@ LEVELS[10] = {
     { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 150 },
     { x: 1214, y: 152, title: 'AGUA POTABLE', sub: (sc) => fmt0(sc.state.tank ?? 0) + ' m³ · mínimo 300', kind: 'water', ax: 1210, ay: 170 },
     { x: 1392, y: 222, title: 'LAGUNA DE SALMUERA', sub: (sc) => (sc.state.cards && sc.state.cards.salmuera && sc.state.tideBad) ? 'Retiene: marea desfavorable' : 'Retención de 900 m³', kind: 'brine', ax: 1392, ay: 252 },
-    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246 },
+    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
+    { x: 1660, y: 214, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
     { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
     { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
     { x: 2262, y: 162, title: 'ELECTROLIZADOR 300 kW', sub: (sc) => (sc.state.cards && sc.state.cards.h2) ? 'Solo con excedente' : 'Consumo fijo: no se adapta', kind: 'green', ax: 2262, ay: 196 },
@@ -39519,15 +39753,20 @@ LEVELS[10] = {
     const S = sc.state, t = Game.time, storm = 1 - (S.clearK || 0);
     if (storm <= 0.02) return;
     // bandas de polvo que barren la escena
-    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.25 + 0.25 * S.gust) * storm); }
-    // visibilidad reducida: velo tramado con claro alrededor de Amaya y KIRU
+    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.4 + 0.3 * S.gust) * storm); }
+    // arena en vuelo: tres planos de estrías inclinadas por el viento (lejos → cerca), ráfagas aceleran
+    FIXLB_STORM.t += Game.dt * (0.55 + 0.9 * (S.gust || 0));
+    for (let i = 0; i < 3; i++) { const sp = [150, 250, 400][i], pf = [0.5, 0.85, 1.25][i], d = FIXLB_STORM.t * sp - cam.x * pf; FIXLB_drawTile(g, FIXLB_streaks(i), d, d * [0.1, 0.14, 0.18][i], [0.6, 0.75, 0.9][i] * storm * (0.75 + 0.25 * (S.gust || 0))); }
+    // arena rasante: cinta de saltación pegada al suelo
+    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, FIXLB_groundDrift(), d, null, 0.85 * storm, gy); }
+    // visibilidad reducida (≈200 m): velo en bandas con claro estrecho alrededor de Amaya y KIRU
     const P = sc.player; if (!P) return;
     const cx = Math.round(P.x - cam.x), cy = Math.round(P.y - cam.y - 30);
-    calVeil(g, cx, cy, (0.4 + 0.3 * S.gust) * storm);
+    calVeil(g, cx, cy, (0.45 + 0.3 * S.gust) * storm);
   },
   renderGrade(g, sc) {
     const S = sc.state, storm = 1 - (S.clearK || 0);
-    if (storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.35 * storm; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    if (storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.42 * storm; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.clearK > 0) { g.globalCompositeOperation = 'screen'; g.globalAlpha = 0.12 * S.clearK; frect(g, 0, 0, W, H, '#c2f58e'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.flash > 0) { g.globalAlpha = S.flash; frect(g, 0, 0, W, H, '#ffffff'); g.globalAlpha = 1; }
   },
@@ -39634,8 +39873,66 @@ function lv10H2Rate(S) { return S.transformed ? 1 : S.cards.h2 ? (S.gust > 0.75 
 const CAL_VEIL = {};
 function calVeilMask(level) {
   if (CAL_VEIL[level]) return CAL_VEIL[level];
-  CAL_VEIL[level] = VISTA.veilMask(W * 2, H * 2, { r0: 150, r1: 330, dens: [0.22, 0.32, 0.42][level], col: '#5a2410', bands: 7, sy: 1.25 });
+  CAL_VEIL[level] = FIXLB_veilMask(W * 2, H * 2, { r0: 96, r1: 250, dens: [0.38, 0.52, 0.65][level], col: '#7a3416', bands: 8, sy: 1.3 });
   return CAL_VEIL[level];
+}
+/* FIXLB: máscara de visibilidad simétrica: se calcula un cuadrante y se refleja (4× más rápida que
+   VISTA.veilMask a 1280×720); alfa en bandas con borde en clusters 3×2, sin tramado */
+function FIXLB_veilMask(w, h, o) {
+  const pb = new PixelBuffer(w, h), u = U(o.col) & 0xffffff, nb = o.bands, hw = w >> 1, hh = h >> 1;
+  for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
+    const dd = Math.hypot(hw - x, (hh - y) * o.sy);
+    let f = clamp((dd - o.r0) / o.r1, 0, 1); f += (hash2((x / 3) | 0, (y / 2) | 0, 41) - 0.5) * (1 / nb) * 0.9;
+    const lv = clamp(Math.round(f * nb), 0, nb); if (!lv) continue;
+    const v = ((Math.round(lv / nb * o.dens * 255) << 24) | u) >>> 0;
+    pb.data[y * w + x] = v; pb.data[y * w + (w - 1 - x)] = v; pb.data[(h - 1 - y) * w + x] = v; pb.data[(h - 1 - y) * w + (w - 1 - x)] = v;
+  }
+  return pb.toCanvas();
+}
+/* FIXLB: arena en vuelo. Lienzos W×H periódicos con estrías inclinadas (cabeza opaca, cola en 3 bandas
+   de alfa), rampa ocre con desplazamiento de tono; 4 drawImage grandes por plano. */
+const FIXLB_STORM = { t: 0, streaks: [], ground: null };
+function FIXLB_streaks(i) {
+  if (FIXLB_STORM.streaks[i]) return FIXLB_STORM.streaks[i];
+  const cfg = [
+    { n: 320, l0: 4, l1: 9, th: 1, slope: 0.1, cols: ['#f0c88a', '#e8b474', '#fad8a0'] },
+    { n: 210, l0: 8, l1: 18, th: 1, slope: 0.14, cols: ['#fde2ae', '#f6d294', '#e8b06a'] },
+    { n: 80, l0: 18, l1: 36, th: 2, slope: 0.18, cols: ['#fff0cc', '#fde4ae', '#f2c27c'] },
+  ][i];
+  const pb = new PixelBuffer(W, H), r = RNG(7300 + i);
+  for (let s = 0; s < cfg.n; s++) {
+    const x0 = r.int(0, W - 1), y0 = r.int(0, H - 1), L = r.int(cfg.l0, cfg.l1), col = U(r.pick(cfg.cols)) & 0xffffff;
+    for (let k = 0; k < L; k++) {
+      const a = k < L * 0.34 ? 235 : k < L * 0.67 ? 150 : 70;
+      const x = (((x0 - k) % W) + W) % W, y = (((y0 - Math.round(k * cfg.slope)) % H) + H) % H;
+      for (let q = 0; q < cfg.th; q++) { const idx = ((y + q) % H) * W + x; if ((pb.data[idx] >>> 24) < a) pb.data[idx] = ((a << 24) | col) >>> 0; }
+    }
+  }
+  return (FIXLB_STORM.streaks[i] = pb.toCanvas());
+}
+/** Cinta de arena rasante (24 px): lámina translúcida en bandas, más densa abajo, y estrías casi horizontales */
+function FIXLB_groundDrift() {
+  if (FIXLB_STORM.ground) return FIXLB_STORM.ground;
+  const h = 26, pb = new PixelBuffer(W, h), r = RNG(7400), sheet = U('#eab474') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < W; x++) {
+    const v = y / (h - 1), wave = Math.sin(x / W * TAU * 5 + Math.sin(x / W * TAU * 2) * 1.5) * 3;
+    const f = clamp((v * h - 8 - wave) / (h - 8), 0, 1) * 0.7 + (hash2((x / 3) | 0, (y / 2) | 0, 91) - 0.5) * 0.1;
+    const lv = clamp(Math.round(f * 5), 0, 5); if (lv) pb.data[y * W + x] = ((Math.round(lv / 5 * 255) << 24) | sheet) >>> 0;
+  }
+  for (let s = 0; s < 120; s++) {
+    const x0 = r.int(0, W - 1), y0 = r.int(6, h - 2), L = r.int(6, 22), col = U(r.pick(['#fde0a4', '#f4c886', '#e8b070'])) & 0xffffff;
+    for (let k = 0; k < L; k++) { const x = (((x0 - k) % W) + W) % W, y = y0 - Math.round(k * 0.03); if (y < 0) break; const a = k < L * 0.34 ? 240 : k < L * 0.67 ? 160 : 80; const idx = y * W + x; if ((pb.data[idx] >>> 24) < a) pb.data[idx] = ((a << 24) | col) >>> 0; }
+  }
+  return (FIXLB_STORM.ground = pb.toCanvas());
+}
+/** Dibuja un lienzo periódico desplazado (dx a la derecha, dy hacia abajo); con y0 fijo solo se repite en x */
+function FIXLB_drawTile(g, c, dx, dy, a, y0) {
+  if (a <= 0.01) return;
+  const x = (((dx % c.width) + c.width) % c.width) - c.width;
+  g.globalAlpha = Math.min(1, a);
+  if (y0 != null) { g.drawImage(c, Math.round(x), y0); g.drawImage(c, Math.round(x) + c.width, y0); }
+  else { const y = (((dy % c.height) + c.height) % c.height) - c.height; for (const ox of [0, c.width]) for (const oy of [0, c.height]) g.drawImage(c, Math.round(x) + ox, Math.round(y) + oy); }
+  g.globalAlpha = 1;
 }
 /* jirones de polvo que barren la escena (velo en bandas, sin tramado) */
 const CAL_WISP = [];

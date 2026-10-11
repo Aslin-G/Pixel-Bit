@@ -532,7 +532,8 @@ LEVELS[10] = {
     { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 150 },
     { x: 1214, y: 152, title: 'AGUA POTABLE', sub: (sc) => fmt0(sc.state.tank ?? 0) + ' m³ · mínimo 300', kind: 'water', ax: 1210, ay: 170 },
     { x: 1392, y: 222, title: 'LAGUNA DE SALMUERA', sub: (sc) => (sc.state.cards && sc.state.cards.salmuera && sc.state.tideBad) ? 'Retiene: marea desfavorable' : 'Retención de 900 m³', kind: 'brine', ax: 1392, ay: 252 },
-    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246 },
+    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
+    { x: 1660, y: 214, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
     { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
     { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
     { x: 2262, y: 162, title: 'ELECTROLIZADOR 300 kW', sub: (sc) => (sc.state.cards && sc.state.cards.h2) ? 'Solo con excedente' : 'Consumo fijo: no se adapta', kind: 'green', ax: 2262, ay: 196 },
@@ -736,15 +737,20 @@ LEVELS[10] = {
     const S = sc.state, t = Game.time, storm = 1 - (S.clearK || 0);
     if (storm <= 0.02) return;
     // bandas de polvo que barren la escena
-    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.25 + 0.25 * S.gust) * storm); }
-    // visibilidad reducida: velo tramado con claro alrededor de Amaya y KIRU
+    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.4 + 0.3 * S.gust) * storm); }
+    // arena en vuelo: tres planos de estrías inclinadas por el viento (lejos → cerca), ráfagas aceleran
+    FIXLB_STORM.t += Game.dt * (0.55 + 0.9 * (S.gust || 0));
+    for (let i = 0; i < 3; i++) { const sp = [150, 250, 400][i], pf = [0.5, 0.85, 1.25][i], d = FIXLB_STORM.t * sp - cam.x * pf; FIXLB_drawTile(g, FIXLB_streaks(i), d, d * [0.1, 0.14, 0.18][i], [0.6, 0.75, 0.9][i] * storm * (0.75 + 0.25 * (S.gust || 0))); }
+    // arena rasante: cinta de saltación pegada al suelo
+    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, FIXLB_groundDrift(), d, null, 0.85 * storm, gy); }
+    // visibilidad reducida (≈200 m): velo en bandas con claro estrecho alrededor de Amaya y KIRU
     const P = sc.player; if (!P) return;
     const cx = Math.round(P.x - cam.x), cy = Math.round(P.y - cam.y - 30);
-    calVeil(g, cx, cy, (0.4 + 0.3 * S.gust) * storm);
+    calVeil(g, cx, cy, (0.45 + 0.3 * S.gust) * storm);
   },
   renderGrade(g, sc) {
     const S = sc.state, storm = 1 - (S.clearK || 0);
-    if (storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.35 * storm; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    if (storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.42 * storm; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.clearK > 0) { g.globalCompositeOperation = 'screen'; g.globalAlpha = 0.12 * S.clearK; frect(g, 0, 0, W, H, '#c2f58e'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.flash > 0) { g.globalAlpha = S.flash; frect(g, 0, 0, W, H, '#ffffff'); g.globalAlpha = 1; }
   },
@@ -851,8 +857,66 @@ function lv10H2Rate(S) { return S.transformed ? 1 : S.cards.h2 ? (S.gust > 0.75 
 const CAL_VEIL = {};
 function calVeilMask(level) {
   if (CAL_VEIL[level]) return CAL_VEIL[level];
-  CAL_VEIL[level] = VISTA.veilMask(W * 2, H * 2, { r0: 150, r1: 330, dens: [0.22, 0.32, 0.42][level], col: '#5a2410', bands: 7, sy: 1.25 });
+  CAL_VEIL[level] = FIXLB_veilMask(W * 2, H * 2, { r0: 96, r1: 250, dens: [0.38, 0.52, 0.65][level], col: '#7a3416', bands: 8, sy: 1.3 });
   return CAL_VEIL[level];
+}
+/* FIXLB: máscara de visibilidad simétrica: se calcula un cuadrante y se refleja (4× más rápida que
+   VISTA.veilMask a 1280×720); alfa en bandas con borde en clusters 3×2, sin tramado */
+function FIXLB_veilMask(w, h, o) {
+  const pb = new PixelBuffer(w, h), u = U(o.col) & 0xffffff, nb = o.bands, hw = w >> 1, hh = h >> 1;
+  for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
+    const dd = Math.hypot(hw - x, (hh - y) * o.sy);
+    let f = clamp((dd - o.r0) / o.r1, 0, 1); f += (hash2((x / 3) | 0, (y / 2) | 0, 41) - 0.5) * (1 / nb) * 0.9;
+    const lv = clamp(Math.round(f * nb), 0, nb); if (!lv) continue;
+    const v = ((Math.round(lv / nb * o.dens * 255) << 24) | u) >>> 0;
+    pb.data[y * w + x] = v; pb.data[y * w + (w - 1 - x)] = v; pb.data[(h - 1 - y) * w + x] = v; pb.data[(h - 1 - y) * w + (w - 1 - x)] = v;
+  }
+  return pb.toCanvas();
+}
+/* FIXLB: arena en vuelo. Lienzos W×H periódicos con estrías inclinadas (cabeza opaca, cola en 3 bandas
+   de alfa), rampa ocre con desplazamiento de tono; 4 drawImage grandes por plano. */
+const FIXLB_STORM = { t: 0, streaks: [], ground: null };
+function FIXLB_streaks(i) {
+  if (FIXLB_STORM.streaks[i]) return FIXLB_STORM.streaks[i];
+  const cfg = [
+    { n: 320, l0: 4, l1: 9, th: 1, slope: 0.1, cols: ['#f0c88a', '#e8b474', '#fad8a0'] },
+    { n: 210, l0: 8, l1: 18, th: 1, slope: 0.14, cols: ['#fde2ae', '#f6d294', '#e8b06a'] },
+    { n: 80, l0: 18, l1: 36, th: 2, slope: 0.18, cols: ['#fff0cc', '#fde4ae', '#f2c27c'] },
+  ][i];
+  const pb = new PixelBuffer(W, H), r = RNG(7300 + i);
+  for (let s = 0; s < cfg.n; s++) {
+    const x0 = r.int(0, W - 1), y0 = r.int(0, H - 1), L = r.int(cfg.l0, cfg.l1), col = U(r.pick(cfg.cols)) & 0xffffff;
+    for (let k = 0; k < L; k++) {
+      const a = k < L * 0.34 ? 235 : k < L * 0.67 ? 150 : 70;
+      const x = (((x0 - k) % W) + W) % W, y = (((y0 - Math.round(k * cfg.slope)) % H) + H) % H;
+      for (let q = 0; q < cfg.th; q++) { const idx = ((y + q) % H) * W + x; if ((pb.data[idx] >>> 24) < a) pb.data[idx] = ((a << 24) | col) >>> 0; }
+    }
+  }
+  return (FIXLB_STORM.streaks[i] = pb.toCanvas());
+}
+/** Cinta de arena rasante (24 px): lámina translúcida en bandas, más densa abajo, y estrías casi horizontales */
+function FIXLB_groundDrift() {
+  if (FIXLB_STORM.ground) return FIXLB_STORM.ground;
+  const h = 26, pb = new PixelBuffer(W, h), r = RNG(7400), sheet = U('#eab474') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < W; x++) {
+    const v = y / (h - 1), wave = Math.sin(x / W * TAU * 5 + Math.sin(x / W * TAU * 2) * 1.5) * 3;
+    const f = clamp((v * h - 8 - wave) / (h - 8), 0, 1) * 0.7 + (hash2((x / 3) | 0, (y / 2) | 0, 91) - 0.5) * 0.1;
+    const lv = clamp(Math.round(f * 5), 0, 5); if (lv) pb.data[y * W + x] = ((Math.round(lv / 5 * 255) << 24) | sheet) >>> 0;
+  }
+  for (let s = 0; s < 120; s++) {
+    const x0 = r.int(0, W - 1), y0 = r.int(6, h - 2), L = r.int(6, 22), col = U(r.pick(['#fde0a4', '#f4c886', '#e8b070'])) & 0xffffff;
+    for (let k = 0; k < L; k++) { const x = (((x0 - k) % W) + W) % W, y = y0 - Math.round(k * 0.03); if (y < 0) break; const a = k < L * 0.34 ? 240 : k < L * 0.67 ? 160 : 80; const idx = y * W + x; if ((pb.data[idx] >>> 24) < a) pb.data[idx] = ((a << 24) | col) >>> 0; }
+  }
+  return (FIXLB_STORM.ground = pb.toCanvas());
+}
+/** Dibuja un lienzo periódico desplazado (dx a la derecha, dy hacia abajo); con y0 fijo solo se repite en x */
+function FIXLB_drawTile(g, c, dx, dy, a, y0) {
+  if (a <= 0.01) return;
+  const x = (((dx % c.width) + c.width) % c.width) - c.width;
+  g.globalAlpha = Math.min(1, a);
+  if (y0 != null) { g.drawImage(c, Math.round(x), y0); g.drawImage(c, Math.round(x) + c.width, y0); }
+  else { const y = (((dy % c.height) + c.height) % c.height) - c.height; for (const ox of [0, c.width]) for (const oy of [0, c.height]) g.drawImage(c, Math.round(x) + ox, Math.round(y) + oy); }
+  g.globalAlpha = 1;
 }
 /* jirones de polvo que barren la escena (velo en bandas, sin tramado) */
 const CAL_WISP = [];
