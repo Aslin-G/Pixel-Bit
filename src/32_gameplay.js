@@ -20,6 +20,8 @@ const GameplayScene = {
     if (def.propsFront) { const pb = new PixelBuffer(this.world.w, this.world.h); def.propsFront(pb, this.world); this.propsFrontC = pb.toCanvas(); } else this.propsFrontC = null;
     // plano jugable con kit PF (opt-in por nivel): agua en corte, oclusores frontales, etiquetas
     this.pf = (def.pf && typeof PFStage !== 'undefined') ? PFStage.build(this) : null;
+    // iluminación del nivel (r2-light): gradación horneada en las capas estáticas, sombras, halos
+    if (typeof R2LIGHT !== 'undefined') R2LIGHT.prepare(this);
     const sp = (p.checkpoint && def.checkpoints && def.checkpoints[p.checkpoint]) || def.spawn;
     this.player = this.world.add(new Player({ x: sp.x, y: sp.y, facing: sp.facing || 1 }));
     // KIRU nace detrás de Amaya; si eso lo deja contra el borde izquierdo del nivel, nace delante (FIXUI F23)
@@ -47,7 +49,7 @@ const GameplayScene = {
   resume() { Audio2.playMusic(this.musicOverride || this.def.music || 'coast'); },
   /** Con un diálogo encima (p. ej. la intro de L10) la tarjeta de capítulo sigue su curso en lugar de quedar congelada como fantasma */
   updateBelow(dt) { if (this.chapterCard && this.chapterCard.t < 4.2 && Game.top() === DialogueScene) this.chapterCard.t += dt; },
-  exit() { },
+  exit() { if (typeof R2LIGHT !== 'undefined') R2LIGHT.release(this); },
   inputEnabled() { return this.cutscene === 0 && Game.top() === this && !Game.fade.busy; },
   /* ---------- API de guion ---------- */
   run(fn) {
@@ -180,12 +182,14 @@ const GameplayScene = {
     if (this.pf) PFStage.renderBack(g, this);
     if (def.renderBack) def.renderBack(g, this, camI);
     // accesorios estáticos de fondo (mundo; con kit PF incluyen las caras superiores del suelo)
-    if (this.propsC) g.drawImage(this.propsC, ox, oy, W, H, 0, 0, W, H);
+    const R2L = typeof R2LIGHT !== 'undefined' && R2LIGHT.on(this);
+    if (this.propsC) { if (R2L) R2LIGHT.blit(g, this, 'propsC'); else g.drawImage(this.propsC, ox, oy, W, H, 0, 0, W, H); }
+    if (R2L) R2LIGHT.glowLayer(g, this);
     if (def.renderMid) def.renderMid(g, this, camI);
     // cortes submarinos detrás del terreno (el terreno deja un hueco bajo el muelle)
     if (this.pf) PFStage.renderWaterBack(g, this);
     // terreno
-    g.drawImage(this.terrainC, ox, oy, W, H, 0, 0, W, H);
+    if (R2L) R2LIGHT.blit(g, this, 'terrainC'); else g.drawImage(this.terrainC, ox, oy, W, H, 0, 0, W, H);
     for (const p of this.world.platforms) if (!p.baked) drawPlatform(g, p, ox, oy);
     for (const l of this.world.ladders) drawLadder(g, l, ox, oy);
     // entidades: estaciones, actores, kiru, jugadora
@@ -197,7 +201,7 @@ const GameplayScene = {
     for (const w of this.world.water) if (!(w.pf && this.pf)) drawWaterFront(g, w, ox, oy, this);
     if (this.pf) PFStage.renderWaterFront(g, this);
     if (def.renderFront) def.renderFront(g, this, camI);
-    if (this.propsFrontC) g.drawImage(this.propsFrontC, ox, oy, W, H, 0, 0, W, H);
+    if (this.propsFrontC) { if (R2L) R2LIGHT.blit(g, this, 'propsFrontC'); else g.drawImage(this.propsFrontC, ox, oy, W, H, 0, 0, W, H); }
     this.world.ps.render(g, ox, oy);
     B.render(g, camI, 'front');
     // planos frontales (f > 1): oclusores de encuadre
