@@ -217,7 +217,9 @@ function makeSim(def) {
         const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
         const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
         g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
-        UIK.speechBubble(g, bx + 38, by + 3, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['bl'], minY: 30 });
+        // globo acoplado a la derecha del busto, con la base a ras del marco: ocupa la franja inferior y no la
+        // columna izquierda del simulador (allí suelen estar los valores y etiquetas que el guía menciona)
+        UIK.speechBubble(g, bx + 39, by + 24, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['sl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);

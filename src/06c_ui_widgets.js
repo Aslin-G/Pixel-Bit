@@ -426,7 +426,29 @@ UIK.pill = function (g, x, y, text, o = {}) {
 UIK.bubbleCanvas = function (w, h, tail, style = 'tech', off = 0) {
   const s = panelStyle(style);
   return _cacheGet(UIK._shapeCache, 'bub|' + w + '|' + h + '|' + tail + '|' + (s === PANEL_STYLES.hc ? 'hc' : style) + '|' + off, () => {
-    const TH = 8, top = tail[0] === 't' ? TH : 0, ch = 3;
+    const TH = 8, ch = 3;
+    if (tail === 'sl') {
+      // cola lateral a la izquierda (globo a la derecha del busto, cuña hacia su cara a 14 px del fondo)
+      const bw = w - TH, bh = h, cy = bh - 14;
+      const insideS = (x, y) => {
+        const bx = x - TH;
+        if (bx >= 0) {
+          if (y < ch && (bx < ch - y || bx >= bw - (ch - y))) return false;
+          if (y >= bh - ch && (bx < ch - (bh - 1 - y) || bx >= bw - (ch - (bh - 1 - y)))) return false;
+          return bx < bw && y >= 0 && y < bh;
+        }
+        const k = TH - x, half = Math.max(1, Math.round(5 * (1 - (k - 1) / TH)));
+        const dy = y - cy + Math.round((k - 1) * 0.4);
+        return dy >= -half && dy < half;
+      };
+      const c = UIK.shapeFrame(w, h, insideS, s, { split: 0.3, fill: style === 'tech' ? ['#08204a', '#061a3e'] : null });
+      const b = c.getContext('2d');
+      if (bh > 30) { b.fillStyle = s.key; b.fillRect(TH + 6, bh - 6, bw - 12, 1); }
+      fpx(b, w - 7, 4, s.spark || '#7fb8ff'); fpx(b, w - 6, 5, '#e8f6ff'); fpx(b, w - 5, 4, s.spark || '#7fb8ff');
+      fpx(b, w - 8, bh - 5, s.spark || '#7fb8ff'); fpx(b, w - 6, bh - 6, '#e8f6ff'); fpx(b, w - 5, bh - 7, s.spark || '#7fb8ff');
+      return c;
+    }
+    const top = tail[0] === 't' ? TH : 0;
     const bw = w, bh = h - TH;
     const left = tail[1] === 'l';
     // base de la cola (10 px de ancho); off la desplaza hacia el centro del globo
@@ -493,6 +515,12 @@ UIK.speechBubble = function (g, ax, ay, o = {}) {
   // en juego, la cola también puede ir hacia el centro del globo (el globo se desliza sobre su cola)
   const offs = wa ? [0, Math.round((w - 36) / 8) * 4, Math.round((w - 36) / 4) * 4].filter((v, i, a) => v >= 0 && a.indexOf(v) === i) : [0];
   for (const tail of order) {
+    if (tail === 'sl') {
+      // globo a la derecha del ancla, con la cola lateral a 14 px de su borde inferior
+      const r = { x: Math.round(ax), y: Math.round(ay - (bodyH - 14)), w: w + TH, h: bodyH };
+      cands.push({ tail, off: 0, r, pen: score(r) + cands.length * 0.5 });
+      continue;
+    }
     const left = tail[1] === 'l', up = tail[0] === 'b'; // cola abajo → globo arriba
     for (const off of offs) {
       const tipDX = left ? 8 + off - Math.round(TH * 0.55) + 1 : w - 8 - off - 1 + Math.round(TH * 0.55) - 1;
@@ -509,21 +537,22 @@ UIK.speechBubble = function (g, ax, ay, o = {}) {
   }
   cands.sort((a, b) => a.pen - b.pen);
   const C = cands[0];
-  const r = C.r; r.y = clamp(r.y, minY, maxY - h);
-  const cv = UIK.bubbleCanvas(w, h, C.tail, o.style || 'tech', C.off || 0);
+  const side = C.tail === 'sl', sx = side ? TH : 0;
+  const r = C.r; r.y = clamp(r.y, minY, maxY - r.h);
+  const cv = UIK.bubbleCanvas(side ? w + TH : w, side ? bodyH : h, C.tail, o.style || 'tech', C.off || 0);
   g.drawImage(cv, r.x, r.y);
   const s = panelStyle(o.style || 'tech');
   const ty = r.y + (C.tail[0] === 't' ? TH : 0);
   let yy = ty + 7;
   if (o.name) {
-    drawText(g, o.name, r.x + 10, yy, { font: 'bold', color: s.title });
-    if (o.nameCol) frect(g, r.x + 10, yy + 10, Math.min(16, nameW), 2, o.nameCol);
+    drawText(g, o.name, r.x + sx + 10, yy, { font: 'bold', color: s.title });
+    if (o.nameCol) frect(g, r.x + sx + 10, yy + 10, Math.min(16, nameW), 2, o.nameCol);
     yy += 15;
   }
   let rem = o.max ?? Infinity;
-  lines.forEach((l, i) => { if (rem > 0) drawText(g, l, r.x + 10, yy + i * lineH, { color: s.text, max: rem }); rem -= stripMarkup(l).length + 1; });
-  if (o.more) { const bx = r.x + w - 12, by2 = ty + bodyH - 9 + Math.round(Math.sin(Game.time * 6)); frect(g, bx, by2, 5, 1, '#ffd23a'); frect(g, bx + 1, by2 + 1, 3, 1, '#ffd23a'); fpx(g, bx + 2, by2 + 2, '#ffd23a'); }
-  return { x: r.x, y: r.y, w, h, tail: C.tail };
+  lines.forEach((l, i) => { if (rem > 0) drawText(g, l, r.x + sx + 10, yy + i * lineH, { color: s.text, max: rem }); rem -= stripMarkup(l).length + 1; });
+  if (o.more) { const bx = r.x + sx + w - 12, by2 = ty + bodyH - 9 + Math.round(Math.sin(Game.time * 6)); frect(g, bx, by2, 5, 1, '#ffd23a'); frect(g, bx + 1, by2 + 1, 3, 1, '#ffd23a'); fpx(g, bx + 2, by2 + 2, '#ffd23a'); }
+  return { x: r.x, y: r.y, w: r.w, h: r.h, tail: C.tail };
 };
 
 /* ---------- Panel PREGUNTA: insignia que rompe la esquina + título + enunciado (opciones con Gui.choice) ---------- */
