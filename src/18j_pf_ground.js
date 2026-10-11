@@ -277,10 +277,24 @@ const PFGround = (() => {
   }
 
   /* ================= DUNAS ================= */
+  const _mixC = new Map();
+  function K32mix(a, b, t) { const k = a + '|' + b + '|' + t; let v = _mixC.get(k); if (v === undefined) { v = PFK.mixU(a, b, t); _mixC.set(k, v); } return v; }
   function duneSurf(s, x, y, gy, D, back, t, dz) {
     const S = PFK.P32(SANDF), V = PFK.P32(VIO);
     if (dz === 1) return S[9];
     let tt = 0.8 - t * 0.24 + (PFK.vn(x * 0.04, y * 0.25, 101) - 0.5) * 0.14;
+    if (s.r2 !== false) {
+      // ronda 2: lomos de duna a lo largo de x (cara a la luz más clara, sotavento violeta) y rizos asimétricos
+      // con cresta iluminada, barlovento en degradado y sotavento corto en sombra
+      const hx = PFK.vn((x + 2) * 0.022, 0.5, 105) - PFK.vn((x - 2) * 0.022, 0.5, 105);
+      tt += -hx * 2.6 + (PFK.vn(x * 0.007, 1.5, 106) - 0.5) * 0.12;
+      const ph = (y * 1.25 + Math.sin(x * 0.05 + y * 0.1) * 3.5 + PFK.vn(x * 0.015, y * 0.1, 102) * 7) / 5.5, f = ph - Math.floor(ph);
+      if (f < 0.16) { if (hx > 0.02 || PFK.vn(x * 0.05, y * 0.2, 103) > 0.6) return K32mix(V[3], S[4], 0.35); tt -= 0.17; }
+      else if (f < 0.3) tt += 0.13;
+      else tt += (f - 0.65) * 0.12;
+      if (hash2(x, y, 104) < 0.005) return S[3];
+      return S[clamp(Math.round(tt * 9), 3, 9)];
+    }
     const rip = (y * 1.4 + Math.sin(x * 0.06 + y * 0.12) * 3.5 + PFK.vn(x * 0.015, y * 0.1, 102) * 7) % 5;
     if (rip < 1) { if (PFK.vn(x * 0.05, y * 0.2, 103) > 0.55) return V[4]; tt -= 0.14; } else if (rip < 2) tt += 0.05;
     if (hash2(x, y, 104) < 0.006) return S[3];
@@ -319,6 +333,15 @@ const PFGround = (() => {
     // briznas inclinadas por el viento (columnas desplazadas por fila)
     const bl = (x + Math.floor(dz * 0.6)) % 3;
     let k = 4 - Math.round(t * 2) + (bl === 0 ? 1 : bl === 2 ? -1 : 0) + Math.round((PFK.vn(x * 0.08, y * 0.3, 125) - 0.5) * 2);
+    if (s.r2 !== false) {
+      // ronda 2: matas abombadas (cara arriba-izquierda al sol, base en sombra) y ráfagas de viento que peinan la hierba
+      const cx = PFK.vn(x * 0.09, y * 0.35, 127), cu = PFK.vn(x * 0.09, (y - 1) * 0.35, 127), cl_ = PFK.vn((x - 1) * 0.09, y * 0.35, 127);
+      const sl = (cx - cu) * 6 + (cx - cl_) * 4;
+      k += sl > 0.25 ? 1 : sl < -0.3 ? -1 : 0;
+      if (cx > 0.62 && cu <= 0.62) k += 1;                                         // cresta de la mata
+      const gust = PFK.vn(x * 0.012 - dz * 0.04, 3.3, 128);
+      if (gust > 0.68 && bl === 0) k += 1;                                         // brillo peinado por el viento
+    }
     const hh = hash2(x, y, 126);
     if (hh < 0.012) return U(['#f478b8', '#fff2c0', '#ffd84a', '#c9a8f0'][Math.floor(hh * 333) % 4]);
     if (hh > 0.985) return F[1];
