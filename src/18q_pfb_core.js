@@ -47,16 +47,33 @@ const PFB = (() => {
     x = Math.round(x); y = Math.round(y);
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const u = typeof fn === 'function' ? fn(xx, yy, (xx - x) / Math.max(1, w - 1), (yy - y) / Math.max(1, h - 1)) : fn; if (u) K.put(pb, xx, yy, u); }
   }
+  /** Sombra que respeta el material: sobre superficies cálidas (arena, arenisca, adobe) un tono
+      frío lejano haría girar el matiz por rojo/magenta y ganar croma (#ea5c39 sobre arena).
+      Ahí se oscurece por multiplicación con un tinte pardo-violáceo (menos croma, matiz estable);
+      en superficies frías se mantiene el desplazamiento de matiz hacia hue. Cacheado. */
+  const _shS = new Map();
+  function shS(u, amt, hue = 235) {
+    const key = u + '|' + amt + '|' + hue; let v = _shS.get(key); if (v !== undefined) return v;
+    const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, a = u >>> 24;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0;
+    let h = 0; if (mx !== mn) { h = mx === r ? ((g - b) / (mx - mn)) % 6 : mx === g ? (b - r) / (mx - mn) + 2 : (r - g) / (mx - mn) + 4; h = (h * 60 + 360) % 360; }
+    const warm = (h < 80 || h > 330) && sat > 0.12, far = hue !== null && Math.abs(((hue - h + 540) % 360) - 180) > 90;
+    if (amt < 0 && warm && far) {
+      const k = -amt, f = (c, m) => clamp(Math.round(c * (1 - k * m)), 0, 255);
+      v = ((a << 24) | (f(b, 1.0) << 16) | (f(g, 1.1) << 8) | f(r, 0.9)) >>> 0;
+    } else v = K.shU(u, amt, hue);
+    _shS.set(key, v); return v;
+  }
   /** Oscurece píxeles opacos en un rect (sombra pintada, sin tramado) */
   function shade(pb, x, y, w, h, amt = -0.25, hue = 235) {
     x = Math.round(x); y = Math.round(y);
-    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, amt, hue)); }
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, shS(c, amt, hue)); }
   }
   /** Sombra de contacto elíptica bajo un objeto (2 anillos) */
   function contact(pb, cx, y, rx, ry = 2, amt = -0.3) {
     for (let yy = Math.floor(y - ry); yy <= Math.ceil(y + ry); yy++) for (let xx = Math.floor(cx - rx); xx <= Math.ceil(cx + rx); xx++) {
       const nx = (xx - cx) / rx, ny = (yy - y) / (ry + 0.01), d = nx * nx + ny * ny; if (d > 1) continue;
-      const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, d < 0.45 ? amt : amt * 0.55, 235));
+      const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, shS(c, d < 0.45 ? amt : amt * 0.55, 235));
     }
   }
   /** Sombra proyectada hacia atrás-derecha (luz arriba-izquierda) sobre el suelo ya pintado.
@@ -66,7 +83,7 @@ const PFB = (() => {
     for (let s = 0; s <= len; s++) {
       const yy = Math.round(y - s * up); if (yy < yMin) break;
       const a = s > len * 0.7 ? amt * 0.55 : amt;
-      for (let xx = Math.round(x0 + s); xx <= Math.round(x1 + s); xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, K.shU(c, a, hue)); }
+      for (let xx = Math.round(x0 + s); xx <= Math.round(x1 + s); xx++) { const c = K.get(pb, xx, yy); if (c >>> 24) K.put(pb, xx, yy, shS(c, a, hue)); }
     }
   }
   /* ---------- arquitectura a escala de personaje ---------- */
@@ -247,7 +264,7 @@ const PFB = (() => {
     }
     return out;
   }
-  return { R, P, LIGHT, sprite, finish, chunkFlow, stamp, rect, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
+  return { R, P, LIGHT, sprite, finish, chunkFlow, stamp, rect, shS, shade, contact, castR, door, win, plaque, awning, lampPost, bench, rail, fence, tank, rocks, cactus, glows, screens, drawClue };
 })();
 
 /* ---------- extensiones compatibles de los kits PF ---------- */

@@ -192,8 +192,8 @@ const PFBGround = (() => {
     // AO al pie de escalones
     for (let x = 1; x < wd - 1; x++) {
       const g0 = world.ground[x - 1], g1 = world.ground[x];
-      if (g0 < g1 - 4) for (let k = 0; k < 5; k++) for (let y = g1 - 10; y < g1; y++) { const c = K.get(pb, x + k, y); if (c >>> 24) K.put(pb, x + k, y, K.shU(c, -0.22 + k * 0.04, 235)); }
-      if (g1 < g0 - 4) for (let k = 0; k < 4; k++) for (let y = g0 - 8; y < g0; y++) { const c = K.get(pb, x - 1 - k, y); if (c >>> 24) K.put(pb, x - 1 - k, y, K.shU(c, -0.18 + k * 0.04, 235)); }
+      if (g0 < g1 - 4) for (let k = 0; k < 5; k++) for (let y = g1 - 10; y < g1; y++) { const c = K.get(pb, x + k, y); if (c >>> 24) K.put(pb, x + k, y, PFB.shS(c, -0.22 + k * 0.04, 235)); }
+      if (g1 < g0 - 4) for (let k = 0; k < 4; k++) for (let y = g0 - 8; y < g0; y++) { const c = K.get(pb, x - 1 - k, y); if (c >>> 24) K.put(pb, x - 1 - k, y, PFB.shS(c, -0.18 + k * 0.04, 235)); }
     }
     return segs;
   }
@@ -244,22 +244,27 @@ const PFBGround = (() => {
     if (o.wet && d > 4 && d < h2) k -= 1;
     return S[clamp(k - (d > 70 ? 1 : 0), 0, n - 1)];
   }
+  /** Arenisca en hiladas: estratos horizontales con bisel iluminado arriba y pie en sombra,
+      juntas verticales escalonadas por hilada (media pieza + desfase) y sin chorreones translúcidos */
+  const _ssRows = new Map();
   function sandstonePix(x, d, seed) {
     const S = K.P32(PFB.R.STONE), n = S.length;
-    const yy = d + Math.round((K.vn(x * 0.012, 0, seed) - 0.5) * 10);
-    const band = Math.floor(yy / 9), lb = yy - band * 9;
-    let k = 5 + Math.round((hash1(band, seed) - 0.5) * 3) + Math.round((K.vn(x * 0.06, yy * 0.1, seed + 1) - 0.5) * 1.6);
-    if (lb === 0) k -= 2; else if (lb === 1) k += 1;
-    // estratificación cruzada
-    if (((x * 0.35 + yy * 1.1 + band * 7) % 11) < 1 && lb > 2) k -= 1;
-    // fisuras verticales
-    const fx = Math.floor(x / 23), fpos = fx * 23 + Math.floor(hash1(fx, seed + 2) * 18);
-    if (Math.abs(x - fpos) < 1 && hash2(fx, band, seed) < 0.6) k = 1;
-    else if (x - fpos === 1 && hash2(fx, band, seed) < 0.6) k += 1;
-    // barniz del desierto
-    if (K.vn(x * 0.3, d * 0.02, seed + 3) > 0.74) k -= 1;
-    k -= Math.floor(d / 34);
-    return S[clamp(k, 0, n - 1)];
+    // hiladas planas de 8–11 px (alturas por semilla, tabla cacheada)
+    let T = _ssRows.get(seed);
+    if (!T) { T = []; let y0 = 0; for (let b = 0; y0 < 400; b++) { const h = 8 + Math.floor(hash1(b, seed + 11) * 4); for (let i = 0; i < h; i++) T.push([b, i, h]); y0 += h; } _ssRows.set(seed, T); }
+    const yy = Math.max(0, d), [band, lb, bh] = T[Math.min(T.length - 1, yy)];
+    const bw = 26 + Math.floor(hash1(band, seed + 4) * 10);
+    const off = (band & 1) * Math.floor(bw / 2) + Math.floor(hash1(band, seed + 6) * 6);
+    const bx = x + off, bi = Math.floor(bx / bw), lx = bx - bi * bw;
+    const deep = Math.floor(d / 34);
+    if (lb === 0) return S[clamp(1 - (deep > 1 ? 1 : 0), 0, n - 1)];
+    if (lx === 0) return S[clamp(2 - deep, 0, n - 1)];
+    let k = 5 + Math.round((hash2(bi, band, seed) - 0.5) * 2.2) + Math.round((hash1(band, seed) - 0.5) * 1.4);
+    if (lb === 1) k += 2; else if (lb === 2) k += 1; else if (lb >= bh - 2) k -= 1;
+    if (lx === 1 && lb > 1) k += 1; else if (lx === bw - 1) k -= 1;
+    if (lb === (bh >> 1) + 1 && hash2(bi, band, seed + 8) < 0.45) k -= 1;
+    if (lb > 2 && K.cl(x, yy, 2, seed + 3) < 0.06) k -= 1;
+    return S[clamp(k - deep, 0, n - 1)];
   }
   function metalFace(s, x, d) {
     const M = K.P32(s.ramp || METALT), n = M.length;
@@ -320,7 +325,7 @@ const PFBGround = (() => {
     const u = wallPix(x, ly + 2, 80, s.seed, S, { rh: 9, sw: 18 });
     // imbornales
     if (s.drains) { const dx = ((x % 120) + 120) % 120; if (dx > 40 && dx < 58 && ly > 2 && ly < 12) return U(((dx - 40) % 3 === 0) ? '#5a5658' : '#140e10'); }
-    return K.shU(u, -0.06 * Math.floor(ly / 20), 235);
+    return PFB.shS(u, -0.06 * Math.floor(ly / 20), 235);
   }
   /** Galería de servicios en corte bajo un forjado de acero: viga de canto remachada con franja ámbar,
       pilares cada s.bay px, bandeja de cables, tuberías por colores (s.pipes: [[dy, r, kind]]),
@@ -533,7 +538,7 @@ const PFBGround = (() => {
     // sombra de contacto en escalones del suelo
     for (let x = 1; x < wd; x++) {
       const gl = world.ground[x - 1], gy = world.ground[x];
-      if (gl < gy - 3) for (let y = gl; y < gy + 26; y++) { const c = K.get(pb, x - 1, y); if (c >>> 24) K.put(pb, x - 1, y, K.shU(c, -0.3, 235)); }
+      if (gl < gy - 3) for (let y = gl; y < gy + 26; y++) { const c = K.get(pb, x - 1, y); if (c >>> 24) K.put(pb, x - 1, y, PFB.shS(c, -0.3, 235)); }
       if (gy < gl - 3) for (let y = gy; y < gl + 26; y++) { const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, U('#fff1c8'), 0.25)); }
     }
     for (const s of segs) if (s.face === 'terrace' || s.face === 'soilcut') decorateSoil(pb, world, s);
