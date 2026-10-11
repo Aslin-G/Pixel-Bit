@@ -122,9 +122,18 @@ const R2TERRAIN_Rock = (() => {
       const row = y * w;
       for (let xi = 0; xi < w; xi++) {
         const x = bx0 + xi, d = y - gyA[xi];
-        if (d < 0) continue;
+        if (d < (o.heads ? -4 : 0)) continue;
         while (ci < cols.length - 1 && x >= eC[ci + 1]) ci++;
         const c = cols[ci], m = c.m; mi = m.i;
+        if (d < 0) {
+          // cabezas de columna que asoman sobre el borde cercano (silueta del canto irregular, cara superior al sol)
+          if ((o.edgeR != null && x >= o.edgeR - 5) || (o.edgeL != null && x < o.edgeL + 5) || hash1(c.i, sd + 90) > 0.42) continue;
+          const lft = eC[ci], rgt = ci + 1 < cols.length ? eC[ci + 1] : c.x1, hw = (rgt - lft) / 2, u = (x + 0.5 - lft - hw) / Math.max(2, hw - 1);
+          const HH = 1 + Math.floor(hash1(c.i, sd + 91) * 3.4);
+          if (Math.abs(u) >= 1 || -d > HH * Math.sqrt(1 - u * u)) continue;
+          const ii = y * w + xi; H[ii] = m.pro + c.pro - (c.cap - d) * 1.9; A[ii] = 1.1; F[ii] = 3;
+          continue;
+        }
         // silueta en extremos que dan a un vacío (garganta): la cara se retrae en diagonal bajo el borde
         if (o.edgeR != null && x >= o.edgeR - Math.round(Math.min(d * 0.22, 3 + K.vn(y * 0.06, 1, sd) * 7 + (hash1(y >> 3, sd) < 0.3 ? 2 : 0)))) continue;
         if (o.edgeL != null && x < o.edgeL + Math.round(Math.min(d * 0.18, 2 + K.vn(y * 0.06, 2, sd) * 6))) continue;
@@ -269,7 +278,7 @@ const R2TERRAIN_Rock = (() => {
     const voidR = s.edgeR != null ? s.edgeR : (nb(s.x1, false) && nb(s.x1, false).face === 'void' ? s.x1 : null);
     return field({
       x0: s.x0, x1: s.x1, h: world.h, gyAt: (x) => world.ground[clamp(Math.round(x), 0, world.w)],
-      ramp: s.ramp || RAMP.rockWarmR, seed: (s.seed | 0) + 3, lip: s.lip, hue: s.shadeHue,
+      ramp: s.ramp || RAMP.rockWarmR, seed: (s.seed | 0) + 3, lip: s.lip, hue: s.shadeHue, heads: s.heads !== false,
       tiers: s.tiers, scree: s.scree, screeD: s.screeD, edgeL: voidL, edgeR: voidR,
     });
   }

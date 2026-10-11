@@ -318,8 +318,10 @@ const PFTerrain = (() => {
     for (let x = 0; x < wd; x++) {
       const s = segAt(segs, x), gy = world.ground[x];
       const nearB = segs.some(o => o !== s && (Math.abs(x - o.x0) < 10 || Math.abs(x - o.x1) < 10));
-      for (let y = Math.max(0, gy); y < hd; y++) {
+      const y0 = s.face === 'cliff' && s.r2 !== false && s.heads !== false && typeof R2TERRAIN_Rock !== 'undefined' ? gy - 4 : gy;
+      for (let y = Math.max(0, y0); y < hd; y++) {
         let ss = s;
+        if (y < gy) { const u = facePix(s, x, y, gy, world); if (u) pb.data[y * wd + x] = u; continue; }
         // frontera orgánica entre materiales: borde vertical ondulado (sin mezcla de ruido)
         if (nearB && s.face !== 'pier' && !s.hard) {
           const o = segAt(segs, clamp(x + Math.round((PFK.vn(y * 0.07, 0.5, 13) - 0.5) * 16), 0, wd - 1));
