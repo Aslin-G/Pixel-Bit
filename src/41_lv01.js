@@ -8,7 +8,7 @@ LEVELS[1] = {
   id: 1, title: 'La Boca del Mar', chapter: 'CAPÍTULO 01', biome: 'coast', music: 'coast', width: 2600, height: 460,
   ambience: { sea: 0.8, wind: 0.35, birds: 0.6 },
   portraits: ['amaya', 'kiru', 'dante', 'marea', 'limen'],
-  spawn: { x: 70, y: 248 },
+  spawn: { x: 118, y: 248 }, // a la derecha del poste de destinos: ni Amaya ni KIRU tapan sus tablas
   checkpoints: { intake: { x: 1100, y: 270 }, filters: { x: 1600, y: 268 } },
   /* Composición vertical (≥ 6 alturas): acantilado de inicio 246–248 → terraza 264 → playa 292–298 →
      roquedal 262–292 → escalinata → muelle 268 sobre el corte submarino → explanada de filtros 282 →
@@ -152,7 +152,7 @@ LEVELS[1] = {
     for (const [x, h, l] of [[1940, 60, 6], [2160, 74, -6], [2290, 56, 4], [2440, 80, -8], [2580, 62, 5]]) F.palm(pb, x, back(x) + 2, h, l, x);
     F.tree(pb, 2060, back(2060) + 3, 62, 93); F.tree(pb, 2390, back(2390) + 3, 54, 94, { wide: 1.1 });
     for (let x = 1900; x < 2600; x += 40 + r.int(0, 40)) rockPile(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x + 7);
-    PFSigns.post(pb, 2488, gy(2488) - 7, [{ text: 'PLANTA OI' }, { text: 'LA TOMA', dir: -1 }], 19);
+    PFSigns.post(pb, 2440, gy(2440) - 7, [{ text: 'PLANTA OI' }, { text: 'LA TOMA', dir: -1 }], 19); // 100 px antes de la salida (2540): KIRU no lo tapa
     F.hibiscusBush(pb, 2470, gy(2470) - 5, 20, 14, 95);
   },
   /** Primer plano a ras de suelo (delante de los pies): pasto alto, flores */

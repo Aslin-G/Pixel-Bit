@@ -121,13 +121,18 @@ LEVELS[5] = {
     const rot = S.parkStopped ? 0 : clamp(WindModel.power(v) / 500, 0, 1) * 3.5 + (v > 3 ? 0.6 : 0);
     S.ang += rot * Game.dt;
     // gargantas: niebla en bandas translúcidas que sube con la corriente, espuma al pie
-    const MIST = ['#f2f6fa', '#dce6ee', '#c4d4e2', '#a8c0d6'];
+    // bandas de profundidad: el fondo de la garganta se hunde hacia el azul marino; arriba, velo aéreo claro
+    const MIST = ['#1c2a5a', '#34487e', '#7088b8', '#c4d4e2'], MA = [0.34, 0.26, 0.16, 0.1];
     for (const [x0, x1] of [[424, 624], [1304, 1564]]) {
       const sx = x0 - cam.x, sw = x1 - x0;
       if (sx > W || sx + sw < 0) continue;
-      for (let i = 0; i < 4; i++) { g.globalAlpha = 0.22 - i * 0.04; frect(g, sx, 372 - i * 22 - cam.y + Math.round(Math.sin(t * 0.5 + i) * 3), sw, 20, MIST[i]); }
-      g.globalAlpha = 0.5; for (let i = 0; i < 8; i++) { const ph = (t * 0.35 + i / 8) % 1; frect(g, sx + ((i * 47 + Math.floor(t * 6)) % (sw - 20)), Math.round(390 - ph * 150 - cam.y), 1, 6, '#ffffff'); }
+      for (let i = 0; i < 4; i++) { g.globalAlpha = MA[i]; frect(g, sx, 372 - i * 22 - cam.y + Math.round(Math.sin(t * 0.5 + i) * 3), sw, 22, MIST[i]); }
+      // corriente ascendente: estelas que suben a 20–40 px/s y motas de polvo con vaivén lateral
+      for (let i = 0; i < 16; i++) { const sp = 20 + hash1(i, x0) * 20, ph = ((t * sp + hash1(i, x0 + 1) * 160) % 160) / 160; g.globalAlpha = 0.5 * Math.sin(ph * Math.PI); frect(g, sx + 6 + Math.floor(hash1(i, x0 + 2) * (sw - 12)), Math.round(392 - ph * 160 - cam.y), 1, 5 + (i % 3) * 2, '#ffffff'); }
+      for (let i = 0; i < 14; i++) { const sp = 22 + hash1(i, x0 + 3) * 16, ph = ((t * sp + hash1(i, x0 + 4) * 170) % 170) / 170; g.globalAlpha = 0.75 * Math.sin(ph * Math.PI); fpx(g, Math.round(sx + 8 + hash1(i, x0 + 5) * (sw - 16) + Math.sin(t * 1.7 + i) * 3), Math.round(388 - ph * 170 - cam.y), i % 3 ? '#e8d8c0' : '#ffffff'); }
       g.globalAlpha = 1;
+      // gaviota que planea en círculos sobre la corriente
+      if (typeof PFFauna !== 'undefined' && PFFauna.drawGullAt) { const a = t * 0.45 + x0; PFFauna.drawGullAt(g, sx + sw / 2 + Math.cos(a) * sw * 0.32, 262 - cam.y + Math.sin(a) * 18 - ((t * 6) % 30), t + x0, Math.sin(a) > 0); }
       for (let x = 0; x < sw; x += 4) fpx(g, sx + x, Math.round(395 - cam.y + Math.sin(x * 0.2 + t * 2)), '#e4f6fc');
     }
     // rotores grandes (tira de 12 cuadros) delante de las góndolas
@@ -156,6 +161,17 @@ LEVELS[5] = {
     farm.turbines.forEach((tb, i) => lensTag(g, WIND_TURBINES[i] - 30 - ox, w.groundAt(WIND_TURBINES[i]) - 150 - oy, 'v ' + fmt(tb.v, 1) + ' · ' + fmt0(S.parkStopped ? 0 : tb.P) + ' kW', i ? '#ff9a8a' : '#8ff5c8', 'wind'));
     lensTag(g, 760 - ox, 250 - oy, 'Estela: turbinas alineadas a ~5 D pierden viento', '#cdeefa', 'turbine');
     lensTag(g, 440 - ox, 140 - oy, 'Corriente ascendente: planea (mantén SALTAR)', '#8ff5c8', 'wind');
+    // chevrones ascendentes sobre las gargantas (la corriente se ve: sube)
+    const t = Game.time;
+    for (const [x0, x1] of [[424, 624], [1304, 1564]]) {
+      const sx = x0 - ox; if (sx > W || sx + (x1 - x0) < 0) continue;
+      g.globalAlpha = 0.7 * k;
+      for (let c = 0; c < 4; c++) for (let j = 0; j < 4; j++) {
+        const cx = Math.round(sx + (x1 - x0) * (0.2 + c * 0.2)), cy = Math.round(370 - (((t * 30 + j * 40 + c * 13) % 160)) - oy);
+        for (let q = 0; q < 4; q++) { fpx(g, cx - q, cy + q, '#8ff5c8'); fpx(g, cx + q, cy + q, '#8ff5c8'); }
+      }
+      g.globalAlpha = 1;
+    }
   },
   hud(g, sc) {
     const S = sc.state;

@@ -50,7 +50,6 @@ BIOMES.canyon = function (L) {
   /* ---------------- paredes medias azul-violeta con vetas (0,14) ---------------- */
   P(0.14, 70, 150, (pb, w, h) => {
     V.mesas3q(pb, { yBase: h - 1, seed: 103, k: 0.1, hMin: 46, hMax: 120, ramp: CANYON });
-    V.saltVeins(pb, { seed: 105, every: 13, col: '#ffe0f0' });
     // niebla rosada en el pie de las paredes
     for (let y = h - 26; y < h; y++) { const kk = 0.55 * Math.pow((y - (h - 26)) / 26, 1.4); for (let x = 0; x < w; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], U('#d890b0'), kk); } }
   }, { tag: 'walls' });
@@ -103,7 +102,6 @@ BIOMES.canyon = function (L) {
       const c = V.crystals(pb, x + r.int(-10, 10), base - 1, r.int(1, 3), x, { k });
       hoodFx.glints.push(...c.glints.map(([gx, gy]) => [gx, gy, 3]));
     }
-    V.saltVeins(pb, { seed: 125, every: 7, col: '#ffe8f4' });
   }, {
     tag: 'hoodoos', dyn: (g, cam, Ly) => { const [ox, oy] = B.vofs(Ly, cam); V.drawPulse(g, hoodFx.glints, ox, oy, T(), '#9ff6f8', 0.4, 0.3, 2.2); },
   });

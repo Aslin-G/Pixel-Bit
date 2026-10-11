@@ -76,11 +76,13 @@ const PFFauna = (() => {
       PFK.drawStrip(g, DRONE, Math.floor(t * 30) % 2, Math.round(x - ox - 9), Math.round(y - oy - 5));
     }
   }
+  /** Gaviota suelta (planeo: alas casi quietas; aletea a ratos) */
+  function drawGullAt(g, x, y, t, flip) { ensure(); const fr = (t % 4) < 0.6 ? Math.floor(t * 8) % 4 : 1; PFK.drawStrip(g, GULL, fr, Math.round(x - 5), Math.round(y - 3), !!flip); }
   function drawDroneAt(g, x, y, t, flying) { ensure(); PFK.drawStrip(g, DRONE, flying ? Math.floor(t * 30) % 2 : 0, Math.round(x - 9), Math.round(y - 8 + (flying ? Math.round(Math.sin(t * 6)) : 0))); }
   function gallery(g, t) {
     ensure();
     for (let i = 0; i < 4; i++) { PFK.drawStrip(g, EAGLE, i, 20 + i * 40, 20); PFK.drawStrip(g, GULL, i, 20 + i * 20, 50); }
     PFK.drawStrip(g, DRONE, Math.floor(t * 30) % 2, 200, 20);
   }
-  return { renderSky, drawDroneAt, gallery };
+  return { renderSky, drawDroneAt, drawGullAt, gallery };
 })();

@@ -525,6 +525,21 @@ LEVELS[0] = {
     for (let x = 1496; x < 1648; x += 13) F.tuft(pb, x, gy(x) + 2, 6, 6, x + 1);
     // macetas de geranios en el bordillo (lejos del centro del camino)
     for (const x of [6, 386, 916, 1192, 1476, 2112]) PFArch.pots(pb, x, gy(x) + 4, 1, x);
+    // contrafuerte de roca donde el muro de la plaza se encuentra con el acantilado (cubre el corte entre materiales)
+    const R = PFK.P32(RAMP.rockWarmR), x0 = 2108, x1 = 2138, yTop = Math.round(gy(2120)) + 4;
+    for (let y = yTop; y < world.h + 40; y++) {
+      const wob = Math.round((PFK.vn(y * 0.08, 0, 7) - 0.5) * 6), a = x0 + wob - Math.max(0, 6 - (y - yTop)), b = x1 + Math.round((PFK.vn(y * 0.07, 1, 7) - 0.5) * 6);
+      for (let x = a; x < b; x++) {
+        let u = PFTerrain.boulderPix(x, y, 2120, 11, 8, R); if (u === -1) u = R[1];
+        if (x === a) u = R[1]; else if (x === b - 1) u = R[0];
+        PFK.put(pb, x, y, u);
+      }
+    }
+    // aliviadero: la acequia sale por una gárgola de piedra en el contrafuerte
+    const ay = Math.round(gy(2120)) + 58 + 3;
+    for (let yy = ay - 3; yy < ay + 4; yy++) for (let x = 2130; x < 2144; x++) PFK.put(pb, x, yy, U(yy === ay - 3 ? '#faf2e0' : yy === ay + 3 ? '#5e504a' : x > 2140 ? '#8a7a6e' : '#d2c4ae'));
+    for (let x = 2132; x < 2144; x++) PFK.put(pb, x, ay, U('#1ab8cc'));
+    LV0_ANCH.spill = [2144, ay + 1];
   },
   /* ---------------- dinámico ---------------- */
   // el panorama sabe si hay apagón (la torre de SYNARA pasa a baliza roja)
@@ -626,6 +641,15 @@ LEVELS[0] = {
     for (const id of ['kid1', 'kid2']) { const a = sc.world.find(id); if (a && !a.hidden) drawPaperWindmill(g, Math.round(a.x - cam.x + a.facing * 8), Math.round(a.y - cam.y - 38), t * (S.dark ? 0.5 : 6), id === 'kid1' ? '#ff6b6b' : '#8d6bff'); }
     // caños del muro: gotas que bajan por el chorro y destellos en la acequia; faroles de pared
     PFDyn.wallWater(g, sc, cam, !S.dark);
+    // aliviadero de la acequia: cascada pequeña que baja por el acantilado (bandas de agua que corren y espuma al pie)
+    if (LV0_ANCH.spill) {
+      const [sx0, sy0] = LV0_ANCH.spill, sx = sx0 - cam.x, sy = sy0 - cam.y;
+      if (sx > -20 && sx < W + 20) {
+        const L = 120;
+        for (let y = 0; y < L; y += 1) { const off = Math.round(Math.sqrt(y) * 1.4), ph = (y - t * 60) % 9; frect(g, sx + off - 1, sy + y, 4, 1, ph < 0 ? (ph > -3 ? '#e6fdff' : '#3adcf1') : (ph < 3 ? '#e6fdff' : '#3adcf1')); fpx(g, sx + off + 3, sy + y, '#0f8aa6'); }
+        for (let i = 0; i < 5; i++) { const ph = (t * 1.6 + i / 5) % 1; fpx(g, Math.round(sx + Math.sqrt(L) * 1.4 + (i - 2) * 3 * ph), Math.round(sy + L - ph * 5), '#ffffff'); }
+      }
+    }
     PFDyn.wallLamps(g, sc, cam, S.dark ? 0.9 : 0.35);
     // confeti durante la celebración
     if (S.party > 0 && Math.random() < 0.6) sc.world.ps.emit('confetti', cam.x + Math.random() * W, cam.y - 4, 0, 30, 1);
@@ -684,7 +708,8 @@ LEVELS[0] = {
     const fela = sc.actor('fela', 'crowd5', 452, { facing: 1 });
     const nimbo = sc.actor('nimbo', 'nimbo', 2010, { facing: -1 });
     const crowd = [];
-    [[1000, 'crowd0'], [1030, 'crowd1'], [1068, 'crowd3'], [1196, 'crowd4'], [1226, 'crowd6'], [1300, 'crowd7'], [1560, 'crowd10'], [830, 'crowd11'], [620, 'crowd12'], [380, 'crowd13']].forEach(([x, c], i) => crowd.push(sc.actor('crowd' + i, c, x, { talkable: false, wander: i % 3 ? 14 : 0 })));
+    // público espaciado (≥ 44 px entre centros, vaivén corto) para que nadie se solape frente al escenario
+    [[985, 'crowd0'], [1036, 'crowd1'], [1086, 'crowd3'], [1200, 'crowd4'], [1250, 'crowd6'], [1304, 'crowd7'], [1560, 'crowd10'], [830, 'crowd11'], [620, 'crowd12'], [380, 'crowd13']].forEach(([x, c], i) => crowd.push(sc.actor('crowd' + i, c, x, { talkable: false, wander: i % 3 ? 8 : 0 })));
     S.crowd = crowd;
     // ecos de memoria de KIRU
     w0(sc).add(new Pickup({ kind: 'echo', x: 672, y: 226, onPick: () => kiruEcho(sc, 'l0a', 'KIRU: "Ese olor a arepa... ya lo registré antes. En otra plaza. Con otra gente."') }));

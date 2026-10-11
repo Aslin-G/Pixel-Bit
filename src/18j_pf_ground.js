@@ -90,6 +90,20 @@ const PFGround = (() => {
           return (tx + ty) % 2 ? (star ? Z[2] : Z[4]) : (star ? Z[4] : Z[1]);
         }
       }
+      // arco ciego cada 330 px (rompe la repetición del muro): dovelas claras, intradós en sombra y franja de azulejo
+      if (s.arches !== false) {
+        const ax = ((x + 900 + 165) % 330) - 20, ar = 17, ay = yy - 20;
+        if (Math.abs(ax) < ar + 3 && yy >= 3 && yy < wallH - 9) {
+          const rr = Math.hypot(ax, Math.min(0, ay));
+          if (ay <= 0 && rr >= ar && rr < ar + 3) { const seg = Math.floor((Math.atan2(ay, ax) + Math.PI) / (Math.PI / 9)); return K[(seg % 2 ? 5 : 4) - (rr >= ar + 2 ? 1 : 0)]; }
+          if (ay > 0 && Math.abs(ax) >= ar && Math.abs(ax) < ar + 3) return K[ax < 0 ? 5 : 3];                      // jambas
+          if (rr < ar && Math.abs(ax) < ar) {
+            if (ay <= 0 && rr > ar - 3) return A[1];                                                                 // sombra bajo el intradós
+            if (yy >= 30 && yy < 36) { const Z = PFK.P32(AZUL), tx = Math.floor((ax + 40) / 4); return (yy === 30 || yy === 35) ? K[5] : Z[(tx + yy) % 2 ? 2 : 4]; }
+            return A[clamp(2 + Math.floor((yy - 3) / 14), 2, 4)];                                                   // fondo rehundido en bandas
+          }
+        }
+      }
       if (ry === 0 || bx === 0) return A[1];
       let k = 5 + Math.round((hash2(blk, row, 63) - 0.5) * 2.4 + (PFK.cl(x, y, 2, 64) - 0.5) * 1.1 + (PFK.vn(x * 0.1, y * 0.12, 65) - 0.5) * 0.9);
       if (ry === 1) k += 2; else if (ry === 11) k -= 2;
@@ -175,9 +189,16 @@ const PFGround = (() => {
       PFK.put(pb, x - 7, yb - 7, U(O[2])); PFK.put(pb, x - 5, yb - 7, U(O[2])); PFK.put(pb, x - 7, yb - 4, U('#2a1408'));
       for (let k = 0; k < 6; k++) PFK.put(pb, x + 5 + k, yb - 1 - (k > 3 ? 1 : 0), U(O[k % 2 ? 1 : 2]));
     };
+    // jardinera de obra en el bordillo de la acequia con geranios y clavellinas (acentos saturados)
+    const flowerBox = (x) => {
+      const gy = gyAt(x), yb = gy + wallH + gut + 8, w = 22 + r.int(0, 10), T = PFK.P32(['#4a1a0c', '#7a2e14', '#a8461e', '#cc6630', '#e88a4a']);
+      for (let yy = yb - 7; yy <= yb; yy++) for (let k = 0; k < w; k++) PFK.put(pb, x + k, yy, T[yy === yb - 7 ? 4 : yy === yb ? 0 : k < 2 ? 3 : k > w - 3 ? 1 : 2]);
+      const FL = ['#ff2a5a', '#ff5aa8', '#ffd84a', '#ff7a2a', '#e83ad8'];
+      for (let k = 1; k < w - 1; k++) { const hh = 2 + ((k * 7) % 4); for (let q = 1; q <= hh; q++) PFK.put(pb, x + k, yb - 7 - q, LF[clamp(4 - q, 1, 4)]); if (k % 3 !== 0) { const c = U(FL[(k * 5 + x) % FL.length]); PFK.put(pb, x + k, yb - 8 - hh, c); if (k % 3 === 1) PFK.put(pb, x + k, yb - 9 - hh, c); } }
+    };
     for (let x = s.x0 + 30 + r.int(0, 40); x < s.x1 - 30; x += 70 + r.int(0, 70)) {
       const k = r();
-      if (k < 0.34) cascade(x); else if (k < 0.5) spout(x); else if (k < 0.68) sconce(x); else if (k < 0.8) grate(x); else potsAt(x);
+      if (k < 0.34) cascade(x); else if (k < 0.5) spout(x); else if (k < 0.68) sconce(x); else if (k < 0.8) grate(x); else if (k < 0.9) flowerBox(x - 10); else potsAt(x);
       if (r() < 0.35) potsAt(x + 30 + r.int(0, 20));
       if (r() < 0.06) cat(x + 40);
     }
@@ -257,7 +278,7 @@ const PFGround = (() => {
   function duneSurf(s, x, y, gy, D, back, t, dz) {
     const S = PFK.P32(SANDF), V = PFK.P32(VIO);
     if (dz === 1) return S[9];
-    let tt = 0.88 - t * 0.2 + (PFK.vn(x * 0.04, y * 0.25, 101) - 0.5) * 0.14;
+    let tt = 0.8 - t * 0.24 + (PFK.vn(x * 0.04, y * 0.25, 101) - 0.5) * 0.14;
     const rip = (y * 1.4 + Math.sin(x * 0.06 + y * 0.12) * 3.5 + PFK.vn(x * 0.015, y * 0.1, 102) * 7) % 5;
     if (rip < 1) { if (PFK.vn(x * 0.05, y * 0.2, 103) > 0.55) return V[4]; tt -= 0.14; } else if (rip < 2) tt += 0.05;
     if (hash2(x, y, 104) < 0.006) return S[3];
@@ -327,33 +348,72 @@ const PFGround = (() => {
     if (hash2(x, y, 136) < 0.02) k = 8;
     return P[clamp(k, 3, 8)];
   }
-  /** Costra salina estratificada: capas blancas de sal, lodo violeta, vetas rosadas y filtraciones */
+  /**
+   * Costra salina estratificada (talud del Nivel 03): placas de sal en bloques con cara superior
+   * clara y sombra de grieta, sombra bajo el voladizo de la costra, lodo violeta en estratos con
+   * lentes de sal (borde superior iluminado, inferior en sombra), banda de yeso rosado con juntas,
+   * raíces de salicornia, goteos de salmuera y geodas de cristal dispersas en el lodo profundo.
+   * Ruido por clusters (≥ 4 px), sin moteado píxel a píxel.
+   */
+  const GYPS = ['#4a2a3e', '#6e4656', '#9a6c70', '#c4968c', '#e2bca8', '#f6dcc6'];
+  const GEO = ['#2a3a7a', '#4a72b8', '#8ac8ec', '#d8f6ff', '#ffffff'];
   function saltFlatFace(s, x, y, gy, world) {
-    const d = y - gy, P = PFK.P32(SALT), M = PFK.P32(MUD), B = PFK.P32(BRINEP), sd = 141 + ((s.seed | 0) % 30);
+    const d = y - gy, P = PFK.P32(SALT), M = PFK.P32(MUD), B = PFK.P32(BRINEP), G = PFK.P32(GYPS), sd = 141 + ((s.seed | 0) % 30);
     if (d === 0) return P[8];
     if (d < 3) return P[8 - d];
-    // límites de capa irregulares (ruido de baja frecuencia), no bandas fijas
     const n1 = (PFK.vn(x * 0.02, 0, sd) - 0.5) * 8 + (PFK.vn(x * 0.07, 1, sd) - 0.5) * 3;
-    const crust = 10 + n1, gyp = 40 + n1 * 1.4, deep = 72 + n1;
+    const crust = Math.round(11 + n1 * 0.6), gyp = Math.round(40 + n1 * 1.4), deep = Math.round(70 + n1);
     let col;
-    if (d < crust) { // costra de sal en placas poligonales con grietas
-      const cx = Math.floor((x + Math.floor(d * 0.6)) / 11), cyc = Math.floor(d / 5);
-      const edge = ((x + Math.floor(d * 0.6)) % 11 === 0) || (d % 5 === 0 && hash1(cx, sd) < 0.6);
-      let k = 7 - Math.round(d / crust * 2) + (hash2(cx, cyc, sd) < 0.3 ? -1 : 0);
-      col = edge ? P[3] : P[clamp(k, 3, 8)];
-    } else if (d < gyp - 3 || (d >= gyp + 3 && d < deep)) { // lodo con lentes de sal y cristales
-      const lens = PFK.vn(x * 0.05, y * 0.12, sd + 2) > 0.66;
-      let k = 4 - Math.round((d - crust) / 40) + Math.round((PFK.cl(x, y, 2, sd + 3) - 0.5) * 1.6);
-      col = lens ? P[clamp(6 - Math.round((d - crust) / 30), 3, 7)] : M[clamp(k, 0, 5)];
-      if (!lens && PFK.vn(x * 0.4, y * 0.03, sd + 4) > 0.86) col = B[2 + (hash2(x, y, sd + 5) < 0.3 ? 1 : 0)];   // filtraciones de salmuera
-    } else if (d < deep) { // capa de yeso crema
-      col = PFK.P32(['#5a4a3a', '#8a7458', '#b89c78', '#d8c09a', '#ecd8b8'])[clamp(3 - Math.abs(Math.round(d - gyp)) + (PFK.cl(x, y, 2, sd + 6) < 0.2 ? -1 : 0), 0, 4)];
-    } else { // lodo profundo en sombra fría
-      let k = 2 - Math.round((d - deep) / 30) + Math.round((PFK.cl(x, y, 3, sd + 7) - 0.5) * 1.4);
+    if (d < crust) {
+      // placas de sal: filas de 5–6 px y juntas verticales desplazadas por fila (aparejo irregular)
+      const row = Math.floor((d - 3) / 5), ly = (d - 3) - row * 5, off = Math.floor(hash1(row, sd) * 13);
+      const cw = 10 + Math.floor(hash1(row + 7, sd) * 6), cx = Math.floor((x + off) / cw), lx = (x + off) - cx * cw;
+      const hv = hash2(cx, row, sd);
+      let k = 7 - (row > 0 ? 1 : 0) + (hv < 0.3 ? -1 : 0);
+      if (ly === 0) k = 8;                                   // cara superior de la placa al sol
+      else if (ly === 4 || d === crust - 1) k = 3;           // sombra bajo la placa
+      if (lx === cw - 1) k = 3;                              // grieta (lado en sombra)
+      else if (lx === 0 && ly > 0) k = Math.min(8, k + 1);   // arista iluminada
+      col = P[clamp(k, 3, 8)];
+    } else if (d < crust + 2) {
+      col = M[d === crust ? 0 : 1];                          // sombra del voladizo de la costra
+    } else if (d >= gyp - 3 && d < gyp + 3) {
+      // banda de yeso rosado: canto claro, cuerpo medio, base en sombra; juntas cada 18–30 px
+      const ly = d - (gyp - 3), jw = 18 + Math.floor(hash1(Math.floor(x / 24), sd + 2) * 12), j = (x + sd) % jw;
+      col = G[ly === 0 ? 5 : ly === 5 ? 1 : ly === 4 ? 2 : (j === 0 ? 2 : 3 + (ly === 1 ? 1 : 0))];
+    } else if (d < deep) {
+      // lodo en estratos con lentes de sal (cluster de baja frecuencia con borde superior iluminado)
+      const L = (xx, yy) => PFK.vn(xx * 0.045, yy * 0.13, sd + 2);
+      const lv = L(x, y), th = 0.68;
+      if (lv > th) {
+        const up = L(x, y - 1) <= th, dn = L(x, y + 1) <= th;
+        col = P[up ? 8 : dn ? 4 : (lv > 0.78 ? 7 : 6)];
+      } else {
+        const sv = Math.floor(d + n1 * 0.5), bi = Math.floor(sv / 9), bl = sv - bi * 9, band = ((bi % 3) + 3) % 3;
+        const jw = 30 + Math.floor(hash1(bi, sd + 11) * 34), jo = Math.floor(hash1(bi, sd + 12) * 60), jx = hash2(Math.floor((x + jo) / jw), bi, sd + 15) < 0.5 ? (x + jo) % jw : -1;
+        let k = 4 - Math.round((d - crust) / 22) + (band === 1 ? -1 : 0);
+        if (bl === 0) k += 1; else if (bl === 8) k -= 1;          // filo del estrato y su sombra
+        if (jx === 0) k -= 2; else if (jx === 1 && bl > 0) k += 1; // juntas de bloque (sombra + arista)
+        if (L(x, y - 1) > th) k = 0;                           // sombra bajo la lente
+        col = M[clamp(k, 0, 5)];
+        if (band === 2) col = PFK.mixU(col, U('#7a3050'), 0.28);  // estrato cálido (óxidos)
+        // raíces de salicornia (desde la costra, 1 px, serpenteando)
+        const rc = Math.floor(x / 23), rx = rc * 23 + Math.floor(hash1(rc, sd + 4) * 18), len = 14 + Math.floor(hash1(rc, sd + 5) * 22);
+        if (d - crust < len && x === rx + Math.round(Math.sin(d * 0.28 + rc) * 1.6)) col = U(d - crust < len - 3 ? '#5a2238' : '#8a3a50');
+        // goteos de salmuera (columnas finas con perla clara arriba)
+        const sc = Math.floor(x / 37), sx = sc * 37 + Math.floor(hash1(sc, sd + 6) * 30), sl = 6 + Math.floor(hash1(sc, sd + 7) * 14);
+        if (hash1(sc, sd + 8) < 0.45 && x === sx && d > gyp + 3 && d < gyp + 3 + sl) col = B[d === gyp + 3 ? 5 : 3];
+      }
+    } else {
+      // lodo profundo: bandas frías con geodas de cristal dispersas
+      const sv = Math.floor(d + n1), bi = Math.floor(sv / 12), bl = sv - bi * 12, band = bi % 2;
+      const jw = 34 + Math.floor(hash1(bi, sd + 13) * 30), jo = Math.floor(hash1(bi, sd + 14) * 60), jx = hash2(Math.floor((x + jo) / jw), bi, sd + 16) < 0.45 ? (x + jo) % jw : -1;
+      let k = 3 - Math.round((d - deep) / 26) - band + (bl === 0 ? 1 : 0) + (jx === 0 ? -1 : 0);
       col = M[clamp(k, 0, 5)];
-      if (PFK.vn(x * 0.06, y * 0.1, sd + 8) > 0.72) col = PFK.mixU(col, B[1], 0.5);
+      if (PFK.vn(x * 0.03, y * 0.08, sd + 8) > 0.7) col = PFK.mixU(col, B[1], 0.45);
+      const gc = Math.floor(x / 29), gr = Math.floor((d - deep) / 17), gx = gc * 29 + 6 + Math.floor(hash2(gc, gr, sd + 9) * 16), gyy = deep + gr * 17 + 7;
+      if (hash2(gc, gr, sd + 10) < 0.35) { const ex = x - gx, ey = d - gyy; if (ex >= 0 && ex < 3 && ey >= 0 && ey < 3) col = PFK.P32(GEO)[ey === 0 ? (ex === 0 ? 4 : 3) : ex === 2 ? 1 : 2]; }
     }
-    if (hash2(x, y, sd + 9) < 0.01) col = P[8];
     if (d > 70) col = PFK.shU(col, -Math.min(0.45, (d - 70) * 0.006), 260);
     return col;
   }

@@ -71,7 +71,7 @@ LEVELS[2] = {
     PFTerrain.surface(pb, world);
     const P = PFAPlant, I = PFInfra, A = PFArch, K = PFK, G = 290, fb = G - 12;
     LEVELS[2].labelAvoid = []; // rótulos de zona horneados (las etiquetas científicas los esquivan)
-    const N = LV2_ANCH; N.leds = []; N.lamps = []; N.screens = []; LV2_FLOWS.length = 0;
+    const N = LV2_ANCH; N.leds = []; N.lamps = []; N.screens = []; N.pumps = []; LV2_FLOWS.length = 0;
     const flow = (pts, kind, rate) => LV2_FLOWS.push({ pts, kind, rate });
     const U_ = (c) => U(c);
     /* ---- suelo: pasillo pintado, rejillas de drenaje, charcos con reflejo, rótulos ---- */
@@ -115,7 +115,7 @@ LEVELS[2] = {
     /* ===== 4. BOMBAS DE ALTA PRESIÓN (350–570) ===== */
     I.pipe(pb, [[338, fb - 9], [566, fb - 9]], 3, 'pre', { flange: 30 }); // colector de aspiración (detrás)
     const pumps = [];
-    for (let k = 0; k < 3; k++) pumps.push(P.pumpSkid(pb, 354 + k * 72, fb, { len: 62, motor: k === 1 ? P.BLUEP : P.GREEN }));
+    for (let k = 0; k < 3; k++) { pumps.push(P.pumpSkid(pb, 354 + k * 72, fb, { len: 62, motor: k === 1 ? P.BLUEP : P.GREEN })); N.pumps.push([354 + k * 72, fb, 62]); }
     const HPY = 200;
     for (const pp of pumps) { I.pipe(pb, [[pp.dis[0], pp.dis[1] + 2], [pp.dis[0], HPY]], 3, 'pre', { flange: 0 }); flow([[pp.dis[0], pp.dis[1]], [pp.dis[0], HPY]], 'pre', 1); N.leds.push({ x: pp.led[0], y: pp.led[1], col: '#3fe0a0', hz: 1.4, ph: pp.led[0] * 0.03 }); }
     I.pipe(pb, [[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 4, 'pre', { flange: 26 });
@@ -183,13 +183,13 @@ LEVELS[2] = {
     I.pipe(pb, [[1726, fb - 20], [1820, fb - 20]], 2, 'steel', { flange: 16 });
     P.landing(pb, 1760, 248, 60, fb + 4, { d: 7, railH: 28 });
     P.dosing(pb, 1824, fb + 2, { col: '#b49cff', label: 'AI' });
-    P.pumpSkid(pb, 1862, fb + 2, { len: 40, motor: P.BLUEP });
+    P.pumpSkid(pb, 1862, fb + 2, { len: 40, motor: P.BLUEP }); N.pumps.push([1862, fb + 2, 40]);
     P.landing(pb, 1850, 226, 70, fb + 4, { d: 7, railH: 28 });
     P.cartridge(pb, 1910, fb + 2, { r: 6, h: 30 });
     /* ===== 10. BOMBEO DE AGUA PRODUCTO Y ANALIZADORES EN LÍNEA (1930–2170) ===== */
     I.pipe(pb, [[1938, G - 2], [1938, fb - 30], [2050, fb - 30]], 3, 'product', { flange: 22 });
     flow([[1938, G - 2], [1938, fb - 30], [2050, fb - 30]], 'product', 0.9);
-    const pp2 = [P.pumpSkid(pb, 1950, fb, { len: 46, motor: P.BLUEP }), P.pumpSkid(pb, 2004, fb, { len: 46, motor: P.BLUEP })];
+    const pp2 = [P.pumpSkid(pb, 1950, fb, { len: 46, motor: P.BLUEP }), P.pumpSkid(pb, 2004, fb, { len: 46, motor: P.BLUEP })]; N.pumps.push([1950, fb, 46], [2004, fb, 46]);
     I.pipe(pb, [[pp2[0].dis[0] + 2, pp2[0].dis[1] + 2], [pp2[0].dis[0] + 2, 196], [2168, 196], [2168, 96]], 3, 'product', { flange: 24 });
     I.pipe(pb, [[pp2[1].dis[0] + 2, pp2[1].dis[1] + 2], [pp2[1].dis[0] + 2, 196]], 3, 'product', { flange: 0 });
     flow([[pp2[0].dis[0] + 2, pp2[0].dis[1]], [pp2[0].dis[0] + 2, 196], [2168, 196], [2168, 96]], 'product', 1);
@@ -296,8 +296,34 @@ LEVELS[2] = {
     if (typeof PFFauna !== 'undefined') { const u = (Math.sin(t * 0.22) + 1) / 2, dxw = 740 + u * 480 - ox, dyw = 118 + Math.sin(t * 1.3) * 6 - oy; if (dxw > -20 && dxw < W + 20) { PFFauna.drawDroneAt(g, dxw, dyw, t, true); if ((Math.floor(t * 2) % 2) === 0) PFK.drawGlow(g, dxw, dyw + 6, 5, '#56e5ff', 0.4); } }
     // luminarias: halos en anillos
     PFDyn.glows(g, cam, N.lamps, '#fff0c8', 10, 0.32);
+    this.ambient(g, sc, cam);
     // vapor de rociado en limpieza CIP
     if (S.cip > 0 && Math.random() < 0.3) sc.world.ps.emit('vapor', 1730 + Math.random() * 100, 230, 0, -20, 1);
+  },
+  /** Vida de la nave: halo cian que late en las tuberías de permeado, ejes girando tras la rejilla de los acoplamientos,
+   *  aguja del manómetro que vibra y LED de marcha de cada bomba */
+  ambient(g, sc, cam) {
+    const t = Game.time, ox = cam.x, oy = cam.y, N = LV2_ANCH;
+    let si = 0;
+    for (const F of LV2_FLOWS) {
+      if (F.kind !== 'product') continue;
+      for (let i = 0; i < F.pts.length - 1; i++, si++) {
+        const [ax, ay] = F.pts[i], [bx, by] = F.pts[i + 1], x0 = Math.min(ax, bx) - ox, y0 = Math.min(ay, by) - oy, len = Math.abs(bx - ax) + Math.abs(by - ay);
+        if (x0 > W + 6 || x0 + Math.abs(bx - ax) < -6) continue;
+        g.globalAlpha = 0.16 + 0.08 * Math.sin(t * 2.4 + si * 1.3);
+        if (ay === by) { frect(g, x0, y0 - 5, len, 1, '#48d4f0'); frect(g, x0, y0 + 5, len, 1, '#48d4f0'); }
+        else { frect(g, x0 - 5, y0, 1, len, '#48d4f0'); frect(g, x0 + 5, y0, 1, len, '#48d4f0'); }
+      }
+    }
+    g.globalAlpha = 1;
+    for (const [x, yb, len] of N.pumps || []) {
+      const sx = x - ox; if (sx < -80 || sx > W + 10) continue;
+      const ml = Math.round(len * 0.46), gx = sx + 2 + ml, cy = yb - 23 - oy, ph = Math.floor(t * 40) % 7;
+      frect(g, gx + ph, cy - 4, 1, 9, '#fff2a8'); fpx(g, gx + ((ph + 3) % 7), cy, '#ffffff');               // eje girando tras la guarda
+      const px1 = 3 + ml + 1 + 7 + Math.max(10, len - 4 - ml - 9), gcx = sx - 2 + px1 - 7 - 5, gcy = yb - 5 - 56 + 9 - oy;
+      fpx(g, gcx + (Math.floor(t * 23) % 2), gcy - 1, '#e2404a');                                          // aguja del manómetro vibrando
+      if ((Math.floor(t * 2 + x) % 2) === 0) { fpx(g, sx + 6, yb - 3 - oy, '#3fe0a0'); PFK.drawGlow(g, sx + 6, yb - 3 - oy, 3, '#3fe0a0', 0.4); }
+    }
   },
   /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
   renderFront(g, sc, cam) {

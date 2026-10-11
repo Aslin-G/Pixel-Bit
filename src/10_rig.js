@@ -637,7 +637,8 @@ function poseFor(anim, t, ch) {
       p.hipF = S(pf) * 1.0; p.hipB = S(pb2) * 1.0;
       p.kneeF = -0.18 - 2.0 * kick(pf); p.kneeB = -0.18 - 2.0 * kick(pb2);
       p.footF = 0.1 + 0.4 * kick(pf); p.footB = 0.1 + 0.4 * kick(pb2);
-      p.shF = -S(P) * 1.1 + 0.15; p.shB = S(P) * 1.1 + 0.1; p.elF = 1.6; p.elB = 1.5;
+      // el brazo delantero abre el codo en el punto más alto del braceo: el puño queda bajo la barbilla, no sobre la boca
+      p.shF = -S(P) * 1.1 + 0.15; p.shB = S(P) * 1.1 + 0.1; p.elF = 1.6 - 0.6 * Math.pow(Math.max(0, -S(P)), 2); p.elB = 1.5;
       p.bob = Math.round(C(2 * P) * 1.5 - 0.5); p.lean = 0.28 * Math.min(1.1, energetic);
       p.headTilt = -0.06; p.headDX = 0.5;
       p.hair = { base: -0.6, amp: 0.2, P: P * 2, lag: 0.55 }; p.pack = Math.round(-C(2 * P - 0.9));

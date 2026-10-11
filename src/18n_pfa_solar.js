@@ -354,15 +354,21 @@ const PFASolar = (() => {
     }
     const hgt = (xx, yy) => PFK.vn(xx * 0.012, yy * 0.024, sd) * 22 + PFK.vn(xx * 0.045, yy * 0.07, sd + 1) * 5;
     const hx = hgt(x + 1, y) - hgt(x - 1, y), hy = hgt(x, y + 1) - hgt(x, y - 1);
-    let lam = 0.7 - hx * 0.16 - hy * 0.12 - d * 0.0036 - Math.max(0, d - 70) * 0.0042;
+    // exposición contenida (STYLE ≤ 25 % de píxeles muy claros): la ladera vive en los tonos medios de la rampa,
+    // las crestas barridas por el viento suben un escalón y los rizos dejan sombras ocre-violeta con tono propio
+    let lam = 0.56 - hx * 0.17 - hy * 0.13 - d * 0.0036 - Math.max(0, d - 70) * 0.0042;
     const rip = (y * 0.85 + Math.sin(x * 0.035 + y * 0.02) * 5 + hgt(x, y) * 0.5) % 7;
-    if (rip < 1) lam -= 0.11; else if (rip < 2) lam += 0.05;
-    lam += (PFK.cl(x, y, 2, sd + 3) - 0.5) * 0.05;
+    const crest = hy < -0.35 && hx < 0.2;
+    if (crest && rip >= 1 && rip < 2) return S[7];                                       // cresta barrida al sol
+    if (rip < 1) lam -= 0.12; else if (rip < 2) lam += 0.05;
+    lam += (PFK.vn(x * 0.25, y * 0.25, sd + 3) - 0.5) * 0.05;
     // piedras semienterradas
     const hh = hash2(x >> 2, y >> 2, sd + 4);
     if (hh < 0.01 && d > 12) { const u = PFTerrain.boulderPix(x, y, sd + 5, 7, 5, P32(RAMP.rockWarmR)); if (u !== -1) return u; }
-    if (lam < 0.16) return P32(VIOD)[clamp(Math.round((lam + 0.3) * 7), 0, 3)];
-    return S[clamp(Math.round(1 + lam * 9), 1, 9)];
+    if (lam < 0.14) return P32(VIOD)[clamp(Math.round((lam + 0.3) * 7), 0, 3)];
+    const idx = clamp(Math.round(0.6 + lam * 8.4), 1, 7);
+    if (rip < 1) return K.mixU(S[idx], U(lam < 0.34 ? '#7a4a6a' : '#a8604a'), 0.3);        // sombra del rizo: violeta en la umbría, ocre al sol
+    return S[idx];
   }
   /** Retoque de la ladera: matas secas, chumberas pequeñas y huellas de lagartija */
   function decorateDunes(pb, world, segs, seed = 1) {
