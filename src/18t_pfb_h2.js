@@ -540,7 +540,8 @@ const PFBH2 = (() => {
   /** Sala de control elevada en corte (sin vidrio frontal): pantallas murales, consolas a ≈34 px,
       sillas, techo a > 110 px del suelo, pilotes y arriostramiento bajo el forjado.
       Devuelve {screens:[{x,y,w,h,kind}], lamps:[[x,y]], leds:[[x,y,col]]} */
-  function controlRoom(pb, x0, x1, floorY, roofY, yb, title) {
+  function controlRoom(pb, x0, x1, floorY, roofY, yb, title, o = {}) {
+    // o.fascia: el rótulo va en el faldón de la cubierta (no encima), para quedar bajo la franja del HUD
     const out = { screens: [], lamps: [], leds: [] }, w = x1 - x0, Wp = P(WH), Np = P(NAVY), S = P(STL);
     const backY = floorY - 16; // pie del muro de fondo
     // pilotes y arriostramiento
@@ -553,7 +554,7 @@ const PFBH2 = (() => {
     // pantallas murales (marcos) — el contenido lo anima el nivel
     const sw = Math.round((w - 40) / 3);
     for (let k = 0; k < 3; k++) {
-      const sx = x0 + 14 + k * (sw + 6), sy = roofY + 14, sh = 32;
+      const sx = x0 + 14 + k * (sw + 6), sy = roofY + 14, sh = o.fascia ? 28 : 32;
       B.rect(pb, sx - 2, sy - 2, sw + 4, sh + 4, U('#d4daee')); B.rect(pb, sx - 1, sy - 1, sw + 2, sh + 2, U('#383e5a'));
       B.rect(pb, sx, sy, sw, sh, (xx, yy) => U(((yy - sy) % 8) === 0 ? '#06223a' : '#03101e'));
       out.screens.push({ x: sx + 2, y: sy + 2, w: sw - 4, h: sh - 4, kind: ['bars', 'wave', 'text'][k] });
@@ -580,7 +581,8 @@ const PFBH2 = (() => {
     // forjado de cubierta, faldón con rótulo y antena
     for (let r = 0; r < 10; r++) { const off = Math.round(r * 0.8); for (let xx = x0 - 4 + off; xx < x1 + 6 + off; xx++) K.put(pb, xx, roofY - 6 - r, Wp[clamp(6 - Math.round(r / 4), 0, 9)]); }
     for (let xx = x0 - 4; xx < x1 + 6; xx++) for (let k = 0; k < 10; k++) K.put(pb, xx, roofY - 6 + k, k === 0 ? Wp[9] : k === 1 ? Wp[8] : k === 9 ? Wp[1] : k > 6 ? P(AMB)[(((xx + k) >> 2) & 1) ? 3 : 0] : Wp[6]);
-    if (title) B.plaque(pb, Math.round((x0 + x1) / 2), roofY - 26, title, { center: true, font: 'main', bold: true, bg: '#2a1e04', border: '#ffd860', col: '#fff6c0', h: 14 });
+    if (title && o.fascia) B.plaque(pb, Math.round((x0 + x1) / 2), roofY - 7, title, { center: true, font: 'main', bold: true, bg: '#2a1e04', border: '#ffd860', col: '#fff6c0', h: 12, screws: false });
+    else if (title) B.plaque(pb, Math.round((x0 + x1) / 2), roofY - 26, title, { center: true, font: 'main', bold: true, bg: '#2a1e04', border: '#ffd860', col: '#fff6c0', h: 14 });
     for (let yy = roofY - 50; yy < roofY - 16; yy++) K.put(pb, x1 - 20, yy, S[6]);
     out.beacon = [x1 - 20, roofY - 51];
     // lámparas de techo

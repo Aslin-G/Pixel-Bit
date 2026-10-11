@@ -13,9 +13,9 @@ const PFBV = (() => {
   const CON = ['#14182a', '#1e2438', '#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac', '#a2aac2', '#c2c8da'];
   const MAG = ['#1a0820', '#2e0e38', '#4a1658', '#6a2078', '#8e2c96', '#b44ab0', '#e05aa0', '#f8a8d8'];
   /** Muro de hormigón con portal y puerta blindada abierta hacia el túnel de acceso */
-  function portal(pb, x, yb, w, h, title) {
+  function portal(pb, x, yb, w, h, title, o = {}) {
     const C = P(CON), out = {};
-    const ow = Math.round(w * 0.5), oh = Math.min(h - 20, 96), ox = x + Math.round((w - ow) / 2), oy = yb - oh;
+    const ow = Math.round(w * 0.5), oh = o.oh || Math.min(h - 20, 96), ox = x + Math.round((w - ow) / 2), oy = yb - oh;
     I.box3q(pb, x, yb, w, h, 10, { ramp: CON, front: (xx, yy, u, v) => { let k = 5 - Math.round(v * 2.2) + Math.round((K.vn(xx * 0.07, yy * 0.07, 41) - 0.5) * 1.4); if ((yy - (yb - h)) % 20 === 0) k -= 2; if (((xx - x) % 40) === 0) k -= 1; return C[clamp(k, 0, 9)]; }, top: (xx, yy, u, v) => C[clamp(6 - Math.round(v * 2), 0, 9)], side: (xx, yy) => C[2], ink: '#070a16' });
     for (let yy = oy; yy < yb; yy++) for (let xx = ox; xx < ox + ow; xx++) { const d = Math.max(Math.abs(xx - ox - ow / 2) / (ow / 2), (yb - yy) / oh * 0.8); K.put(pb, xx, yy, U(mixHex('#03050c', '#1e2438', clamp(d, 0, 1)))); }
     // escalones que suben hacia el túnel
@@ -24,7 +24,7 @@ const PFBV = (() => {
     I.box3q(pb, ox + ow + 2, yb, 8, oh, 12, { ramp: ST });
     for (let yy = oy - 6; yy < yb; yy++) for (let k = 0; k < 5; k++) { const hz = (((yy + k) >> 2) & 1) ? '#e8b830' : '#1c1c26'; K.put(pb, ox - 5 + k, yy, U(k < 4 ? hz : '#070a16')); }
     for (let xx = ox - 5; xx < ox + ow + 2; xx++) for (let k = 0; k < 5; k++) K.put(pb, xx, oy - 6 + k, U(k < 4 ? ((((xx + k) >> 2) & 1) ? '#e8b830' : '#1c1c26') : '#070a16'));
-    if (title) B.plaque(pb, x + w / 2, oy - 22, title, { center: true, font: 'main', bold: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 13 });
+    if (title) B.plaque(pb, x + w / 2, oy - (o.signDy ?? 22), title, { center: true, font: 'main', bold: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 13 });
     out.lamp = [ox + ow / 2, oy - 8];
     return out;
   }

@@ -64,7 +64,7 @@ LEVELS[6] = {
   labels: [
     { x: 560, y: 150, title: 'BANCO BESS · 4 MWh', sub: (sc) => sc.state.blackout ? 'Sin energía' : 'SOC ' + fmt0((sc.state.soc ?? 0.28) * 100) + ' % = ' + fmt0((sc.state.soc ?? 0.28) * 4000) + ' kWh', kind: 'tech', ax: 560, ay: 162 },
     { x: 1094, y: 172, title: 'CONVERTIDORES', sub: 'Batería (CC) y red (CA)', kind: 'tech', ax: 1094, ay: 186 },
-    { x: 1500, y: 66, title: 'RESERVA MÍNIMA', sub: (sc) => fmt0((sc.state.reserve ?? 0.1) * 100) + ' % para cargas críticas', kind: 'solar', ax: 1500, ay: 74 },
+    { x: 1500, y: 66, title: 'RESERVA MÍNIMA', sub: (sc) => fmt0((sc.state.reserve ?? 0.1) * 100) + ' % para cargas críticas', kind: 'solar', ax: 1500, ay: 98 },
     { x: 1960, y: 150, title: 'EFICIENCIA ≈ 90 %', sub: 'Entran 100 kWh, salen ≈ 90', kind: 'tech', ax: 1960, ay: 162 },
     { x: 2210, y: 122, title: 'CARGAS CRÍTICAS', sub: 'Agua potable · clínica · comunicaciones', kind: 'alert', ax: 2210, ay: 130 },
   ],
@@ -83,7 +83,7 @@ LEVELS[6] = {
     H2.cableTray(pb, 330, 2140, 150, { hang: 64, hangTo: 113 });
     D.flows.push({ pts: [[330, 150], [2140, 150]], kind: 'power', rate: (sc) => (sc.state.blackout || sc.state.charging > 0) ? 0 : 0.8 }, { pts: [[2140, 150], [330, 150]], kind: 'power', rate: (sc) => (!sc.state.blackout && sc.state.charging > 0) ? 0.8 : 0 });
     /* ===== 1. ACCESO (0–290): portal con puerta blindada, barandillas de los rellanos ===== */
-    const po = V.portal(pb, 2, yb(60), 132, 156, 'BÓVEDA DE CARGA');
+    const po = V.portal(pb, 2, yb(60), 132, 156, 'BÓVEDA DE CARGA', { oh: 84, signDy: 20 }); // rótulo por debajo de la tarjeta de OBJETIVO
     D.glows.push({ x: po.lamp[0], y: po.lamp[1], r: 9, col: '#ffb93b', a: 0.5, mode: 'pulse', hz: 0.5 });
     const RAIL = ['#1a1e2e', '#3a4258', '#6e769a', '#b0b8d6', '#e8ecf8'];
     for (const [x0, x1] of [[150, 210], [220, 280]]) B.rail(pb, x0, x1, yb(x0) - 1, 30, { ramp: RAIL, gap: 20 });
@@ -101,7 +101,7 @@ LEVELS[6] = {
     /* ===== 4. SALA DE CONTROL elevada (1380–1620) y archivo ===== */
     for (let k = 0; k < 5; k++) H2.box(pb, 1414 + k * 36, yb(1500), 30, 46, 8, { ramp: H2.R.NAVY, pw: 15 });
     for (let k = 0; k < 5; k++) for (let j = 0; j < 3; j++) D.leds.push({ x: 1418 + k * 36 + j * 4, y: yb(1500) - 40, col: ['#3fe0a0', '#48dcf4', '#ffd84a'][j], hz: 0.5 + j * 0.3, ph: k + j });
-    const cr = H2.controlRoom(pb, 1380, 1620, 222, 108, yb(1500), 'CONTROL MICRORRED');
+    const cr = H2.controlRoom(pb, 1380, 1620, 222, 116, yb(1500), 'CONTROL MICRORRED', { fascia: true }); // rótulo en el faldón, bajo la franja del HUD
     cr.screens.forEach((s, i) => D.screens.push(Object.assign({ col: (sc) => i === 2 ? '#ff6b6b' : (s.small ? '#86e36f' : '#56e5ff'), col2: '#ffd84a', on: off }, s)));
     for (const [x, y] of cr.lamps) { D.glows.push({ x, y: y + 1, r: 10, col: '#fff2d0', a: 0.26, mode: 'steady', on: off }); D.cones.push([x, y, 12, 44, 222 - y]); }
     for (const [x, y, col] of cr.leds) D.leds.push({ x, y, col, hz: 0.9, ph: x * 0.07 });

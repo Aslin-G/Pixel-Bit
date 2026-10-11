@@ -79,8 +79,8 @@ LEVELS[7] = {
     { x: 1222, y: 98, title: 'O₂ (SUBPRODUCTO)', sub: '≈ 8 kg por kg de H₂', kind: 'tech', ax: 1250, ay: 104 },
     { x: 1368, y: 188, title: 'COMPRESIÓN', sub: 'Más H₂ en menos volumen', kind: 'tech', ax: 1368, ay: 208 },
     { x: 1584, y: 150, title: 'ALMACENAMIENTO H₂', sub: 'Vector: guarda energía', kind: 'green', ax: 1584, ay: 166 },
-    { x: 1756, y: 204, title: 'BOTELLAS DE O₂', sub: 'Posible ingreso, no promesa', kind: 'tech', ax: 1754, ay: 224 },
-    { x: 1860, y: 148, title: 'SEGURIDAD H₂', sub: 'A distancia y con sensores', kind: 'alert', ax: 1860, ay: 158 },
+    { x: 1722, y: 178, title: 'BOTELLAS DE O₂', sub: 'Posible ingreso, no promesa', kind: 'tech', ax: 1752, ay: 208 },
+    { x: 1860, y: 132, title: 'SEGURIDAD H₂', sub: 'A distancia y con sensores', kind: 'alert', ax: 1860, ay: 151 },
     { x: 2242, y: 196, title: 'ENFRIAMIENTO', sub: 'El stack también da calor', kind: 'water', ax: 2242, ay: 210 },
     { x: 2386, y: 94, title: 'VENTEO', sub: 'El H₂ es muy ligero: sube', kind: 'tech', ax: 2382, ay: 104 },
   ],
@@ -177,6 +177,7 @@ LEVELS[7] = {
     const d1 = H2.detector(pb, 1788, yb, 48), d2 = H2.detector(pb, 1934, yb, 48);
     for (const d of [d1, d2]) D.glows.push({ x: d.led[0], y: d.led[1], r: 3, col: (sc) => sc.state.leak ? '#ff6a50' : '#3fe0a0', a: 0.8, mode: 'blink', hz: 1.4, core: '#ffffff' });
     H2.protocolBoard(pb, 1801, yb, 118);
+    LEVELS[7].labelAvoid.push({ x: 1798, y: yb - 118, w: 124, h: 80 }); // el panel de protocolo no se tapa con etiquetas
     const tc = H2.thermalCam(pb, 1950, yb, 74);
     D.glows.push({ x: tc.lens[0], y: tc.lens[1], r: 4, col: '#b49cff', a: 0.5, mode: 'pulse', hz: 0.8 });
     for (const x of [1770, 1830, 1890, 1950]) I.bollard(pb, x, yb + 4);
@@ -184,7 +185,7 @@ LEVELS[7] = {
     // sala eléctrica bajo el forjado
     for (let k = 0; k < 5; k++) H2.box(pb, 2000 + k * 28, yb, 24, 44, 8, { ramp: H2.R.NAVY, pw: 12 });
     for (let k = 0; k < 5; k++) for (let j = 0; j < 3; j++) D.leds.push({ x: 2004 + k * 28 + j * 4, y: yb - 38, col: ['#3fe0a0', '#48dcf4', '#ffd84a'][j], hz: 0.5 + j * 0.3, ph: k + j });
-    const cr = H2.controlRoom(pb, 1960, 2180, 212, 98, yb, 'CONTROL DE SEGURIDAD');
+    const cr = H2.controlRoom(pb, 1960, 2180, 212, 112, yb, 'CONTROL DE SEGURIDAD', { fascia: true }); // rótulo en el faldón, bajo la franja del HUD
     for (const s of cr.screens) D.screens.push(Object.assign({ col: (sc) => sc.state.leak ? '#ffb93b' : (s.small ? '#86e36f' : '#56e5ff'), col2: '#ffd84a' }, s));
     for (const [x, y] of cr.lamps) D.glows.push({ x, y: y + 1, r: 10, col: '#fff2d0', a: 0.26, mode: 'steady' });
     for (const [x, y, col] of cr.leds) D.leds.push({ x, y, col, hz: 0.9, ph: x * 0.07 });

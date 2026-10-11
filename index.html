@@ -20934,7 +20934,8 @@ const PFBH2 = (() => {
   /** Sala de control elevada en corte (sin vidrio frontal): pantallas murales, consolas a ≈34 px,
       sillas, techo a > 110 px del suelo, pilotes y arriostramiento bajo el forjado.
       Devuelve {screens:[{x,y,w,h,kind}], lamps:[[x,y]], leds:[[x,y,col]]} */
-  function controlRoom(pb, x0, x1, floorY, roofY, yb, title) {
+  function controlRoom(pb, x0, x1, floorY, roofY, yb, title, o = {}) {
+    // o.fascia: el rótulo va en el faldón de la cubierta (no encima), para quedar bajo la franja del HUD
     const out = { screens: [], lamps: [], leds: [] }, w = x1 - x0, Wp = P(WH), Np = P(NAVY), S = P(STL);
     const backY = floorY - 16; // pie del muro de fondo
     // pilotes y arriostramiento
@@ -20947,7 +20948,7 @@ const PFBH2 = (() => {
     // pantallas murales (marcos) — el contenido lo anima el nivel
     const sw = Math.round((w - 40) / 3);
     for (let k = 0; k < 3; k++) {
-      const sx = x0 + 14 + k * (sw + 6), sy = roofY + 14, sh = 32;
+      const sx = x0 + 14 + k * (sw + 6), sy = roofY + 14, sh = o.fascia ? 28 : 32;
       B.rect(pb, sx - 2, sy - 2, sw + 4, sh + 4, U('#d4daee')); B.rect(pb, sx - 1, sy - 1, sw + 2, sh + 2, U('#383e5a'));
       B.rect(pb, sx, sy, sw, sh, (xx, yy) => U(((yy - sy) % 8) === 0 ? '#06223a' : '#03101e'));
       out.screens.push({ x: sx + 2, y: sy + 2, w: sw - 4, h: sh - 4, kind: ['bars', 'wave', 'text'][k] });
@@ -20974,7 +20975,8 @@ const PFBH2 = (() => {
     // forjado de cubierta, faldón con rótulo y antena
     for (let r = 0; r < 10; r++) { const off = Math.round(r * 0.8); for (let xx = x0 - 4 + off; xx < x1 + 6 + off; xx++) K.put(pb, xx, roofY - 6 - r, Wp[clamp(6 - Math.round(r / 4), 0, 9)]); }
     for (let xx = x0 - 4; xx < x1 + 6; xx++) for (let k = 0; k < 10; k++) K.put(pb, xx, roofY - 6 + k, k === 0 ? Wp[9] : k === 1 ? Wp[8] : k === 9 ? Wp[1] : k > 6 ? P(AMB)[(((xx + k) >> 2) & 1) ? 3 : 0] : Wp[6]);
-    if (title) B.plaque(pb, Math.round((x0 + x1) / 2), roofY - 26, title, { center: true, font: 'main', bold: true, bg: '#2a1e04', border: '#ffd860', col: '#fff6c0', h: 14 });
+    if (title && o.fascia) B.plaque(pb, Math.round((x0 + x1) / 2), roofY - 7, title, { center: true, font: 'main', bold: true, bg: '#2a1e04', border: '#ffd860', col: '#fff6c0', h: 12, screws: false });
+    else if (title) B.plaque(pb, Math.round((x0 + x1) / 2), roofY - 26, title, { center: true, font: 'main', bold: true, bg: '#2a1e04', border: '#ffd860', col: '#fff6c0', h: 14 });
     for (let yy = roofY - 50; yy < roofY - 16; yy++) K.put(pb, x1 - 20, yy, S[6]);
     out.beacon = [x1 - 20, roofY - 51];
     // lámparas de techo
@@ -21710,9 +21712,9 @@ const PFBV = (() => {
   const CON = ['#14182a', '#1e2438', '#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac', '#a2aac2', '#c2c8da'];
   const MAG = ['#1a0820', '#2e0e38', '#4a1658', '#6a2078', '#8e2c96', '#b44ab0', '#e05aa0', '#f8a8d8'];
   /** Muro de hormigón con portal y puerta blindada abierta hacia el túnel de acceso */
-  function portal(pb, x, yb, w, h, title) {
+  function portal(pb, x, yb, w, h, title, o = {}) {
     const C = P(CON), out = {};
-    const ow = Math.round(w * 0.5), oh = Math.min(h - 20, 96), ox = x + Math.round((w - ow) / 2), oy = yb - oh;
+    const ow = Math.round(w * 0.5), oh = o.oh || Math.min(h - 20, 96), ox = x + Math.round((w - ow) / 2), oy = yb - oh;
     I.box3q(pb, x, yb, w, h, 10, { ramp: CON, front: (xx, yy, u, v) => { let k = 5 - Math.round(v * 2.2) + Math.round((K.vn(xx * 0.07, yy * 0.07, 41) - 0.5) * 1.4); if ((yy - (yb - h)) % 20 === 0) k -= 2; if (((xx - x) % 40) === 0) k -= 1; return C[clamp(k, 0, 9)]; }, top: (xx, yy, u, v) => C[clamp(6 - Math.round(v * 2), 0, 9)], side: (xx, yy) => C[2], ink: '#070a16' });
     for (let yy = oy; yy < yb; yy++) for (let xx = ox; xx < ox + ow; xx++) { const d = Math.max(Math.abs(xx - ox - ow / 2) / (ow / 2), (yb - yy) / oh * 0.8); K.put(pb, xx, yy, U(mixHex('#03050c', '#1e2438', clamp(d, 0, 1)))); }
     // escalones que suben hacia el túnel
@@ -21721,7 +21723,7 @@ const PFBV = (() => {
     I.box3q(pb, ox + ow + 2, yb, 8, oh, 12, { ramp: ST });
     for (let yy = oy - 6; yy < yb; yy++) for (let k = 0; k < 5; k++) { const hz = (((yy + k) >> 2) & 1) ? '#e8b830' : '#1c1c26'; K.put(pb, ox - 5 + k, yy, U(k < 4 ? hz : '#070a16')); }
     for (let xx = ox - 5; xx < ox + ow + 2; xx++) for (let k = 0; k < 5; k++) K.put(pb, xx, oy - 6 + k, U(k < 4 ? ((((xx + k) >> 2) & 1) ? '#e8b830' : '#1c1c26') : '#070a16'));
-    if (title) B.plaque(pb, x + w / 2, oy - 22, title, { center: true, font: 'main', bold: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 13 });
+    if (title) B.plaque(pb, x + w / 2, oy - (o.signDy ?? 22), title, { center: true, font: 'main', bold: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 13 });
     out.lamp = [ox + ow / 2, oy - 8];
     return out;
   }
@@ -36614,7 +36616,7 @@ LEVELS[6] = {
   labels: [
     { x: 560, y: 150, title: 'BANCO BESS · 4 MWh', sub: (sc) => sc.state.blackout ? 'Sin energía' : 'SOC ' + fmt0((sc.state.soc ?? 0.28) * 100) + ' % = ' + fmt0((sc.state.soc ?? 0.28) * 4000) + ' kWh', kind: 'tech', ax: 560, ay: 162 },
     { x: 1094, y: 172, title: 'CONVERTIDORES', sub: 'Batería (CC) y red (CA)', kind: 'tech', ax: 1094, ay: 186 },
-    { x: 1500, y: 66, title: 'RESERVA MÍNIMA', sub: (sc) => fmt0((sc.state.reserve ?? 0.1) * 100) + ' % para cargas críticas', kind: 'solar', ax: 1500, ay: 74 },
+    { x: 1500, y: 66, title: 'RESERVA MÍNIMA', sub: (sc) => fmt0((sc.state.reserve ?? 0.1) * 100) + ' % para cargas críticas', kind: 'solar', ax: 1500, ay: 98 },
     { x: 1960, y: 150, title: 'EFICIENCIA ≈ 90 %', sub: 'Entran 100 kWh, salen ≈ 90', kind: 'tech', ax: 1960, ay: 162 },
     { x: 2210, y: 122, title: 'CARGAS CRÍTICAS', sub: 'Agua potable · clínica · comunicaciones', kind: 'alert', ax: 2210, ay: 130 },
   ],
@@ -36633,7 +36635,7 @@ LEVELS[6] = {
     H2.cableTray(pb, 330, 2140, 150, { hang: 64, hangTo: 113 });
     D.flows.push({ pts: [[330, 150], [2140, 150]], kind: 'power', rate: (sc) => (sc.state.blackout || sc.state.charging > 0) ? 0 : 0.8 }, { pts: [[2140, 150], [330, 150]], kind: 'power', rate: (sc) => (!sc.state.blackout && sc.state.charging > 0) ? 0.8 : 0 });
     /* ===== 1. ACCESO (0–290): portal con puerta blindada, barandillas de los rellanos ===== */
-    const po = V.portal(pb, 2, yb(60), 132, 156, 'BÓVEDA DE CARGA');
+    const po = V.portal(pb, 2, yb(60), 132, 156, 'BÓVEDA DE CARGA', { oh: 84, signDy: 20 }); // rótulo por debajo de la tarjeta de OBJETIVO
     D.glows.push({ x: po.lamp[0], y: po.lamp[1], r: 9, col: '#ffb93b', a: 0.5, mode: 'pulse', hz: 0.5 });
     const RAIL = ['#1a1e2e', '#3a4258', '#6e769a', '#b0b8d6', '#e8ecf8'];
     for (const [x0, x1] of [[150, 210], [220, 280]]) B.rail(pb, x0, x1, yb(x0) - 1, 30, { ramp: RAIL, gap: 20 });
@@ -36651,7 +36653,7 @@ LEVELS[6] = {
     /* ===== 4. SALA DE CONTROL elevada (1380–1620) y archivo ===== */
     for (let k = 0; k < 5; k++) H2.box(pb, 1414 + k * 36, yb(1500), 30, 46, 8, { ramp: H2.R.NAVY, pw: 15 });
     for (let k = 0; k < 5; k++) for (let j = 0; j < 3; j++) D.leds.push({ x: 1418 + k * 36 + j * 4, y: yb(1500) - 40, col: ['#3fe0a0', '#48dcf4', '#ffd84a'][j], hz: 0.5 + j * 0.3, ph: k + j });
-    const cr = H2.controlRoom(pb, 1380, 1620, 222, 108, yb(1500), 'CONTROL MICRORRED');
+    const cr = H2.controlRoom(pb, 1380, 1620, 222, 116, yb(1500), 'CONTROL MICRORRED', { fascia: true }); // rótulo en el faldón, bajo la franja del HUD
     cr.screens.forEach((s, i) => D.screens.push(Object.assign({ col: (sc) => i === 2 ? '#ff6b6b' : (s.small ? '#86e36f' : '#56e5ff'), col2: '#ffd84a', on: off }, s)));
     for (const [x, y] of cr.lamps) { D.glows.push({ x, y: y + 1, r: 10, col: '#fff2d0', a: 0.26, mode: 'steady', on: off }); D.cones.push([x, y, 12, 44, 222 - y]); }
     for (const [x, y, col] of cr.leds) D.leds.push({ x, y, col, hz: 0.9, ph: x * 0.07 });
@@ -37188,8 +37190,8 @@ LEVELS[7] = {
     { x: 1222, y: 98, title: 'O₂ (SUBPRODUCTO)', sub: '≈ 8 kg por kg de H₂', kind: 'tech', ax: 1250, ay: 104 },
     { x: 1368, y: 188, title: 'COMPRESIÓN', sub: 'Más H₂ en menos volumen', kind: 'tech', ax: 1368, ay: 208 },
     { x: 1584, y: 150, title: 'ALMACENAMIENTO H₂', sub: 'Vector: guarda energía', kind: 'green', ax: 1584, ay: 166 },
-    { x: 1756, y: 204, title: 'BOTELLAS DE O₂', sub: 'Posible ingreso, no promesa', kind: 'tech', ax: 1754, ay: 224 },
-    { x: 1860, y: 148, title: 'SEGURIDAD H₂', sub: 'A distancia y con sensores', kind: 'alert', ax: 1860, ay: 158 },
+    { x: 1722, y: 178, title: 'BOTELLAS DE O₂', sub: 'Posible ingreso, no promesa', kind: 'tech', ax: 1752, ay: 208 },
+    { x: 1860, y: 132, title: 'SEGURIDAD H₂', sub: 'A distancia y con sensores', kind: 'alert', ax: 1860, ay: 151 },
     { x: 2242, y: 196, title: 'ENFRIAMIENTO', sub: 'El stack también da calor', kind: 'water', ax: 2242, ay: 210 },
     { x: 2386, y: 94, title: 'VENTEO', sub: 'El H₂ es muy ligero: sube', kind: 'tech', ax: 2382, ay: 104 },
   ],
@@ -37286,6 +37288,7 @@ LEVELS[7] = {
     const d1 = H2.detector(pb, 1788, yb, 48), d2 = H2.detector(pb, 1934, yb, 48);
     for (const d of [d1, d2]) D.glows.push({ x: d.led[0], y: d.led[1], r: 3, col: (sc) => sc.state.leak ? '#ff6a50' : '#3fe0a0', a: 0.8, mode: 'blink', hz: 1.4, core: '#ffffff' });
     H2.protocolBoard(pb, 1801, yb, 118);
+    LEVELS[7].labelAvoid.push({ x: 1798, y: yb - 118, w: 124, h: 80 }); // el panel de protocolo no se tapa con etiquetas
     const tc = H2.thermalCam(pb, 1950, yb, 74);
     D.glows.push({ x: tc.lens[0], y: tc.lens[1], r: 4, col: '#b49cff', a: 0.5, mode: 'pulse', hz: 0.8 });
     for (const x of [1770, 1830, 1890, 1950]) I.bollard(pb, x, yb + 4);
@@ -37293,7 +37296,7 @@ LEVELS[7] = {
     // sala eléctrica bajo el forjado
     for (let k = 0; k < 5; k++) H2.box(pb, 2000 + k * 28, yb, 24, 44, 8, { ramp: H2.R.NAVY, pw: 12 });
     for (let k = 0; k < 5; k++) for (let j = 0; j < 3; j++) D.leds.push({ x: 2004 + k * 28 + j * 4, y: yb - 38, col: ['#3fe0a0', '#48dcf4', '#ffd84a'][j], hz: 0.5 + j * 0.3, ph: k + j });
-    const cr = H2.controlRoom(pb, 1960, 2180, 212, 98, yb, 'CONTROL DE SEGURIDAD');
+    const cr = H2.controlRoom(pb, 1960, 2180, 212, 112, yb, 'CONTROL DE SEGURIDAD', { fascia: true }); // rótulo en el faldón, bajo la franja del HUD
     for (const s of cr.screens) D.screens.push(Object.assign({ col: (sc) => sc.state.leak ? '#ffb93b' : (s.small ? '#86e36f' : '#56e5ff'), col2: '#ffd84a' }, s));
     for (const [x, y] of cr.lamps) D.glows.push({ x, y: y + 1, r: 10, col: '#fff2d0', a: 0.26, mode: 'steady' });
     for (const [x, y, col] of cr.leds) D.leds.push({ x, y, col, hz: 0.9, ph: x * 0.07 });
