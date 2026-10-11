@@ -905,7 +905,13 @@ function wrapText(text, maxW, font = 'main') {
   const paragraphs = String(text).split('\n');
   const lines = [];
   for (const para of paragraphs) {
-    const words = para.split(' ');
+    // el espacio de millares («3 925 kWh», «1 000 kW») no parte la cifra entre dos líneas
+    const words = [];
+    for (const w of para.split(' ')) {
+      const prev = words.length ? words[words.length - 1] : null;
+      if (prev != null && /(^|[^\d])\d{1,3}$/.test(stripMarkup(prev)) && /^\d{3}(\D|$)/.test(stripMarkup(w))) words[words.length - 1] = prev + ' ' + w;
+      else words.push(w);
+    }
     let line = '', lineW = 0;
     let carry = ''; // código de color activo para continuar en la siguiente línea
     for (let wi = 0; wi < words.length; wi++) {
@@ -28003,7 +28009,7 @@ function ctxItems(ctxId) { return QBANK.filter(q => q.ctx === ctxId).sort((a, b)
 const SOLOScene = {
   overlay: true,
   enter(p) {
-    this.ctxId = p.ctx; this.C = CONTEXTS[p.ctx]; this.items = ctxItems(p.ctx);
+    this.ctxId = p.ctx; this.C = CONTEXTS[p.ctx]; this.items = ctxItems(p.ctx); this.banner = undefined;
     this.onDone = p.onDone; this.i = 0; this.results = []; this.phase = 'intro';
     this.t = 0; this.startTime = nowMs();
     this.single = p.single; // índice opcional para presentar un único ítem
@@ -28090,11 +28096,51 @@ const SOLOScene = {
     let yy = y + 25;
     yy += drawTextBlock(g, C.text, x + 8, yy, w - 16, { color: '#d9eefc' }) + 4;
     if (C.table) yy = drawDataTable(g, C.table, x + 8, yy, w - 16) + 4;
-    if (C.chart) { const ch = C.chart; Charts.line(g, x + 8, yy, w - 16, Math.min(70, y + h - yy - 8), ch.series, Object.assign({ bg: '#020e26' }, ch.opts)); }
+    if (C.chart) { const ch = C.chart; Charts.line(g, x + 8, yy, w - 16, Math.min(this.phase === 'intro' ? 132 : 70, y + h - yy - 8), ch.series, Object.assign({ bg: '#020e26' }, ch.opts)); }
+  },
+  /** Alto del bloque DATOS sin gráfico (texto + tabla), para ajustar el panel al contenido */
+  contextH(w) {
+    const C = this.C;
+    let h = 25 + textHeight(C.text, w - 16) + 4;
+    if (C.table) h += 13 + C.table.rows.length * 10 + 4;
+    return h + 6;
+  },
+  /** Ruta de la puerta: escalera de las tareas por nivel SOLO (y franja del capítulo si hay nivel debajo) */
+  renderRoute(g, x, y, w, h) {
+    UIK.panel(g, x, y, w, h, 'tech', null, { chamfer: 2, key: false });
+    UIK.badge(g, 'target', x - 3, y - 3, 22, 'tech');
+    drawText(g, 'RUTA DE LA PUERTA', x + 26, y + 7, { font: 'bold', color: '#e6f8fe' });
+    drawText(g, 'cada tarea pide un nivel de comprensión mayor (taxonomía SOLO)', x + 26 + FONTS.bold.measure('RUTA DE LA PUERTA') + 8, y + 8, { color: UI_INK.dim });
+    if (this.banner === undefined) this.banner = (typeof SCACards !== 'undefined' && typeof GameplayScene !== 'undefined' && GameplayScene.backdrop && Game.scenes.indexOf(GameplayScene) >= 0) ? SCACards.captureBanner(GameplayScene) : null;
+    let top = y + 24;
+    if (this.banner && h > 96) { SCACards.drawBanner(g, this.banner, x + 8, top, w - 16, 30, Game.time); top += 36; }
+    const n = this.items.length; if (!n) return;
+    const gap = 6, tw = Math.floor((w - 16 - gap * (n - 1)) / n), baseY = y + h - 8, avail = baseY - top;
+    const rise = Math.max(3, Math.min(12, Math.floor((avail - 30) / Math.max(1, n - 1)))), th0 = Math.max(30, avail - (n - 1) * rise);
+    const VERB = ['', 'reconocer', 'identificar', 'describir y calcular', 'relacionar y explicar', 'transferir y evaluar'];
+    const COL = ['#2a7ab8', '#2a9aa8', '#3fae7a', '#c8a03a', '#e0783a'];
+    for (let k = 0; k < n; k++) {
+      const q = this.items[k], lv = clamp(q.solo || k + 1, 1, 5), tx = x + 8 + k * (tw + gap), th = th0 + k * rise, ty = baseY - th;
+      const c = COL[lv - 1];
+      frect(g, tx, ty, tw, th, '#000633');
+      frect(g, tx + 1, ty + 1, tw - 2, th - 2, mixHex('#061a3e', c, 0.28));
+      frect(g, tx + 1, ty + 1, tw - 2, 12, mixHex('#0a2450', c, 0.6)); frect(g, tx + 1, ty + 1, tw - 2, 1, mixHex(c, '#ffffff', 0.45));
+      frect(g, tx + 1, ty + th - 2, tw - 2, 1, mixHex('#020a1e', c, 0.2));
+      drawText(g, 'TAREA ' + (k + 1), tx + 5, ty + 4, { font: 'tiny', color: '#f4fbff' });
+      UIK.pill(g, tx + tw - 4, ty + 3, 'SOLO ' + lv, { align: 'right', rim: c, fill: '#020a1e', color: '#e8fcff' });
+      drawText(g, fitText(SOLO_NAMES[lv] || '', tw - 10, 'main'), tx + 5, ty + 16, { color: '#e6f8fe' });
+      if (th >= 44) drawText(g, fitText(VERB[lv], tw - 10, 'main'), tx + 5, ty + 28, { color: mixHex(c, '#ffffff', 0.55) });
+    }
   },
   renderIntro(g) {
     const C = this.C;
-    this.renderContext(g, 20, 40, W - 40, 216);
+    // DATOS a la medida del contenido; el resto lo ocupa la ruta de tareas (sin franjas vacías)
+    if (C.chart) this.renderContext(g, 20, 40, W - 40, 216);
+    else {
+      const ch = clamp(this.contextH(W - 40), 70, 150);
+      this.renderContext(g, 20, 40, W - 40, ch);
+      this.renderRoute(g, 20, 40 + ch + 6, W - 40, 216 - ch - 6);
+    }
     UIK.panel(g, 20, 262, W - 40, 50, 'tech', null, { chamfer: 2, key: false });
     drawTextBlock(g, '{y}' + (C.ra || '') + '{/} ' + (RA[C.ra] || ''), 28, 268, W - 56, { color: UI_INK.body });
     if (Gui.button(g, 'start', W / 2 - 90, H - 40, 180, 22, 'Comenzar (' + this.items.length + ' tareas)', { style: 'gold', icon: 'play' })) this.phase = 'item';
@@ -29630,8 +29676,28 @@ const CodexScene = {
       this.maxScroll = Math.max(0, y + this.scroll - (H - 30));
       this.scroll = Math.min(this.scroll, this.maxScroll);
     } else {
-      drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px + 2, 80, pw - 8, { color: UI_INK.body });
-      drawText(g, 'Fichas desbloqueadas: ' + GS.s.codex.length + ' / ' + CODEX.length, px + 2, 132, { color: '#8fdfff' });
+      // portada de la sección: icono grande, avance de la sección y mapa del Atlas (avance por sección)
+      const S0 = CODEX_SECTIONS.find(s => s[0] === this.sec) || CODEX_SECTIONS[0];
+      const cnt = (id) => [CODEX.filter(e => e.sec === id && Codex.has(e.id)).length, CODEX.filter(e => e.sec === id).length];
+      const [n0, t0] = cnt(S0[0]);
+      frect(g, px + 2, 76, 30, 30, '#000633'); frect(g, px + 3, 77, 28, 28, '#0b2a5a'); frect(g, px + 3, 77, 28, 1, '#3a64b0');
+      if (Icons.hasBig(S0[2])) Icons.drawBig(g, S0[2], px + 17, 91); else Icons.draw(g, S0[2], px + 10, 84);
+      drawText(g, S0[1], px + 40, 78, { font: 'bold', color: '#e6f8fe' });
+      drawText(g, n0 + ' / ' + t0 + ' fichas desbloqueadas en esta sección', px + 40, 92, { color: '#8fdfff' });
+      frect(g, px + 40, 103, pw - 50, 4, '#020e26'); frect(g, px + 40, 103, Math.round((pw - 50) * (t0 ? n0 / t0 : 0)), 4, '#3fe0a0');
+      let ty = 114;
+      ty += drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px + 2, ty, pw - 8, { color: UI_INK.body }) + 6;
+      drawText(g, 'MAPA DEL ATLAS · ' + GS.s.codex.length + ' / ' + CODEX.length + ' FICHAS', px + 2, ty, { font: 'tiny', color: '#ffd23a' }); ty += 10;
+      const cols = 2, cw = Math.floor((pw - 6) / cols), rh = clamp(Math.floor((H - 26 - ty) / Math.ceil(CODEX_SECTIONS.length / cols)), 14, 20);
+      CODEX_SECTIONS.forEach(([id, label, icon], i) => {
+        const cx = px + 2 + (i % cols) * cw, cy = ty + Math.floor(i / cols) * rh, [n, t] = cnt(id), on = id === this.sec;
+        frect(g, cx, cy, cw - 4, rh - 2, on ? '#14386a' : '#061a36'); frect(g, cx, cy, cw - 4, 1, on ? '#6d9be8' : '#12305a');
+        Icons.draw(g, icon, cx + 2, cy + Math.floor((rh - 2 - 14) / 2));
+        drawText(g, fitText(label, cw - 84, 'main'), cx + 20, cy + Math.floor((rh - 2 - 9) / 2), { color: on ? '#ffffff' : UI_INK.body });
+        const bx = cx + cw - 60, by = cy + Math.floor((rh - 2) / 2) - 2;
+        frect(g, bx, by, 32, 4, '#000633'); frect(g, bx + 1, by + 1, 30, 2, '#0b2444'); if (t) frect(g, bx + 1, by + 1, Math.round(30 * n / t), 2, n === t ? '#ffd23a' : '#3fe0a0');
+        drawText(g, n + '/' + t, cx + cw - 24, by - 2, { font: 'tiny', color: n === t ? '#ffd23a' : '#a8c8ff' });
+      });
     }
     g.restore();
     if (e && this.maxScroll > 0) { const sh = H - 94; frect(g, W - 18, 70, 3, sh, '#0b2444'); frect(g, W - 18, 70 + (sh - 20) * this.scroll / this.maxScroll, 3, 20, '#8fdfff'); if (Gui.button(g, 'up', W - 44, H - 36, 16, 14, '↑', { style: 'ghost' })) this.scroll = Math.max(0, this.scroll - 40); if (Gui.button(g, 'dn', W - 26, H - 36, 16, 14, '↓', { style: 'ghost' })) this.scroll += 40; }

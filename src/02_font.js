@@ -328,7 +328,13 @@ function wrapText(text, maxW, font = 'main') {
   const paragraphs = String(text).split('\n');
   const lines = [];
   for (const para of paragraphs) {
-    const words = para.split(' ');
+    // el espacio de millares («3 925 kWh», «1 000 kW») no parte la cifra entre dos líneas
+    const words = [];
+    for (const w of para.split(' ')) {
+      const prev = words.length ? words[words.length - 1] : null;
+      if (prev != null && /(^|[^\d])\d{1,3}$/.test(stripMarkup(prev)) && /^\d{3}(\D|$)/.test(stripMarkup(w))) words[words.length - 1] = prev + ' ' + w;
+      else words.push(w);
+    }
     let line = '', lineW = 0;
     let carry = ''; // código de color activo para continuar en la siguiente línea
     for (let wi = 0; wi < words.length; wi++) {

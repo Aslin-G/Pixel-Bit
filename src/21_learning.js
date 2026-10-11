@@ -145,7 +145,7 @@ function ctxItems(ctxId) { return QBANK.filter(q => q.ctx === ctxId).sort((a, b)
 const SOLOScene = {
   overlay: true,
   enter(p) {
-    this.ctxId = p.ctx; this.C = CONTEXTS[p.ctx]; this.items = ctxItems(p.ctx);
+    this.ctxId = p.ctx; this.C = CONTEXTS[p.ctx]; this.items = ctxItems(p.ctx); this.banner = undefined;
     this.onDone = p.onDone; this.i = 0; this.results = []; this.phase = 'intro';
     this.t = 0; this.startTime = nowMs();
     this.single = p.single; // índice opcional para presentar un único ítem
@@ -232,11 +232,51 @@ const SOLOScene = {
     let yy = y + 25;
     yy += drawTextBlock(g, C.text, x + 8, yy, w - 16, { color: '#d9eefc' }) + 4;
     if (C.table) yy = drawDataTable(g, C.table, x + 8, yy, w - 16) + 4;
-    if (C.chart) { const ch = C.chart; Charts.line(g, x + 8, yy, w - 16, Math.min(70, y + h - yy - 8), ch.series, Object.assign({ bg: '#020e26' }, ch.opts)); }
+    if (C.chart) { const ch = C.chart; Charts.line(g, x + 8, yy, w - 16, Math.min(this.phase === 'intro' ? 132 : 70, y + h - yy - 8), ch.series, Object.assign({ bg: '#020e26' }, ch.opts)); }
+  },
+  /** Alto del bloque DATOS sin gráfico (texto + tabla), para ajustar el panel al contenido */
+  contextH(w) {
+    const C = this.C;
+    let h = 25 + textHeight(C.text, w - 16) + 4;
+    if (C.table) h += 13 + C.table.rows.length * 10 + 4;
+    return h + 6;
+  },
+  /** Ruta de la puerta: escalera de las tareas por nivel SOLO (y franja del capítulo si hay nivel debajo) */
+  renderRoute(g, x, y, w, h) {
+    UIK.panel(g, x, y, w, h, 'tech', null, { chamfer: 2, key: false });
+    UIK.badge(g, 'target', x - 3, y - 3, 22, 'tech');
+    drawText(g, 'RUTA DE LA PUERTA', x + 26, y + 7, { font: 'bold', color: '#e6f8fe' });
+    drawText(g, 'cada tarea pide un nivel de comprensión mayor (taxonomía SOLO)', x + 26 + FONTS.bold.measure('RUTA DE LA PUERTA') + 8, y + 8, { color: UI_INK.dim });
+    if (this.banner === undefined) this.banner = (typeof SCACards !== 'undefined' && typeof GameplayScene !== 'undefined' && GameplayScene.backdrop && Game.scenes.indexOf(GameplayScene) >= 0) ? SCACards.captureBanner(GameplayScene) : null;
+    let top = y + 24;
+    if (this.banner && h > 96) { SCACards.drawBanner(g, this.banner, x + 8, top, w - 16, 30, Game.time); top += 36; }
+    const n = this.items.length; if (!n) return;
+    const gap = 6, tw = Math.floor((w - 16 - gap * (n - 1)) / n), baseY = y + h - 8, avail = baseY - top;
+    const rise = Math.max(3, Math.min(12, Math.floor((avail - 30) / Math.max(1, n - 1)))), th0 = Math.max(30, avail - (n - 1) * rise);
+    const VERB = ['', 'reconocer', 'identificar', 'describir y calcular', 'relacionar y explicar', 'transferir y evaluar'];
+    const COL = ['#2a7ab8', '#2a9aa8', '#3fae7a', '#c8a03a', '#e0783a'];
+    for (let k = 0; k < n; k++) {
+      const q = this.items[k], lv = clamp(q.solo || k + 1, 1, 5), tx = x + 8 + k * (tw + gap), th = th0 + k * rise, ty = baseY - th;
+      const c = COL[lv - 1];
+      frect(g, tx, ty, tw, th, '#000633');
+      frect(g, tx + 1, ty + 1, tw - 2, th - 2, mixHex('#061a3e', c, 0.28));
+      frect(g, tx + 1, ty + 1, tw - 2, 12, mixHex('#0a2450', c, 0.6)); frect(g, tx + 1, ty + 1, tw - 2, 1, mixHex(c, '#ffffff', 0.45));
+      frect(g, tx + 1, ty + th - 2, tw - 2, 1, mixHex('#020a1e', c, 0.2));
+      drawText(g, 'TAREA ' + (k + 1), tx + 5, ty + 4, { font: 'tiny', color: '#f4fbff' });
+      UIK.pill(g, tx + tw - 4, ty + 3, 'SOLO ' + lv, { align: 'right', rim: c, fill: '#020a1e', color: '#e8fcff' });
+      drawText(g, fitText(SOLO_NAMES[lv] || '', tw - 10, 'main'), tx + 5, ty + 16, { color: '#e6f8fe' });
+      if (th >= 44) drawText(g, fitText(VERB[lv], tw - 10, 'main'), tx + 5, ty + 28, { color: mixHex(c, '#ffffff', 0.55) });
+    }
   },
   renderIntro(g) {
     const C = this.C;
-    this.renderContext(g, 20, 40, W - 40, 216);
+    // DATOS a la medida del contenido; el resto lo ocupa la ruta de tareas (sin franjas vacías)
+    if (C.chart) this.renderContext(g, 20, 40, W - 40, 216);
+    else {
+      const ch = clamp(this.contextH(W - 40), 70, 150);
+      this.renderContext(g, 20, 40, W - 40, ch);
+      this.renderRoute(g, 20, 40 + ch + 6, W - 40, 216 - ch - 6);
+    }
     UIK.panel(g, 20, 262, W - 40, 50, 'tech', null, { chamfer: 2, key: false });
     drawTextBlock(g, '{y}' + (C.ra || '') + '{/} ' + (RA[C.ra] || ''), 28, 268, W - 56, { color: UI_INK.body });
     if (Gui.button(g, 'start', W / 2 - 90, H - 40, 180, 22, 'Comenzar (' + this.items.length + ' tareas)', { style: 'gold', icon: 'play' })) this.phase = 'item';

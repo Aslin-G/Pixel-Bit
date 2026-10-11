@@ -182,8 +182,28 @@ const CodexScene = {
       this.maxScroll = Math.max(0, y + this.scroll - (H - 30));
       this.scroll = Math.min(this.scroll, this.maxScroll);
     } else {
-      drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px + 2, 80, pw - 8, { color: UI_INK.body });
-      drawText(g, 'Fichas desbloqueadas: ' + GS.s.codex.length + ' / ' + CODEX.length, px + 2, 132, { color: '#8fdfff' });
+      // portada de la sección: icono grande, avance de la sección y mapa del Atlas (avance por sección)
+      const S0 = CODEX_SECTIONS.find(s => s[0] === this.sec) || CODEX_SECTIONS[0];
+      const cnt = (id) => [CODEX.filter(e => e.sec === id && Codex.has(e.id)).length, CODEX.filter(e => e.sec === id).length];
+      const [n0, t0] = cnt(S0[0]);
+      frect(g, px + 2, 76, 30, 30, '#000633'); frect(g, px + 3, 77, 28, 28, '#0b2a5a'); frect(g, px + 3, 77, 28, 1, '#3a64b0');
+      if (Icons.hasBig(S0[2])) Icons.drawBig(g, S0[2], px + 17, 91); else Icons.draw(g, S0[2], px + 10, 84);
+      drawText(g, S0[1], px + 40, 78, { font: 'bold', color: '#e6f8fe' });
+      drawText(g, n0 + ' / ' + t0 + ' fichas desbloqueadas en esta sección', px + 40, 92, { color: '#8fdfff' });
+      frect(g, px + 40, 103, pw - 50, 4, '#020e26'); frect(g, px + 40, 103, Math.round((pw - 50) * (t0 ? n0 / t0 : 0)), 4, '#3fe0a0');
+      let ty = 114;
+      ty += drawTextBlock(g, 'Selecciona una ficha. Las fichas se desbloquean al observar fenómenos, completar retos y conversar con personajes. Cada ficha distingue datos con fuente de supuestos de simulación.', px + 2, ty, pw - 8, { color: UI_INK.body }) + 6;
+      drawText(g, 'MAPA DEL ATLAS · ' + GS.s.codex.length + ' / ' + CODEX.length + ' FICHAS', px + 2, ty, { font: 'tiny', color: '#ffd23a' }); ty += 10;
+      const cols = 2, cw = Math.floor((pw - 6) / cols), rh = clamp(Math.floor((H - 26 - ty) / Math.ceil(CODEX_SECTIONS.length / cols)), 14, 20);
+      CODEX_SECTIONS.forEach(([id, label, icon], i) => {
+        const cx = px + 2 + (i % cols) * cw, cy = ty + Math.floor(i / cols) * rh, [n, t] = cnt(id), on = id === this.sec;
+        frect(g, cx, cy, cw - 4, rh - 2, on ? '#14386a' : '#061a36'); frect(g, cx, cy, cw - 4, 1, on ? '#6d9be8' : '#12305a');
+        Icons.draw(g, icon, cx + 2, cy + Math.floor((rh - 2 - 14) / 2));
+        drawText(g, fitText(label, cw - 84, 'main'), cx + 20, cy + Math.floor((rh - 2 - 9) / 2), { color: on ? '#ffffff' : UI_INK.body });
+        const bx = cx + cw - 60, by = cy + Math.floor((rh - 2) / 2) - 2;
+        frect(g, bx, by, 32, 4, '#000633'); frect(g, bx + 1, by + 1, 30, 2, '#0b2444'); if (t) frect(g, bx + 1, by + 1, Math.round(30 * n / t), 2, n === t ? '#ffd23a' : '#3fe0a0');
+        drawText(g, n + '/' + t, cx + cw - 24, by - 2, { font: 'tiny', color: n === t ? '#ffd23a' : '#a8c8ff' });
+      });
     }
     g.restore();
     if (e && this.maxScroll > 0) { const sh = H - 94; frect(g, W - 18, 70, 3, sh, '#0b2444'); frect(g, W - 18, 70 + (sh - 20) * this.scroll / this.maxScroll, 3, 20, '#8fdfff'); if (Gui.button(g, 'up', W - 44, H - 36, 16, 14, '↑', { style: 'ghost' })) this.scroll = Math.max(0, this.scroll - 40); if (Gui.button(g, 'dn', W - 26, H - 36, 16, 14, '↓', { style: 'ghost' })) this.scroll += 40; }
