@@ -360,6 +360,7 @@ const PFGround = (() => {
   const GYPS = ['#4a2a3e', '#6e4656', '#9a6c70', '#c4968c', '#e2bca8', '#f6dcc6'];
   const GEO = ['#2a3a7a', '#4a72b8', '#8ac8ec', '#d8f6ff', '#ffffff'];
   function saltFlatFace(s, x, y, gy, world) {
+    if (s.r2 !== false && typeof R2TERRAIN_Salt !== 'undefined') return R2TERRAIN_Salt.pix(s, x, y, gy, world);
     const d = y - gy, P = PFK.P32(SALT), M = PFK.P32(MUD), B = PFK.P32(BRINEP), G = PFK.P32(GYPS), sd = 141 + ((s.seed | 0) % 30);
     if (d === 0) return P[8];
     if (d < 3) return P[8 - d];
