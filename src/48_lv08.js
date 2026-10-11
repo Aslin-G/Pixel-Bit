@@ -75,6 +75,8 @@ LEVELS[8] = {
     { x: 1500, y: 132, title: 'MEZCLA DE RIEGO', sub: (sc) => (sc.state.blend && isFinite(sc.state.blend.ec)) ? ('EC ' + fmt(sc.state.blend.ec, 2) + ' dS/m · SAR ' + fmt(sc.state.blend.sar || 0, 1)) : 'EC · boro · SAR', kind: 'water', ax: 1490, ay: 180 },
     { x: 1760, y: 176, title: 'PASTOREO', sub: 'Ruta de las cabras', kind: 'green', ax: 1760, ay: 236 },
     { x: 2010, y: 160, title: 'CORREDOR', sub: 'Polinizadores', kind: 'green', ax: 2010, ay: 222 },
+    { x: 2296, y: 150, title: 'BOMBEO SOLAR', sub: 'Sol → bomba → goteo', kind: 'solar', ax: 2294, ay: 190 },
+    { x: 2606, y: 196, title: 'PLUVIÓMETRO', sub: '1 mm de lluvia = 1 L por m²', kind: 'water', ax: 2606, ay: 230 },
   ],
   /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
@@ -169,7 +171,16 @@ LEVELS[8] = {
     /* ===== 9. CUJÍ ANTIGUO (2250–2610) y PUERTA DE EVIDENCIA ===== */
     F.scatter(pb, (x) => back(x) + 3, 2250, 2610, 812, { gap: 9, mix: { tuft: 5, flowers: 2, fern: 2, bush: 1 } });
     A.cuji(pb, 2420, back(2420) + 4, 128, [{ x: 2380, y: 214, w: 70 }, { x: 2470, y: 188, w: 60 }], 9);
-    for (const [x, h] of [[2300, 60], [2560, 66]]) F.palm(pb, x, back(x) + 2, h, x % 2 ? 5 : -5, x);
+    for (const [x, h] of [[2560, 66]]) F.palm(pb, x, back(x) + 2, h, x % 2 ? 5 : -5, x);
+    // bombeo solar: pozo con panel → tubería → segundo bancal con goteo (la ciencia también en la pradera)
+    const wl = A.well(pb, 2272, back(2272) + 3);
+    const bd2 = A.bed(pb, 2322, 2378, back(2322) + 3, { crops: ['frijol', 'maiz', 'ahuyama'], depth: 18, board: 9, rows: 2, mulch: true, seed: 59, spacing: 18 });
+    LV8_DRIPS.push(...bd2.drips);
+    I.pipe(pb, [[2306, wl.pipeY], [2316, wl.pipeY], [2316, back(2322) - 12], [2376, back(2322) - 12]], 1, 'irrig', { flange: 0 });
+    LV8_FLOWS.push({ pts: [[2306, wl.pipeY], [2316, wl.pipeY], [2316, back(2322) - 12], [2376, back(2322) - 12]], kind: 'irrig', rate: 0.6 });
+    LV8_GLOWS.push({ x: 2295, y: back(2272) - 35, r: 3, col: '#3fe0a0', a: 0.7, mode: 'blink', hz: 0.9, ph: 3, core: '#b0ffd8' });
+    // pluviómetro al borde del camino
+    FIXLB_rainGauge(pb, 2606, back(2606) + 3);
     /* ===== 10. CAMINO A LA MESA DEL NEXO (2610–2800) ===== */
     for (let x = 2620; x < 2800; x += 30 + r.int(0, 20)) B.rocks(pb, x, back(x) + 5, 14 + r.int(0, 10), 6 + r.int(0, 4), x);
     for (const [x, h] of [[2650, 46], [2770, 56]]) B.cactus(pb, x, back(x) + 3, h, x);
@@ -290,6 +301,20 @@ LEVELS[8] = {
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
 const LV8_DRIPS = [], LV8_FLOWS = [], LV8_GLOWS = [], LV8_FALLS = [];
+/** Pluviómetro: poste, colector cilíndrico con embudo y probeta graduada en mm. Devuelve la y de la boca */
+function FIXLB_rainGauge(pb, x, yb) {
+  const St = PFK.P32(PFInfra.STEEL), n = St.length;
+  PFB.castR(pb, x - 4, x + 8, yb - 1, 6, { amt: -0.2, yMin: yb - 8 });
+  for (let y = yb - 26; y < yb; y++) { PFK.put(pb, x, y, St[n - 3]); PFK.put(pb, x + 1, y, St[3]); PFK.put(pb, x + 2, y, St[1]); }
+  const top = yb - 44;
+  // colector: cilindro con luz por la izquierda, aro brillante y embudo oscuro
+  for (let y = top; y < yb - 26; y++) for (let i = 0; i < 9; i++) { const k = [n - 2, n - 3, n - 4, n - 4, n - 5, n - 6, n - 7, 2, 1][i]; PFK.put(pb, x - 3 + i, y, St[clamp(k, 0, n - 1)]); }
+  for (let i = 0; i < 9; i++) { PFK.put(pb, x - 3 + i, top, St[n - 1]); PFK.put(pb, x - 3 + i, top - 1, St[n - 3]); }
+  for (let i = 1; i < 8; i++) PFK.put(pb, x - 3 + i, top + 1, U('#1a2430'));
+  // probeta: ventana con agua azul y marcas de mm
+  for (let y = top + 5; y < yb - 28; y++) { PFK.put(pb, x, y, U(y > top + 10 ? '#3ab8e8' : '#cfeaf6')); PFK.put(pb, x + 1, y, U(y > top + 10 ? '#1e88c0' : '#a8d4e8')); if ((y - top) % 3 === 0) PFK.put(pb, x + 2, y, U('#0a1420')); }
+  return top;
+}
 const LV8_CHANNELS = new Int16Array(2801).fill(-1);
 /** Espantapájaros de la milpa (≈66 px): cruz de palos, camisa de colores y sombrero de paja */
 function lv8Scarecrow(pb, x, y) {

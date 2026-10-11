@@ -535,6 +535,7 @@ LEVELS[10] = {
     { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
     { x: 1660, y: 214, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
     { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
+    { x: 1950, y: 230, title: 'CERCA DE ARENA', sub: 'Frena el viento a ras de suelo', kind: 'solar', ax: 1950, ay: 256, when: (sc) => (sc.state.clearK || 0) < 0.5 },
     { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
     { x: 2262, y: 162, title: 'ELECTROLIZADOR 300 kW', sub: (sc) => (sc.state.cards && sc.state.cards.h2) ? 'Solo con excedente' : 'Consumo fijo: no se adapta', kind: 'green', ax: 2262, ay: 196 },
     { x: 2560, y: 168, title: 'VIVERO', sub: 'Riego crítico 10 m³/h', kind: 'green', ax: 2552, ay: 190 },
@@ -615,6 +616,10 @@ LEVELS[10] = {
     const pl = E.pole(pb, 2138, yb(2138), 86);
     E.line(pb, pl.tops[0][0], pl.tops[0][1], 1966, 120, 10); E.line(pb, pl.tops[2][0], pl.tops[2][1], 2400, 150, 8);
     C.barricade(pb, 1722, yb(1722) + 1, 30);
+    // arena acumulada al pie de las mesas FV (barlovento) y cerca de arena medio enterrada antes de las baterías
+    for (const x of [1612, 1682, 1790, 1862]) { E.drift(pb, x + 8, yb(x) + 1, 30, 5, x); E.drift(pb, x + 44, yb(x) + 1, 18, 3, x + 1); }
+    PFASolar.sandFence(pb, 1926, 1990, (x) => yb(x) + 1, { seed: 7, bury: 0.45 });
+    E.drift(pb, 1940, yb(1940) + 1, 34, 6, 19); E.drift(pb, 1975, yb(1975) + 1, 22, 4, 23);
     /* ===== 6. HIDRÓGENO (2160–2500): electrolizador modulable y depósito ===== */
     const st = H2.withTheme('day', () => H2.stackPEM(pb, 2196, yb(2260), 0));
     D.stack.push(st);
