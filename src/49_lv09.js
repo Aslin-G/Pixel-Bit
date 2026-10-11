@@ -121,6 +121,8 @@ LEVELS[9] = {
     D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
     /* ===== acabado (19r_scb_lv09.js): vitrinas, cordones, atril, quiosco, alfombra y reflejos en el mármol ===== */
     SCBL9.finish(pb, world, back, gy, D);
+    // placa del gemelo colgada delante de los postes de latón (bajo el cordón): se lee entera
+    B.plaque(pb, 1440, yb(1440) - 12, 'GEMELO DIGITAL', { center: true, bg: '#06203a', border: '#56e5ff', col: '#f4fbff', h: 9, screws: false });
     LEVELS[9]._propsMs = Math.round(nowMs() - t0);
   },
   renderMid(g, sc, cam) {
@@ -132,8 +134,8 @@ LEVELS[9] = {
     // holograma del gemelo: ciudad "perfecta" de MIRAGE sin personas (o Mosaico con capas)
     if (D.holo.length) { const hx = D.holo[0] - ox, base = D.holo[1] - oy, hy = base - 40; if (hx > -120 && hx < W + 120) {
       for (let i = 0; i < 10; i++) VISTA.veil(g, hx - 10 - i * 5, base - 1 - i, 20 + i * 10, 1, S.mosaicBoard ? '#c2f58e' : '#f27ee6', 0.35 - i * 0.02);
-      if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#f27ee6' }); }
-      else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#c2f58e' }); }
+      if (!S.mosaicBoard) { for (let i = 0; i < 20; i++) { const bx = hx - 50 + (i % 10) * 10, bh = 8 + (i * 7) % 20; VISTA.veil(g, bx, hy + 30 - bh - (i > 9 ? 4 : 0), 8, bh, '#f27ee6', 0.45); } drawText(g, 'CIUDAD ÓPTIMA', hx, hy - 6, { font: 'tiny', align: 'center', color: '#ffd0f4', outline: '#3a0a40' }); }
+      else { const cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a']; for (let i = 0; i < 6; i++) VISTA.veil(g, hx - 54, hy + 24 - i * 6, 108, 5, cols[i], 0.5); for (let i = 0; i < 8; i++) fpx(g, hx - 50 + ((t * 20 + i * 13) % 100), hy + 10 + (i % 3) * 6, '#ffffff'); drawText(g, 'MOSAICO: CAPAS', hx, hy - 6, { font: 'tiny', align: 'center', color: '#e4ffc8', outline: '#0a2a14' }); }
     } }
     // pantallas del observatorio
     D.obsScr.forEach(([sx, sy, sw, sh], k) => { const x = sx - ox, y = sy - oy; if (x < -80 || x > W + 10) return; for (let i = 0; i < 4; i++) frect(g, x + 4, y + 4 + i * 7, 6 + ((i * 11 + Math.floor(t * 2) + k * 3) % Math.max(8, sw - 10)), 2, ['#eab02a', '#4ccb70', '#ff6b6b'][k % 3]); drawText(g, ['LCOA', 'LCOE', 'LCOH'][k % 3], x + sw - 4, y + sh - 8, { font: 'tiny', align: 'right', color: '#fff4c8' }); });

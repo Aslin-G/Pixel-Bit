@@ -135,12 +135,22 @@ LEVELS[11] = {
     if (x < -180 || x > W + 10) return;
     SCBEpi.drawScreen(g, S, x, y, t); // 19p_scb_epi.js: panel en vivo · título que desborda · SYNARA 2.0 · MOSAICO
   },
+  /** Lente del Nexo en el epílogo: SYNARA 2.0 con datos abiertos (mismos valores que el panel público en vivo) */
+  lens(g, sc, cam, k) {
+    const ox = cam.x, oy = cam.y, t = Game.time;
+    lensBoundary(g, 476 - ox, 142 - oy, 716, 150, '#ffe14d', 'LÍMITE: SYNARA 2.0 (DATOS ABIERTOS)');
+    lensTag(g, 500 - ox, 206 - oy, 'Parcela: goteo + sensor de humedad del suelo', '#86e36f', 'plant');
+    lensTag(g, 730 - ox, 152 - oy, 'Turbidez del agua: ' + fmt(1.2 + 0.2 * Math.sin(t * 0.7), 1) + ' NTU (en vivo)', '#20d6c7', 'water');
+    lensTag(g, 730 - ox, 170 - oy, 'Energía disponible: ' + Math.round(72 + 6 * Math.sin(t * 0.4)) + ' %', '#ffe14d', 'bolt');
+    lensTag(g, 890 - ox, 188 - oy, 'Salmuera: la boya del difusor reporta cada hora', '#f08ad8', 'drop_brine');
+    lensTag(g, 1010 - ox, 152 - oy, 'Laboratorio abierto: cualquiera revisa los datos', '#b6f05a', 'flask');
+  },
   setup(sc) {
     const S = sc.state, E = GS.s.ending || 'pacto';
     GS.s.unlocked = GS.s.unlocked.filter(i => i !== 11);
     Object.assign(S, { title2: 0, mosaicProj: false });
     const A = (id, ch, x, o) => sc.actor(id, ch, x, Object.assign({ facing: -1 }, o || {}));
-    A('naira', 'naira', 690); A('dante', 'dante', 650, { facing: 1 }); A('eliana', 'eliana', 940);
+    A('naira', 'naira', 690); A('dante', 'dante', 650, { facing: 1 }); A('eliana', 'eliana', 972); // a la derecha del poste DATOS ABIERTOS (no lo tapa)
     A('limen', 'limen', 980, { fly: true, y: 210, talkable: false });
     A('ruth', 'consejal', 300); A('celia', 'pastora', 420, { facing: 1 }); A('marea', 'marea', 1400); A('cobre', 'cobre', 230, { facing: 1 }); A('ivan', 'operador', 1100);
     A('nina', 'alma', 760, { facing: 1 });
