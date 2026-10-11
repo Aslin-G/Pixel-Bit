@@ -26781,7 +26781,7 @@ BIOMES.coast = function (L) {
     V.scatterVeg(pb, (x) => info.top[x] < yB - 1 ? info.top[x] + 1 : null, 300, w, 8200, { k, gap: 8, mix: { tree: 3, shrub: 4, palm: 2, flower: 1 } });
     for (let x = 300; x < w; x += r.int(26, 60)) if (info.top[x] < yB - 2) V.palm(pb, x, yB - 1, r.int(18, 28), r.range(-5, 5), 8300 + x, { k });
     // planta de hidrógeno verde en la meseta central
-    const h2 = V.h2Plant(pb, 896, info.yAt(940, 8) - 1, { k, s: 1 });
+    const h2 = V.h2Plant(pb, 880, info.yAt(940, 8) - 1, { k, s: 1.4 }); // grande: su etiqueta señala un objeto visible
     coastFx.glows.push(...h2.glows);
     labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Hidrógeno', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
     // PLANTA SYNARA protagonista (R2PLANT) en 3/4 sobre la orilla: pretratamiento → membranas →
