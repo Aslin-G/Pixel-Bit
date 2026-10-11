@@ -384,20 +384,99 @@ const SCAIntro = (() => {
   /* =================================================================
      3 · LA MÁQUINA (núcleo de SYNARA de noche, alarma silenciosa)
      ================================================================= */
+  /** Bastidor de servidores en 3/4: techo claro, lateral en violeta, frente con unidades, rejillas y LED */
+  function serverRack(pb, x, yb, w, h, d, k) {
+    const RR = V.hz(['#05081a', '#0a1028', '#101a3a', '#18264e', '#223464', '#2e467e', '#40609c', '#6a8cc4'], k, '#0a1430');
+    V.box3q(pb, x, yb, w, h, d, { ramp: RR, front: 2, side: 1, top: 6 });
+    const P = V.P32(RR), leds = [], A = U(V.hzc('#56e5ff', k, '#0a1430'));
+    for (let xx = x; xx < x + w; xx++) { V.put(pb, xx, yb - h + 1, A); V.put(pb, xx, yb - h + 2, P[4]); }
+    const uh = Math.max(5, Math.round(h / 12));
+    for (let yy = yb - h + 5; yy + uh <= yb - 4; yy += uh) {
+      for (let xx = x + 2; xx < x + w - 2; xx++) { V.put(pb, xx, yy, P[4]); V.put(pb, xx, yy + uh - 1, P[0]); }
+      for (let xx = x + 4; xx < x + w - 10; xx += 2) for (let q = 2; q < uh - 2; q++) V.put(pb, xx, yy + q, P[1]);
+      V.put(pb, x + 2, yy + 1, P[5]);
+      leds.push([x + w - 6, yy + 2], [x + w - 4, yy + 2]);
+    }
+    // reflejo diagonal en la puerta de cristal del bastidor
+    for (let yy = yb - h + 4; yy < yb - 3; yy++) for (let xx = x + 2; xx < x + w - 2; xx++) { const q = ((xx - x) + (yy - yb + h)) % 70; if (q >= 24 && q < 27) { const c = V.get(pb, xx, yy); V.put(pb, xx, yy, V.mixU(c, P[6], q === 25 ? 0.4 : 0.22)); } }
+    // marco: montantes claros a la izquierda (luz clave) y sombra a la derecha
+    for (let yy = yb - h + 3; yy < yb - 1; yy++) { V.put(pb, x, yy, P[5]); V.put(pb, x + 1, yy, P[3]); V.put(pb, x + w - 1, yy, P[0]); }
+    return { leds };
+  }
+  /** Reilumina de noche los píxeles poco saturados de una zona (estuco a día → rampa fría con matiz) */
+  function relightNight(pb, x0, y0, x1, y1) {
+    const NR = V.P32(['#0a0c24', '#11183a', '#18244e', '#203062', '#283e76', '#324e8a', '#40629e', '#5478b0', '#6e94c4', '#8eb2d8', '#b8d4ea', '#e2f2fa']);
+    let lo = 1, hi = 0; const sel = [];
+    for (let y = Math.max(0, y0); y < Math.min(pb.h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+      const c = pb.data[y * pb.w + x]; if ((c >>> 24) < 200) continue;
+      const r = c & 255, gg = (c >>> 8) & 255, b = (c >>> 16) & 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+      if (mx === 0 || (mx - mn) / mx > 0.38) continue;
+      const l = (0.3 * r + 0.59 * gg + 0.11 * b) / 255; sel.push(y * pb.w + x, l); if (l < lo) lo = l; if (l > hi) hi = l;
+    }
+    const rg = Math.max(0.05, hi - lo), CY = U('#2a8aa0');
+    for (let i = 0; i < sel.length; i += 2) {
+      const at = sel[i], y = (at / pb.w) | 0;
+      let k = Math.round(Math.pow((sel[i + 1] - lo) / rg, 1.25) * (NR.length - 1));
+      // hiladas del tambor y luz de rebote cian del charco del suelo en la base
+      if (y > 100 && y < 214 && (y % 12) === 4) k -= 1;
+      let u = NR[clamp(k, 0, NR.length - 1)];
+      if (y > 196) u = V.mixU(u, CY, y > 214 ? 0.34 : 0.2);
+      pb.data[at] = u;
+    }
+  }
+  /** Reflejo en el suelo pulido: copia invertida y tenue de lo que hay justo encima de y0 (alfa en 3 bandas) */
+  function reflect(pb, y0, len) {
+    for (let x = 0; x < pb.w; x++) {
+      // base del objeto de esa columna (último píxel opaco por encima de y0)
+      let base = -1; for (let y = Math.min(pb.h - 1, y0); y > y0 - 40; y--) if ((pb.data[y * pb.w + x] >>> 24) > 200) { base = y; break; }
+      if (base < 0) continue;
+      for (let d = 1; d <= len; d++) {
+        const sy = base - d + 1, dy = base + d; if (dy >= pb.h || sy < 0) break;
+        const c = pb.data[sy * pb.w + x]; if ((c >>> 24) < 200 || (pb.data[dy * pb.w + x] >>> 24)) continue;
+        const a = d < len * 0.35 ? 0.34 : d < len * 0.7 ? 0.2 : 0.1;
+        pb.data[dy * pb.w + x] = ((Math.round(a * 255) << 24) | (V.mixU(c, U('#2a8aa0'), 0.35) & 0xffffff)) >>> 0;
+      }
+    }
+  }
+  const TECH_OPTS = [{ shadow: false, env: 'night' }, { shadow: false, env: 'night', beam: false }];
   function v3() {
     const B = newB();
+    // técnicos: sus cuadros se generan aquí (en la composición de la viñeta) y no en pleno paneo
+    for (const [a, o] of [['program', TECH_OPTS[0]], ['scan', TECH_OPTS[1]]]) for (let f = 0; f < 6; f++) SpriteCache.get('operador', a, f, o);
     const sky = new PixelBuffer(W + 20, H);
     const R = V.P32(V.expand(['#020818', '#041230', '#071c44', '#0a2654', '#0c2c60'], 12));
     for (let y = 0; y < H; y++) for (let x = 0; x < sky.w; x++) sky.data[y * sky.w + x] = R[V.band(y / H * 0.9, R.length, x, y, 0.04, 3)];
     B.sky = sky.toCanvas();
     // pared del fondo: paneles con nervios y ventanal nocturno con estrellas y la ciudad iluminada
     const winLights = [], trays = [], strips = [], cone = V.lightCone(30, 70, 120, '#9fe6ff', 0.18);
+    // suelo pulido en perspectiva (fuga en el núcleo): bandas de tono que se enfrían hacia el espectador,
+    // juntas que convergen, charco de luz cian bajo el tambor (bandas planas, sin tramado)
+    const FL = V.P32(['#05091c', '#080f28', '#0b1634', '#0f1e42', '#132650', '#18305e', '#1e3a6c', '#26487c']);
+    const FG = V.P32(['#103a5e', '#145070', '#1a6a86', '#2a8aa0']);
+    const VX = 340, VY = 170;
+    const floorPx = (x, y) => {
+      const v = (y - 232) / 128;
+      let i = 7 - Math.min(6, Math.floor(Math.pow(v, 0.7) * 7.2));
+      const dz = (y - VY), u = (x - VX) / dz * 64;
+      const seamX = Math.abs(u - Math.round(u / 22) * 22) < 22 / dz * 1.2 + 0.2;
+      const zr = 1200 / dz, seamY = Math.abs(zr - Math.round(zr / 2.2) * 2.2) < 0.08 * zr / 6 + 0.02;
+      // charco de luz cian bajo el núcleo (elipse en 3 bandas)
+      const ex = (x - 340) / 190, ey = (y - 236) / 22, e = ex * ex + ey * ey;
+      if (e < 1) { const b = e < 0.25 ? 3 : e < 0.55 ? 2 : e < 0.8 ? 1 : 0; return seamX || seamY ? FG[Math.max(0, b - 1)] : FG[b]; }
+      if (seamX || seamY) i = Math.max(0, i - 2);
+      return FL[i];
+    };
     B.vplane(0.15, 0, H, (pb, w, h) => {
       const P = V.P32(['#06122a', '#0a1a3a', '#0e244a', '#14305c', '#1c3e70', '#2a5288']);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        if (y >= 232) { pb.data[y * w + x] = P[(y - 232) % 9 === 0 ? 2 : ((x + (y - 232) * 2) % 40 === 0 ? 2 : 1)]; continue; }
+        if (y >= 232) { pb.data[y * w + x] = floorPx(x, y); continue; }
         let i = 2 + ((x % 48) < 2 ? -1 : 0) + ((y % 40) === 0 ? 1 : 0) + (y > h - 30 ? -1 : 0);
         if ((x % 48) === 2) i = 4;
+        // lavado de luz de las lámparas del techo sobre la pared (2 bandas planas por lámpara)
+        for (const lx of [60, 160, 540, 640]) { if (y < 36 || y > 200) break; const hw = 20 + (y - 36) * 0.35, d = (x - lx) / hw; if (d > 1 || d < -1) continue; const lv = (1 - d * d) * (1 - (y - 36) / 164); i += lv > 0.5 ? 2 : lv > 0.22 ? 1 : 0; break; }
+        // remaches en los nervios y rozaduras en grupos de 2×2 (textura dispersa, sin trama)
+        if ((y % 40) === 2 && (x % 12) === 6) i += 2;
+        else if (hash2(x >> 1, y >> 1, 5) < 0.06) i -= 1;
         pb.data[y * w + x] = P[clamp(i + (hash2(x >> 2, y >> 2, 3) < 0.05 ? 1 : 0), 0, 5)];
       }
       // ventanal en arco
@@ -423,16 +502,42 @@ const SCAIntro = (() => {
       for (const lx of [40, 140, 520, 620]) strips.push(V.lightStrip(pb, lx, lx + 40, 34, '#9fe6ff'));
     }, { dyn: (g, cam, L) => { const [ox, oy] = B.vofs(L, cam), t = T(); g.fillStyle = '#ffd88a'; for (let i = 0; i < winLights.length; i++) if ((i * 7 + Math.floor(t * 0.5)) % 9) { const [x, y] = winLights[i]; g.fillRect(x + ox, y + oy, 1, 1); } V.drawStrips(g, strips, ox, oy, t, { col: '#e6fdff', speed: 40 }); for (const F of trays) V.drawFlow(g, F, ox, oy, t, { col: '#56e5ff', speed: 30, gap: 11 }); g.globalCompositeOperation = 'lighter'; for (const [x0] of strips) { g.globalAlpha = 0.5; g.drawImage(cone, x0 + ox - 10, 35 + oy); } g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; } });
     // el núcleo de SYNARA (tambor con cúpula de vidrio y franja cian) y bastidores de datos
-    let core = null; const racks = [];
-    B.vplane(0.4, 30, 260, (pb, w, h) => {
+    let core = null; const racks = [], dataTrays = [], holo = [];
+    const domeCone = V.lightCone(70, 250, 210, '#8fdcff', 0.2), moonCone = V.lightCone(150, 260, 190, '#9fb8ff', 0.1);
+    const midL = B.vplane(0.4, 30, 260, (pb, w, h) => {
       core = PFBC.synaraCore(pb, 330, 230, 200, 120);
-      for (const [x, s] of [[40, 1], [110, 2], [520, 3], [590, 4]]) { const R2 = V.bessRack(pb, x, 230, 46, 110, 12, { k: 0.1, accent: '#56e5ff' }); racks.push(...R2.leds); }
+      relightNight(pb, 200, 0, 462, 232);
+      // dos hileras de bastidores en 3/4: la de atrás más pequeña y apagada, la de delante con más luz
+      for (const x of [22, 72, 122, 172, 498, 548, 598, 648]) racks.push(...serverRack(pb, x, 208, 34, 128, 10, 0.34).leds);
+      for (const x of [0, 50, 100, 150, 474, 524, 574, 624]) { const R2 = serverRack(pb, x, 236, 44, 116, 14, 0); racks.push(...R2.leds); }
+      // bandejas de datos desde las hileras hasta el tambor (con flujo animado)
+      for (const [x0, x1, y] of [[0, 214, 104], [450, w, 104], [0, 236, 96], [430, w, 96]]) { const T2 = V.cableTray(pb, x0, x1, y, { k: 0.15, hang: 14, cols: ['#2c63c0', '#56e5ff', '#3a3a4a', '#6a4ab0'] }); dataTrays.push(T2.flow); }
+      // pedestal del holograma entre el núcleo y la hilera derecha
+      V.box3q(pb, 446, 240, 22, 8, 8, { ramp: ['#0a1020', '#141c34', '#202c4c', '#2e3e66', '#44588a', '#6a82b4'] });
+      for (let xx = 447; xx < 467; xx++) V.put(pb, xx, 233, U('#56e5ff'));
+      holo.push([457, 228]);
+      reflect(pb, 252, 24);
     }, {
       dyn: (g, cam, L) => {
         const [ox, oy] = B.vofs(L, cam), t = T();
         // leds de bastidores: la mayoría cian, algunos ámbar que parpadean fuera de ritmo
-        for (let i = 0; i < racks.length; i++) { const [x, y] = racks[i]; const on = Math.floor(t * (1.5 + (i % 5) * 0.3) + i) % 3; if (!on) continue; g.fillStyle = i % 9 === 4 ? '#ffb040' : '#56e5ff'; g.fillRect(x + ox, y + oy, 1, 1); }
+        for (let i = 0; i < racks.length; i++) { const [x, y] = racks[i]; const on = Math.floor(t * (1.5 + (i % 5) * 0.3) + i) % 3; if (!on) continue; g.fillStyle = i % 9 === 4 ? '#ffb040' : i % 4 === 1 ? '#3fe0a0' : '#56e5ff'; g.fillRect(x + ox, y + oy, 1, 1); }
+        for (const F of dataTrays) V.drawFlow(g, F, ox, oy, t, { col: '#9fe6ff', speed: 46, gap: 14 });
         if (core) { const [dx, dy] = core.dome; V.drawGlow(g, dx + ox, dy + oy, 22, '#56e5ff', 0.25 + 0.12 * Math.sin(t * 1.7)); for (const [bx, by] of core.beacons) V.drawGlow(g, bx + ox, by + oy, 4, '#ff3a3a', Math.floor(t * 2) % 2 ? 0.9 : 0.25); }
+        // conos de luz en bandas: desde la cúpula hasta el suelo y la luna por el ventanal
+        g.globalCompositeOperation = 'lighter';
+        if (core) { g.globalAlpha = 0.75 + 0.15 * Math.sin(t * 1.7); g.drawImage(domeCone, core.dome[0] + ox - 125, core.dome[1] + oy + 6); }
+        g.globalAlpha = 0.8; g.drawImage(moonCone, 210 + ox, 48 + oy);
+        g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+        // holograma: mosaico que se reordena solo, en un prisma translúcido sobre el pedestal
+        for (const [hx, hy] of holo) {
+          const x0 = hx + ox - 14, y0 = hy + oy - 44;
+          g.globalAlpha = 0.16; g.fillStyle = '#56e5ff'; g.fillRect(x0 + 4, y0 + 36, 20, 8); g.fillRect(x0, y0, 28, 36);
+          g.globalAlpha = 0.55;
+          for (let q = 0; q < 16; q++) { const cx = q % 4, cy = (q / 4) | 0, v = hash2(cx, cy, Math.floor(t * 0.9) + 7); g.fillStyle = v < 0.35 ? '#56e5ff' : v < 0.6 ? '#b49cff' : v < 0.72 ? '#f5dc5a' : '#123a6a'; g.fillRect(x0 + 3 + cx * 6, y0 + 4 + cy * 7, 5, 6); }
+          g.globalAlpha = 0.3; g.fillStyle = '#c4fbff'; g.fillRect(x0, y0 + ((Math.floor(t * 18)) % 36), 28, 1);
+          g.globalAlpha = 1; g.fillStyle = '#9fe6ff'; g.fillRect(x0, y0, 28, 1); g.fillRect(x0, y0 + 35, 28, 1);
+        }
       },
     });
     // consolas en primer plano con pantallas que muestran un patrón (mosaico) que nadie entiende
@@ -466,6 +571,10 @@ const SCAIntro = (() => {
     return {
       B, rev: true,
       post(g, cam, t) {
+        // técnicos de guardia: uno teclea ante el holograma y otro escanea un bastidor (iluminados de noche)
+        const [mx, my] = B.vofs(midL, cam);
+        drawChar(g, 'operador', 'program', t, 432 + mx, 240 + my, 1, TECH_OPTS[0]);
+        drawChar(g, 'operador', 'scan', t + 0.4, 214 + mx, 240 + my, -1, TECH_OPTS[1]);
         // barrido de alarma silencioso (rojo) + destello de interferencia ocasional
         const a = 0.08 + 0.06 * Math.sin(t * 3);
         g.globalAlpha = a; g.fillStyle = '#ff2a3a'; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
