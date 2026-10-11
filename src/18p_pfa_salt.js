@@ -101,17 +101,27 @@ const PFASalt = (() => {
     for (let yy = 0; yy < h; yy++) { const hw = Math.round((w / 2) * Math.sqrt(1 - yy / h)); for (let k = -hw; k <= hw; k++) { const f = (k + hw) / (2 * hw + 0.01); let kk = f < 0.3 ? 8 : f < 0.55 ? 7 : f < 0.8 ? 6 : 4; if (hash2(x + k, yy, seed) < 0.06) kk = 8; if (yy === 0) kk -= 2; put(pb, x + k, yb - yy, S[clamp(kk, 0, 8)]); } }
     put(pb, x, yb - h, S[8]);
   }
-  /** Pilar de bloques cristalinos de sal (bajo las plataformas de sal) */
+  /** Pilar de bloques cristalinos de sal (bajo las plataformas de sal): bloques en 3/4 con cara superior,
+   *  faceta iluminada a la izquierda, arista central, lado en sombra lila, oclusión en la base y destellos en grumo */
   function saltPillar(pb, x, yTop, yb, w = 28, seed = 1) {
-    const S = P32(SALT), r = RNG(seed);
-    let y = yTop;
+    const S = P32(SALT), r = RNG(seed), sk = 3;
+    A.castShadow(pb, x, yb, w + 6, 8, -0.24);
+    let y = yTop, first = true;
     while (y < yb) {
-      const bh = 6 + r.int(0, 6), off = r.int(-2, 2);
+      const bh = 6 + r.int(0, 6), off = r.int(-2, 2), mid = Math.round(w * (0.35 + r() * 0.2));
       for (let yy = y; yy < Math.min(yb, y + bh); yy++) for (let i = 0; i < w; i++) {
-        const xx = x + i + off, ly = yy - y, f = i / (w - 1);
-        let k = ly === 0 ? 8 : ly === bh - 1 ? 2 : f < 0.15 ? 7 : f < 0.5 ? 6 : f < 0.85 ? 5 : 3;
-        if (hash2(xx >> 1, yy >> 1, seed) < 0.05) k = 8;
-        put(pb, xx, yy, S[k]);
+        const xx = x + i + off, ly = yy - y, ao = (yb - yy) < 8 ? 1 : 0;
+        let k = ly === 0 ? 8 : ly === bh - 1 ? 2 : ly === bh - 2 ? 4 : i < 2 ? 8 : i < mid ? 7 : i === mid ? 5 : i > w - 4 ? 3 : 5;
+        if (i === mid + 1 && ly > 0 && ly < bh - 2) k = 6;                       // arista del prisma
+        k -= ao;
+        put(pb, xx, yy, S[clamp(k, 0, 8)]);
+      }
+      // destello cristalino en grumo (2×2 con píxel blanco)
+      if (r.chance(0.6)) { const gx = x + off + r.int(2, Math.max(3, mid - 2)), gy = y + r.int(2, Math.max(2, bh - 3)); put(pb, gx, gy, S[8]); put(pb, gx + 1, gy, S[7]); put(pb, gx, gy + 1, S[7]); }
+      if (first) {
+        // cara superior en 3/4 (sobre la que se apoya la plataforma)
+        for (let q = 1; q <= sk; q++) for (let i = 0; i < w; i++) put(pb, x + off + i + q, y - q, S[q === sk ? 6 : i < 3 ? 8 : 7]);
+        first = false;
       }
       y += bh;
     }
@@ -127,8 +137,8 @@ const PFASalt = (() => {
         const f = (k + hw) / (2 * hw + 0.01);
         let kk = Math.round((f < 0.12 ? 0.55 : f < 0.3 ? 0.85 : f < 0.55 ? 0.66 : f < 0.8 ? 0.45 : 0.25) * (n - 1) + (PFK.cl(cx + k, yb - yy, 2, seed) - 0.5) * 1.4);
         let u = R[clamp(kk, 0, n - 1)];
-        const vein = (yy + Math.round(Math.sin(k * 0.3 + seed) * 2)) % 13;
-        if (vein === 0) u = S[f < 0.6 ? 8 : 6]; else if (vein === 1) u = R[clamp(kk - 2, 0, n - 1)];
+        const vein = (yy + Math.round(Math.sin(k * 0.3 + seed) * 2)) % 13, vOn = hash2(Math.floor((cx + k) / 5), Math.floor(yy / 13), seed + 2) < 0.6;
+        if (vein === 0 && vOn) u = K.mixU(u, S[f < 0.6 ? 8 : 6], 0.7); else if (vein === 1 && vOn) u = R[clamp(kk - 2, 0, n - 1)];
         put(pb, Math.round(cx + k), yb - yy, u);
       }
     }
@@ -192,11 +202,30 @@ const PFASalt = (() => {
     const Wh = P32(A.WHITE), F = P32(PL.FRAME), w = x1 - x0, ceil = yF - 112, screens = [], lamps = [];
     for (const px of [x0 + 4, x0 + Math.round(w / 2) - 2, x1 - 8]) { A.castShadow(pb, px, floorY, 8, 6, -0.2); for (let yy = yF + 6; yy < floorY; yy++) { put(pb, px, yy, U('#7aa0b8')); put(pb, px + 1, yy, U('#567a94')); put(pb, px + 2, yy, U('#24384a')); } K.lineFn(pb, px + 2, yF + 10, px + 16, yF + 40, () => F[3]); }
     // muro del fondo con ventanal translúcido sobre la bahía
+    // paneles de composite con juntas, sombra bajo el alero, canto iluminado a la izquierda, faceta lateral en sombra
     for (let yy = ceil + 8; yy < yF; yy++) for (let xx = x0; xx < x1; xx++) {
       const ly = yy - ceil - 8, lx = (xx - x0 + 2000) % 40;
-      if (ly >= 8 && ly < 40 && lx > 3 && lx < 37 && xx > x0 + 4 && xx < x1 - 4) { K.blend(pb, xx, yy, U(ly < 14 ? '#ffd0e0' : '#9ab8f0'), 0.24); continue; }
-      put(pb, xx, yy, Wh[ly > 80 ? 4 : 6 - ((xx - x0) % 40 === 0 ? 2 : 0)]);
+      if (ly >= 8 && ly < 40 && lx > 3 && lx < 37 && xx > x0 + 4 && xx < x1 - 4) {
+        // ventanal: marco, reflejo del ocaso arriba, bahía abajo y un destello diagonal
+        if (ly === 8 || lx === 4 || lx === 36) { put(pb, xx, yy, F[4]); continue; }
+        const gl = ((lx + ly) % 23) < 2;
+        K.blend(pb, xx, yy, U(gl ? '#ffffff' : ly < 16 ? '#ffc0d8' : ly < 26 ? '#c8a8e8' : '#8ab0f0'), gl ? 0.5 : 0.3);
+        continue;
+      }
+      let k = 6;
+      if (ly < 6) k = 3 + (ly >> 1);                         // sombra del alero (degradado en bandas)
+      else if (ly === 40) k = 7;                             // vierteaguas del ventanal
+      else if (ly === 41) k = 3;
+      else if (ly > 40 && (ly - 41) % 16 === 0) k = 4;       // junta horizontal de paneles
+      else if (ly > 80) k = 4;
+      if (lx === 0) k = 3; else if (lx === 1) k = Math.min(7, k + 1);    // junta vertical y canto
+      if (xx === x0 || xx === x0 + 1) k = 7;                 // canto al sol
+      else if (xx >= x1 - 3) k = Math.min(k, 3);             // esquina en sombra
+      if (ly > 44 && ly < 80 && lx > 6 && lx < 34 && hash2(xx, ly >> 3, 77) < 0.04) k = 5;   // churretes suaves
+      put(pb, xx, yy, Wh[k]);
     }
+    for (let yy = ceil + 6; yy < yF - 1; yy++) for (let q = 0; q < 5; q++) put(pb, x1 + q, yy - Math.round(q * 0.7), Wh[q === 0 ? 1 : 2 + (yy - ceil < 14 ? -1 : 0)]);
+    for (const [vx, vy] of [[x1 - 16, yF - 30]]) for (let q = 0; q < 4; q++) PL.hline(pb, vx, vx + 8, vy + q * 2, F[2]);   // rejilla de ventilación
     for (let xx = x0; xx < x1; xx++) for (let k = 0; k < 4; k++) put(pb, xx, yF - 14 + k, U(k === 0 ? '#5ae0ff' : '#1491aa'));
     // techo con FV y mástil de radar
     for (let xx = x0 - 4; xx < x1 + 4; xx++) for (let k = 0; k < 8; k++) put(pb, xx, ceil + k, k === 0 ? Wh[7] : k < 3 ? Wh[5] : k === 7 ? Wh[0] : Wh[3]);

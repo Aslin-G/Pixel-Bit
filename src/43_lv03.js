@@ -54,7 +54,7 @@ LEVELS[3] = {
       { kind: 'aSalt', x: 2860, w: 150, h: 70, seed: 5 },
       { kind: 'aSalt', x: 3400, w: 140, h: 74, seed: 6 },
     ],
-    fauna: { gulls: [{ x: 900, y: 120, n: 3 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
+    fauna: { gulls: [{ x: 300, y: 128, n: 3 }, { x: 900, y: 120, n: 3 }, { x: 1420, y: 116, n: 2 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
   },
   /** Etiquetas científicas en el mundo (la sal se conserva: de la planta a la bahía) */
   labels: [
@@ -122,7 +122,7 @@ LEVELS[3] = {
     for (const x of [2380, 2560, 2660]) So.opuntia(pb, x, back(x) + 8, 0.9, x);
     for (let x = 2310; x < 2800; x += 30 + r.int(0, 20)) { if (hash2(x, 2, 5) < 0.6) So.dryBush(pb, x, back(x) + 4, 16, 9, x); else F.agave(pb, x, back(x) + 4, 7, x); }
     for (let x = 2520; x < 2600; x++) { K.put(pb, x, gy(x) - 22, U('#94602e')); K.put(pb, x, gy(x) - 12, U('#6e421e')); if (x % 10 === 0) for (let k = 0; k < 22; k++) K.put(pb, x, gy(x) - 2 - k, U('#7a4a24')); }
-    PFSigns.post(pb, 2724, gy(2724) - 2, [{ text: 'DUNAS FOTÓNICAS' }], 37, { font: 'tiny' });
+    PFSigns.post(pb, 2640, gy(2640) - 2, [{ text: 'DUNAS FOTÓNICAS' }], 37, { font: 'tiny' }); // 120 px antes de la salida (2760)
     LEVELS[3]._ms = Math.round(nowMs() - t0);
   },
   propsFront(pb, world) {
@@ -155,8 +155,47 @@ LEVELS[3] = {
     if (N.radar) { const [rx, ry] = N.radar, a = t * 2; fline(g, rx - ox, ry - oy, rx - ox + Math.cos(a) * 9, ry - oy + Math.sin(a) * 3, '#56e5ff'); fpx(g, rx - ox, ry - oy - 1, '#ff4e5d'); }
     if (N.stScr) for (const [x, y, ww, hh] of N.stScr) { const sx = x - ox; if (sx < -30 || sx > W + 10) continue; for (let i = 0; i < ww; i += 2) fpx(g, sx + i, Math.round(y - oy + hh * 0.6 - Math.sin((i + t * 15) * 0.15) * hh * 0.3), '#56e5ff'); frect(g, sx + Math.round(((t * 8) % ww)), y - oy + 2, 1, hh - 4, '#f888b8'); }
     PFDyn.glows(g, cam, N.lamps, '#ffd890', 9, 0.32);
+    this.ambient(g, sc, cam);
     // brújula de salmuera activa: flechas de flujo y balance de masa
     if (S.compassT > 0) this.drawCompass(g, sc, cam);
+  },
+  /** Delante del agua: brillo lento de la lámina de salmuera (y del humedal) — trazos que corren con el flujo y un reflejo ancho que deriva */
+  renderFront(g, sc, cam) {
+    const t = Game.time, ox = cam.x, oy = cam.y;
+    for (const [x0, x1, wy, c1, c2, sp0] of [[200, 380, 296, '#f8c8ee', '#ffffff', 5], [640, 790, 296, '#f8c8ee', '#ffffff', 5], [1560, 1790, 294, '#c4fff0', '#ffffff', 2]]) {
+      if (x1 - ox < -10 || x0 - ox > W + 10) continue;
+      const span = x1 - x0 - 14;
+      for (let k = 0; k < 2; k++) { const bx = x0 + 6 + ((k * 0.5 * span + t * (sp0 + 2)) % span); g.globalAlpha = 0.16; frect(g, Math.round(bx - ox), wy - 9 - oy, 18 + k * 8, 8, c1); }
+      for (let i = 0; i < 18; i++) {
+        const ph = hash1(i, x0), a = 0.3 + 0.4 * Math.sin(t * 2.2 + i * 1.7); if (a < 0.12) continue;
+        const xx = x0 + 6 + ((ph * 997 + t * (sp0 + ph * 6)) % span), yy = wy - 10 + (i % 5) * 2;
+        g.globalAlpha = a; frect(g, Math.round(xx - ox), yy - oy, 2 + ((i * 7) % 5), 1, i % 3 ? c1 : c2);
+      }
+      g.globalAlpha = 1;
+    }
+  },
+  /** Ambiente del cañón: destellos que nacen y mueren en la costra y motas de sal al viento */
+  ambient(g, sc, cam) {
+    const t = Game.time, ox = cam.x, oy = cam.y, w = sc.world;
+    for (const [x0, x1] of [[0, 600], [1110, 1530]]) {
+      if (x1 - ox < 0 || x0 - ox > W) continue;
+      const n = Math.round((x1 - x0) / 12);
+      for (let i = 0; i < n; i++) {
+        const x = x0 + hash1(i, x0 + 7) * (x1 - x0); if (x > 196 && x < 384) continue;
+        const sx = Math.round(x - ox); if (sx < -2 || sx > W + 2) continue;
+        const ph = (t * 0.45 + hash1(i, x0 + 9)) % 1; if (ph > 0.16) continue;
+        const sy = Math.round(w.groundAt(x) - 3 - hash1(i, x0 + 11) * 9 - oy);
+        fpx(g, sx, sy, '#ffffff');
+        if (ph > 0.05 && ph < 0.11) { fpx(g, sx - 1, sy, '#ffd8f0'); fpx(g, sx + 1, sy, '#ffd8f0'); fpx(g, sx, sy - 1, '#ffd8f0'); fpx(g, sx, sy + 1, '#ffd8f0'); }
+      }
+    }
+    const m = W + 40;
+    for (let i = 0; i < 22; i++) {
+      const sp = 14 + hash1(i, 41) * 16, v = hash1(i, 42) * m + t * sp - ox * 0.6, x = ((v % m) + m) % m - 20;
+      const y = 140 + hash1(i, 43) * 160 + Math.sin(t * 1.3 + i) * 4 - oy * 0.2;
+      g.globalAlpha = 0.45 + 0.3 * Math.sin(t * 3 + i); fpx(g, Math.round(x), Math.round(y), i % 4 ? '#ffe8f6' : '#ffffff');
+    }
+    g.globalAlpha = 1;
   },
   drawCompass(g, sc, cam) {
     const S = sc.state, ox = cam.x, oy = cam.y, t = Game.time;

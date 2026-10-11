@@ -250,8 +250,23 @@ const PFAWind = (() => {
       if (y - top(x) < 2) { put(pb, x, y, U(y - top(x) === 0 ? '#748c2a' : '#3a5214')); continue; }
       let u = K.shU(colRock(x, y, sd, R, 1.2), -0.2, 240);
       const mist = clamp((y - yTop) / (seaY - yTop), 0, 1);
-      u = K.mixU(u, U('#b8c8de'), 0.18 + mist * mist * 0.5);
+      // profundidad: velo aéreo claro arriba que se hunde hacia el azul marino en el fondo de la garganta (bandas, sin tramado)
+      const band = Math.floor(mist * 5) / 5;
+      u = K.mixU(u, U('#b8c8de'), 0.2 * (1 - band));
+      u = K.mixU(u, U('#1c2a5a'), band * band * 0.55);
       put(pb, x, y, u);
+    }
+    // repisas en las paredes con matas y aves anidando (cara superior clara, sombra bajo la repisa)
+    const r = RNG(sd + 40), G = P32(['#26380e', '#3a5214', '#567020', '#748c2a']);
+    for (let i = 0; i < Math.round((x1 - x0) / 34); i++) {
+      const lx = x0 + 6 + r.int(0, x1 - x0 - 30), ly = yTop + 18 + r.int(0, Math.max(10, seaY - yTop - 50)), lw = r.int(10, 26);
+      const dk = clamp((ly - yTop) / (seaY - yTop), 0, 1);
+      for (let k = 0; k < lw; k++) {
+        put(pb, lx + k, ly, K.mixU(R[7], U('#1c2a5a'), dk * 0.4)); put(pb, lx + k, ly + 1, K.mixU(R[5], U('#1c2a5a'), dk * 0.45));
+        put(pb, lx + k, ly + 2, K.mixU(R[1], U('#1c2a5a'), dk * 0.3)); put(pb, lx + k, ly + 3, K.mixU(R[0], U('#1c2a5a'), dk * 0.3));
+      }
+      for (let k = 2; k < lw - 2; k += 3 + r.int(0, 3)) { const hh = 2 + r.int(0, 3); for (let q = 1; q <= hh; q++) put(pb, lx + k + (q > 2 ? 1 : 0), ly - q, G[clamp(3 - q, 0, 3)]); }
+      if (r.chance(0.55)) { const bx = lx + r.int(3, lw - 4); put(pb, bx, ly - 1, U('#f4f6fb')); put(pb, bx + 1, ly - 1, U('#f4f6fb')); put(pb, bx, ly - 2, U('#ffffff')); put(pb, bx - 1, ly - 1, U('#a8b4c8')); put(pb, bx + 2, ly - 2, U('#f0b030')); }
     }
     // farallones (columnas bajo las plataformas de roca), más cerca y mejor iluminados
     for (const [sx, sy, sw] of (o.stacks || [])) for (let y = sy; y < seaY + 2; y++) for (let i = 0; i < sw; i++) {

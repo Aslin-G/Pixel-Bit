@@ -216,8 +216,37 @@ LEVELS[4] = {
     if (N.met) { const [cx, cy] = N.met.cups, a = t * 5; for (let k = 0; k < 3; k++) { const aa = a + k * TAU / 3; fpx(g, Math.round(cx + Math.cos(aa) * 4 - ox), Math.round(cy + Math.sin(aa) * 1.5 - oy), '#f4f6f8'); } frect(g, cx - 4 - ox, cy - oy, 9, 1, '#8e94a2'); }
     // aeromotor: rotor multipala girando con el viento
     if (N.pump) { const [hx, hy] = N.pump.hub, sx = hx - ox; if (sx > -30 && sx < W + 30) { const a0 = t * 2.2; for (let k = 0; k < 12; k++) { const aa = a0 + k * TAU / 12; for (let q = 3; q < 14; q++) fpx(g, Math.round(sx + Math.cos(aa) * q * 0.45), Math.round(hy - oy + Math.sin(aa) * q), q > 11 ? '#c8562a' : '#d2d6dc'); } frect(g, sx - 1, hy - oy - 1, 3, 3, '#4c5260'); } }
+    this.ambient(g, sc, cam);
     // manga de viento ondeando hacia el este
     if (N.sock) { const [sx0, sy0] = N.sock; for (let i = 0; i < 16; i++) { const wv = Math.round(Math.sin(t * 7 - i * 0.6) * (i / 16) * 2); frect(g, sx0 + i - ox, sy0 + 1 + Math.round(i * 0.25) + wv - oy, 1, 6 - Math.round(i / 5), (Math.floor(i / 4) % 2) ? '#ffffff' : '#ff6a2a'); } }
+  },
+  /** Ambiente del desierto: reverbero sobre el horizonte, arena que corre con el viento por las dunas y lagartijas */
+  ambient(g, sc, cam) {
+    const t = Game.time, ox = cam.x, oy = cam.y, w = sc.world, hz = (sc.backdrop.horizon || 170) - Math.round(oy * 0.08);
+    // reverbero: dos líneas claras finas que ondulan (sin tramado; trazos translúcidos)
+    for (let r = 0; r < 2; r++) {
+      g.globalAlpha = 0.16 - r * 0.05;
+      for (let x = -((t * 6 + r * 7) % 16); x < W; x += 16) frect(g, Math.round(x + Math.sin(t * 2.6 + x * 0.09 + r) * 2), hz - 4 + r * 5 + Math.round(Math.sin(t * 3.1 + x * 0.05) * 1), 9, 1, r ? '#fff4d8' : '#ffffff');
+    }
+    g.globalAlpha = 1;
+    // arena a la deriva sobre las dunas (granos que corren pegados al suelo hacia el este)
+    const dune = (x) => (x >= 0 && x < 340) || (x >= 1520 && x < 2800);
+    for (let i = 0; i < 34; i++) {
+      const sp = 34 + hash1(i, 51) * 30, span = W + 60, v = hash1(i, 52) * span + t * sp, sx = ((v % span) + span) % span - 30, X = sx + ox;
+      if (!dune(X)) continue;
+      const sy = Math.round(w.groundAt(X) - 2 - hash1(i, 53) * 9 - Math.abs(Math.sin(t * 4 + i)) * 2 - oy);
+      g.globalAlpha = 0.65; frect(g, Math.round(sx), sy, 2, 1, i % 3 ? '#f8dca0' : '#fff0c8'); g.globalAlpha = 0.3; fpx(g, Math.round(sx) - 2, sy, '#f8dca0');
+    }
+    g.globalAlpha = 1;
+    // lagartijas: corren a ratos entre matas (pausas largas)
+    for (const [x0, len, ph] of [[180, 90, 0], [1600, 120, 3.1], [2420, 140, 1.7]]) {
+      const cyc = (t * 0.25 + ph) % 1, run = clamp((cyc - 0.6) / 0.25, 0, 1), dir = Math.floor(t * 0.25 + ph) % 2 ? -1 : 1;
+      const X = dir > 0 ? x0 + run * len : x0 + len - run * len, sx = Math.round(X - ox); if (sx < -8 || sx > W + 8) continue;
+      const sy = Math.round(w.groundAt(X) - 3 - oy), leg = run > 0 && run < 1 ? Math.floor(t * 18) % 2 : 0;
+      frect(g, sx - 2 * dir, sy, 5, 1, '#4e6a2a'); frect(g, sx - 1 * dir, sy - 1, 3, 1, '#7a9a3a'); fpx(g, sx + 3 * dir, sy, '#2e3a1a');
+      fpx(g, sx - 4 * dir, sy + 1, '#4e6a2a'); fpx(g, sx - 5 * dir, sy + 1, '#4e6a2a');
+      fpx(g, sx - 1 + leg, sy + 1, '#2e3a1a'); fpx(g, sx + 1 - leg, sy + 1, '#2e3a1a');
+    }
   },
   /** corriente relativa del string (0..1) por suciedad, costra, sombra y nubes */
   stringCurrent(s, S) { const st = (S.strings || {})[s.id] || s; return (1 - st.soil) * (1 - st.crust) * (1 - st.shade) * (1 - (s.cloud || 0) * 0.7); },
