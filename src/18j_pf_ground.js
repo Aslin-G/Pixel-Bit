@@ -67,6 +67,7 @@ const PFGround = (() => {
   }
   /** Muro de sillares con albardilla de caliza, gárgolas, azulejos, acequia y empedrado inferior */
   function plazaWall(s, x, y, gy, world) {
+    if (s.r2 !== false && typeof R2TERRAIN_Urban !== 'undefined') return R2TERRAIN_Urban.wallPix(s, x, y, gy, world);
     const d = y - gy, A = PFK.P32(s.wallRamp || ASHLAR), K = PFK.P32(KERB), C = PFK.P32(COBBLE);
     const wallH = s.wallH ?? 56, gut = s.gutter === false ? 0 : 8;
     if (d === 0) return K[6];
@@ -143,6 +144,7 @@ const PFGround = (() => {
   /** Decoración del muro: buganvillas que cuelgan, caños que vierten a la acequia, faroles de pared,
       rejillas, macetas al pie, pilastras en los extremos. Anclas dinámicas en world.pfSpouts / world.pfLamps. */
   function plazaWallPost(pb, world, s) {
+    if (s._r2u) R2TERRAIN_Urban.wallPost(pb, world, s);
     const r = RNG((s.seed | 0) + 401), wallH = s.wallH ?? 56, gut = s.gutter === false ? 0 : 8;
     world.pfSpouts = world.pfSpouts || []; world.pfLamps = world.pfLamps || [];
     const K = PFK.P32(KERB), A = PFK.P32(ASHLAR), I = PFK.P32(['#0e0c14', '#1e1c26', '#34323e', '#4c4a58', '#6c6a7a', '#9a98a8']);
