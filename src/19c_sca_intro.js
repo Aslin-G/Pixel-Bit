@@ -586,6 +586,20 @@ const SCAIntro = (() => {
   /* =================================================================
      4 · EL ENEMIGO (atardecer; muro de la Calima con los ojos de MIRAGE)
      ================================================================= */
+  /** Roca en contraluz del ocaso: forma de domo irregular, cara del sol (izquierda) cálida, sombra violeta */
+  function duskRock(pb, cx, yb, r, k, rh) {
+    const R = V.P32(['#0e0614', '#1a0c22', '#2a1430', '#3e1c3c', '#5a2a48', '#80404e', '#b0605a', '#e08a5e']);
+    const ry = rh || Math.max(2, Math.round(r * 0.72));
+    for (let y = yb - ry; y <= yb; y++) for (let x = cx - r; x <= cx + r; x++) {
+      const nx = (x - cx) / r, ny = (y - yb) / ry, wob = (hash1((x >> 2) + cx, 11) - 0.5) * 0.18;
+      if (nx * nx + ny * ny > 1 + wob) continue;
+      const lit = -nx * 0.75 - ny * 0.35 + (PFK.vn(x * 0.2, y * 0.2, 9) - 0.5) * 0.3;
+      let i = k >= 1 ? 1 + Math.round(clamp(lit, -0.4, 1) * 2.4) : 2 + Math.round(clamp(lit, -0.4, 1) * 2.6);
+      if (nx * nx + ny * ny > 0.8 + wob && nx < -0.25 && ny < 0.2) i = k >= 1 ? 6 : 7; // borde encendido
+      if (y >= yb - 1) i = 0;
+      V.put(pb, x, y, R[clamp(i, 0, 7)]);
+    }
+  }
   function v4() {
     const B = newB(), HZ = 196, SUN = { x: 120, y: 150, r: 13, halo: 34 };
     const sky = V.sky(W + 20, H, { horizonY: HZ, sun: SUN, stops: ['#1a1440', '#2a1a54', '#44206a', '#6a2a74', '#923a72', '#b84e6a', '#d86a5e', '#ec8a56', '#f6a456', '#fcc068'], haze: ['#fcc068', '#f8b060', '#f4a058', '#ee9050'] });
@@ -602,10 +616,31 @@ const SCAIntro = (() => {
     B.vplane(0.1, HZ - 30, 34, (pb, w, h) => V.mesas(pb, { seed: 17, ramp: ['#2a1430', '#3a1a3a', '#4e2240', '#64304a', '#7a3e52', '#96505a', '#b4685e', '#d8885e'], yBase: h - 1, hMin: 8, hMax: 24 }));
     // ciudad de Aridia con ventanas encendidas y la torre de SYNARA con baliza roja
     let lights = [], beacon = null;
-    B.vplane(0.22, HZ - 60, 150, (pb, w, h) => {
+    B.vplane(0.22, HZ - 60, H - HZ + 60, (pb, w, h) => {
       const k = 0.2, gy = (x) => 80 - Math.max(0, 1 - Math.abs(x - 420) / 160) * 18;
       const GR = V.P32(['#2a1430', '#3a1a3a', '#4a2240', '#5e2c46', '#7a3a4c']);
       for (let x = 0; x < w; x++) for (let y = Math.round(gy(x)); y < h; y++) { const d = y - gy(x); V.put(pb, x, y, d < 1 ? U('#c86a5a') : GR[clamp(Math.round(1 + (d / 70) * 3 + (PFK.cl(x, y, 3, 5) - 0.5) * 1.2), 0, 4)]); }
+      // camino de tierra que sale del primer plano hacia la ciudad (banda clara con borde iluminado)
+      const RD = V.P32(['#5e2c46', '#7a3a4c', '#96505a', '#b4685e']);
+      for (let y = 84; y < h; y++) {
+        const v = (y - 84) / (h - 84), cx = lerp(392, 150, Math.pow(v, 0.8)), hw = 1 + v * 26;
+        for (let x = Math.round(cx - hw); x <= cx + hw; x++) { const e = Math.abs(x - cx) / hw; V.put(pb, x, y, RD[e > 0.86 ? 0 : x < cx - hw * 0.5 ? 3 : e < 0.3 && ((y >> 2) % 3 === 0) ? 1 : 2]); }
+      }
+      // rocas dispersas con luz rasante del ocaso (cara del sol cálida, sombra violeta)
+      const rr = RNG(23);
+      for (let q = 0; q < 16; q++) { const x = rr.int(10, w - 10), y = rr.int(96, h - 6); if (Math.abs(x - lerp(392, 150, Math.pow((y - 84) / (h - 84), 0.8))) < 34) continue; duskRock(pb, x, y, 2 + Math.round((y - 90) / 22) + rr.int(0, 2), 0.6); }
+      // postes del tendido junto al camino, con cables combados (siluetas recortadas contra el llano)
+      const poles = [[410, 92, 10], [392, 102, 16], [368, 116, 24], [336, 136, 34], [292, 166, 48]];
+      for (let i = 0; i < poles.length; i++) {
+        const [px, yb, ph] = poles[i];
+        for (let y = yb - ph; y < yb; y++) { V.put(pb, px, y, U('#140818')); if (ph > 20) V.put(pb, px + 1, y, U('#140818')); V.put(pb, px - 1, y, U('#c06a54')); }
+        const aw = Math.max(2, Math.round(ph / 6));
+        for (let x = px - aw; x <= px + aw + 1; x++) V.put(pb, x, yb - ph + 2, U('#140818'));
+        if (i) { const [qx, qyb, qh] = poles[i - 1]; for (const side of [-1, 1]) { const x0 = qx + side * Math.max(2, Math.round(qh / 6)), y0 = qyb - qh + 2, x1 = px + side * aw, y1 = yb - ph + 2; for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) { const t = (x - x0) / (x1 - x0 || 1); V.put(pb, x, Math.round(lerp(y0, y1, t) + Math.sin(t * Math.PI) * (2 + ph / 12)), U('#2a1430')); } } }
+      }
+      // cerca de alambre a la derecha del camino (postes cada 12 px y dos hilos)
+      for (let x = 430; x < w; x += 12) { const y0 = 100 + Math.round((x - 430) * 0.08); for (let y = y0 - 7; y < y0; y++) V.put(pb, x, y, U('#1a0c22')); V.put(pb, x - 1, y0 - 7, U('#c06a54')); }
+      for (let x = 430; x < w; x++) { const y0 = 100 + Math.round((x - 430) * 0.08); V.put(pb, x, y0 - 5, U('#3a1a3a')); V.put(pb, x, y0 - 2, U('#3a1a3a')); }
       const r = RNG(19);
       for (let x = 300; x < 560;) {
         const bw = r.int(6, 12), bh = r.int(6, 22) + Math.round(Math.max(0, 1 - Math.abs(x - 420) / 120) * 16);
@@ -632,6 +667,14 @@ const SCAIntro = (() => {
       }
       V.windGrass(pb, 0, w, (x) => gyF(x) - 230, { seed: 45, density: 0.7, lean: 2.4, h: 8, ramp: ['#1a0c22', '#3e1c3c', '#6a3448', '#a85a52', '#e0905e'] });
       SCAKit.deadTree(pb, 590, Math.round(gyF(590)) - 228, 90, 13, { w: 4, ramp: ['#0e0614', '#1a0c22', '#2a1430', '#4a2238', '#c0704e'] });
+      // rocas de encuadre en los bordes (grandes, en contraluz con borde encendido del lado del sol)
+      duskRock(pb, 12, 112, 40, 1, 82); duskRock(pb, 58, 104, 18, 1, 34); duskRock(pb, 650, 112, 46, 1, 74); duskRock(pb, 604, 108, 20, 1, 30);
+      // cerca rota sobre la cresta: postes inclinados y un hilo caído
+      for (let i = 0; i < 9; i++) {
+        const x = 300 + i * 18, yb = Math.round(gyF(x)) - 230, lean = ((i * 37) % 5) - 2, ph = i === 4 ? 6 : 15 - (i % 3);
+        for (let y = 0; y < ph; y++) { const xx = x + Math.round(lean * y / ph); V.put(pb, xx, yb - y, U('#140818')); V.put(pb, xx + 1, yb - y, U('#2a1430')); V.put(pb, xx - 1, yb - y, y > 2 ? U('#b0605a') : U('#140818')); }
+      }
+      for (let x = 300; x < 444; x++) { const t = (x - 300) / 144, y = Math.round(gyF(x)) - 230 - 10 + Math.round(Math.sin(t * Math.PI * 2) * 2 + (t > 0.45 && t < 0.62 ? 7 : 0)); V.put(pb, x, y, U('#3e1c3c')); }
     });
     return {
       B, rev: false,
