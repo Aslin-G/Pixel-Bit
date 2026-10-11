@@ -719,6 +719,10 @@ const R2PLANT = (() => {
   return { hero, drawFx, plumeStrip, drawPlume, drawChevrons, permHalo, powerHalo, PAL, prof };
 })();
 
+/** Colocación de la planta protagonista en el plano costero (0,5) del Nivel 1 (1c_bio_coast.js):
+    pie frontal derecho en x de plano, escala y pendiente del diorama. */
+const R2PLANT_L1 = { x: 770, s: 0.95, slope: 0.03 };
+
 /* Banco de pruebas: ?test=scene&s=R2PLANT_TEST&p={"s":1,"z":1} */
 const R2PLANT_TEST = {
   enter(p) {
