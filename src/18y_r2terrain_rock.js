@@ -67,8 +67,8 @@ const R2TERRAIN_Rock = (() => {
       if (o.caves !== false && r() < 0.32) m.cave = { cx: x + mw * (0.25 + r() * 0.5), d: r.int(34, 130), rx: r.int(7, 16), ry: r.int(6, 13), dep: 9 + r() * 8 };
       if (o.tiers !== false) {
         const k = r();
-        const mk = (dMin, dMax, kind) => ({ d: r.int(dMin, dMax), kind, amt: r.int(4, 9), x0: x + r.int(0, Math.round(mw * 0.35)), x1: x + mw - r.int(0, Math.round(mw * 0.35)) });
-        if (k < 0.34) m.tier = mk(26, 74, 1);           // repisa (escalón saliente con cara superior iluminada)
+        const mk = (dMin, dMax, kind) => ({ d: r.int(dMin, dMax), kind, amt: r.int(4, 9), x0: x + r.int(0, Math.round(mw * 0.22)), x1: x + mw - r.int(0, Math.round(mw * 0.22)) });
+        if (k < 0.42) m.tier = mk(26, 74, 1);           // repisa (escalón saliente con cara superior iluminada)
         else if (k < 0.6) m.tier = mk(12, 30, -1);      // voladizo superior (panza en sombra)
         else if (k < 0.75) { m.tier = mk(12, 26, -1); m.tier2 = mk(46, 86, 1); }
         if (r() < 0.3 && !m.tier2) m.tier2 = mk(80, 120, r() < 0.5 ? 1 : -1);
@@ -246,7 +246,7 @@ const R2TERRAIN_Rock = (() => {
         const mean = cnt ? (S[yb * SW + xb] - S[ya * SW + xb] - S[yb * SW + xa] + S[ya * SW + xa]) / cnt : h0;
         const ao = Math.min(0.2, Math.max(0, mean - h0) * 0.028);
         const d = y - gyA[x], fl = F[i];
-        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 70) / 160, 0, 0.34);
+        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 50) / 170, 0, 0.4);
         t += (hash2((bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * 0.042;
         if (fl === 1 || fl === 2) t = Math.min(t, fl === 2 ? 0.13 + (d < 8 ? 0.2 : 0) : 0.24);
         else if (fl === 6) t = Math.min(t, 0.1 + lam * 0.12);
