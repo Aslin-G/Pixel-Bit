@@ -668,7 +668,7 @@ function poseFor(anim, t, ch) {
       p.bob = Math.round(C(2 * P) * 1.5 - 0.5); p.lean = (ch.runLean ?? 0.28) * Math.min(1.1, energetic);
       p.headTilt = -0.06; p.headDX = 0.5 + (ch.runLean ? 0.5 : 0);
       // la coleta va hacia atrás y ondula con el paso (retraso respecto al rebote del cuerpo)
-      p.hair = { base: -0.75 + C(2 * P - 1.1) * 0.12, amp: 0.26, P: P * 2, lag: 0.6 }; p.pack = Math.round(-C(2 * P - 0.9)); p.packRot = -S(2 * P - 0.9) * 0.06;
+      p.hair = { base: -0.75 + C(2 * P - 1.1) * 0.12, up: 0.14, amp: 0.26, P: P * 2, lag: 0.6 }; p.pack = Math.round(-C(2 * P - 0.9)); p.packRot = -S(2 * P - 0.9) * 0.06;
       p.handF = 'fist'; p.handB = 'fist';
       break;
     }
@@ -1137,6 +1137,22 @@ const ACCESSORY = {
     R.capsule(hx - hrx * 0.95, hy - hry * 0.22, hx + hrx * 0.3, hy - hry * 0.7, 1.15, 1.1, { mat: strap, base: 3, z: 60, group: 'gstrap', bevel: 0.8, rim: true });
     // lente lejana (parcialmente oculta) y cercana
     const lx = hx + hrx * 0.42, ly = hy - hry * 0.78 + tilt * 4;
+    if (cfg.big) {
+      // r2-chars: gafas grandes de la referencia (aro grueso oscuro, lente cian brillante con reflejo blanco 2 px)
+      R.ellipse(lx + 5.2, ly + 0.4, 2.6, 2.9, { mat: frame, base: 3, z: 61, group: 'gog2', bevel: 1, dark: 1 });
+      R.capsule(lx + 2.6, ly + 0.2, lx + 3.6, ly + 0.3, 1.1, 1.1, { mat: frame, base: 2, z: 61.5, group: 'gogB', bevel: 0.6 });
+      R.ellipse(lx, ly, 4.1, 3.7, { mat: frame, base: 3, z: 62, group: 'gog', bevel: 1.2, shiny: true, cast: { on: ['bangs', 'hair', 'head'], dx: -1, dy: 1 } });
+      R.stamp(pb => {
+        const L = cfg.lens || RAMP.gogLens;
+        const x = Math.round(lx), y = Math.round(ly);
+        pb.stampMap(x - 3, y - 2, ['.aab.', 'aabbc', 'abbcc', '.ccd.'], { a: L[6], b: L[5], c: L[4], d: L[3] });
+        pb.set(x - 2, y - 2, '#ffffff'); pb.set(x - 1, y - 2, '#ffffff'); pb.set(x - 2, y - 1, '#ffffff');
+        pb.set(x + 1, y + 1, L[2]);
+        const fx = Math.round(lx + 5.2), fy = Math.round(ly + 0.4);
+        pb.set(fx, fy, L[4]); pb.set(fx, fy - 1, L[6]); pb.set(fx - 1, fy, L[3]);
+      }, 96);
+      return;
+    }
     R.ellipse(lx + 4.2, ly + 0.2, 2.2, 2.4, { mat: frame, base: 3, z: 61, group: 'gog2', bevel: 1, dark: 1 });
     R.ellipse(lx, ly, 3.4, 3.0, { mat: frame, base: 4, z: 62, group: 'gog', bevel: 1.3, shiny: true });
     R.stamp(pb => {

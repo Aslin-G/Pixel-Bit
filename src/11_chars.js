@@ -76,7 +76,8 @@ function charMats() {
   if (_CM) return _CM;
   const R2 = RAMP;
   _CM = {
-    hairAm: Mat({ ramp: R2.hairAm, outline: '#1a0405', line: R2.hairAm[1] }),
+    // r2-chars: castaño rojizo más contrastado (sombras casi negras entre mechones, brillos naranja)
+    hairAm: Mat({ ramp: ['#160302', '#320a04', '#561607', '#7e250d', '#a63c15', '#cc5c1f', '#ec8a3c'], outline: '#140302', line: '#320a04' }),
     skinAm: Mat({ ramp: R2.skinAm, outline: '#602316', line: R2.skinAm[2] }),
     jacketAm: Mat({ ramp: R2.jacketAm, outline: '#4b0706', line: R2.jacketAm[1] }),
     topAm: Mat({ ramp: R2.topAm, outline: '#2a1a20', line: R2.topAm[1] }),
@@ -226,14 +227,15 @@ function renderHumanoid(id, D, anim, t, opts) {
 /* Ojos de Amaya (perfil casi lateral, mira a la derecha). Columna 0 = remate exterior de la
    pestaña (lado de la oreja); iris hacia delante; brillo blanco arriba; iris que aclara abajo. */
 const EYE_AM = {
-  open: { oy: -2, rows: ['.KKKK', 'KKhDD', '.wDDM', '.wMLL', '..ss.'] },
-  look: { oy: -2, rows: ['.KKKK', 'KKwhD', '.wwDD', '.wwML', '..ss.'] },
-  half: { oy: -1, rows: ['.KKKK', 'KKKDD', '.wDLM', '..ss.'] },
+  // r2-chars: ojo grande de la referencia (6 filas: pestaña gruesa con remate, brillo, iris que aclara abajo)
+  open: { oy: -3, rows: ['.KKKK', 'KKKKK', '.whDD', '.wDDD', '.wMLL', '..ss.'] },
+  look: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wwhD', '.wwDD', '.wwML', '..ss.'] },
+  half: { oy: -1, rows: ['.KKKK', 'KKKKK', '.wDLM', '..ss.'] },
   soft: { oy: 0, rows: ['.KKKK', 'K.DLM', '..ss.'] },
-  determined: { oy: -2, rows: ['KKKKK', '.KhDD', '.wDDM', '.wMLL', '..ss.'] },
-  wide: { oy: -3, rows: ['..KKK', '.KKKK', 'KwhDD', '.wDDM', '.wMLL', '..ww.'] },
+  determined: { oy: -2, rows: ['KKKKK', '.KhDD', '.wDDD', '.wMLL', '..ss.'] },
+  wide: { oy: -3, rows: ['..KKK', '.KKKK', 'KwhDD', '.wDDD', '.wMLL', '..ww.'] },
   surprised: { oy: -3, rows: ['..KKK', '.K..K', 'Kwwhw', '.wDDw', '.wDDw', '..ww.'] },
-  worried: { oy: -2, rows: ['...KK', 'KKKK.', '.whDD', '.wDDM', '.wMLL', '..ss.'] },
+  worried: { oy: -3, rows: ['...KK', 'KKKK.', '.whDD', '.wDDD', '.wMLL', '..ss.'] },
   sad: { oy: -2, rows: ['...KK', '.KKK.', 'K.hDD', '.wDDM', '.wMLL', '..ss.'] },
   blink: { oy: 1, rows: ['KKKKK', '..ss.'] },
 };
@@ -309,7 +311,7 @@ const AMAYA_D = {
   // cara amable/decidida como la referencia: ojo grande con brillo e iris castaño claro, sin ojo lejano
   // (perfil casi lateral), boca suave y rubor; sonrisa leve por defecto
   face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#6a3418', '#b06a34'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
-  defaultExpr: 'smile', earDX: -3.4, earDY: 2.5,
+  defaultExpr: 'smile', earDX: -3.4, earDY: 2.5, noseSize: 0.55, runLean: 0.36,
   shortSleeve: 0.55, fingerless: true, wristBand: true, sole: '#1a0a06', laces: '#e48a4a', bootTall: 4, earZ: 56,
   energetic: 1.15, shadowR: 12,
   prepare() {
@@ -320,7 +322,7 @@ const AMAYA_D = {
     this.sock = M.sockAm;
     this.accessories = [
       { kind: 'pack2', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, pocket: M.packAm2, roll: M.rollAm, w: 7.4, h: 10 },
-      { kind: 'goggles', frame: M.gogFrame, strap: M.gogStrap },
+      { kind: 'goggles', frame: M.gogFrame, strap: M.gogStrap, big: true },
     ];
   },
   torso(R, o) {
@@ -389,20 +391,22 @@ const AMAYA_D = {
     const { hx, hy, rx, ry, pose } = o;
     const H = M.hairAm;
     // casquete + volumen trasero hasta la nuca
-    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.84, faceDX: -1.4, faceDY: -1.0, base: 3 });
+    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.8, faceDX: -0.6, faceDY: -0.2, base: 3 });
     R.ellipse(hx - rx * 0.55, hy + 1, 5, 7.5, { mat: H, base: 3, z: 54, group: 'hair', bevel: 2.2 }, 0.25);
     // coleta alta voluminosa (r2-chars): abanico de 8 mechones que sube y cae, con movimiento secundario
     R2CHARS_pony(R, o, H, M.tieAm, pose);
     // flequillo en puntas hasta la línea de las cejas
     // (las puntas terminan sobre la pestaña: la frente y el ojo quedan despejados)
+    // r2-chars: flequillo en puntas definidas que baja hasta la línea del ojo (frente casi cubierta)
     HAIR2.bangs(R, o, H, [
-      [[-1, -10.5], [1.2, -6.5], [2.0, -4.0], 2.8],
-      [[2.5, -11], [4.8, -7.2], [6.0, -4.2], 2.7],
-      [[6, -10.5], [8.0, -7.2], [9.4, -4.6], 2.3],
-      [[8.5, -9.2], [10.3, -6.8], [11.0, -4.6], 1.6],
+      [[-1.5, -10.5], [0.4, -6.2], [1.0, -2.6], 2.9],
+      [[2, -11], [3.8, -6.8], [4.6, -3.2], 2.8],
+      [[5.2, -10.8], [7.0, -7.0], [7.8, -3.8], 2.5],
+      [[8.2, -9.6], [9.8, -6.6], [10.6, -4.4], 1.9],
+      [[3.6, -11], [6.4, -8.6], [9.0, -7.2], 1.6],
     ]);
-    // mechón lateral delante de la oreja
-    HAIR2.lock(R, o, H, [[-1.6, -5], [-1.5, 2], [-0.6, 7.5]], 1.7);
+    // mechón lateral delante de la oreja (enmarca la cara hasta la mandíbula)
+    HAIR2.lock(R, o, H, [[-1.4, -6], [-1.0, 1.5], [0.2, 8.5]], 2.2);
     // brillo en arco sobre la coronilla y en la coleta
     HAIR2.shine(R, o, ['hair', 'bangs'], RAMP.hairAm[6], -2.6, -1.25, 0.74);
   },
