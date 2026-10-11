@@ -594,18 +594,19 @@ const Sim03 = makeSim({
   },
   drawTransfer(g) {
     const X0 = 8, Y0 = 28;
-    UIK.panel(g, X0, Y0, W - 16, 236, 'tech');
+    // tabla compacta (filas de 22 px): la nota y el botón quedan por encima del globo de KIRU (y < 235)
+    UIK.panel(g, X0, Y0, W - 16, 206, 'tech');
     drawText(g, 'ALTERNATIVAS PARA EL CONCENTRADO DE LOS MÉDANOS (1 = bajo, 5 = alto)', X0 + 8, Y0 + 6, { font: 'tiny', color: '#ffe14d' });
     const crit = ['ENERGÍA', 'COSTO', 'RIESGO', 'ESPACIO', 'MADUREZ', 'OPERACIÓN', 'IMPACTO', 'INCERTIDUMBRE'];
     crit.forEach((c, i) => drawText(g, c.slice(0, 6), X0 + 214 + i * 50, Y0 + 18, { font: 'tiny', color: '#a6f4ff' }));
     Gui.begin();
     BAY_ALTS.forEach((a, i) => {
-      const y = Y0 + 30 + i * 32, on = this.sel.has(a.id);
-      if (Gui.button(g, 'alt' + a.id, X0 + 6, y, 200, 28, a.name, { style: on ? 'gold' : 'ghost', align: 'left', disabled: this.done })) { if (on) this.sel.delete(a.id); else if (this.sel.size < 3) this.sel.add(a.id); }
-      crit.forEach((c, k) => { const v = a.c[c]; for (let b = 0; b < 5; b++) frect(g, X0 + 214 + k * 50 + b * 8, y + 10, 6, 8, b < v ? (c === 'MADUREZ' ? '#86e36f' : v >= 4 ? '#ff9f43' : '#ffe14d') : '#1c2350'); });
+      const y = Y0 + 28 + i * 25, on = this.sel.has(a.id);
+      if (Gui.button(g, 'alt' + a.id, X0 + 6, y, 200, 22, a.name, { style: on ? 'gold' : 'ghost', align: 'left', disabled: this.done })) { if (on) this.sel.delete(a.id); else if (this.sel.size < 3) this.sel.add(a.id); }
+      crit.forEach((c, k) => { const v = a.c[c]; for (let b = 0; b < 5; b++) frect(g, X0 + 214 + k * 50 + b * 8, y + 7, 6, 8, b < v ? (c === 'MADUREZ' ? '#86e36f' : v >= 4 ? '#ff9f43' : '#ffe14d') : '#1c2350'); });
     });
-    if (!this.done && Gui.button(g, 'eval', W - 150, Y0 + 238 - 22, 136, 18, 'Evaluar portafolio', { style: 'good', icon: 'check', disabled: this.sel.size === 0 })) this.evaluate();
-    drawTextBlock(g, 'Seleccionadas: ' + this.sel.size + '/3. Ninguna alternativa es "cero impacto": compara lo que cada una cuesta, arriesga y deja sin resolver.', X0 + 8, Y0 + 226, 440, { font: 'tiny', color: '#cfd6f0' });
+    if (!this.done && Gui.button(g, 'eval', W - 150, Y0 + 180, 136, 18, 'Evaluar portafolio', { style: 'good', icon: 'check', disabled: this.sel.size === 0 })) this.evaluate();
+    drawTextBlock(g, 'Seleccionadas: ' + this.sel.size + '/3. Ninguna alternativa es "cero impacto": compara lo que cada una cuesta, arriesga y deja sin resolver.', X0 + 8, Y0 + 182, 460, { font: 'tiny', color: '#cfd6f0' });
     if (this.verdict) this.drawVerdict(g);
     Gui.end();
   },

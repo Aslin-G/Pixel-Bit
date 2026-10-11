@@ -34889,18 +34889,19 @@ const Sim03 = makeSim({
   },
   drawTransfer(g) {
     const X0 = 8, Y0 = 28;
-    UIK.panel(g, X0, Y0, W - 16, 236, 'tech');
+    // tabla compacta (filas de 22 px): la nota y el botón quedan por encima del globo de KIRU (y < 235)
+    UIK.panel(g, X0, Y0, W - 16, 206, 'tech');
     drawText(g, 'ALTERNATIVAS PARA EL CONCENTRADO DE LOS MÉDANOS (1 = bajo, 5 = alto)', X0 + 8, Y0 + 6, { font: 'tiny', color: '#ffe14d' });
     const crit = ['ENERGÍA', 'COSTO', 'RIESGO', 'ESPACIO', 'MADUREZ', 'OPERACIÓN', 'IMPACTO', 'INCERTIDUMBRE'];
     crit.forEach((c, i) => drawText(g, c.slice(0, 6), X0 + 214 + i * 50, Y0 + 18, { font: 'tiny', color: '#a6f4ff' }));
     Gui.begin();
     BAY_ALTS.forEach((a, i) => {
-      const y = Y0 + 30 + i * 32, on = this.sel.has(a.id);
-      if (Gui.button(g, 'alt' + a.id, X0 + 6, y, 200, 28, a.name, { style: on ? 'gold' : 'ghost', align: 'left', disabled: this.done })) { if (on) this.sel.delete(a.id); else if (this.sel.size < 3) this.sel.add(a.id); }
-      crit.forEach((c, k) => { const v = a.c[c]; for (let b = 0; b < 5; b++) frect(g, X0 + 214 + k * 50 + b * 8, y + 10, 6, 8, b < v ? (c === 'MADUREZ' ? '#86e36f' : v >= 4 ? '#ff9f43' : '#ffe14d') : '#1c2350'); });
+      const y = Y0 + 28 + i * 25, on = this.sel.has(a.id);
+      if (Gui.button(g, 'alt' + a.id, X0 + 6, y, 200, 22, a.name, { style: on ? 'gold' : 'ghost', align: 'left', disabled: this.done })) { if (on) this.sel.delete(a.id); else if (this.sel.size < 3) this.sel.add(a.id); }
+      crit.forEach((c, k) => { const v = a.c[c]; for (let b = 0; b < 5; b++) frect(g, X0 + 214 + k * 50 + b * 8, y + 7, 6, 8, b < v ? (c === 'MADUREZ' ? '#86e36f' : v >= 4 ? '#ff9f43' : '#ffe14d') : '#1c2350'); });
     });
-    if (!this.done && Gui.button(g, 'eval', W - 150, Y0 + 238 - 22, 136, 18, 'Evaluar portafolio', { style: 'good', icon: 'check', disabled: this.sel.size === 0 })) this.evaluate();
-    drawTextBlock(g, 'Seleccionadas: ' + this.sel.size + '/3. Ninguna alternativa es "cero impacto": compara lo que cada una cuesta, arriesga y deja sin resolver.', X0 + 8, Y0 + 226, 440, { font: 'tiny', color: '#cfd6f0' });
+    if (!this.done && Gui.button(g, 'eval', W - 150, Y0 + 180, 136, 18, 'Evaluar portafolio', { style: 'good', icon: 'check', disabled: this.sel.size === 0 })) this.evaluate();
+    drawTextBlock(g, 'Seleccionadas: ' + this.sel.size + '/3. Ninguna alternativa es "cero impacto": compara lo que cada una cuesta, arriesga y deja sin resolver.', X0 + 8, Y0 + 182, 460, { font: 'tiny', color: '#cfd6f0' });
     if (this.verdict) this.drawVerdict(g);
     Gui.end();
   },
@@ -35394,7 +35395,9 @@ const Sim04 = makeSim({
       ser.push({ data: r.series.map(o => [o.h + 0.5, o.soc * 700]), color: '#86e36f', label: 'SOC' });
       ser.push({ data: r.series.map(o => [o.h + 0.5, o.tank / 3.5]), color: '#56e5ff', label: 'tanque' });
     }
-    Charts.line(g, X0, Y0, CW0, 150, ser, { xMin: 0, xMax: 24, yMin: 0, yMax: 900, legend: true, xLabel: 'h', yLabel: 'kW', cursor: ph === 'demo' ? this.cursor : null, hlines: r && ph !== 'demo' && ph !== 'guided' ? [{ v: 600 / 3.5, color: '#56e5ff', label: 'tanque mín.' }] : [] });
+    // con el Relé Solar visible el gráfico se acorta: la rejilla queda por encima del globo de KIRU (y < 235)
+    const CH = (ph === 'demo' || ph === 'guided') ? 150 : 124;
+    Charts.line(g, X0, Y0, CW0, CH, ser, { xMin: 0, xMax: 24, yMin: 0, yMax: 900, legend: true, xLabel: 'h', yLabel: 'kW', cursor: ph === 'demo' ? this.cursor : null, hlines: r && ph !== 'demo' && ph !== 'guided' ? [{ v: 600 / 3.5, color: '#56e5ff', label: 'tanque mín.' }] : [] });
     // área de energía sombreada hasta el cursor (demo)
     if (ph === 'demo' || ph === 'guided') {
       const cx = X0 + 22, cw = CW0 - 26, cy = Y0 + 4, chh = 150 - 14;
@@ -35428,7 +35431,7 @@ const Sim04 = makeSim({
     if (ph === 'auto' || ph === 'transfer' || ph === 'free') {
       const ho = Gui.toggle(g, 'h2o', CX + 6, ph === 'free' ? 193 : 153, 'H2 solo con excedente', this.cfg.h2Only); if (!this.done) { if (ho !== this.cfg.h2Only) { this.cfg.h2Only = ho; this.run(); } }
       const rs = Gui.toggle(g, 'res', CX + 6, ph === 'free' ? 211 : 171, 'Proteger reserva 30 %', this.cfg.reserve >= 0.3); if (!this.done) { const v = rs ? 0.3 : 0.1; if (v !== this.cfg.reserve) { this.cfg.reserve = v; this.run(); } }
-      this.drawTimeline(g, X0, Y0 + 168, CW0);
+      this.drawTimeline(g, X0, Y0 + CH + 10, CW0);
     }
     const by = 236;
     if (!this.done && ph !== 'demo' && Gui.button(g, 'eval', CX + 6, by, 100, 18, ph === 'guided' ? 'Calcular día' : 'Simular 24 h', { style: 'good', icon: 'play' })) this.evaluate();
@@ -35446,12 +35449,14 @@ const Sim04 = makeSim({
   /** Relé Solar: rejilla horaria de cargas flexibles */
   drawTimeline(g, x, y, w) {
     const rows = [['ro', 'OI 300 kW', '#56e5ff'], ['irr', 'Riego 40 kW', '#86e36f'], ['h2', 'H2 300 kW', '#d8fff8']];
-    const cw = Math.floor((w - 60) / 24), ch = 14;
-    drawText(g, 'RELÉ SOLAR · clic en las horas', x, y - 2, { font: 'tiny', color: '#ffe14d' });
+    const cw = Math.floor((w - 60) / 24), ch = 13;
+    // la rejilla va en su propio panel (como los demás controles), no suelta sobre el fondo del nivel
+    UIK.panel(g, x - 4, y - 7, w + 8, 14 + 3 * (ch + 2) + 10, 'tech', null, { chamfer: 2, key: false, spark: false });
+    drawText(g, 'RELÉ SOLAR · clic en las horas', x + 2, y - 2, { font: 'tiny', color: '#ffe14d' });
     for (let h = 0; h < 24; h += 3) drawText(g, String(h), x + 58 + h * cw, y + 6, { font: 'tiny', color: '#8a8fb8' });
     const day = this.result ? this.result.day.pv : solarDayProfile(this.dayOpts()).pv;
     rows.forEach(([key, label, col], i) => {
-      const yy = y + 14 + i * (ch + 3);
+      const yy = y + 14 + i * (ch + 2);
       drawText(g, label, x, yy + 4, { font: 'tiny', color: col });
       for (let h = 0; h < 24; h++) {
         const v = this.sched[key][h], cx = x + 58 + h * cw;
@@ -37808,8 +37813,8 @@ const Sim08 = makeSim({
   },
   drawBlend(g, x, y) {
     const b = this.blend();
-    // tres fuentes con sus barras de mezcla
-    UIK.panel(g, x, y, 400, 230, 'tech');
+    // tres fuentes con sus barras de mezcla (panel de 196 px: el perfil de suelo queda por encima del globo de KIRU)
+    UIK.panel(g, x, y, 400, 196, 'tech');
     drawText(g, 'MEZCLA DE FUENTES PARA RIEGO', x + 8, y + 6, { font: 'tiny', color: '#ffe14d' });
     let yy = y + 18;
     const keys = ['perm', 'well', 'rain'];
@@ -37831,12 +37836,12 @@ const Sim08 = makeSim({
     row('Boro', fmt(b.boron, 2) + ' mg/L (< 0,75 fríjol)', b.boron < 0.75, yy + 44);
     row('SAR', fmt(b.sar, 1) + ' · riesgo de infiltración ' + fmt0(b.infil * 100) + ' %', b.infil < 0.3, yy + 58);
     // dibujo de suelo según infiltración
-    const sx = x + 280, sy = y + 128;
-    frect(g, sx, sy, 110, 80, '#7a4e2e');
+    const sx = x + 280, sy = y + 116;
+    frect(g, sx, sy, 110, 64, '#7a4e2e'); frect(g, sx, sy + 40, 110, 24, '#6a4228'); frect(g, sx, sy + 63, 110, 1, '#4a2c1a');
     const depth = Math.round((1 - b.infil) * 60);
     g.globalAlpha = 0.22; frect(g, sx, sy, 110, depth, '#56e5ff'); g.globalAlpha = 0.14; frect(g, sx, sy + Math.round(depth * 0.5), 110, depth - Math.round(depth * 0.5), '#2c8ad8'); g.globalAlpha = 1;
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }
-    drawText(g, 'Infiltración', sx + 55, sy + 84, { font: 'tiny', align: 'center', color: '#cfd6f0' });
+    drawText(g, 'Infiltración', sx + 55, sy + 68, { font: 'tiny', align: 'center', color: '#cfd6f0' });
     const CX = 414, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 200, 'glass');
     drawText(g, 'CALIDAD PARA RIEGO (FAO-29)', CX + 8, 34, { font: 'tiny', color: '#ffe14d' });
@@ -39645,7 +39650,7 @@ const Sim10 = makeSim({
     const V = this.view || { r: CalimaModel.run(this.pol, this.sid), h: 0 };
     const hi = clamp(Math.floor(V.h), 0, CalimaModel.HOURS - 1), row = V.r.series[hi];
     this.drawDiagram(g, 8, 28, 396, 178, row, V);
-    this.drawTimeline(g, 8, 210, 396, 52, V);
+    this.drawTimeline(g, 8, 210, 396, 44, V); // 44 px: las horas quedan por encima del globo de KIRU de 3 líneas
     this.drawPanel(g, 410, 28, W - 416, 272, V);
     if (this.verdict) {
       const v = this.verdict;
@@ -39737,19 +39742,19 @@ const Sim10 = makeSim({
   drawTimeline(g, x, y, w, h, V) {
     const r = V.r, cw = 28, x0 = x + 52;
     UIK.panel(g, x, y, w, h, 'tech');
-    drawText(g, 'TURBIDEZ', x + 6, y + 6, { font: 'tiny', color: '#a6f4ff' });
-    drawText(g, 'FV+EÓL', x + 6, y + 18, { font: 'tiny', color: '#ffe14d' });
-    drawText(g, 'MAREA', x + 6, y + 30, { font: 'tiny', color: '#f888b8' });
+    drawText(g, 'TURBIDEZ', x + 6, y + 5, { font: 'tiny', color: '#a6f4ff' });
+    drawText(g, 'FV+EÓL', x + 6, y + 15, { font: 'tiny', color: '#ffe14d' });
+    drawText(g, 'MAREA', x + 6, y + 25, { font: 'tiny', color: '#f888b8' });
     for (let i = 0; i < CalimaModel.HOURS; i++) {
       const s = r.series[i], cx = x0 + i * cw;
       const nc = s.ntu > 60 ? '#ff4e5d' : s.ntu > 20 ? '#ffb93b' : '#56e5ff';
-      frect(g, cx, y + 6, cw - 2, 7, '#141d36'); frect(g, cx, y + 13 - Math.round(7 * clamp(s.ntu / 100, 0, 1)), cw - 2, Math.round(7 * clamp(s.ntu / 100, 0, 1)), nc);
-      frect(g, cx, y + 18, cw - 2, 7, '#141d36'); frect(g, cx, y + 25 - Math.round(7 * clamp(s.gen / 900, 0, 1)), cw - 2, Math.round(7 * clamp(s.gen / 900, 0, 1)), s.wind === 0 ? '#ff9f43' : '#ffe14d');
-      frect(g, cx, y + 30, cw - 2, 5, s.tideBad ? '#bc3e92' : '#141d36');
-      drawText(g, String(i + 1), cx + cw / 2 - 1, y + 39, { font: 'tiny', align: 'center', color: '#8a8fb8' });
+      frect(g, cx, y + 5, cw - 2, 7, '#141d36'); frect(g, cx, y + 12 - Math.round(7 * clamp(s.ntu / 100, 0, 1)), cw - 2, Math.round(7 * clamp(s.ntu / 100, 0, 1)), nc);
+      frect(g, cx, y + 15, cw - 2, 7, '#141d36'); frect(g, cx, y + 22 - Math.round(7 * clamp(s.gen / 900, 0, 1)), cw - 2, Math.round(7 * clamp(s.gen / 900, 0, 1)), s.wind === 0 ? '#ff9f43' : '#ffe14d');
+      frect(g, cx, y + 25, cw - 2, 5, s.tideBad ? '#bc3e92' : '#141d36');
+      drawText(g, String(i + 1), cx + cw / 2 - 1, y + 32, { font: 'tiny', align: 'center', color: '#8a8fb8' });
     }
     // marcadores de primer fallo (solo después de simular)
-    if (V.revealed) for (const [k] of CAL_CRIT) { const hh = r.firstFail[k]; if (hh !== undefined && !r.crit[k]) { frect(g, x0 + hh * cw + cw / 2 - 2, y + 2, 3, 40, '#ff4e5d'); } }
+    if (V.revealed) for (const [k] of CAL_CRIT) { const hh = r.firstFail[k]; if (hh !== undefined && !r.crit[k]) { frect(g, x0 + hh * cw + cw / 2 - 2, y + 2, 3, h - 6, '#ff4e5d'); } }
     // cabezal
     const px = x0 + V.h * cw;
     frect(g, px, y + 2, 1, h - 6, '#ffffff');

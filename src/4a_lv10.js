@@ -1145,7 +1145,7 @@ const Sim10 = makeSim({
     const V = this.view || { r: CalimaModel.run(this.pol, this.sid), h: 0 };
     const hi = clamp(Math.floor(V.h), 0, CalimaModel.HOURS - 1), row = V.r.series[hi];
     this.drawDiagram(g, 8, 28, 396, 178, row, V);
-    this.drawTimeline(g, 8, 210, 396, 52, V);
+    this.drawTimeline(g, 8, 210, 396, 44, V); // 44 px: las horas quedan por encima del globo de KIRU de 3 líneas
     this.drawPanel(g, 410, 28, W - 416, 272, V);
     if (this.verdict) {
       const v = this.verdict;
@@ -1237,19 +1237,19 @@ const Sim10 = makeSim({
   drawTimeline(g, x, y, w, h, V) {
     const r = V.r, cw = 28, x0 = x + 52;
     UIK.panel(g, x, y, w, h, 'tech');
-    drawText(g, 'TURBIDEZ', x + 6, y + 6, { font: 'tiny', color: '#a6f4ff' });
-    drawText(g, 'FV+EÓL', x + 6, y + 18, { font: 'tiny', color: '#ffe14d' });
-    drawText(g, 'MAREA', x + 6, y + 30, { font: 'tiny', color: '#f888b8' });
+    drawText(g, 'TURBIDEZ', x + 6, y + 5, { font: 'tiny', color: '#a6f4ff' });
+    drawText(g, 'FV+EÓL', x + 6, y + 15, { font: 'tiny', color: '#ffe14d' });
+    drawText(g, 'MAREA', x + 6, y + 25, { font: 'tiny', color: '#f888b8' });
     for (let i = 0; i < CalimaModel.HOURS; i++) {
       const s = r.series[i], cx = x0 + i * cw;
       const nc = s.ntu > 60 ? '#ff4e5d' : s.ntu > 20 ? '#ffb93b' : '#56e5ff';
-      frect(g, cx, y + 6, cw - 2, 7, '#141d36'); frect(g, cx, y + 13 - Math.round(7 * clamp(s.ntu / 100, 0, 1)), cw - 2, Math.round(7 * clamp(s.ntu / 100, 0, 1)), nc);
-      frect(g, cx, y + 18, cw - 2, 7, '#141d36'); frect(g, cx, y + 25 - Math.round(7 * clamp(s.gen / 900, 0, 1)), cw - 2, Math.round(7 * clamp(s.gen / 900, 0, 1)), s.wind === 0 ? '#ff9f43' : '#ffe14d');
-      frect(g, cx, y + 30, cw - 2, 5, s.tideBad ? '#bc3e92' : '#141d36');
-      drawText(g, String(i + 1), cx + cw / 2 - 1, y + 39, { font: 'tiny', align: 'center', color: '#8a8fb8' });
+      frect(g, cx, y + 5, cw - 2, 7, '#141d36'); frect(g, cx, y + 12 - Math.round(7 * clamp(s.ntu / 100, 0, 1)), cw - 2, Math.round(7 * clamp(s.ntu / 100, 0, 1)), nc);
+      frect(g, cx, y + 15, cw - 2, 7, '#141d36'); frect(g, cx, y + 22 - Math.round(7 * clamp(s.gen / 900, 0, 1)), cw - 2, Math.round(7 * clamp(s.gen / 900, 0, 1)), s.wind === 0 ? '#ff9f43' : '#ffe14d');
+      frect(g, cx, y + 25, cw - 2, 5, s.tideBad ? '#bc3e92' : '#141d36');
+      drawText(g, String(i + 1), cx + cw / 2 - 1, y + 32, { font: 'tiny', align: 'center', color: '#8a8fb8' });
     }
     // marcadores de primer fallo (solo después de simular)
-    if (V.revealed) for (const [k] of CAL_CRIT) { const hh = r.firstFail[k]; if (hh !== undefined && !r.crit[k]) { frect(g, x0 + hh * cw + cw / 2 - 2, y + 2, 3, 40, '#ff4e5d'); } }
+    if (V.revealed) for (const [k] of CAL_CRIT) { const hh = r.firstFail[k]; if (hh !== undefined && !r.crit[k]) { frect(g, x0 + hh * cw + cw / 2 - 2, y + 2, 3, h - 6, '#ff4e5d'); } }
     // cabezal
     const px = x0 + V.h * cw;
     frect(g, px, y + 2, 1, h - 6, '#ffffff');

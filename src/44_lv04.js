@@ -485,7 +485,9 @@ const Sim04 = makeSim({
       ser.push({ data: r.series.map(o => [o.h + 0.5, o.soc * 700]), color: '#86e36f', label: 'SOC' });
       ser.push({ data: r.series.map(o => [o.h + 0.5, o.tank / 3.5]), color: '#56e5ff', label: 'tanque' });
     }
-    Charts.line(g, X0, Y0, CW0, 150, ser, { xMin: 0, xMax: 24, yMin: 0, yMax: 900, legend: true, xLabel: 'h', yLabel: 'kW', cursor: ph === 'demo' ? this.cursor : null, hlines: r && ph !== 'demo' && ph !== 'guided' ? [{ v: 600 / 3.5, color: '#56e5ff', label: 'tanque mín.' }] : [] });
+    // con el Relé Solar visible el gráfico se acorta: la rejilla queda por encima del globo de KIRU (y < 235)
+    const CH = (ph === 'demo' || ph === 'guided') ? 150 : 124;
+    Charts.line(g, X0, Y0, CW0, CH, ser, { xMin: 0, xMax: 24, yMin: 0, yMax: 900, legend: true, xLabel: 'h', yLabel: 'kW', cursor: ph === 'demo' ? this.cursor : null, hlines: r && ph !== 'demo' && ph !== 'guided' ? [{ v: 600 / 3.5, color: '#56e5ff', label: 'tanque mín.' }] : [] });
     // área de energía sombreada hasta el cursor (demo)
     if (ph === 'demo' || ph === 'guided') {
       const cx = X0 + 22, cw = CW0 - 26, cy = Y0 + 4, chh = 150 - 14;
@@ -519,7 +521,7 @@ const Sim04 = makeSim({
     if (ph === 'auto' || ph === 'transfer' || ph === 'free') {
       const ho = Gui.toggle(g, 'h2o', CX + 6, ph === 'free' ? 193 : 153, 'H2 solo con excedente', this.cfg.h2Only); if (!this.done) { if (ho !== this.cfg.h2Only) { this.cfg.h2Only = ho; this.run(); } }
       const rs = Gui.toggle(g, 'res', CX + 6, ph === 'free' ? 211 : 171, 'Proteger reserva 30 %', this.cfg.reserve >= 0.3); if (!this.done) { const v = rs ? 0.3 : 0.1; if (v !== this.cfg.reserve) { this.cfg.reserve = v; this.run(); } }
-      this.drawTimeline(g, X0, Y0 + 168, CW0);
+      this.drawTimeline(g, X0, Y0 + CH + 10, CW0);
     }
     const by = 236;
     if (!this.done && ph !== 'demo' && Gui.button(g, 'eval', CX + 6, by, 100, 18, ph === 'guided' ? 'Calcular día' : 'Simular 24 h', { style: 'good', icon: 'play' })) this.evaluate();
@@ -537,12 +539,14 @@ const Sim04 = makeSim({
   /** Relé Solar: rejilla horaria de cargas flexibles */
   drawTimeline(g, x, y, w) {
     const rows = [['ro', 'OI 300 kW', '#56e5ff'], ['irr', 'Riego 40 kW', '#86e36f'], ['h2', 'H2 300 kW', '#d8fff8']];
-    const cw = Math.floor((w - 60) / 24), ch = 14;
-    drawText(g, 'RELÉ SOLAR · clic en las horas', x, y - 2, { font: 'tiny', color: '#ffe14d' });
+    const cw = Math.floor((w - 60) / 24), ch = 13;
+    // la rejilla va en su propio panel (como los demás controles), no suelta sobre el fondo del nivel
+    UIK.panel(g, x - 4, y - 7, w + 8, 14 + 3 * (ch + 2) + 10, 'tech', null, { chamfer: 2, key: false, spark: false });
+    drawText(g, 'RELÉ SOLAR · clic en las horas', x + 2, y - 2, { font: 'tiny', color: '#ffe14d' });
     for (let h = 0; h < 24; h += 3) drawText(g, String(h), x + 58 + h * cw, y + 6, { font: 'tiny', color: '#8a8fb8' });
     const day = this.result ? this.result.day.pv : solarDayProfile(this.dayOpts()).pv;
     rows.forEach(([key, label, col], i) => {
-      const yy = y + 14 + i * (ch + 3);
+      const yy = y + 14 + i * (ch + 2);
       drawText(g, label, x, yy + 4, { font: 'tiny', color: col });
       for (let h = 0; h < 24; h++) {
         const v = this.sched[key][h], cx = x + 58 + h * cw;
