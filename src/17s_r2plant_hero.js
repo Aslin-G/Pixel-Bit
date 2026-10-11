@@ -453,7 +453,10 @@ const R2PLANT = (() => {
     pm([[L(276), L(42), BY + L(6)], [L(258), L(42), BY + L(6)]], S(2));
     /* ================= 6. PRETRATAMIENTO ================= */
     // alimentación de agua de mar desde la toma (por detrás de la balsa, con soportes)
-    if (fromIntake) sea3.push(pipe3([[HX + HW, L(34), HY + L(8)], [TX - L(6), L(34), HY + L(8)], [TX - L(6), L(34), DY + L(12)], [TX, L(34), DY + L(12)]], S(3), C.sea, { flange: L(12), supports: L(16), supportY: JY }));
+    // (por delante y por encima de la balsa: tubería turquesa gruesa y luminosa, como en la referencia)
+    const SEAY = DY + L(11), SEAZ = L(25);
+    if (fromIntake) sea3.push(pipe3([[HX + HW - L(3), SEAZ, SEAY], [TX - L(5), SEAZ, SEAY], [TX - L(5), L(34), SEAY], [TX, L(34), SEAY]], S(4), C.sea, { flange: L(11), core: 0.95, supports: L(14), supportY: DY }));
+    else sea3.push(pipe3([[DX0 - L(8), SEAZ, SEAY], [TX - L(5), SEAZ, SEAY], [TX - L(5), L(34), SEAY], [TX, L(34), SEAY]], S(4), C.sea, { flange: L(11), core: 0.95, supports: L(14), supportY: DY }));
     // tambor de tamices horizontal sobre cunas
     for (const q of [L(5), L(32)]) box(TX + q, L(31), DY, S(4), L(6), L(6), flat(C.steel, 0.5, 0.75, 0.3, 0.04, 7));
     tubeX(TX, TX + L(42), L(34), DY + L(12), S(6), C.steel, { bands: [L(6), L(21), L(36)], bandW: S(2), capR: true });
@@ -491,6 +494,8 @@ const R2PLANT = (() => {
     /* ================= 8. PERMEADO (cian luminoso, delante) ================= */
     // cabezal de permeado → corre por delante → sube junto al bloque → entra al depósito
     pm([[MX1 - L(4), MZf - L(2), DY + L(13)], [L(256), MZf - L(2), DY + L(13)], [L(256), MZf - L(2), BY + L(15)], [L(300), MZf - L(2), BY + L(15)], [L(300), MZf - L(2), BY + L(11)]], S(3));
+    // banco trasero: colector de permeado elevado que sube, cruza por encima del bastidor y entra al depósito
+    pm([[MX0 + L(10), MZb + L(2), DY + MH - L(3)], [MX0 + L(10), MZb + L(2), DY + MH + L(13)], [L(278), MZb + L(2), DY + MH + L(13)], [L(278), MZb + L(2), BY + L(20)]], S(3));
     // depósito → sale hacia la ciudad (sube por el borde derecho)
     pm([[L(304), L(36), BY + L(10)], [L(320), L(36), BY + L(10)], [L(320), L(36), BY + L(42)], [L(336), L(36), BY + L(42)]], S(3));
     /* ================= 9. BOMBA DE ALTA PRESIÓN + armario eléctrico ================= */
