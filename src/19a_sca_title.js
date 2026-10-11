@@ -22,7 +22,7 @@ const SCATitleArt = (() => {
   const CLIFF_X1 = 220;         // borde del acantilado
   const CLIFF_Y = 254;          // línea de paso de Amaya
   const WY = 300;               // línea de agua del corte submarino
-  const PLANT_X = 214, PLANT_Y = 132, PLANT_LY = 150; // SYNARA (plano local → pantalla y = LY + y; pie a y = 282)
+  const PLANT_RX = 466, PLANT_S = 0.92, PLANT_LY = 110; // SYNARA (R2PLANT): pie frontal derecho en (PLANT_RX, WY); plano desde y = PLANT_LY
 
   /** Águila grande (4 cuadros, 31×15) con plumas primarias abiertas */
   function eagleStrip() {
@@ -221,40 +221,21 @@ const SCATitleArt = (() => {
         g.globalAlpha = 1;
       },
     });
-    /* ---------------- SYNARA: planta desaladora de plano medio (SCAKit.heroPlant) ---------------- */
-    B.vplane(0, PLANT_LY, 170, (pb) => {
-      const P = SCAKit.heroPlant(pb, PLANT_X, PLANT_Y, { k: 0, wp: 246 });
+    /* ---------------- SYNARA: planta desaladora protagonista en 3/4 (R2PLANT.hero, 17s) ---------------- */
+    B.vplane(0, PLANT_LY, WY - PLANT_LY + 16, (pb) => {
+      const P = R2PLANT.hero(pb, PLANT_RX, WY - PLANT_LY, { s: PLANT_S, k: 0 });
       const L = PLANT_LY, Aq = P.anchors;
-      FX.perm.push(P.perm.map(([x, y]) => [x, y + L]), P.perm2.map(([x, y]) => [x, y + L]));
-      FX.feed = P.feed.map(([x, y]) => [x, y + L]);
-      for (const [x, y, c] of P.leds) FX.leds.push([x, y + L, c]);
-      for (const [x, y, r] of P.glows) FX.pglow.push([x, y + L, r]);
-      FX.foam = [{ x0: PLANT_X - 4, x1: P.x1 + 2, y: PLANT_Y + L + 1 }];
+      A.plant = P;
       A.labels.push(
-        { x: Aq.captacion.x - 2, y: L + Aq.captacion.y - 4, title: 'CAPTACIÓN', kind: 'water', ax: Aq.captacion.x, ay: L + Aq.captacion.y + 6 },
-        { x: Aq.pretrat.x + 8, y: L + Aq.pretrat.y - 2, title: 'PRETRATAMIENTO', kind: 'water', ax: Aq.pretrat.x, ay: L + Aq.pretrat.y + 8 },
-        { x: Aq.membranas.x - 8, y: L + Aq.membranas.y + 2, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
-        { x: Aq.potable.x - 14, y: L + Aq.potable.y - 22, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
+        { x: Aq.captacion.x + 2, y: L + Aq.captacion.y - 4, title: 'CAPTACIÓN', kind: 'water', ax: Aq.captacion.x, ay: L + Aq.captacion.y + 4 },
+        { x: Aq.pretrat.x - 4, y: L + Aq.pretrat.y - 4, title: 'PRETRATAMIENTO', kind: 'water', ax: Aq.pretrat.x, ay: L + Aq.pretrat.y + 4 },
+        { x: Aq.membranas.x, y: L + Aq.membranas.y - 2, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
+        { x: Aq.potable.x - 46, y: L + Aq.potable.y - 8, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x - 10, ay: L + Aq.potable.y + 6 },
       );
-      A.brineX = P.brine.x; A.intakeX = P.intake.x;
-      A.labels.push({ x: P.brine.x - 34, y: WY + 54, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine' });
-    }, {
-      dyn: (g) => {
-        const t = Game.time;
-        for (const [x, y, r] of FX.pglow) V.drawGlow(g, x, y, r, '#48b6ec', 0.35 + 0.2 * Math.sin(t * 2.4 + x));
-        // tubería de permeado: núcleo cian intenso con halo de 1 px y chevrones blancos a 20 px/s (STYLE LOCK §12)
-        for (const P of FX.perm) for (let k = 0; k + 1 < P.length; k++) {
-          const [x0, y0] = P[k], [x1, y1] = P[k + 1], ax = Math.round(Math.min(x0, x1)), ay = Math.round(Math.min(y0, y1)), lw = Math.round(Math.abs(x1 - x0)) + 1, lh = Math.round(Math.abs(y1 - y0)) + 1;
-          g.globalAlpha = 0.3; g.fillStyle = '#7ff0ff'; g.fillRect(ax - 2, ay - 2, lw + 4, lh + 4);
-          g.globalAlpha = 1; g.fillStyle = '#22dbe7'; g.fillRect(ax - 1, ay - 1, lw + 2, lh + 2);
-          g.fillStyle = '#a6f4ff'; if (lw >= lh) g.fillRect(ax - 1, ay - 1, lw + 2, 1); else g.fillRect(ax - 1, ay - 1, 1, lh + 2);
-        }
-        for (const P of FX.perm) V.drawFlow(g, P, 0, 0, t, { col: '#ffffff', speed: 20, gap: 8 });
-        V.drawFlow(g, FX.feed, 0, 0, t, { col: '#9cd8f8', speed: 10, gap: 5 });
-        for (const [x, y, c] of FX.leds) if (Math.floor(t * 1.6 + x * 0.1) % 2) { g.fillStyle = c; g.fillRect(x, y, 1, 1); }
-        SCAKit.foam(g, FX.foam, t);
-      },
-    });
+      A.mouth = { x: P.mouth.x, y: L + P.mouth.y };
+      A.labels.push({ x: P.mouth.x - 52, y: WY + 34, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: P.mouth.x - 22, ay: WY + 22 });
+    }, { dyn: (g) => R2PLANT.drawFx(g, A.plant, 0, PLANT_LY, Game.time, {}) });
+    A.plume = R2PLANT.plumeStrip({ mode: 'under', s: 1, w: 150, h: 62, bed: 50, seed: 11 });
     /* ---------------- corte submarino (kit PFWater con mundo ficticio) ---------------- */
     const bedAt = (x) => Math.round(352 - Math.max(0, 1 - (x - 230) / 120) * 18 + Math.sin(x * 0.05) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
     const fakeW = {
@@ -320,8 +301,8 @@ const SCATitleArt = (() => {
     // corte submarino + pluma de salmuera + cresta
     A.wsc.world.ps = ps || NOPS;
     PFWater.renderBack(g, A.wsc, A.water);
-    drawUnderPipes(g, A, t);
     PFWater.renderFront(g, A.wsc, A.water);
+    drawUnderPipes(g, A, t);
     // etiquetas científicas
     for (const L of A.labels) WorldLabels.drawOne(g, L, { x: 0, y: 0 }, null);
     // acantilado
@@ -340,37 +321,14 @@ const SCATitleArt = (() => {
     g.drawImage(A.clumpR, W - 104, H - 58);
     V.drawMotes(g, 18, t, 11, { y0: 120, y1: 300 });
   }
-  /** Tuberías sumergidas y pluma de salmuera (sobre el corte submarino) */
+  /** Pluma de salmuera bajo la boca del emisario: chorro denso y saturado que cae, se hunde hasta el lecho y se diluye */
   function drawUnderPipes(g, A, t) {
-    const bx = A.brineX, ix = A.intakeX;
-    // (FIXUI SU-12) emisario de salmuera: baja hasta el lecho y corre por el fondo hasta un difusor de 4 bocas
-    const RY = WY + 42; // tramo horizontal sobre el lecho
-    const BR = ['#06081a', '#141a32', '#262c48', '#3a405d', '#555a78', '#7a7e9e', '#262c48'];
-    for (let q = 0; q < 7; q++) { g.fillStyle = BR[[1, 4, 5, 3, 2, 1, 0][q]]; g.fillRect(bx - 3 + q, WY - 6, 1, RY - WY + 6); g.fillRect(bx - 3, RY + q, 66, 1); }
-    g.fillStyle = '#7a7e9e'; g.fillRect(bx - 4, WY + 6, 9, 2); g.fillRect(bx - 4, RY - 10, 9, 2);
-    for (let k = 0; k < 4; k++) { const px = bx + 12 + k * 13; g.fillStyle = '#3a405d'; g.fillRect(px, RY - 4, 3, 4); g.fillStyle = '#7a7e9e'; g.fillRect(px - 1, RY - 5, 5, 1); g.fillStyle = '#e07ecf'; g.fillRect(px + 1, RY - 6, 1, 1); }
-    // capa densa: la salmuera, más pesada que el agua de mar, se extiende pegada al fondo (bandas planas)
-    g.globalAlpha = 0.22; g.fillStyle = '#c244a2'; g.fillRect(bx + 10, RY + 4, 120, 4);
-    g.globalAlpha = 0.14; g.fillRect(bx + 24, RY + 1, 116, 3); g.globalAlpha = 1;
-    // pluma magenta: cada chorro sube por su impulso, se curva con la corriente, cae y se esparce por el lecho
-    for (let i = 0; i < 36; i++) {
-      const k = i % 4, u = ((t * 0.2 + i / 36 + k * 0.07) % 1);
-      const x0 = bx + 13 + k * 13;
-      const rise = Math.sin(Math.PI * Math.min(1, u * 1.7)) * (u < 0.59 ? 11 : 0);
-      const px = x0 + u * 34 + Math.sin(i * 1.7 + t * 1.3) * 1.5;
-      const py = u < 0.59 ? RY - 6 - rise : RY - 2 + (u - 0.59) * 7 + Math.sin(i + t * 2) * 0.8;
-      const sz = u < 0.5 ? 3 : 2, a = 1 - u * 0.75;
-      g.globalAlpha = 0.5 * a; g.fillStyle = '#f7a8e0'; g.fillRect(Math.round(px) - 1, Math.round(py) - 1, sz + 2, sz + 2);
-      g.globalAlpha = a; g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2'; g.fillRect(Math.round(px), Math.round(py), sz, sz);
-    }
-    g.globalAlpha = 1;
-    // toma: tubería azul (5 px) hasta el cabezal con rejilla sobre zapata
-    const FE = ['#0e2a48', '#4a9ad0', '#8cc8ec', '#2a72aa', '#1a4a78'];
-    for (let q = 0; q < 5; q++) { g.fillStyle = FE[q]; g.fillRect(ix - 2 + q, WY - 6, 1, 30); }
-    g.fillStyle = '#163e66'; g.fillRect(ix - 9, WY + 24, 19, 9);
-    g.fillStyle = '#31b4e2'; g.fillRect(ix - 9, WY + 24, 19, 1);
-    g.fillStyle = '#7fd8f6'; for (let k = 0; k < 6; k++) g.fillRect(ix - 8 + k * 3, WY + 26, 1, 6);
-    g.fillStyle = '#5a5658'; g.fillRect(ix - 12, WY + 33, 25, 3);
+    if (!A.mouth) return;
+    // capa densa en el lecho (más pesada que el agua de mar): bandas planas que se aclaran al diluirse
+    const bx = A.mouth.x, RY = WY + 50;
+    g.globalAlpha = 0.2; g.fillStyle = '#c244a2'; g.fillRect(bx + 4, RY - 2, 120, 4);
+    g.globalAlpha = 0.12; g.fillStyle = '#793b82'; g.fillRect(bx + 30, RY - 5, 110, 3); g.globalAlpha = 1;
+    R2PLANT.drawPlume(g, A.plume, bx - 2, A.mouth.y - 2, t);
   }
   let _eagle = null;
   function eagle() { return _eagle || (_eagle = eagleStrip()); }

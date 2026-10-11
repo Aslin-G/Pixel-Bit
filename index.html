@@ -13466,9 +13466,12 @@ const R2PLANT = (() => {
           b = Math.min(b, 0.36) - q * 0.035;
           if (q >= 1 && hash2(px >> 1, yy >> 1, seed + 13) < 0.55) return AL[clamp(3 - (q >> 1), 0, 3)];
         }
-        return CN[ix(CN, b)];
+        const u0 = CN[ix(CN, b)];
+        // luz reflejada del agua (cian) en la mitad baja del muro
+        return (op.refl !== false && yy > H * 0.45 && H > 8) ? V.mixU(u0, CYR, clamp(0.06 + (yy / H - 0.45) * 0.42, 0, 0.3)) : u0;
       };
     };
+    const CYR = U(V.hzc('#46c4e2', k));
     /** Cubierta de losas con arena: juntas, labio iluminado, manchas */
     const deckPaint = (op = {}) => (face, u, v, px, py, xx, r) => {
       if (face !== 't') return 0;
@@ -13686,199 +13689,183 @@ const R2PLANT = (() => {
     const perm3 = [], sea3 = [], pre3 = [], pow3 = [];
     const pm = (pts, r) => { const p = pipe3(pts, r, C.perm, { flange: L(14), core: 0.95, ink: C.perm[1] }); perm3.push({ pts, r }); return p; };
 
-    /* ================= 1. ESTRUCTURAS DE HORMIGÓN ================= */
-    const FH = L(30), DX0 = fromIntake ? L(64) : L(6), DX1 = L(262), DZ = L(46);
-    // 1a. espigón de captación sobre pilotes (atrás-izquierda)
+    /* ================= 1. ESTRUCTURAS DE HORMIGÓN (atrás → delante) ================= */
+    const FH = L(30), DX0 = fromIntake ? L(64) : L(6), DX1 = L(262), DZ = L(46), DY = FH;
     const JX0 = L(0), JX1 = L(86), JZ = L(16), JY = L(17), JT = L(6);
-    if (fromIntake) {
-      // sombra bajo el tablero (mar oscuro entre pilotes)
-      for (let X = JX0; X < JX1; X++) for (let Y = 0; Y < JY - JT; Y++) { const [px, py] = P(X, JZ, Y); put(px, py, C.navy[ix(C.navy, 0.15 + (Y / JY) * 0.25)]); }
-      for (let X = JX0 + L(4); X < JX1 - 2; X += L(15)) box(X, JZ + L(2), 0, S(5), L(6), JY - JT, concrete(JY - JT, { bw: 99, bh: 99, wet: L(4), seed: X }));
-      box(JX0, JZ, JY - JT, JX1 - JX0, L(30), JT, concrete(JT, { bw: L(18), bh: 99, wet: 0, seed: 5, top: deckPaint({ seed: 4 }) }), { deck: true });
-    }
-    // 1b. bloque elevado de AGUA POTABLE (atrás-derecha, sale del agua)
-    const BX0 = L(222), BX1 = L(326), BZ = L(22), BH = FH + L(14);
-    box(BX0, BZ, 0, BX1 - BX0, L(30), BH, concrete(BH, { seed: 17, top: deckPaint({ seed: 8 }) }), { deck: true });
-    // 1c. balsa principal: muro de bloques masivo con cubierta de losas
-    box(DX0, 0, 0, DX1 - DX0, DZ, FH, concrete(FH, { seed: 3, lEdge: true, top: deckPaint({ seed: 9 }) }), { deck: true });
-    // escalón inferior izquierdo (delante) con jardinera y palmera
+    const BX0 = L(222), BX1 = L(326), BZ = L(24), BD = L(30), BH = FH + L(14), BY = BH;
     const SX0 = DX0 - L(8), SX1 = DX0 + L(46);
-    box(SX0, -L(9), 0, SX1 - SX0, L(9), L(12), concrete(L(12), { seed: 23, lEdge: true, bh: L(12), top: deckPaint({ seed: 12 }) }), { deck: true });
-    /* ================= 2. CAPTACIÓN ================= */
+    // 1a. espigón de captación sobre pilotes (atrás-izquierda)
     if (fromIntake) {
-      const HX = L(6), HZ = L(22), HW = L(58), HH = L(20), HD = L(16), HY = JY;
+      for (let X = JX0; X < JX1; X++) for (let Y = 0; Y < JY - JT; Y++) { const [px, py] = P(X, JZ, Y); put(px, py, C.navy[ix(C.navy, 0.12 + (Y / JY) * 0.3)]); }
+      for (let X = JX0 + L(4); X < JX1 - 2; X += L(15)) box(X, JZ + L(2), 0, S(5), L(6), JY - JT, concrete(JY - JT, { bw: 99, bh: 99, wet: L(4), seed: X, lEdge: true }));
+      box(JX0, JZ, JY - JT, JX1 - JX0, L(30), JT, concrete(JT, { bw: L(18), bh: 99, wet: 0, seed: 5, lEdge: true, top: deckPaint({ seed: 4 }) }), { deck: true });
+    }
+    // 1b. balsa principal: muro masivo de bloques con cubierta de losas
+    box(DX0, 0, 0, DX1 - DX0, DZ, FH, concrete(FH, { seed: 3, lEdge: true, top: deckPaint({ seed: 9 }) }), { deck: true });
+    // 1c. bloque elevado de AGUA POTABLE: parte baja en el agua (a la derecha) + parte alta sobre la cubierta
+    box(DX1, BZ, 0, BX1 - DX1, BD, FH, concrete(FH, { seed: 17 }), { noTop: true });
+    box(BX0, BZ, FH, BX1 - BX0, BD, BH - FH, concrete(BH - FH, { seed: 19, wet: 0, bh: L(14), top: deckPaint({ seed: 8 }) }), { deck: true });
+    // 1d. escalón inferior izquierdo (delante) con escalera y jardinera
+    box(SX0, -L(9), 0, SX1 - SX0, L(9), L(12), concrete(L(12), { seed: 23, lEdge: true, bh: L(12), top: deckPaint({ seed: 12 }) }), { deck: true });
+    for (let q = 0; q < 4; q++) box(SX1 - L(12) + q * L(3), -L(2), L(12) + q * L(4), L(10) - q * L(2), L(2), L(4), flat(C.conc, 0.6, 0.9, 0.4, 0.05, 61 + q));
+    // defensas de caucho negras sobre el muro frontal
+    for (const X of [L(112), L(176), L(236)]) {
+      const [fx, fy] = P(X, -1, L(20)), fw = S(4), fh = L(13);
+      for (let yy = 0; yy < fh; yy++) for (let xx = 0; xx < fw; xx++) { const e = (yy === 0 || yy === fh - 1) && (xx === 0 || xx === fw - 1); if (!e) put(fx + xx, fy + yy, C.navy[ix(C.navy, xx === 1 ? 0.55 : xx === 0 ? 0.35 : 0.12)]); }
+      for (let xx = -1; xx <= fw; xx++) put(fx + xx, fy - 1, C.steel[xx < 1 ? 9 : 4]);
+    }
+    /* ================= 2. CAPTACIÓN (espigón) ================= */
+    const HX = L(6), HZ = L(22), HW = L(58), HH = L(18), HD = L(16), HY = JY;
+    if (fromIntake) {
       shadow(HX, HX + HW, HZ, HZ + HD, HY, HH);
       box(HX, HZ, HY, HW, HD, HH, (face, u, v, px, py, a, b) => {
         const SP = C.steel, G = C.glass;
         if (face === 's') return SP[ix(SP, 0.3 - v * 0.06 + ((a % 3) === 0 ? -0.06 : 0))];
-        if (face === 't') return SP[ix(SP, 0.62)];
-        const lx = a;
-        if (lx % L(14) < 2) return SP[lx % L(14) === 0 ? 8 : 3];
-        if (b > L(3) && b < L(11)) { const gb = 0.42 + (1 - (b - L(3)) / L(8)) * 0.3 + ((lx + b) % 9 === 0 ? 0.3 : 0); return G[ix(G, gb)]; }
-        if (b >= HH - L(6)) return SP[ix(SP, (b % 2) ? 0.38 : 0.62)];
-        if (b === 0) return SP[9];
-        return SP[ix(SP, 0.72 - v * 0.14 + (hash2(px >> 1, py >> 1, 2) - 0.5) * 0.05)];
+        if (face === 't') return SP[ix(SP, 0.5)];
+        if (a % L(14) < 2) return SP[a % L(14) === 0 ? 9 : 3];
+        if (b > L(2) && b < L(10)) { const gb = 0.38 + (1 - (b - L(2)) / L(8)) * 0.34 + ((a + b) % 9 === 0 ? 0.3 : 0); return G[ix(G, gb)]; }
+        if (b >= HH - L(6)) return SP[ix(SP, (b % 2) ? 0.36 : 0.64)];
+        if (b === 0) return SP[10];
+        return SP[ix(SP, 0.74 - v * 0.14 + (hash2(px >> 1, py >> 1, 2) - 0.5) * 0.05)];
       });
-      // bóveda de vidrio azul con costillas y franja especular
-      const vh = L(9), G = C.glass;
-      for (let r = 0; r <= Math.round(HD * ZY) + 1; r++) {
-        const zz = r / ZY, t = clamp(zz / HD, 0, 1), bump = Math.round(Math.sin(Math.PI * t) * vh);
-        const [, rowY] = P(0, zz, HY + HH);
+      // bóveda de cañón de vidrio azul (eje según X): media sección visible, costillas, franja especular y testero
+      const RV = HD / 2, vh = L(8), G = C.glass, Zc = HZ + RV;
+      for (let th = Math.PI; th >= 0; th -= 0.04) {
+        const Z = Zc - RV * Math.cos(th), Y = HY + HH + vh * Math.sin(th);
+        const lit = -Math.cos(th) * 0.35 + Math.sin(th) * 0.55;               // normal (−Z hacia el espectador, +Y arriba)
         for (let xx = -1; xx <= HW; xx++) {
-          const [px] = P(HX + xx, zz, 0), rib = (xx % L(8)) === 0;
-          for (let q = 0; q <= 1; q++) {
-            const py = rowY - bump - q;
-            let b = t < 0.5 ? 0.62 + (0.5 - t) * 0.5 : 0.5 - (t - 0.5) * 0.5;
-            if (Math.abs(t - 0.22) < 0.07) b = 0.98;
-            if (rib) b = 0.9;
-            put(px, py, rib ? C.steel[9] : G[ix(G, b)]);
-          }
+          const [px, py] = P(HX + xx, Z, Y), rib = (xx % L(8)) === 0;
+          let b = 0.34 + lit * 0.5;
+          if (Math.abs(th - 1.95) < 0.12) b = 1;
+          put(px, py, rib ? C.steel[th > 1.2 && th < 2.2 ? 10 : 8] : G[ix(G, b)]);
         }
+        const [ex, ey] = P(HX + HW, Z, Y); for (let yy = ey; yy <= P(HX + HW, Z, HY + HH)[1]; yy++) put(ex + 1, yy, G[ix(G, 0.22)]);
       }
-      // rejillas de toma, puerta y bajante de agua de mar al mar
-      const [gx, gy] = P(HX + L(40), HZ, HY + L(3));
-      for (let yy = 0; yy < L(8); yy++) for (let xx = 0; xx < L(10); xx++) put(gx + xx, gy - yy, xx % 2 ? C.steel[2] : C.steel[6]);
-      led(HX + L(4), HZ, HY + L(14), '#17f3f7'); led(HX + HW - L(4), HZ, HY + L(14), '#3fe0a0');
-      anchors.captacion = P(HX + HW * 0.45, HZ, HY + HH + vh + L(6));
-      // tubería de toma: baja del espigón al mar (turquesa)
+      // rejillas, puerta, LED
+      const [gx, gy] = P(HX + L(40), HZ, HY + L(2));
+      for (let yy = 0; yy < L(7); yy++) for (let xx = 0; xx < L(10); xx++) put(gx + xx, gy - yy, xx % 2 ? C.steel[2] : C.steel[7]);
+      led(HX + L(4), HZ, HY + L(13), '#17f3f7'); led(HX + HW - L(4), HZ, HY + L(13), '#3fe0a0');
+      anchors.captacion = P(HX + HW * 0.45, HZ + RV, HY + HH + vh + L(8));
+      // tubería de toma que baja del espigón al mar (turquesa)
       sea3.push(pipe3([[L(16), JZ - 1, HY + L(2)], [L(16), JZ - 1, -L(6)]], S(3), C.sea, { flange: L(10) }));
       anchors.intake = P(L(16), JZ - 1, 0);
-      // alimentación de agua de mar al pretratamiento (con soportes)
-      sea3.push(pipe3([[HX + HW, HZ + L(6), HY + L(8)], [L(96), HZ + L(6), HY + L(8)], [L(96), HZ + L(6), FH + L(10)], [L(104), HZ + L(6), FH + L(10)]], S(3), C.sea, { flange: L(12), supports: L(18), supportY: JY }));
-      railX(JX0 + 1, JX1 - L(14), JZ, JY, L(5));
-      if (fine) worker(L(70), JZ + L(4), JY, 7, { dir: -1 });
-      lamp(L(80), JZ + L(2), JY, L(16));
+      railX(JX0 + 1, JX1 - L(16), JZ, JY, L(5));
+      lamp(L(78), JZ + L(2), JY, L(16));
     }
-    /* ================= 3. CUBIERTA: sombras y balsa de floculación ================= */
-    const DY = FH;
-    // balsa de floculación con agua turquesa en el frente izquierdo
-    const QX = fromIntake ? L(68) : L(10), QW = L(52), QZ = L(4), QD = L(24);
+    /* ================= 3. balsa de floculación (vaso abierto con agua) ================= */
+    const QX = fromIntake ? L(68) : L(10), QW = L(52), QZ = L(2), QD = L(28);
     basin(QX, QZ, DY, QW, QD, Math.max(2, L(4)));
-    railX(QX, QX + QW, QZ - 1, DY + L(3), L(5));
-    // pasarela que cruza la balsa
-    grate(QX + L(18), QZ, DY + L(4), L(8), QD);
-    /* ================= 4. PRETRATAMIENTO ================= */
-    const TX = fromIntake ? L(104) : L(64);
-    // tambor de tamices horizontal sobre cunas (atrás)
-    shadow(TX, TX + L(40), L(30), L(38), DY, L(18));
-    for (const q of [L(4), L(30)]) box(TX + q, L(31), DY, S(4), L(6), L(6), flat(C.steel, 0.5, 0.75, 0.3, 0.04, 7));
-    tubeX(TX, TX + L(40), L(34), DY + L(12), S(6), C.steel, { bands: [L(6), L(20), L(34)], bandW: S(2), capR: true });
-    for (let q = 0; q < 3; q++) valve(TX + L(10) + q * L(10), L(34), DY + L(19));
+    /* ================= 4. sombras arrojadas de los equipos sobre la cubierta ================= */
+    const TX = fromIntake ? L(102) : L(62), VX = TX + L(12), MX0 = L(170), MX1 = L(248), MZf = L(8), MZb = L(20), MH = L(30), PX = L(150);
+    shadow(TX, TX + L(42), L(30), L(38), DY, L(18));
+    for (let i = 0; i < 3; i++) shadow(VX + i * L(15) - L(7), VX + i * L(15) + L(7), L(16), L(24), DY, L(40));
+    shadow(MX0, MX1, MZf, MZb + L(4), DY, MH);
+    shadow(PX - L(2), PX + L(14), L(2), L(8), DY, L(9));
+    shadow(L(232), L(262), L(42), L(50), BY, L(16));
+    shadow(L(272), L(306), L(28), L(42), BY, L(26));
+    /* ================= 5. AGUA POTABLE + REMINERALIZACIÓN (bloque elevado, atrás) ================= */
+    for (const [cx, z] of [[L(238), L(44)], [L(252), L(46)]]) {
+      cylV(cx, z, BY, S(5), L(16), C.lime, { bands: [[L(11), S(2), C.perm]], seams: L(5) });
+      const [tx, ty] = P(cx, z, BY + L(16));
+      for (let q = 0; q <= S(4); q++) for (let xx = -S(5) + q; xx <= S(5) - q; xx++) put(tx + xx, ty - q - 1, C.lime[ix(C.lime, 0.86 - ((xx + S(5)) / (2 * S(5))) * 0.36 - q * 0.02)]);
+      put(tx, ty - S(4) - 2, C.steel[8]);
+    }
+    anchors.remin = P(L(245), L(46), BY + L(28));
+    cylV(L(290), L(36), BY, S(14), L(24), C.white, { dome: 0.28, bands: [[L(9), S(5), C.perm]], seams: L(6), stain: true });
+    for (let q = 0; q < 3; q++) { const [px, py] = P(L(281) + q * L(5), L(36) - S(14) * 0.42, BY + L(19)); put(px, py, C.perm[8]); }
+    ladder(L(301), L(30), BY, BY + L(22));
+    anchors.potable = P(L(290), L(36), BY + L(24) + L(16));
+    pm([[L(276), L(42), BY + L(6)], [L(258), L(42), BY + L(6)]], S(2));
+    /* ================= 6. PRETRATAMIENTO ================= */
+    // alimentación de agua de mar desde la toma (por detrás de la balsa, con soportes)
+    if (fromIntake) sea3.push(pipe3([[HX + HW, L(34), HY + L(8)], [TX - L(6), L(34), HY + L(8)], [TX - L(6), L(34), DY + L(12)], [TX, L(34), DY + L(12)]], S(3), C.sea, { flange: L(12), supports: L(16), supportY: JY }));
+    // tambor de tamices horizontal sobre cunas
+    for (const q of [L(5), L(32)]) box(TX + q, L(31), DY, S(4), L(6), L(6), flat(C.steel, 0.5, 0.75, 0.3, 0.04, 7));
+    tubeX(TX, TX + L(42), L(34), DY + L(12), S(6), C.steel, { bands: [L(6), L(21), L(36)], bandW: S(2), capR: true });
+    for (let q = 0; q < 3; q++) valve(TX + L(10) + q * L(11), L(34), DY + L(19));
+    // colector superior de los recipientes (detrás)
+    pre3.push(pipe3([[VX - L(8), L(28), DY + L(48)], [VX + L(40), L(28), DY + L(48)]], S(2), C.steel, { flange: L(10) }));
     // tres recipientes blancos altos con bandas azules
-    const VX = TX + L(10);
-    for (let i = 0; i < 3; i++) shadow(VX + i * L(15) - L(7), VX + i * L(15) + L(7), L(14), L(22), DY, L(36));
-    // bastidor y colector superior detrás
-    pre3.push(pipe3([[VX - L(8), L(26), DY + L(44)], [VX + L(40), L(26), DY + L(44)]], S(2), C.steel, { flange: L(10) }));
     for (let i = 0; i < 3; i++) {
       const cx = VX + i * L(15);
-      pipe3([[cx, L(22), DY + L(36)], [cx, L(26), DY + L(44)]], S(1), C.steel, {});
-      cylV(cx, L(18), DY, S(7), L(36), C.white, { dome: 0.62, bands: [[L(6), S(3)], [L(26), S(2)]], seams: L(9), stain: true });
-      for (let yy = L(10); yy < L(24); yy += L(4)) { const [px, py] = P(cx - S(3), L(18), DY + yy); put(px, py, C.white[9]); }
-      if (fine) gauge(cx + S(3), L(18) - S(7) * 0.4, DY + L(16));
+      pipe3([[cx, L(24), DY + L(40)], [cx, L(28), DY + L(48)]], S(1), C.steel, {});
+      cylV(cx, L(20), DY, S(7), L(40), C.white, { dome: 0.62, bands: [[L(6), S(3)], [L(29), S(2)]], seams: L(9), stain: true });
+      for (let yy = L(11); yy < L(27); yy += L(4)) { const [px, py] = P(cx - S(3), L(20), DY + yy); put(px, py, C.white[9]); }
+      if (fine) gauge(cx + S(3), L(20) - S(7) * 0.42, DY + L(17));
     }
-    anchors.pretrat = P(VX + L(15), L(18), DY + L(36) + L(12));
-    // agua pretratada: de los recipientes a la bomba (acero-azul)
-    pre3.push(pipe3([[VX + L(36), L(12), DY + L(5)], [L(166), L(12), DY + L(5)]], S(2), C.pre, { flange: L(10), supports: L(14), supportY: DY }));
-    /* ================= 5. BOMBA DE ALTA PRESIÓN + transformador ================= */
-    const PX = L(158);
-    shadow(PX - L(2), PX + L(14), L(4), L(10), DY, L(9));
-    box(PX - L(3), L(4), DY, L(18), L(8), S(2), flat(C.conc, 0.55, 0.8, 0.35, 0.04, 9));
-    tubeX(PX, PX + L(8), L(8), DY + L(6), S(4), C.red, { band: C.red, capRamp: C.red });
-    box(PX + L(8), L(5), DY + S(2), L(7), L(6), L(8), flat(C.navy, 0.6, 0.85, 0.35, 0.04, 11));
-    anchors.bombeo = P(PX + L(6), L(6), DY + L(18));
-    led(PX + L(10), L(5), DY + L(6), '#3fe0a0');
-    // armario eléctrico + bandeja de cables (flujo de energía al motor)
-    const EX = fromIntake ? L(126) : L(132);
-    box(EX, L(2), DY, L(9), L(4), L(12), flat(C.navy, 0.62, 0.86, 0.36, 0.05, 13));
-    led(EX + L(2), L(2), DY + L(9), '#ffd84a'); led(EX + L(5), L(2), DY + L(9), '#3fe0a0');
-    pow3.push([[EX + L(9), L(2), DY + L(10)], [PX + L(12), L(2), DY + L(10)], [PX + L(12), L(5), DY + L(10)]]);
-    for (const pl of pow3) pipe3(pl, Math.max(1, S(1)), C.cable, { elbowRing: false, ink: C.cable[0] });
-    /* ================= 6. MEMBRANAS ================= */
-    const MX0 = L(176), MX1 = L(258), MZf = L(10), MZb = L(26), MH = L(30);
-    shadow(MX0, MX1, MZf, MZb + L(4), DY, MH);
-    const post = (X, Z) => { for (let Y = DY; Y <= DY + MH; Y++) { const [px, py] = P(X, Z, Y); put(px, py, C.steel[8]); put(px + 1, py, C.steel[5]); put(px + 2, py, C.steel[2]); } };
-    const beam = (Z, Y) => { for (let X = MX0; X <= MX1 + 2; X++) { const [px, py] = P(X, Z, Y); put(px, py, C.steel[9]); put(px, py + 1, C.steel[3]); } };
+    anchors.pretrat = P(VX + L(15), L(20), DY + L(40) + L(14));
+    /* ================= 7. MEMBRANAS ================= */
+    const post = (X, Z) => { for (let Y = DY; Y <= DY + MH; Y++) { const [px, py] = P(X, Z, Y); put(px, py, C.steel[9]); put(px + 1, py, C.steel[5]); put(px + 2, py, C.steel[2]); } };
+    const beam = (Z, Y) => { for (let X = MX0; X <= MX1 + 2; X++) { const [px, py] = P(X, Z, Y); put(px, py, C.steel[9]); put(px, py + 1, C.steel[4]); put(px, py + 2, C.steel[1]); } };
     post(MX0, MZb); post(MX1, MZb); beam(MZb, DY + MH);
-    const rows = [L(6), L(14), L(22)];
-    for (const yc of rows) tubeX(MX0 + L(4), MX1 - L(3), MZb, DY + yc, S(3), C.memb, { bands: [L(3), L(30), L(58)], bandW: S(2), capR: true });
-    // diagonales del lateral
-    for (let Z = MZf; Z <= MZb; Z += 0.25) { const t = (Z - MZf) / (MZb - MZf); const [px, py] = P(MX1, Z, DY + MH * (1 - t)); put(px + 1, py, C.steel[4]); const [qx, qy] = P(MX1, Z, DY + MH * t); put(qx + 1, qy, C.steel[3]); }
-    for (const yc of rows) tubeX(MX0 + L(2), MX1 - L(5), MZf, DY + yc - L(1), S(3), C.memb, { bands: [L(3), L(30), L(58)], bandW: S(2), capR: true });
-    // colectores (cabezales) verticales en ambos extremos
-    pre3.push(pipe3([[MX0 + L(1), MZf, DY + L(3)], [MX0 + L(1), MZf, DY + L(25)]], S(2), C.pre, { elbowRing: false }));
-    pipe3([[MX1 - L(2), MZf + 1, DY + L(2)], [MX1 - L(2), MZf + 1, DY + L(24)]], S(2), C.steel, { elbowRing: false });
+    for (const yc of [L(9), L(17), L(25)]) tubeX(MX0 + L(4), MX1 - L(3), MZb, DY + yc, S(3), C.memb, { bands: [L(3), L(34), L(66)], bandW: S(2), capR: true });
+    for (let Z = MZf; Z <= MZb; Z += 0.25) { const t = (Z - MZf) / (MZb - MZf); const [px, py] = P(MX1, Z, DY + MH * (1 - t)); put(px + 1, py, C.steel[5]); const [qx, qy] = P(MX1, Z, DY + MH * t); put(qx + 1, qy, C.steel[3]); }
+    // banco frontal: dos tubos gruesos de presión con tapas y bandas
+    for (const yc of [L(7), L(18)]) tubeX(MX0 + L(3), MX1 - L(5), MZf, DY + yc, S(4), C.memb, { bands: [L(2), L(24), L(48), L(68)], bandW: S(2), capR: true });
+    // cabezales: alimentación (izquierda, acero-azul) y permeado (derecha, cian)
+    pre3.push(pipe3([[MX0 + L(1), MZf - L(1), DY + L(3)], [MX0 + L(1), MZf - L(1), DY + L(22)]], S(2), C.pre, { elbowRing: false }));
+    for (const yc of [L(7), L(18)]) { const [px, py] = P(MX0 + L(1), MZf - L(1), DY + yc); for (let q = 0; q < S(3); q++) put(px + 2 + q, py, C.pre[6]); }
     post(MX0, MZf); post(MX1, MZf); beam(MZf, DY + MH);
-    for (let Z = MZf; Z <= MZb; Z += 0.5) { const [px, py] = P(MX0, Z, DY + MH); put(px, py, C.steel[8]); const [qx, qy] = P(MX1, Z, DY + MH); put(qx, qy, C.steel[7]); }
-    // pasarela superior con barandilla, escalera y operario
+    for (let Z = MZf; Z <= MZb; Z += 0.5) { const [px, py] = P(MX0, Z, DY + MH); put(px, py, C.steel[9]); const [qx, qy] = P(MX1, Z, DY + MH); put(qx, qy, C.steel[8]); }
     grate(MX0, MZf, DY + MH, MX1 - MX0, MZb - MZf);
-    railX(MX0, MX1, MZf, DY + MH + L(2), L(5)); railX(MX0, MX1, MZb, DY + MH + L(2), L(5)); railZ(MX1, MZf, MZb, DY + MH + L(2), L(5));
-    ladder(MX1 + L(2), MZf - L(1), DY, DY + MH);
-    if (fine) worker(MX0 + L(30), MZf + L(6), DY + MH + L(2), 11, { tablet: true, dir: 1 });
-    // agua pretratada a alta presión: bomba → cabezal de membranas
-    pre3.push(pipe3([[PX + L(8), L(8), DY + L(6)], [MX0 + L(1), L(8), DY + L(6)], [MX0 + L(1), MZf, DY + L(6)]], S(2), C.pre, { flange: L(8) }));
-    anchors.membranas = P((MX0 + MX1) / 2, MZb, DY + MH + L(14));
-    led(MX0 + L(4), MZf, DY + L(2), '#17f3f7'); led(MX1 - L(6), MZf, DY + L(2), '#f5dc5a');
-    /* ================= 7. AGUA POTABLE + REMINERALIZACIÓN (bloque elevado) ================= */
-    const BY = BH;
-    // silos de calcita (remineralización) y caseta de dosificación
-    shadow(L(236), L(262), L(40), L(48), BY, L(16));
-    for (const [cx, z] of [[L(240), L(42)], [L(254), L(44)]]) {
-      cylV(cx, z, BY, S(5), L(15), C.lime, { bands: [[L(10), S(2), C.perm]], seams: L(5) });
-      const [tx, ty] = P(cx, z, BY + L(15));
-      for (let q = 0; q <= S(4); q++) for (let xx = -S(5) + q; xx <= S(5) - q; xx++) put(tx + xx, ty - q - 1, C.lime[ix(C.lime, 0.84 - (xx / S(5)) * 0.3 - q * 0.03)]);
-    }
-    anchors.remin = P(L(247), L(44), BY + L(26));
-    // depósito de agua potable con banda cian
-    shadow(L(272), L(304), L(30), L(42), BY, L(26));
-    const tk = cylV(L(290), L(34), BY, S(14), L(24), C.white, { dome: 0.28, bands: [[L(9), S(5), C.perm]], seams: L(6), stain: true });
-    for (let q = 0; q < 3; q++) { const [px, py] = P(L(282) + q * L(5), L(34) - S(14) * 0.42, BY + L(19)); put(px, py, C.perm[8]); }
-    ladder(L(301), L(28), BY, BY + L(22));
-    anchors.potable = P(L(290), L(34), BY + L(24) + L(14));
-    railX(BX0 + L(2), BX1 - L(4), BZ, BY, L(5));
-    lamp(BX1 - L(6), BZ + L(2), BY, L(15));
-    if (fine) worker(L(266), BZ + L(4), BY, 21, { dir: -1 });
-    /* ================= 8. PERMEADO (cian luminoso) ================= */
-    // membranas → sube → corre hacia atrás-derecha → entra al depósito por arriba
-    const permA = pm([[MX1 - L(2), MZb - L(2), DY + L(18)], [L(268), MZb - L(2), DY + L(18)], [L(268), MZb - L(2), BY + L(16)], [L(278), MZb - L(2), BY + L(16)]], S(3));
-    // depósito → remineralización → sale hacia la ciudad (sube por el borde derecho)
-    pm([[L(276), L(40), BY + L(8)], [L(258), L(40), BY + L(8)]], S(2));
-    const permC = pm([[L(304), L(36), BY + L(10)], [L(322), L(36), BY + L(10)], [L(322), L(36), BY + L(40)], [L(334), L(36), BY + L(40)]], S(3));
-    /* ================= 9. SALMUERA (grafito-índigo, emisario) ================= */
-    const BRX = L(272), BRZ = -L(4);
-    const brine = pipe3([[MX1 - L(2), MZf + 1, DY + L(4)], [BRX, MZf + 1, DY + L(4)], [BRX, BRZ, DY + L(4)], [BRX, BRZ, L(7)], [L(300), BRZ, L(7)]], S(4), C.brine, { flange: L(11), ink: C.brine[0] });
-    // boca abierta del emisario (anillo y garganta oscura)
+    railX(MX0, MX1, MZb, DY + MH + L(2), L(5)); railZ(MX1, MZf, MZb, DY + MH + L(2), L(5)); railX(MX0, MX1, MZf, DY + MH + L(2), L(5));
+    ladder(MX1 + L(3), MZf - L(2), DY, DY + MH);
+    if (fine) worker(MX0 + L(34), MZf + L(5), DY + MH + L(2), 11, { tablet: true, dir: 1 });
+    anchors.membranas = P((MX0 + MX1) / 2, MZb, DY + MH + L(16));
+    led(MX0 + L(5), MZf, DY + L(1), '#17f3f7'); led(MX1 - L(7), MZf, DY + L(1), '#f5dc5a'); led(MX1 - L(4), MZf, DY + L(1), '#3fe0a0');
+    /* ================= 8. PERMEADO (cian luminoso, delante) ================= */
+    // cabezal de permeado → corre por delante → sube junto al bloque → entra al depósito
+    pm([[MX1 - L(4), MZf - L(2), DY + L(13)], [L(256), MZf - L(2), DY + L(13)], [L(256), MZf - L(2), BY + L(15)], [L(300), MZf - L(2), BY + L(15)], [L(300), MZf - L(2), BY + L(11)]], S(3));
+    // depósito → sale hacia la ciudad (sube por el borde derecho)
+    pm([[L(304), L(36), BY + L(10)], [L(320), L(36), BY + L(10)], [L(320), L(36), BY + L(42)], [L(336), L(36), BY + L(42)]], S(3));
+    /* ================= 9. BOMBA DE ALTA PRESIÓN + armario eléctrico ================= */
+    box(PX - L(3), L(2), DY, L(20), L(7), S(2), flat(C.conc, 0.55, 0.82, 0.35, 0.04, 9));
+    tubeX(PX, PX + L(9), L(5), DY + L(6), S(4), C.red, { band: C.red, capRamp: C.red });
+    box(PX + L(9), L(3), DY + S(2), L(8), L(6), L(8), flat(C.navy, 0.62, 0.86, 0.36, 0.04, 11));
+    for (let q = 0; q < L(6); q += 2) { const [px, py] = P(PX + L(10) + q, L(3), DY + L(7)); put(px, py, C.navy[1]); }
+    anchors.bombeo = P(PX + L(6), L(5), DY + L(18));
+    led(PX + L(11), L(3), DY + L(6), '#3fe0a0');
+    pre3.push(pipe3([[VX + L(36), L(12), DY + L(5)], [PX, L(12), DY + L(5)], [PX, L(5), DY + L(5)]], S(2), C.pre, { flange: L(10), supports: L(14), supportY: DY }));
+    pre3.push(pipe3([[PX + L(9), L(5), DY + L(6)], [PX + L(14), L(5), DY + L(6)], [PX + L(14), MZf - L(1), DY + L(6)], [MX0 + L(1), MZf - L(1), DY + L(6)]], S(2), C.pre, { flange: L(8) }));
+    const EX = fromIntake ? L(126) : L(122);
+    box(EX, L(1), DY, L(9), L(4), L(12), flat(C.navy, 0.62, 0.86, 0.36, 0.05, 13));
+    for (let q = 0; q < 3; q++) led(EX + L(2) + q * L(2), L(1), DY + L(9), ['#ffd84a', '#3fe0a0', '#ff5a4a'][q]);
+    pow3.push([[EX + L(9), L(1), DY + L(10)], [PX + L(13), L(1), DY + L(10)], [PX + L(13), L(3), DY + L(10)]]);
+    for (const pl of pow3) pipe3(pl, 1, C.cable, { elbowRing: false, ink: C.cable[0] });
+    /* ================= 10. SALMUERA (grafito-índigo, emisario con boca) ================= */
+    const BRX = L(274), BRZ = -L(4);
+    pipe3([[MX1 - L(2), MZf + 1, DY + L(3)], [BRX, MZf + 1, DY + L(3)], [BRX, BRZ, DY + L(3)], [BRX, BRZ, L(7)], [L(300), BRZ, L(7)]], S(4), C.brine, { flange: L(11), ink: C.brine[0] });
     const [mx, my] = P(L(300), BRZ, L(7)), mr = S(4) + 1;
-    ell(mx + 0.5, my + 0.5, Math.max(1.5, mr * 0.55), mr + 1, (nx, ny, d) => d > 0.5 ? C.brine[ix(C.brine, 0.75 - ny * 0.3)] : U(V.hzc('#2a0a3a', k)));
-    ell(mx + 1.5, my + 0.5, Math.max(1, mr * 0.3), mr * 0.6, () => U(V.hzc('#c244a2', k)));
+    ell(mx + 0.5, my + 0.5, Math.max(1.5, mr * 0.55), mr + 1, (nx, ny, d) => d > 0.5 ? C.brine[ix(C.brine, 0.78 - ny * 0.3)] : U(V.hzc('#2a0a3a', k)));
+    ell(mx + 1.5, my + 0.5, Math.max(1, mr * 0.3), mr * 0.6, () => U(V.hzc('#e040c0', k)));
     anchors.salmuera = P(L(300), BRZ, L(12));
-    // abrazaderas del emisario sobre el muro
-    for (const Y of [L(14), L(24)]) { const [px, py] = P(BRX, BRZ, Y); for (let q = -S(5); q <= S(5); q++) put(px + q, py, C.steel[q < 0 ? 8 : 3]); }
-    /* ================= 10. barandillas, farolas, operarios, palmera ================= */
+    for (const Y of [L(14), L(24)]) { const [px, py] = P(BRX, BRZ, Y); for (let q = -S(5); q <= S(5); q++) put(px + q, py, C.steel[q < 0 ? 9 : 3]); }
+    /* ================= 11. barandillas, farolas, operarios, jardinera ================= */
     railX(DX0 + L(2), DX1 - L(4), 0, DY, L(6));
-    railZ(DX1 - 1, 0, BZ, DY, L(6));
-    for (const X of [L(150), L(214)]) lamp(X, L(1), DY, L(18));
-    if (fine) { worker(L(146), L(4), DY, 3, { dir: 1 }); worker(QX + L(30), QZ + L(10), DY + L(4), 5, { dir: 1 }); }
-    // jardinera con palmera en el escalón (como la referencia)
-    const [ppx, ppy] = P(SX0 + L(26), -L(4), L(12));
-    for (let xx = -L(5); xx <= L(5); xx++) for (let yy = 0; yy < L(3); yy++) put(ppx + xx, ppy - yy, C.conc[ix(C.conc, yy === L(3) - 1 ? 0.9 : 0.55 - xx * 0.02)]);
-    V.palm(T, ppx, ppy - L(3), L(20), -L(2), 77, { k });
+    railX(BX0 + L(44), BX1 - L(4), BZ, BY, L(5));
+    railX(QX, QX + QW, QZ - 1, DY + L(3), L(5));
+    grate(QX + L(18), QZ, DY + L(4), L(8), QD);
+    for (const X of [L(140), L(212)]) lamp(X, L(1), DY, L(18));
+    lamp(BX1 - L(6), BZ + L(2), BY, L(15));
+    if (fine) { worker(L(138), L(3), DY, 3, { dir: 1 }); worker(QX + L(22), QZ + L(10), DY + L(5), 5, { dir: -1 }); worker(L(266), BZ + L(5), BY, 21, { dir: -1 }); if (fromIntake) worker(L(68), JZ + L(4), JY, 7, { dir: -1 }); }
+    const [ppx, ppy] = P(SX0 + L(20), -L(5), L(12));
+    for (let xx = -L(5); xx <= L(5); xx++) for (let yy = 0; yy < L(3); yy++) put(ppx + xx, ppy - yy, C.conc[ix(C.conc, yy === L(3) - 1 ? 0.92 : 0.56 - xx * 0.02)]);
+    V.palm(T, ppx, ppy - L(3), L(22), -L(2), 77, { k });
     V.shrub(T, ppx - L(9), ppy, S(3), 78, { k }); V.shrub(T, ppx + L(10), ppy + 1, S(3), 79, { k });
-    // vegetación en el borde del bloque potable
-    V.shrub(T, ...P(BX1 - L(2), BZ + L(26), BY).map((v, i) => i ? v + 1 : v), S(4), 81, { k });
-    /* ================= 11. espuma y rocío horneados al pie ================= */
+    { const [vx, vy] = P(BX1 - L(2), BZ + L(26), BY); V.shrub(T, vx, vy + 1, S(4), 81, { k }); }
+    /* ================= 12. espuma y rocío horneados al pie ================= */
     const FO = V.P32(V.hz(RAMP.foamR, k * 0.5));
     const foamPts = [];
-    const frontFoot = (X) => P(X, 0, 0);
-    for (let X = (fromIntake ? JX0 : DX0) - L(2); X < BX1 + L(12); X++) {
-      const Z = X < DX0 ? JZ + L(2) : X > DX1 + L(4) ? BZ : (X >= SX0 && X < SX1) ? -L(9) : 0;
+    for (let X = (fromIntake ? JX0 : SX0) - L(2); X < BX1 + L(14); X++) {
+      const Z = (fromIntake && X < SX0) ? JZ + L(2) : X > DX1 + L(4) ? BZ : (X >= SX0 && X < SX1) ? -L(9) : 0;
       const [px, py] = P(X, Z, 0);
-      const crest = Math.round((Math.sin(X * 0.35) + Math.sin(X * 0.13 + 1.7)) * 0.9 + 1.2);
-      for (let q = 0; q <= crest; q++) put(px, py - q, FO[q === crest ? 5 : q === crest - 1 ? 4 : 3]);
-      if (hash2(X, 3, 9) < 0.18) { put(px, py - crest - 2, FO[5]); if (hash2(X, 4, 9) < 0.5) put(px + 1, py - crest - 3, FO[4]); }
-      for (let q = 1; q <= 2; q++) put(px, py + q, FO[q === 1 ? 4 : 2]);
-      if (X % L(8) === 0) foamPts.push([px, py]);
+      const crest = Math.max(1, Math.round((Math.sin(X * 0.31) + Math.sin(X * 0.11 + 1.7) * 1.2 + 1.6) * 1.3 * Math.max(0.6, s)));
+      for (let q = 0; q <= crest; q++) put(px, py - q, FO[q === crest ? 5 : q >= crest - 1 ? 4 : 3]);
+      if (hash2(X, 3, 9) < 0.2) { put(px, py - crest - 2, FO[5]); if (hash2(X, 4, 9) < 0.5) put(px + 1, py - crest - 3, FO[4]); }
+      for (let q = 1; q <= 3; q++) put(px, py + q, FO[q === 1 ? 5 : q === 2 ? 3 : 2]);
+      if (X % Math.max(4, L(8)) === 0) foamPts.push([px, py]);
     }
-
+    const mxy = [mx, my];
     /* ================= cizalla por columnas y composición ================= */
     const lift = Math.round(A * (TW - 1));
     const dyAt = (px) => -Math.round(A * (TW - 1 - px));
@@ -13901,7 +13888,7 @@ const R2PLANT = (() => {
     };
     for (const n in anchors) { const [a, b] = tf(anchors[n][0], anchors[n][1]); info.anchors[n] = { x: a, y: b }; }
     info.halo = permHalo(info.perm, info.permR);
-    void permA; void permC; void brine; void frontFoot;
+    info.haloSea = info.sea.length ? permHalo(info.sea, info.sea.map(() => S(3)), '#11bedd', '#c8f6ff') : null;
     return info;
   }
 
@@ -13963,57 +13950,52 @@ const R2PLANT = (() => {
   const _strips = new Map();
   function plumeStrip(o = {}) {
     const mode = o.mode || 'under', n = o.n || 16, s = o.s || 1;
-    const w = o.w || Math.round((mode === 'under' ? 120 : 64) * s), h = o.h || Math.round((mode === 'under' ? 64 : 26) * s);
+    const w = o.w || Math.round((mode === 'under' ? 130 : 64) * s), h = o.h || Math.round((mode === 'under' ? 64 : 26) * s);
     const key = [mode, n, w, h, o.seed || 1, o.bed || 0, s, o.k || 0].join('|'); let st = _strips.get(key); if (st) return st;
-    const r = RNG(o.seed || 7), M = o.count || Math.round((mode === 'under' ? 170 : 90) * Math.max(0.6, s));
+    const r = RNG(o.seed || 7), M = o.count || Math.round((mode === 'under' ? 340 : 150) * Math.max(0.5, s));
     const bed = o.bed ?? (h - 3), surf = o.surf ?? Math.round(4 * s);
-    // colores: chorro saturado → magenta → violeta → azul (dilución); con bruma k
-    const hz = (c) => V.hzc(c, o.k || 0);
-    const COLS = [hz('#fff0fc'), hz('#ff9ae6'), hz('#ff48d2'), hz('#e830b8'), hz('#c42aa0'), hz('#9a2a92'), hz('#793b82'), hz('#5a3c9a'), hz('#4a4cae')];
+    const hz = (c) => U(V.hzc(c, o.k || 0));
+    // chorro saturado → magenta → violeta → azul (dilución)
+    const COLS = [hz('#fff2fc'), hz('#ffb0ec'), hz('#ff5ad8'), hz('#f22ec4'), hz('#d42ab0'), hz('#b0309e'), hz('#8a3490'), hz('#6a3c9c'), hz('#5248aa'), hz('#4a5cb6')];
     const parts = [];
-    for (let i = 0; i < M; i++) parts.push({ b: i / M, vx: (0.55 + r() * 0.75) * (mode === 'under' ? 34 : 26) * s, vy0: (r() - 0.65) * 10 * s, sp: r(), ph: r() * TAU, sz: r() });
+    for (let i = 0; i < M; i++) parts.push({ b: r(), vx: (0.35 + r() * 0.9) * 30 * s, vy0: (r() - 0.3) * 14 * s, sp: r(), ph: r() * TAU, sz: r(), dr: (r() - 0.5) * 2 });
     const P_ = 2.4; // periodo del bucle (s)
+    const g = 70 * s, tBed = (p) => Math.sqrt(2 * Math.max(4, bed - p.sp * 7 * s) / g);
     st = V.strip(n, w, h, (pb, f) => {
       const tt = (f / n) * P_;
-      // cuerpo continuo y translúcido de la pluma (capa densa que se pega al fondo)
       if (mode === 'under') {
+        // capa densa que se pega al fondo y se aleja diluyéndose
         for (let x = 0; x < w; x++) {
-          const u = x / w, top = Math.round(bed - 4 - u * 8 * s - Math.sin(x * 0.2 + f * 0.4) * 1.2), thick = Math.round((3 + u * 9) * s);
-          for (let y = top; y < Math.min(h, top + thick); y++) {
-            const a = (0.34 - u * 0.24) * (1 - (y - top) / (thick + 2) * 0.4);
-            V.blend(pb, x, y, U(u < 0.35 ? COLS[4] : u < 0.7 ? COLS[6] : COLS[7]), a);
-          }
+          const u = x / w, top = Math.round(bed - (2 + u * 7) * s - Math.sin(x * 0.18 + f * 0.39) * 1.3), thick = Math.round((3 + u * 8) * s);
+          for (let y = Math.max(0, top); y < Math.min(h, top + thick); y++) V.blend(pb, x, y, COLS[u < 0.3 ? 4 : u < 0.6 ? 6 : 8], (0.42 - u * 0.3) * (1 - (y - top) / (thick + 2) * 0.5));
         }
-        // chorro vertical denso bajo la boca
-        for (let y = 0; y < bed; y++) for (let x = 0; x < Math.round(7 * s); x++) {
-          const u = y / bed, xx = Math.round(x + u * 10 * s + Math.sin(y * 0.4 + f) * 0.8);
-          V.blend(pb, xx, y, U(u < 0.3 ? COLS[2] : COLS[4]), 0.55 - u * 0.3);
+        // cono del chorro que cae desde la boca hasta el lecho
+        for (let y = 0; y < bed; y++) {
+          const u = y / bed, x0 = Math.round(u * u * 16 * s), x1 = Math.round(6 * s + u * 26 * s + Math.sin(y * 0.3 + f * 0.8) * 1.5);
+          for (let x = x0; x <= x1; x++) V.blend(pb, x, y, COLS[u < 0.25 ? 3 : u < 0.6 ? 4 : 5], 0.5 - u * 0.28);
         }
       } else {
-        // abanico en la superficie que se aleja y diluye
         for (let x = 0; x < w; x++) {
           const u = x / w, half = Math.round((1.5 + u * 6) * s), cy = surf + Math.round(u * 5 * s);
-          for (let y = cy - half; y <= cy + half; y++) V.blend(pb, x, y, U(u < 0.4 ? COLS[3] : u < 0.75 ? COLS[5] : COLS[7]), (0.5 - u * 0.4) * (1 - Math.abs(y - cy) / (half + 1)));
+          for (let y = cy - half; y <= cy + half; y++) V.blend(pb, x, y, COLS[u < 0.4 ? 3 : u < 0.75 ? 5 : 7], (0.55 - u * 0.42) * (1 - Math.abs(y - cy) / (half + 1)));
         }
       }
       for (const p of parts) {
         const age = ((tt - p.b * P_) % P_ + P_) % P_, a = age / P_;
         let x, y;
         if (mode === 'under') {
-          const g = 60 * s, vy = p.vy0 + g * age;
-          y = Math.min(bed - p.sp * 6 * s, p.vy0 * age + 0.5 * g * age * age);
-          const vxEff = p.vx * Math.exp(-age * 0.9);
-          x = (p.vx / 0.9) * (1 - Math.exp(-age * 0.9)) + (y >= bed - p.sp * 6 * s - 0.5 ? (age - Math.sqrt(2 * bed / g)) * 6 * s : 0);
-          x += Math.sin(p.ph + age * 3) * (1 + a * 4) * s; void vy; void vxEff;
-          if (y >= bed - p.sp * 6 * s - 0.5) y += Math.sin(p.ph + age * 2) * 1.2;
+          const tb = tBed(p);
+          if (age < tb) { y = p.vy0 * age * 0.3 + 0.5 * g * age * age; x = p.vx * age * (1 - age / (tb * 2.4)) + Math.sin(p.ph + age * 4) * (0.6 + a * 2) * s; }
+          else { const q = age - tb; y = bed - p.sp * 7 * s + Math.sin(p.ph + q * 2) * 1.2 - q * 2 * s; x = p.vx * tb * 0.6 + (10 + p.sp * 18) * s * q + p.dr * q * 6 * s; }
+          y = Math.max(0, Math.min(h - 1, y));
         } else {
-          x = p.vx * age * (1 - a * 0.4); y = surf + (p.vy0 + 3) * age * 0.6 + Math.sin(p.ph + age * 3) * (0.5 + a * 3) * s + (p.sp - 0.5) * a * 8 * s;
-          if (age < 0.25) y = Math.min(y, surf - (0.25 - age) * 10 * s + 3);
+          x = p.vx * age * (1 - a * 0.4); y = surf + (p.vy0 * 0.2 + 3) * age * 0.6 + Math.sin(p.ph + age * 3) * (0.5 + a * 3) * s + (p.sp - 0.5) * a * 9 * s;
         }
-        const ci = clamp(Math.floor(a * 7.5 + p.sp * 1.2) + (p.sz < 0.12 && a < 0.35 ? -2 : 0), 0, COLS.length - 1);
-        const alpha = clamp(1.05 - a * 0.85, 0.12, 1);
-        const sz = a < 0.3 ? (p.sz > 0.5 ? 2 : 1) + (s > 0.8 ? 1 : 0) : a < 0.65 ? (p.sz > 0.4 ? 2 : 1) : 1;
-        for (let yy = 0; yy < sz; yy++) for (let xx = 0; xx < sz + (a > 0.5 ? 1 : 0); xx++) V.blend(pb, Math.round(x) + xx, Math.round(y) + yy, U(COLS[ci]), alpha);
+        const ci = clamp(Math.floor(a * 9 + p.sp * 0.8) + (p.sz < 0.14 && a < 0.3 ? -2 : 0), 0, COLS.length - 1);
+        const alpha = clamp(1.15 - a * 0.95, 0.15, 1);
+        const sz = a < 0.25 ? (p.sz > 0.4 ? 3 : 2) : a < 0.55 ? (p.sz > 0.35 ? 2 : 1) : (p.sz > 0.7 ? 2 : 1);
+        const sw = Math.max(1, Math.round(sz * Math.min(1.2, s))), sh = Math.max(1, Math.round((a > 0.5 ? sz - 1 : sz) * Math.min(1.2, s)) || 1);
+        for (let yy = 0; yy < sh; yy++) for (let xx = 0; xx < sw + (a > 0.5 ? 1 : 0); xx++) V.blend(pb, Math.round(x) + xx, Math.round(y) + yy, COLS[ci], alpha);
       }
     });
     st.mode = mode; _strips.set(key, st); return st;
@@ -14031,7 +14013,10 @@ const R2PLANT = (() => {
   function drawFx(g, I, ox, oy, t, o = {}) {
     if (!I) return;
     // halo pulsante del permeado (1 drawImage, modo 'lighter')
-    if (I.halo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.62 + 0.28 * Math.sin(t * 2.4); g.drawImage(I.halo.c, I.halo.x + ox, I.halo.y + oy); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    g.globalCompositeOperation = 'lighter';
+    if (I.halo) { g.globalAlpha = 0.66 + 0.3 * Math.sin(t * 2.4); g.drawImage(I.halo.c, I.halo.x + ox, I.halo.y + oy); }
+    if (I.haloSea) { g.globalAlpha = 0.32 + 0.1 * Math.sin(t * 1.7 + 1); g.drawImage(I.haloSea.c, I.haloSea.x + ox, I.haloSea.y + oy); }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     // chevrones: permeado blanco 20 px/s, agua de mar y pretratada más tenues, energía amarilla
     if (o.chev !== false) {
       for (const p of I.perm) drawChevrons(g, p, ox, oy, t, { col: '#ffffff', speed: 20, gap: Math.max(7, Math.round(11 * I.s)), bold: I.s >= 0.8 });
@@ -22794,7 +22779,7 @@ const SCATitleArt = (() => {
   const CLIFF_X1 = 220;         // borde del acantilado
   const CLIFF_Y = 254;          // línea de paso de Amaya
   const WY = 300;               // línea de agua del corte submarino
-  const PLANT_X = 214, PLANT_Y = 132, PLANT_LY = 150; // SYNARA (plano local → pantalla y = LY + y; pie a y = 282)
+  const PLANT_RX = 466, PLANT_S = 0.92, PLANT_LY = 110; // SYNARA (R2PLANT): pie frontal derecho en (PLANT_RX, WY); plano desde y = PLANT_LY
 
   /** Águila grande (4 cuadros, 31×15) con plumas primarias abiertas */
   function eagleStrip() {
@@ -22993,40 +22978,21 @@ const SCATitleArt = (() => {
         g.globalAlpha = 1;
       },
     });
-    /* ---------------- SYNARA: planta desaladora de plano medio (SCAKit.heroPlant) ---------------- */
-    B.vplane(0, PLANT_LY, 170, (pb) => {
-      const P = SCAKit.heroPlant(pb, PLANT_X, PLANT_Y, { k: 0, wp: 246 });
+    /* ---------------- SYNARA: planta desaladora protagonista en 3/4 (R2PLANT.hero, 17s) ---------------- */
+    B.vplane(0, PLANT_LY, WY - PLANT_LY + 16, (pb) => {
+      const P = R2PLANT.hero(pb, PLANT_RX, WY - PLANT_LY, { s: PLANT_S, k: 0 });
       const L = PLANT_LY, Aq = P.anchors;
-      FX.perm.push(P.perm.map(([x, y]) => [x, y + L]), P.perm2.map(([x, y]) => [x, y + L]));
-      FX.feed = P.feed.map(([x, y]) => [x, y + L]);
-      for (const [x, y, c] of P.leds) FX.leds.push([x, y + L, c]);
-      for (const [x, y, r] of P.glows) FX.pglow.push([x, y + L, r]);
-      FX.foam = [{ x0: PLANT_X - 4, x1: P.x1 + 2, y: PLANT_Y + L + 1 }];
+      A.plant = P;
       A.labels.push(
-        { x: Aq.captacion.x - 2, y: L + Aq.captacion.y - 4, title: 'CAPTACIÓN', kind: 'water', ax: Aq.captacion.x, ay: L + Aq.captacion.y + 6 },
-        { x: Aq.pretrat.x + 8, y: L + Aq.pretrat.y - 2, title: 'PRETRATAMIENTO', kind: 'water', ax: Aq.pretrat.x, ay: L + Aq.pretrat.y + 8 },
-        { x: Aq.membranas.x - 8, y: L + Aq.membranas.y + 2, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
-        { x: Aq.potable.x - 14, y: L + Aq.potable.y - 22, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x + 10, ay: L + Aq.potable.y + 6 },
+        { x: Aq.captacion.x + 2, y: L + Aq.captacion.y - 4, title: 'CAPTACIÓN', kind: 'water', ax: Aq.captacion.x, ay: L + Aq.captacion.y + 4 },
+        { x: Aq.pretrat.x - 4, y: L + Aq.pretrat.y - 4, title: 'PRETRATAMIENTO', kind: 'water', ax: Aq.pretrat.x, ay: L + Aq.pretrat.y + 4 },
+        { x: Aq.membranas.x, y: L + Aq.membranas.y - 2, title: 'MEMBRANAS', kind: 'water', ax: Aq.membranas.x, ay: L + Aq.membranas.y + 6 },
+        { x: Aq.potable.x - 46, y: L + Aq.potable.y - 8, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x - 10, ay: L + Aq.potable.y + 6 },
       );
-      A.brineX = P.brine.x; A.intakeX = P.intake.x;
-      A.labels.push({ x: P.brine.x - 34, y: WY + 54, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine' });
-    }, {
-      dyn: (g) => {
-        const t = Game.time;
-        for (const [x, y, r] of FX.pglow) V.drawGlow(g, x, y, r, '#48b6ec', 0.35 + 0.2 * Math.sin(t * 2.4 + x));
-        // tubería de permeado: núcleo cian intenso con halo de 1 px y chevrones blancos a 20 px/s (STYLE LOCK §12)
-        for (const P of FX.perm) for (let k = 0; k + 1 < P.length; k++) {
-          const [x0, y0] = P[k], [x1, y1] = P[k + 1], ax = Math.round(Math.min(x0, x1)), ay = Math.round(Math.min(y0, y1)), lw = Math.round(Math.abs(x1 - x0)) + 1, lh = Math.round(Math.abs(y1 - y0)) + 1;
-          g.globalAlpha = 0.3; g.fillStyle = '#7ff0ff'; g.fillRect(ax - 2, ay - 2, lw + 4, lh + 4);
-          g.globalAlpha = 1; g.fillStyle = '#22dbe7'; g.fillRect(ax - 1, ay - 1, lw + 2, lh + 2);
-          g.fillStyle = '#a6f4ff'; if (lw >= lh) g.fillRect(ax - 1, ay - 1, lw + 2, 1); else g.fillRect(ax - 1, ay - 1, 1, lh + 2);
-        }
-        for (const P of FX.perm) V.drawFlow(g, P, 0, 0, t, { col: '#ffffff', speed: 20, gap: 8 });
-        V.drawFlow(g, FX.feed, 0, 0, t, { col: '#9cd8f8', speed: 10, gap: 5 });
-        for (const [x, y, c] of FX.leds) if (Math.floor(t * 1.6 + x * 0.1) % 2) { g.fillStyle = c; g.fillRect(x, y, 1, 1); }
-        SCAKit.foam(g, FX.foam, t);
-      },
-    });
+      A.mouth = { x: P.mouth.x, y: L + P.mouth.y };
+      A.labels.push({ x: P.mouth.x - 52, y: WY + 34, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: P.mouth.x - 22, ay: WY + 22 });
+    }, { dyn: (g) => R2PLANT.drawFx(g, A.plant, 0, PLANT_LY, Game.time, {}) });
+    A.plume = R2PLANT.plumeStrip({ mode: 'under', s: 1, w: 150, h: 62, bed: 50, seed: 11 });
     /* ---------------- corte submarino (kit PFWater con mundo ficticio) ---------------- */
     const bedAt = (x) => Math.round(352 - Math.max(0, 1 - (x - 230) / 120) * 18 + Math.sin(x * 0.05) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
     const fakeW = {
@@ -23092,8 +23058,8 @@ const SCATitleArt = (() => {
     // corte submarino + pluma de salmuera + cresta
     A.wsc.world.ps = ps || NOPS;
     PFWater.renderBack(g, A.wsc, A.water);
-    drawUnderPipes(g, A, t);
     PFWater.renderFront(g, A.wsc, A.water);
+    drawUnderPipes(g, A, t);
     // etiquetas científicas
     for (const L of A.labels) WorldLabels.drawOne(g, L, { x: 0, y: 0 }, null);
     // acantilado
@@ -23112,37 +23078,14 @@ const SCATitleArt = (() => {
     g.drawImage(A.clumpR, W - 104, H - 58);
     V.drawMotes(g, 18, t, 11, { y0: 120, y1: 300 });
   }
-  /** Tuberías sumergidas y pluma de salmuera (sobre el corte submarino) */
+  /** Pluma de salmuera bajo la boca del emisario: chorro denso y saturado que cae, se hunde hasta el lecho y se diluye */
   function drawUnderPipes(g, A, t) {
-    const bx = A.brineX, ix = A.intakeX;
-    // (FIXUI SU-12) emisario de salmuera: baja hasta el lecho y corre por el fondo hasta un difusor de 4 bocas
-    const RY = WY + 42; // tramo horizontal sobre el lecho
-    const BR = ['#06081a', '#141a32', '#262c48', '#3a405d', '#555a78', '#7a7e9e', '#262c48'];
-    for (let q = 0; q < 7; q++) { g.fillStyle = BR[[1, 4, 5, 3, 2, 1, 0][q]]; g.fillRect(bx - 3 + q, WY - 6, 1, RY - WY + 6); g.fillRect(bx - 3, RY + q, 66, 1); }
-    g.fillStyle = '#7a7e9e'; g.fillRect(bx - 4, WY + 6, 9, 2); g.fillRect(bx - 4, RY - 10, 9, 2);
-    for (let k = 0; k < 4; k++) { const px = bx + 12 + k * 13; g.fillStyle = '#3a405d'; g.fillRect(px, RY - 4, 3, 4); g.fillStyle = '#7a7e9e'; g.fillRect(px - 1, RY - 5, 5, 1); g.fillStyle = '#e07ecf'; g.fillRect(px + 1, RY - 6, 1, 1); }
-    // capa densa: la salmuera, más pesada que el agua de mar, se extiende pegada al fondo (bandas planas)
-    g.globalAlpha = 0.22; g.fillStyle = '#c244a2'; g.fillRect(bx + 10, RY + 4, 120, 4);
-    g.globalAlpha = 0.14; g.fillRect(bx + 24, RY + 1, 116, 3); g.globalAlpha = 1;
-    // pluma magenta: cada chorro sube por su impulso, se curva con la corriente, cae y se esparce por el lecho
-    for (let i = 0; i < 36; i++) {
-      const k = i % 4, u = ((t * 0.2 + i / 36 + k * 0.07) % 1);
-      const x0 = bx + 13 + k * 13;
-      const rise = Math.sin(Math.PI * Math.min(1, u * 1.7)) * (u < 0.59 ? 11 : 0);
-      const px = x0 + u * 34 + Math.sin(i * 1.7 + t * 1.3) * 1.5;
-      const py = u < 0.59 ? RY - 6 - rise : RY - 2 + (u - 0.59) * 7 + Math.sin(i + t * 2) * 0.8;
-      const sz = u < 0.5 ? 3 : 2, a = 1 - u * 0.75;
-      g.globalAlpha = 0.5 * a; g.fillStyle = '#f7a8e0'; g.fillRect(Math.round(px) - 1, Math.round(py) - 1, sz + 2, sz + 2);
-      g.globalAlpha = a; g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2'; g.fillRect(Math.round(px), Math.round(py), sz, sz);
-    }
-    g.globalAlpha = 1;
-    // toma: tubería azul (5 px) hasta el cabezal con rejilla sobre zapata
-    const FE = ['#0e2a48', '#4a9ad0', '#8cc8ec', '#2a72aa', '#1a4a78'];
-    for (let q = 0; q < 5; q++) { g.fillStyle = FE[q]; g.fillRect(ix - 2 + q, WY - 6, 1, 30); }
-    g.fillStyle = '#163e66'; g.fillRect(ix - 9, WY + 24, 19, 9);
-    g.fillStyle = '#31b4e2'; g.fillRect(ix - 9, WY + 24, 19, 1);
-    g.fillStyle = '#7fd8f6'; for (let k = 0; k < 6; k++) g.fillRect(ix - 8 + k * 3, WY + 26, 1, 6);
-    g.fillStyle = '#5a5658'; g.fillRect(ix - 12, WY + 33, 25, 3);
+    if (!A.mouth) return;
+    // capa densa en el lecho (más pesada que el agua de mar): bandas planas que se aclaran al diluirse
+    const bx = A.mouth.x, RY = WY + 50;
+    g.globalAlpha = 0.2; g.fillStyle = '#c244a2'; g.fillRect(bx + 4, RY - 2, 120, 4);
+    g.globalAlpha = 0.12; g.fillStyle = '#793b82'; g.fillRect(bx + 30, RY - 5, 110, 3); g.globalAlpha = 1;
+    R2PLANT.drawPlume(g, A.plume, bx - 2, A.mouth.y - 2, t);
   }
   let _eagle = null;
   function eagle() { return _eagle || (_eagle = eagleStrip()); }
