@@ -135,6 +135,8 @@ LEVELS[7] = {
     D.flows.push({ pts: [[698, 204], [698, 140], [1236, 140]], kind: 'power', rate: (sc) => on(sc) ? 1 : 0 });
     /* ===== 4. NAVE DE ELECTROLIZADORES (756–1240) ===== */
     const sh = H2.shed(pb, 756, 1240, yb, 118, [760, 917, 1067, 1217], 'NAVE DE ELECTROLIZADORES');
+    // el rótulo horneado de la nave no debe quedar tapado por etiquetas (las del panorama lo esquivan)
+    { const tw = PFK.measure('NAVE DE ELECTROLIZADORES', { font: 'main', bold: true }) + 16; LEVELS[7].labelAvoid = [{ x: Math.round(998 - tw / 2), y: 116, w: tw, h: 14 }]; }
     for (const [x, y] of sh.lamps) D.glows.push({ x, y: y + 2, r: 12, col: '#fff2d0', a: 0.26, mode: 'steady' });
     for (const [x, y] of sh.beacons) D.glows.push({ x, y, r: 6, col: '#ffb93b', a: 0.7, mode: 'blink', hz: 1.6, on: (sc) => !!sc.state.leak, core: '#fff2b0' });
     // colector de agua ultrapura tras los plintos (se ve en los huecos)
