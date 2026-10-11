@@ -28,7 +28,7 @@
    ===================================================================== */
 const R2TERRAIN_Rock = (() => {
   const K = PFK;
-  const LV = (() => { const v = [-0.56, -0.66, 0.5], m = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / m); })();
+  const LV = (() => { const v = [-0.45, -0.8, 0.4], m = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / m); })();
   const LXY = Math.hypot(LV[0], LV[1]), SDX = LV[0] / LXY, SDY = LV[1] / LXY, SLOPE = LV[2] / LXY;
   const NONE = -999;
   const _r17 = new Map();
@@ -62,9 +62,11 @@ const R2TERRAIN_Rock = (() => {
       m.c0 = cols.length;
       for (let cx = x; cx < x + mw;) {
         let cw = r.int(cMin, cMax); if (x + mw - (cx + cw) < cMin) cw = x + mw - cx;
-        const br = []; let d = r.int(10, 34);
-        while (d < h + 40) { br.push({ d, tilt: (r() - 0.5) * 0.5, off: (r() - 0.5) * 5, bt: r.int(2, 5), bb: r.int(1, 3), joint: r() < 0.85, iL: r.int(0, 2), iR: r.int(0, 2), rc: r.int(2, 6), jw: r() < 0.45 ? 2 : 1 }); d += r.int(18, 50); }
-        cols.push({ i: cols.length, x0: cx, x1: cx + cw, m, pro: (r() - 0.5) * 4.2, bl: r.int(2, 6), brw: r.int(1, 4), sd: r.int(1, 1e6), cap: r.int(2, 9), fused: r() < 0.3, br, off0: (r() - 0.5) * 3, hang: r() < 0.16 });
+        // bloques escalonados: cada bloque inferior sobresale un poco más (vista en 3/4 desde arriba: se ven sus
+        // cabezas iluminadas); algunos retroceden (voladizo con sombra arrojada)
+        const br = []; let d = r.int(10, 34), acc = 0;
+        while (d < h + 40) { acc += r() < 0.18 ? -(1.5 + r() * 2) : 0.4 + r() * 2.2; br.push({ d, tilt: (r() - 0.5) * 0.5, off: acc, bt: r.int(2, 5), bb: r.int(1, 3), joint: r() < 0.85, iL: r.int(0, 2), iR: r.int(0, 2), rc: r.int(2, 6), jw: r() < 0.45 ? 2 : 1 }); d += r.int(18, 50); }
+        cols.push({ i: cols.length, x0: cx, x1: cx + cw, m, pro: (r() - 0.5) * 4.2, bl: r.int(2, 6), brw: r.int(1, 3), sd: r.int(1, 1e6), cap: r.int(2, 9), fused: r() < 0.3, br, off0: (r() - 0.5) * 3, hang: r() < 0.16 });
         cx += cw;
       }
       m.c1 = cols.length;
@@ -145,10 +147,10 @@ const R2TERRAIN_Rock = (() => {
           const e = (ex < rc && ey < rc) ? rc - Math.hypot(rc - ex, rc - ey) : Math.min(ex, ey);
           if (e <= 0.35) { hg -= 5.5 + Math.min(2, -e) * 0.6; fl = fl || 1; }
           else {
-            const Rt = (b ? b.bt * 2.4 : 4) * (1.25 - u * 0.7) + 1.5, Rb = (nb ? nb.bb : 2) + 1.2;
+            const Rt = Math.min(bh * (0.22 + (b ? b.bt : 3) * 0.06), 22) * (1.25 - u * 0.65) + 1.5, Rb = (nb ? nb.bb : 2) + 0.8;
             const Rl = c.bl + (mL ? 2 : 0) + 1, Rr = c.brw + (mR ? 3 : 0) + 1;
             const top_ = ey <= ex, R = top_ ? (eyT <= eyB ? Rt : Rb) : (exL <= exR ? Rl : Rr);
-            if (e < R) { const q = R - e; hg -= q * q / R * (top_ && eyT <= eyB ? 1.0 : (top_ ? 1.6 : (exL <= exR ? 1.5 : 1.25))); }
+            if (e < R) { const q = R - e; hg -= q * q / R * (top_ && eyT <= eyB ? 1.15 : (top_ ? 1.6 : (exL <= exR ? 1.5 : 1.25))); }
           }
           // esquirlas: planos inclinados en celdas de Voronoi (facetas)
           if (chipW) {
@@ -201,7 +203,7 @@ const R2TERRAIN_Rock = (() => {
       let rs = 0, rc = 0;
       for (let x = 0; x < w; x++) { const v = H[y * w + x]; if (v > NONE) { rs += v; rc++; } S[(y + 1) * SW + x + 1] = S[y * SW + x + 1] + rs; C[(y + 1) * SW + x + 1] = C[y * SW + x + 1] + rc; }
     }
-    const buf = new Uint32Array(N), lip = U(o.lip || '#fde3a8');
+    const buf = new Uint32Array(N), lip = U(o.lip || '#fde3a8'), DBG = o.debug ? { lam: new Float32Array(N), sh: new Float32Array(N), ao: new Float32Array(N), t: new Float32Array(N) } : null;
     const L0 = LV[0], L1 = LV[1], L2 = LV[2];
     for (let y = 0; y < h; y++) {
       const ya = Math.max(0, y - 4), yb = Math.min(h, y + 5);
@@ -223,7 +225,7 @@ const R2TERRAIN_Rock = (() => {
         const mean = cnt ? (S[yb * SW + xb] - S[ya * SW + xb] - S[yb * SW + xa] + S[ya * SW + xa]) / cnt : h0;
         const ao = Math.min(0.2, Math.max(0, mean - h0) * 0.028);
         const d = y - gyA[x], fl = F[i];
-        let t = A[i] * (0.24 + 0.8 * lam * (1 - 0.75 * sh)) - ao - clamp((d - 80) / 170, 0, 0.28);
+        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 80) / 170, 0, 0.28);
         t += (hash2((bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * 0.055;
         if (fl === 1 || fl === 2) t = Math.min(t, fl === 2 ? 0.13 + (d < 8 ? 0.2 : 0) : 0.24);
         const k = clamp(Math.round(t * 16), 1, fl === 3 ? 16 : 14);
@@ -231,9 +233,10 @@ const R2TERRAIN_Rock = (() => {
         let u = cool > 0.05 ? K.mixU(RR.lit[k], RR.sh[k], cool) : RR.lit[k];
         if (fl === 3 && d <= 1 && k > 11) u = K.mixU(u, lip, 0.6);
         buf[i] = u;
+        if (DBG) { DBG.lam[i] = lam; DBG.sh[i] = sh; DBG.ao[i] = ao; DBG.t[i] = t; }
       }
     }
-    return { bx0, w, h, buf, ms, cols, gyA, H };
+    return { bx0, w, h, buf, ms, cols, gyA, H, F, DBG };
   }
 
   /** Búfer del tramo 'cliff' (perezoso) */
