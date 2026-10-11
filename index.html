@@ -5491,10 +5491,11 @@ const KIRU_EYE_TPL = {
 /* KIRU flota a la altura de la cabeza de Amaya (como en la referencia): el hueco de levitación
    va en el ancla. Lienzo 60×72; pies del dibujo en y≈59; oy = 70 + KIRU_LIFT (altura de reposo).
    Kiru.render (30_world.js) lo baja hasta KIRU_LIFT_MOVE px al desplazarse. */
-const KIRU_LIFT = 48, KIRU_LIFT_MOVE = 32;
+const KIRU_LIFT = 48, KIRU_LIFT_MOVE = 32, R2CHARS_KIRU_PAD = 16;
 function renderKiru(anim, t, opts) {
   const M = charMats();
-  const R = new Rig(60, 72, { v2: true });
+  // r2-chars: lienzo ensanchado 16 px por detrás para que quepa la estela del propulsor
+  const R = new Rig(60 + R2CHARS_KIRU_PAD, 72, { v2: true });
   const S = Math.sin, C = Math.cos, P = TAU * t;
   const a = ANIM_ALIAS[anim] || anim;
   // flotación ±1,5 px; inclinación hacia delante al moverse
@@ -5511,12 +5512,15 @@ function renderKiru(anim, t, opts) {
     case 'sad': case 'worry': earA = 0.55; bob = Math.round(S(P) * 0.5) + 1; break;
     default: earTw = (t > 0.6 && t < 0.75) ? 1 : 0;
   }
+  // r2-chars: flotación con balanceo (las orejas y la cola van con retraso respecto al cuerpo)
+  let sway = 0;
+  if (a === 'idle' || a === 'talk' || a === 'scan') { sway = S(P + 1.2) * 0.9; earA += S(P - 1.1) * 0.08; tailA += S(P - 1.6) * 0.18; }
   const mood = opts.expr || (a === 'celebrate' ? 'alegre' : a === 'scan' ? 'focused' : a === 'hit' ? 'alarmado' : a === 'sad' ? 'culpable' : 'curioso');
   const eyeMode = KIRU_EYES[mood] || 'open';
   // orejas caídas en culpa/tristeza, aplastadas atrás si hay alarma
   if (eyeMode === 'down' || eyeMode === 'guilty' || eyeMode === 'crying') earA = Math.max(earA, 0.6);
   if (eyeMode === 'big') earA = Math.min(earA, -0.15) + 0.35;
-  const hx = 31 + lean * 0.5, hy = 38 + bob + hop + Math.max(0, lean) * 0.5;
+  const hx = 31 + R2CHARS_KIRU_PAD + lean * 0.5 + sway, hy = 38 + bob + hop + Math.max(0, lean) * 0.5;
   // ---- orejas de zorro en aleta: marco gris, banda naranja→amarilla, panel solar cian con celdas
   const ear = (bx, by, ang, len, w, z, dark, grp) => {
     const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
@@ -5624,24 +5628,56 @@ function renderKiru(anim, t, opts) {
     }
     pb.set(rx2, ry2, '#fff4dc'); pb.set(rx2 + 1, ry2, '#dc8a1f');
   }, 100);
-  // estela de chispas cian al desplazarse (cuadros de walk/run), sin contorno
-  R.glow(pb => {
-    if (a === 'run' || a === 'walk') {
-      const n = a === 'run' ? 6 : 3;
-      for (let k = 0; k < n; k++) {
-        const ph = (t * (a === 'run' ? 2 : 1) + k / n) % 1;
-        const x = Math.round(hx - 10 - ph * 16), y = Math.round(hy + 21 + Math.sin(k * 2.3 + ph * 6) * 2 - ph * 3);
-        pb.set(x, y, ph < 0.4 ? '#e6fdff' : ph < 0.7 ? '#5ee1ef' : '#2aa9e3');
-        if (ph < 0.35) pb.set(x + 1, y, '#17f3f7');
-      }
-    }
-  }, 100);
+  // r2-chars: propulsor eléctrico (referencia): chorro dentado blanco-cian-azul que sale por detrás de
+  // las patas traseras; largo al correr, medio al andar, llama corta parpadeante en reposo; chispas sueltas.
+  R.glow(pb => R2CHARS_kiruThrust(pb, a, t, hx, hy, py, podTrail), 100);
   const pb = R.render({ env: opts.env, outlineColor: '#070813' });
   // sombra de contacto pequeña: KIRU vuela alto
   pb.anchors = { head: { x: hx, y: hy }, eye: { x: hx + 5, y: hy }, shadowR: 6 - Math.max(-1, Math.min(1, bob)) };
   return pb;
 }
-CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30, oy: 70 + KIRU_LIFT, shadowR: 6, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
+/** Chorro del propulsor de KIRU sobre el buffer (post-contorno, sin tramado; halo de 1 px translúcido) */
+function R2CHARS_kiruThrust(pb, a, t, hx, hy, py, podTrail) {
+  const fr = Math.floor(t * 8 + 1e-6), moving = a === 'run' || a === 'walk';
+  const len = a === 'run' ? 28 : a === 'walk' ? 18 : a === 'jump' ? 10 : 6;
+  const CORE = U('#ffffff'), HOT = U('#c4fbff'), MID = U('#17f3f7'), EDGE = U('#2aa9e3'), FAR = U('#1e6ab0');
+  const HALO = ((110 << 24) | (0xf3 << 16) | (0xe7 << 8) | 0x40) >>> 0; // cian translúcido (ABGR)
+  const put = (x, y, c, soft) => { if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) return; const i = y * pb.w + x; if (soft) { if (!(pb.data[i] >>> 24)) pb.data[i] = c; } else pb.data[i] = c; };
+  // emisor: entre la pata trasera y la cola, mirando atrás-abajo
+  // al moverse sale de la espalda (bajo la placa dorsal); en reposo, llama corta bajo la pata trasera
+  const ex = moving ? Math.round(hx - 12) : Math.round(hx - 11 - podTrail), ey = moving ? Math.round(hy + 15) : Math.round(py + 1);
+  let x = ex, y = ey;
+  for (let k = 0; k < len; k++) {
+    const f = k / len;
+    if (moving) { x -= 1; if (k > 1 && hash2(k >> 1, fr, 71) < 0.42) y += hash2(k, fr, 72) < 0.55 ? -1 : 1; if (k > 2 && y > ey + 3) y--; if (y < ey - 4) y++; }
+    else { y += 1; if (k > 1 && hash2(k, fr, 73) < 0.35) x += hash2(k, fr, 74) < 0.5 ? -1 : 1; }
+    const w = f < 0.3 ? 2 : f < 0.62 ? 1 : 0;
+    if (f > 0.75 && hash2(k, fr, 75) < 0.4) continue; // la punta se deshace en tramos
+    const core = f < 0.45 ? CORE : f < 0.7 ? HOT : MID;
+    put(x, y, core);
+    if (moving) {
+      if (w >= 1) { put(x, y - 1, f < 0.3 ? HOT : MID); put(x, y + 1, MID); }
+      if (w >= 2) { put(x, y + 1, f < 0.18 ? CORE : HOT); put(x, y + 2, MID); put(x, y - 2, EDGE); put(x, y + 3, EDGE); put(x, y - 3, HALO, 1); put(x, y + 4, HALO, 1); }
+      else if (w === 1) { put(x, y - 2, HALO, 1); put(x, y + 2, HALO, 1); }
+      else { put(x, y - 1, FAR, 1); }
+    } else {
+      if (w >= 1) { put(x - 1, y, MID); put(x + 1, y, MID); }
+      if (w >= 2) { put(x - 2, y, HALO, 1); put(x + 2, y, HALO, 1); }
+    }
+    // ramas del rayo al correr
+    if (a === 'run' && k > 6 && k < len - 4 && hash2(k, fr, 76) < 0.12) { const sy = hash2(k, fr, 77) < 0.5 ? -1 : 1; for (let j = 1; j <= 3; j++) put(x - j, y + sy * j, j < 2 ? MID : EDGE); }
+  }
+  // chispas sueltas
+  const n = a === 'run' ? 5 : a === 'walk' ? 3 : 2;
+  for (let k = 0; k < n; k++) {
+    const ph = (t * (moving ? 2 : 1) + k / n) % 1;
+    const sx = moving ? Math.round(ex - 4 - ph * (len + 6)) : Math.round(ex + (hash1(k, 9) - 0.5) * 8);
+    const sy = moving ? Math.round(ey + Math.sin(k * 2.3 + ph * 6) * 3 - ph * 2) : Math.round(ey + 3 + ph * 8);
+    put(sx, sy, ph < 0.4 ? CORE : ph < 0.7 ? MID : EDGE);
+    if (ph < 0.3) put(sx + 1, sy, HOT);
+  }
+}
+CHARS.kiru = { name: 'KIRU', render: renderKiru, ox: 30 + R2CHARS_KIRU_PAD, oy: 70 + KIRU_LIFT, shadowR: 6, warmAnims: ['idle', 'walk', 'run', 'jump', 'fall', 'talk'] };
 
 /* ------------------------------------------------------------------ */
 /* Peinados v1 (se conservan por compatibilidad)                         */
@@ -43913,7 +43949,7 @@ TESTS.charsheet = {
     const bg = q.get('bg') || 'grey', z = parseInt(q.get('z') || '1'), page = parseInt(q.get('page') || '0');
     const list = (q.get('anims') || CHARSHEET_ANIMS.join(',')).split(',').filter(a => ANIMS[a]);
     const c0 = SpriteCache.get(ch, 'idle', 0, {});
-    const cw = Math.round((q.get('cw') ? parseInt(q.get('cw')) : Math.min(c0.width, ch === 'kiru' ? 56 : c0.width > 100 ? 100 : 72)) * z);
+    const cw = Math.round((q.get('cw') ? parseInt(q.get('cw')) : Math.min(c0.width, ch === 'kiru' ? 72 : c0.width > 100 ? 100 : 72)) * z);
     const top = parseInt(q.get('crop') || (c0.height === 104 ? '18' : '0'));
     const rh = (c0.height - top) * z + 4;
     const rows = Math.max(1, Math.floor((H - 8) / rh));

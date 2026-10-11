@@ -49,7 +49,7 @@ TESTS.charsheet = {
     const bg = q.get('bg') || 'grey', z = parseInt(q.get('z') || '1'), page = parseInt(q.get('page') || '0');
     const list = (q.get('anims') || CHARSHEET_ANIMS.join(',')).split(',').filter(a => ANIMS[a]);
     const c0 = SpriteCache.get(ch, 'idle', 0, {});
-    const cw = Math.round((q.get('cw') ? parseInt(q.get('cw')) : Math.min(c0.width, ch === 'kiru' ? 56 : c0.width > 100 ? 100 : 72)) * z);
+    const cw = Math.round((q.get('cw') ? parseInt(q.get('cw')) : Math.min(c0.width, ch === 'kiru' ? 72 : c0.width > 100 ? 100 : 72)) * z);
     const top = parseInt(q.get('crop') || (c0.height === 104 ? '18' : '0'));
     const rh = (c0.height - top) * z + 4;
     const rows = Math.max(1, Math.floor((H - 8) / rh));
