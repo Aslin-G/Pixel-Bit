@@ -172,8 +172,9 @@ function pbClone(src) { const pb = new PixelBuffer(src.w, src.h); pb.data.set(sr
    boca al hablar · blush (0–2) · tear · sweat · pupil ('small').
    ===================================================================== */
 const PEXPR = {
-  neutral: { eye: 'open', brow: 'neutral', mouth: 'line', talk: 'talkS' },
-  smile: { eye: 'open', brow: 'neutral', mouth: 'smile', talk: 'open', blush: 1 },
+  // r2-chars: reposo cálido (sonrisa suave) y sonrisa abierta con dientes, como el retrato del HUD de la referencia
+  neutral: { eye: 'open', brow: 'neutral', mouth: 'smileS', talk: 'talkS' },
+  smile: { eye: 'open', brow: 'up', mouth: 'smileT', talk: 'open', blush: 1 },
   happy: { eye: 'happy', brow: 'up', mouth: 'grinS', talk: 'open', blush: 1 },
   joy: { eye: 'happy', brow: 'raised', mouth: 'grin', talk: 'grinT', blush: 2 },
   surprised: { eye: 'wide', brow: 'raised', mouth: 'o', talk: 'oT', pupil: 'small' },
@@ -361,11 +362,14 @@ const PMOUTH = {
     clench: ['KKKKKK', 'KwwwwK', 'KKKKKK'], side: ['...KK', '.KK..'], talkS: ['.KKK.', 'KmtmK', '.KKK.'], talkW: ['.KKKK.', 'KmmttK', 'K.KK.K'],
     open: ['KKKKKK', 'KmmmmK', 'KmttmK', '.KKKK.'], grinT: ['KKKKKKK', 'KwwwwwK', 'KmmtttK', 'KmttttK', '.KKKKK.'], oT: ['.KKK.', 'KmmmK', 'KmmmK', 'KmttK', '.KKK.'],
     shout: ['KKKKKK', 'KwwwwK', 'KmttmK', 'KwwwwK', '.KKKK.'],
+    // r2-chars: sonrisa abierta 3/4 (dientes superiores, comisuras arriba, labio inferior claro) y sonrisa suave
+    smileT: ['K.......K', '.KKKKKKK.', '.KwwwwwK.', '..KmmtK..', '...lll...'], smileS: ['K......K', '.KKKKKK.', '..llll..'],
   },
   B: {
     line: ['KK'], smile: ['K..K', '.KK.'], grinS: ['KKK', '.t.'], grin: ['KKKK', 'wtt.'], o: ['.K.', 'KmK', '.K.'], oSmall: ['KK'], frown: ['.KK.', 'K..K'],
     frownO: ['.KK.', 'KmmK'], wavy: ['K.K', '.K.'], wavyO: ['KmK', '.K.'], smirk: ['..K', 'KK.'], flat: ['KKK'], firm: ['KKK'], clench: ['KKK', 'www'], side: ['.KK'],
     talkS: ['KK', 'mt'], talkW: ['KKK', 'mtm'], open: ['KKK', 'mtm', '.K.'], grinT: ['KKKK', 'wttm', '.KK.'], oT: ['KK', 'mt', 'KK'], shout: ['KKK', 'mtm', 'www'],
+    smileT: ['K...K', '.Kww.', '..K..'], smileS: ['K..K', '.KK.'],
   },
 };
 function drawPMouth(pb, cx, cy, scale, kind, pal) {
@@ -410,35 +414,48 @@ function pkMixU(a, b, t) {
    Sombreado de cara por medialunas (luz arriba-derecha): base piel[4],
    sombra piel[3] a la izquierda/abajo, borde piel[2], brillos piel[5].
    ===================================================================== */
+const R2CHARS_TURN = 4.5;
 function phHead(def) {
   const HX = 60 + (def.dx || 0), HY = 42 + (def.dy || 0);
   const g = def.head || {};
-  const rx = g.rx ?? 26.5, ry = g.ry ?? 28.5, cy = g.cy ?? 0, chinY = g.chinY ?? 33, chinX = g.chinX ?? 4, jw = g.jawW ?? 0, jd = g.jawDrop ?? 0, ch = g.cheek ?? 0;
-  const jaw = [[-22 - jw, 8], [-16.5 - jw, 20 + jd * 0.6], [-8.5 - jw * 0.6, chinY - 5 + jd * 0.8], [-1 - jw * 0.3, chinY - 1.2 + jd], [chinX, chinY + jd], [chinX + 5.5, chinY - 2.2 + jd], [18.5 + ch * 0.5, 24 + jd * 0.6], [25.5 + ch, 13], [27.5 + ch * 0.6, 2], [26, -6], [-22, -6]].map(([x, y]) => [HX + x, HY + y]);
+  const rx = g.rx ?? 26.5, ry = g.ry ?? 28.5, cy = g.cy ?? 0, chinY = g.chinY ?? 33, chinX = (g.chinX ?? 4) + (def.turn ?? R2CHARS_TURN) * 0.9, jw = g.jawW ?? 0, jd = g.jawDrop ?? 0, ch = g.cheek ?? 0;
+  const tq = def.turn ?? R2CHARS_TURN; // giro 3/4: la mandíbula lejana se recoge hacia el mentón
+  const jaw = [[-22 - jw, 8], [-16.5 - jw, 20 + jd * 0.6], [-8.5 - jw * 0.6, chinY - 5 + jd * 0.8], [-1 - jw * 0.3, chinY - 1.2 + jd], [chinX, chinY + jd], [chinX + 5.5 - tq * 0.25, chinY - 2.2 + jd], [18.5 + ch * 0.5 - tq * 0.2, 24 + jd * 0.6], [25.5 + ch - tq * 0.3, 13], [27.5 + ch * 0.6 - tq * 0.1, 2], [26, -6], [-22, -6]].map(([x, y]) => [HX + x, HY + y]);
   const cran = SDF.ellipse(HX, HY + cy, rx, ry);
   const face = SDF.smoothUnion(g.soft ?? 4, cran, SDF.poly(jaw));
   const F = def.face || {};
   const ey = F.eyeY ?? 8;
+  // r2-chars: giro 3/4 por defecto (def.turn): los rasgos se desplazan hacia el lado lejano, el ojo
+  // lejano queda a ~3 px del contorno y la mejilla cercana se ensancha; la nariz y la boca giran más.
+  const T = def.turn ?? R2CHARS_TURN;
   return {
-    HX, HY, face, cran, rx, ry,
-    eyeN: [HX + (F.eyeNX ?? -7), HY + ey], eyeF: [HX + (F.eyeFX ?? 16), HY + ey - 0.5],
-    nose: [HX + (F.noseX ?? 7), HY + (F.noseY ?? 15)], mouth: [HX + (F.mouthX ?? 4), HY + (F.mouthY ?? 22)],
-    ear: [HX + (F.earX ?? -24), HY + (F.earY ?? 11)],
+    HX, HY, face, cran, rx, ry, turn: T,
+    eyeN: [HX + (F.eyeNX ?? -7) + T * 0.75, HY + ey], eyeF: [HX + (F.eyeFX ?? 16) + T * 0.85, HY + ey - 0.5],
+    nose: [HX + (F.noseX ?? 7) + T * 1.15, HY + (F.noseY ?? 15)], mouth: [HX + (F.mouthX ?? 4) + T * 1.0, HY + (F.mouthY ?? 22)],
+    ear: [HX + (F.earX ?? -24) - T * 0.15, HY + (F.earY ?? 11)],
   };
 }
 /** Sombreado de cara por medialunas + brillos */
 function phFaceShade(A, def) {
-  const F = A.face, sh = def.shadeK ?? 1;
+  const F = A.face, sh = def.shadeK ?? 1, T = A.turn || 0;
+  // r2-chars: sombreado suave en varios tonos: banda cálida de transición (piel + rubor) entre luz y sombra,
+  // sombra de la mejilla cercana bajo el pómulo y brillo en pómulo lejano, puente de la nariz y frente
+  const sk = def.M.skin.ramp, warm = mixHex(mixHex(sk[4], sk[3], 0.5), def.blush || '#ff8a6a', 0.18), warm2 = mixHex(sk[3], def.blush || '#ff8a6a', 0.12);
   return (x, y) => {
     let i = 4;
-    if (F(x - 4.2 * sh, y + 1.8 * sh) > -0.3) i = 3;
+    const dT = F(x - 4.2 * sh, y + 1.8 * sh);
+    if (dT > -0.3) i = 3;
     if (F(x - 2, y + 0.8) > 0) i = 2;
     if (i === 4) {
-      const fx = (x - (A.HX + 7)) / 11, fy = (y - (A.HY - 4)) / 6;
-      const cx = (x - (A.HX + 21)) / 3.4, cy = (y - (A.HY + 15)) / 5;
+      const fx = (x - (A.HX + 7 + T)) / 11, fy = (y - (A.HY - 4)) / 6;
+      const cx = (x - (A.HX + 21 + T * 0.4)) / 3.4, cy = (y - (A.HY + 15)) / 5;
       const nx = (x - (A.nose[0] - 1)) / 1.5, ny = (y - (A.nose[1] - 5)) / 4.5;
-      if (fx * fx + fy * fy < 1 || cx * cx + cy * cy < 1 || nx * nx + ny * ny < 1) i = 5;
-    }
+      if (fx * fx + fy * fy < 1 || cx * cx + cy * cy < 1 || nx * nx + ny * ny < 1) return 5;
+      if (dT > -1.6) return warm;
+      // hueco bajo el pómulo cercano (giro 3/4)
+      const qx = (x - (A.eyeN[0] - 7)) / 5.5, qy = (y - (A.eyeN[1] + 14)) / 4;
+      if (T && qx * qx + qy * qy < 1) return warm;
+    } else if (i === 3 && dT < 0.6) return warm2;
     return i;
   };
 }
@@ -579,14 +596,16 @@ PDEFS.amaya = () => {
       ], { z: 9.5, group: 'fly', base: 4, tex: null, cast: false, taper: 1, tip: 0.3 });
       // mechones que cruzan la frente (barrido hacia la izquierda) + mechones laterales largos
       const btx = PHAIR.tex(M, { whorl: [66, 8], step: sm ? 0.32 : 0.22, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: 0.06, ringMin: 3, streak: !sm });
+      // r2-chars: flequillo barrido en diagonal hacia el lado cercano (referencia), puntas que asoman sobre la frente
       PHAIR.clumps(P, M, sm ? [
-        [[60, 24], [54, 33], [47, 41], 5],
-        [[72, 24], [74, 32], [73, 39], 4.4],
+        [[74, 23], [62, 31], [48, 41], 5.2],
+        [[82, 25], [76, 33], [69, 39], 4.2],
       ] : [
-        [[60, 22], [55, 31], [47, 41], 5],
-        [[56, 24], [51, 31], [45, 36], 3.6],
-        [[66, 24], [65, 32], [61, 39], 4],
-        [[73, 24], [75, 31], [74, 38], 4.4],
+        [[74, 22], [64, 29], [53, 37], [45, 42], 5.2],
+        [[66, 22], [57, 29], [49, 35], 4.2],
+        [[81, 24], [76, 31], [69, 38], 4],
+        [[58, 23], [52, 28], [46, 32], 3.2],
+        [[87, 27], [84, 34], [80, 40], 3],
       ], { z: 40, group: 'bang', base: 3, tex: btx });
       PHAIR.clumps(P, M, [
         [[80, 25], [86, 35], [88, 47], [89, 58], [86, 68], 4.8],
@@ -660,7 +679,7 @@ function stampHumanFace(base, scale, E, talk, blink) {
     };
     const k = Math.min(1.3, bl > 1 ? 1.3 : bl);
     if (sm) { cheek(enx - 0.5, eny + 4, 2.4, 1.2, k); cheek(efx + 1.5, efy + 4, 1.3, 1.1, k * 0.8); }
-    else { cheek(enx - 1, eny + 8.5, 5 * (bl > 1 ? 1.15 : 1), 2.6, k); cheek(efx + 2.5, efy + 8, 2.8, 2.2, k * 0.85); if (bl > 1) for (const dx of [-3, 0, 3]) { const x = enx - 2 + dx, y = eny + 8; if (isFace(x, y)) pb.set(x, y + (dx === 0 ? 0 : 1), pkMixU(pb.get(x, y), bcU, 0.9)); } }
+    else { cheek(enx - 2, eny + 9, 6 * (bl > 1 ? 1.15 : 1), 3, k); cheek(efx + 2, efy + 8.5, 3.2, 2.5, k * 0.85); if (bl > 1) for (const dx of [-3, 0, 3]) { const x = enx - 2 + dx, y = eny + 8; if (isFace(x, y)) pb.set(x, y + (dx === 0 ? 0 : 1), pkMixU(pb.get(x, y), bcU, 0.9)); } }
   }
   // ojos
   const eo = Object.assign({ pupil: E.pupil }, def.eyeOpt || {});
@@ -693,7 +712,7 @@ function stampHumanFace(base, scale, E, talk, blink) {
   if (sm) pb.set(nx, ny, sk[2]);
   else { pb.set(nx, ny, sk[2]); pb.set(nx - 1, ny, sk[3]); pb.set(nx + 1, ny - 1, sk[3]); pb.set(nx + 1, ny - 3, sk[6]); }
   // boca
-  const mk = talk ? (E.talk || 'talkS') : E.mouth;
+  const mk = talk ? (E.talk || 'talkS') : (E.mouth === 'smileS' && def.neutralMouth) ? def.neutralMouth : E.mouth;
   const mpal = { K: def.mouthInk, m: def.mouthIn, t: def.tongue, w: '#fff4ea', l: sk[5], s: sk[3] };
   drawPMouth(pb, X(A.mouth[0]), Y(A.mouth[1]), scale, mk, mpal);
   // lágrimas y sudor
@@ -755,7 +774,7 @@ const Portraits = {
   /** Centro de la cara en el lienzo (c.faceX, c.faceY): para recortes 1:1 en la interfaz */
   anchor(c, id, scale) {
     const def = pdef(PDEFS[id] ? id : 'amaya'), sc = PSCALE[scale];
-    const f = def.faceAt || [66, 52];
+    const f = def.faceAt || [66 + (def.turn ?? R2CHARS_TURN) * 0.8, 52];
     c.faceX = Math.round((f[0] - sc.ox) * sc.S); c.faceY = Math.round((f[1] - sc.oy) * sc.S);
     return c;
   },
