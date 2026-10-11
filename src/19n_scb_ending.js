@@ -210,7 +210,7 @@ const SCBEnd = (() => {
     const PS = M.cold ? 0.7 : 0.62, PRX = M.cold ? 428 : 414, PWY = 147, PLN = 16;
     fx.r2plume = R2PLANT.plumeStrip({ mode: 'surface', s: M.mangrove ? 1.1 : 0.8, seed: 17, k: M.dust ? 0.12 : 0 });
     P(PLN, IH - PLN, (pb) => { fx.plant = R2PLANT.hero(pb, PRX, PWY - PLN, { s: PS, k: M.cold ? 0.08 : 0.04, from: 'intake', workers: !M.cold || true, lights: true }); }, {
-      tag: 'synara', dyn: (g) => R2PLANT.drawFx(g, fx.plant, 0, PLN, T(), { plume: fx.r2plume, plumeA: M.mangrove ? 1 : M.festive ? 0.6 : 0.8 }),
+      tag: 'synara', dyn: (g) => R2PLANT.drawFx(g, fx.plant, 0, PLN, T(), { plume: fx.r2plume, plumeA: M.mangrove ? 1 : M.festive ? 0.72 : 0.85 }),
     });
     /* ---------- barrio bajo con vecinos (plano medio) ---------- */
     P(108, 56, (pb, w, h) => {

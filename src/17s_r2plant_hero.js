@@ -511,6 +511,9 @@ const R2PLANT = (() => {
     box(EX, L(1), DY, L(9), L(4), L(12), flat(C.navy, 0.62, 0.86, 0.36, 0.05, 13));
     for (let q = 0; q < 3; q++) led(EX + L(2) + q * L(2), L(1), DY + L(9), ['#ffd84a', '#3fe0a0', '#ff5a4a'][q]);
     pow3.push([[EX + L(9), L(1), DY + L(10)], [PX + L(13), L(1), DY + L(10)], [PX + L(13), L(3), DY + L(10)]]);
+    // acometida eléctrica desde el borde izquierdo (subestación) por el frente de la cubierta hasta el armario
+    pow3.push([[DX0 + L(fromIntake ? 2 : 4), -L(1), DY + L(2)], [EX - L(2), -L(1), DY + L(2)], [EX - L(2), L(1), DY + L(2)], [EX - L(2), L(1), DY + L(6)]]);
+    // conductos eléctricos grafito (la energía se lee por su halo amarillo y sus chevrones en drawFx)
     for (const pl of pow3) pipe3(pl, 1, C.cable, { elbowRing: false, ink: C.cable[0] });
     /* ================= 10. SALMUERA (grafito-índigo, emisario con boca) ================= */
     const BRX = L(274), BRZ = -L(4);
@@ -569,6 +572,7 @@ const R2PLANT = (() => {
     for (const n in anchors) { const [a, b] = tf(anchors[n][0], anchors[n][1]); info.anchors[n] = { x: a, y: b }; }
     info.halo = permHalo(info.perm, info.permR);
     info.haloSea = info.sea.length ? permHalo(info.sea, info.sea.map(() => S(3)), '#11bedd', '#c8f6ff') : null;
+    info.haloPow = info.power.length ? permHalo(info.power, info.power.map(() => 1), '#ffd84a', '#fff4b0') : null;
     return info;
   }
 
@@ -747,13 +751,14 @@ const R2PLANT = (() => {
     g.globalCompositeOperation = 'lighter';
     if (I.halo) { g.globalAlpha = 0.66 + 0.3 * Math.sin(t * 2.4); g.drawImage(I.halo.c, I.halo.x + ox, I.halo.y + oy); }
     if (I.haloSea) { g.globalAlpha = 0.32 + 0.1 * Math.sin(t * 1.7 + 1); g.drawImage(I.haloSea.c, I.haloSea.x + ox, I.haloSea.y + oy); }
+    if (I.haloPow) { g.globalAlpha = 0.5 + 0.25 * Math.sin(t * 5.3); g.drawImage(I.haloPow.c, I.haloPow.x + ox, I.haloPow.y + oy); }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     // chevrones: permeado blanco 20 px/s, agua de mar y pretratada más tenues, energía amarilla
     if (o.chev !== false) {
       for (const p of I.perm) drawChevrons(g, p, ox, oy, t, { col: '#ffffff', speed: 20, gap: Math.max(7, Math.round(11 * I.s)), bold: I.s >= 0.8 });
       for (const p of I.sea) drawChevrons(g, p, ox, oy, t, { col: '#c8f6ff', speed: 14, gap: 12 });
       for (const p of I.pre) drawChevrons(g, p, ox, oy, t, { col: '#e8f4ff', speed: 12, gap: 13 });
-      g.globalAlpha = 0.9; for (const p of I.power) drawChevrons(g, p, ox, oy, t, { col: '#ffe14d', speed: 26, gap: 7 }); g.globalAlpha = 1;
+      for (const p of I.power) drawChevrons(g, p, ox, oy, t, { col: '#fff4b0', speed: 26, gap: 7, bold: I.s >= 0.8 });
     }
     // LED a 1–2 Hz y farolas
     for (const [x, y, c] of I.leds) if (Math.floor(t * 1.6 + x * 0.13) % 2) { g.fillStyle = c; g.fillRect(x + ox, y + oy, 1, 1); }
