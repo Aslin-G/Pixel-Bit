@@ -7051,6 +7051,12 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
   // abertura: T[u] = fila de la pestaña (abre en T+1), B[u] = última fila abierta
   const T = G.T.slice().map(v => v + (opt.lidDrop || 0)), Bt = G.B.slice().map(v => v - (opt.lidUp || 0)), top = Math.min(...G.T) + (opt.lidDrop || 0);
   const lid = (fn) => { for (let u = 0; u < Wd; u++) T[u] = Math.max(T[u], Math.round(fn(u / (Wd - 1)))); };
+  // forma propia del ojo de cada personaje (rasgo, no expresión): almendra, encapotado o rasgado
+  const shp = opt.shape;
+  if (shp === 'almond') for (let u = 0; u < Wd; u++) { const e = 1 - Math.sin(Math.PI * (u + 0.5) / Wd); T[u] += Math.round(e * 1.6); Bt[u] -= Math.round(0.6 + e * 0.8); }
+  else if (shp === 'hooded') for (let u = 0; u < Wd; u++) { T[u] += u < Wd * 0.45 ? 2 : 1; }
+  else if (shp === 'narrow') for (let u = 0; u < Wd; u++) { T[u] += 2; Bt[u] -= 1; }
+  else if (shp === 'upturned') for (let u = 0; u < Wd; u++) { const t = u / (Wd - 1); T[u] += Math.round(t * 1.4); Bt[u] -= Math.round((1 - t) * 1.2); }
   switch (kind) {
     case 'half': lid(() => top + 3.6); break;
     case 'look': lid((t) => top + 1.5 + t * 0.8); break;
@@ -7097,6 +7103,9 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
   // párpado inferior suave (pestaña corta en el rabillo + línea de piel)
   for (let u = 1; u < Wd - 2; u++) put(u, Bt[u] + 1, u < 3 ? 'k' : 's');
   if (kind === 'tired') for (let u = 1; u < Wd - 2; u++) put(u, Bt[u] + 3, 's');
+  // pliegue del párpado (encapotado: la piel cae sobre la pestaña) y arrugas del rabillo al entornar
+  if (shp === 'hooded') for (let u = 0; u < Wd - 1; u++) put(u, T[u] - 2, 's');
+  if (shp === 'narrow') { put(-1, Bt[0] + 1, 's'); put(-2, Bt[0] + 2, 's'); put(-2, T[0], 's'); }
 }
 /* ---------- Ojos del busto (48): plantillas a mano por forma; fila 0 = cy − 2 ---------- */
 const PEYE_MINI = {
@@ -7469,8 +7478,19 @@ function stampHumanFace(base, scale, E, talk, blink) {
     drawPBrow(pb, enx - 3, enx + 2, eny - 4 + Math.round((def.browDY || 0) * 0.5), bk, bc, 1, canB);
     drawPBrow(pb, efx + 2, efx - 1, efy - 4 + Math.round((def.browDY || 0) * 0.5), bkF, bc, 1, canB);
   } else {
-    drawPBrow(pb, enx - 6, enx + 4, eny - 10 + (def.browDY || 0), bk, bc, def.browThick || 2, canB);
-    drawPBrow(pb, efx + 4, efx - 3, efy - 10 + (def.browDY || 0), bkF, bc, def.browThick || 2, canB);
+    const bth = def.browStyle === 'thin' ? 1 : def.browThick || 2;
+    drawPBrow(pb, enx - 6, enx + 4, eny - 10 + (def.browDY || 0), bk, bc, bth, canB);
+    drawPBrow(pb, efx + 4, efx - 3, efy - 10 + (def.browDY || 0), bkF, bc, bth, canB);
+    if (def.browStyle === 'bushy') {
+      // cejas pobladas: una fila más por encima en la parte interior y pelos sueltos
+      const can2 = (x, y) => canB(x, y) && !(y % 3 === 0 && x % 2 === 0);
+      drawPBrow(pb, enx - 4, enx + 4, eny - 11 + (def.browDY || 0), bk, bc, 1, can2);
+      drawPBrow(pb, efx + 3, efx - 3, efy - 11 + (def.browDY || 0), bkF, bc, 1, can2);
+    } else if (def.browStyle === 'arched') {
+      // arco alto: el tramo central sube un píxel
+      drawPBrow(pb, enx - 3, enx + 1, eny - 11 + (def.browDY || 0), bk, bc, 1, canB);
+      drawPBrow(pb, efx + 2, efx - 1, efy - 11 + (def.browDY || 0), bkF, bc, 1, canB);
+    }
   }
   // nariz: sombra de 1–2 px abajo-izquierda de la punta + brillo
   const nx = X(A.nose[0]), ny = Y(A.nose[1]);
@@ -7859,6 +7879,44 @@ function phFaceExtras(pb, o, cfg) {
     const pts = sm ? [[-3, 4], [-1, 5], [9, 4]] : [[-6, 8], [-3, 10], [-1, 8], [1, 10], [-4, 12], [14, 8], [16, 10], [18, 8], [7, 9]];
     for (const [dx, dy] of pts) onFace(enx + dx, eny + dy, sk[3]);
   }
+  if (!sm) {
+    const nx = X(A.nose[0]), ny = Y(A.nose[1]), mx = X(A.mouth[0]), my = Y(A.mouth[1]);
+    const skinSet = new Set(sk);
+    const onSkin = (x, y, c) => { if (isFace(x, y) && skinSet.has(pb.get(x, y))) pb.set(x, y, c); };
+    // nariz propia: puente largo, aletas anchas, punta redonda o afilada
+    if (cfg.nose === 'long' || cfg.nose === 'hook') { for (let k = 2; k < 9; k++) { onSkin(nx - 1, ny - k, sk[3]); onSkin(nx + 1, ny - k - 1, sk[5]); } onSkin(nx - 2, ny + 1, sk[2]); if (cfg.nose === 'hook') { onSkin(nx + 2, ny - 1, sk[2]); onSkin(nx + 2, ny, sk[2]); onSkin(nx + 1, ny + 1, sk[2]); onSkin(nx + 1, ny - 4, sk[6]); } }
+    if (cfg.nose === 'wide' || cfg.nose === 'bulb') { onSkin(nx - 3, ny, sk[2]); onSkin(nx - 4, ny - 1, sk[3]); onSkin(nx - 3, ny - 1, sk[3]); onSkin(nx + 3, ny, sk[2]); onSkin(nx + 3, ny - 1, sk[3]); onSkin(nx - 1, ny + 1, sk[3]); onSkin(nx, ny + 1, sk[3]); onSkin(nx + 1, ny + 1, sk[3]); }
+    if (cfg.nose === 'bulb') { onSkin(nx, ny - 2, sk[6]); onSkin(nx + 1, ny - 2, sk[5]); onSkin(nx - 2, ny + 1, sk[3]); onSkin(nx - 1, ny + 1, sk[3]); }
+    if (cfg.nose === 'button') { onSkin(nx + 1, ny - 1, sk[6]); onSkin(nx - 1, ny - 1, sk[3]); }
+    // labios: inferior lleno (tono de labio + brillo) o fino (solo el surco del filtrum)
+    if (cfg.lips === 'full' || cfg.lipCol) {
+      const lc = U(cfg.lipCol || mixHex(def.mouthIn || '#6a1e1a', sk[4] ? u32ToHex(sk[4]) : '#c08070', 0.55));
+      const lk = cfg.lipCol ? 0.78 : 0.6;
+      for (let x = mx - 3; x <= mx + 2; x++) for (const y of [my + 2, my + 3]) { if (!isFace(x, y) || !skinSet.has(pb.get(x, y))) continue; if (y === my + 3 && (x === mx - 3 || x === mx + 2)) continue; pb.set(x, y, pkMixU(pb.get(x, y), lc, y === my + 2 ? lk : lk * 0.7)); }
+      if (isFace(mx - 1, my + 2)) pb.set(mx - 1, my + 2, pkMixU(pb.get(mx - 1, my + 2), sk[6], 0.55));
+      if (cfg.lipCol) for (let x = mx - 2; x <= mx + 2; x++) { const y = my - 1; if (isFace(x, y) && skinSet.has(pb.get(x, y))) pb.set(x, y, pkMixU(pb.get(x, y), lc, 0.6)); }
+    }
+    if (cfg.lips === 'thin') { onSkin(mx, my - 3, sk[3]); onSkin(mx, my - 4, sk[3]); }
+    // pómulos marcados: brillo en el pómulo lejano y hueco en sombra bajo el cercano
+    if (cfg.cheekbones) { for (const [dx, dy] of [[2, 6], [3, 6], [4, 7], [5, 8]]) onSkin(efx + dx, efy + dy, sk[5]); for (const [dx, dy] of [[-7, 9], [-6, 10], [-5, 11], [-4, 12]]) onSkin(enx + dx, eny + dy, sk[3]); }
+    // edad: frente surcada, bolsas, papada y comisuras caídas (2 = mayor)
+    const age = cfg.age || 0;
+    if (age >= 1) {
+      for (const yy of [eny - 15, eny - 18]) for (let x = enx - 3; x <= efx + 1; x++) if ((x - enx) % 7 !== 3) onSkin(x, yy + ((x - enx) > 8 ? -1 : 0), sk[3]);
+      for (let k = -3; k <= 3; k++) onSkin(efx + k, efy + 7, sk[3]);
+    }
+    if (age >= 2) {
+      for (let k = 0; k < 4; k++) { onSkin(mx - 6 - (k >> 1), my + 2 + k, sk[2]); onSkin(mx + 6, my + 2 + k, sk[3]); }
+      onSkin(mx - 2, my - 2, sk[3]); onSkin(mx + 2, my - 2, sk[3]);
+      for (let x = mx - 2; x <= mx + 2; x++) onSkin(x, my + 7, sk[3]);
+      for (const [dx, dy] of [[-2, 9], [-1, 10], [0, 10], [1, 9]]) onSkin(enx + dx, eny + dy, sk[3]);
+    }
+    if (cfg.spots) for (const [dx, dy] of [[-8, -12], [12, -14], [18, 6], [-2, -16], [20, 12]]) onSkin(enx + dx, eny + dy, sk[3]);
+    if (cfg.stubble) {
+      const bU = U(cfg.stubble);
+      for (let y = my - 4; y < pb.h; y++) for (let x = mx - 16; x <= mx + 14; x++) { if (!isFace(x, y) || !skinSet.has(pb.get(x, y))) continue; if (Math.abs(x - mx) < 4 && Math.abs(y - my) < 2) continue; if (A.face((x + 0.5) / o.S, (y + 0.5) / o.S) < -6.5 && y < my + 6) continue; pb.set(x, y, pkMixU(pb.get(x, y), bU, 0.22)); }
+    }
+  }
   if (cfg.wrinkles && !sm) {
     // patas de gallo, surcos nasogenianos y ojeras suaves
     for (const [dx, dy] of [[-8, -1], [-9, 0], [-8, 2], [-9, 3]]) onFace(enx + dx, eny + dy, sk[3]);
@@ -7926,7 +7984,7 @@ function phMake(cfg) {
       lash: cfg.lash || shade(sk[0], -0.3), lashSoft: cfg.lashSoft || sk[1], brow: cfg.brow || M.hair.ramp[1], browDY: cfg.browDY, browOverHair: cfg.browOverHair,
       mouthInk: cfg.mouthInk || shade(sk[1], -0.15), mouthIn: cfg.mouthIn || '#6a1e1a', tongue: '#d8606a', blush: cfg.blush || mixHex(sk[4], '#ff5a6a', cfg.male ? 0.3 : 0.55), blushAlways: cfg.blushAlways || 0,
       rimColor: cfg.rimColor || '#ffc89a', rimK: cfg.rimK ?? 0.16, white: cfg.white,
-      eyeOpt: { male: !!cfg.male, lidDrop: (cfg.male ? 1 : 0) + (cfg.elder ? 1 : 0) }, browThick: cfg.male ? 3 : 2,
+      eyeOpt: { male: !!cfg.male, lidDrop: (cfg.male ? 1 : 0) + (cfg.elder && cfg.eyeShape !== 'hooded' ? 1 : 0), shape: cfg.eyeShape }, browThick: cfg.male ? 3 : 2, browStyle: cfg.browStyle,
       build(P, A) { if (cfg.back) cfg.back(P, A, M, cfg); (PH_OUTFIT[cfg.outfit] || PH_OUTFIT.tee)(P, A, M, cfg); },
       hair(P, A) { if (cfg.hair) (PH_HAIR[cfg.hair])(P, A, M, cfg); },
       acc(P, A) { if (cfg.hat) PH_HAT[cfg.hat](P, A, M, cfg); if (cfg.acc) cfg.acc(P, A, M, cfg); },
@@ -7939,32 +7997,37 @@ function phMake(cfg) {
 PDEFS.naira = phMake({
   sprite: 'naira', outfit: 'vest', hair: 'braidFront', hat: 'straw', earring: '#4ccb70', earringLeaf: true, iris: ['#2a1a30', '#4a3060', '#7a5a9a'],
   mats: () => ({ skin: PK.mat(RAMP.skinN, '#1a0a08', RAMP.skinN[2]), hair: PK.mat(RAMP.hairN.concat(['#7472b0']), '#06050e', RAMP.hairN[1]), top: MAT.nairaShirt, vest: PK.mat(MAT.nairaVest, '#240a06'), strap: MAT.leather, straw: PK.mat(MAT.straw, '#2a1606'), band: MAT.nairaVest, tie: RAMP.yellow }),
-  lash: '#0a0608', brow: '#15132a', mouthInk: '#3a140e', blush: '#c0604a', head: { chinY: 33.5 },
+  lash: '#0a0608', brow: '#15132a', mouthInk: '#3a140e', blush: '#c0604a', head: { chinY: 34.5, ry: 29.5, rx: 25.5, cheek: 0.6 }, face: { eyeY: 7, mouthY: 23, noseY: 15.5 },
+  eyeShape: 'almond', nose: 'wide', lips: 'full', cheekbones: true, browStyle: 'arched',
 });
 /* ---------- Dante Vela — mantenimiento eólico ---------- */
 PDEFS.dante = phMake({
   sprite: 'dante', male: true, outfit: 'overalls', hair: 'spiky', hat: 'hardhat', freckles: true, iris: ['#0e2a16', '#2a6a3a', '#6aa86a'],
   mats: () => ({ skin: PK.mat(RAMP.skinD, '#3a160e', RAMP.skinD[2]), hair: PK.mat(RAMP.hairD, '#1c0604', RAMP.hairD[1]), top: MAT.tshirtW, over: PK.mat(MAT.danteOver, '#060a1c'), scarf: MAT.bandana, hat: PK.mat(MAT.hardhat, '#2a1a04') }),
   lash: '#1a0806', brow: '#6e2614', browDY: -1, head: { jawW: 2.5, cheek: 1.2, chinY: 33.5, chinX: 5 }, neck: { w: 9.5 }, browOverHair: true,
+  eyeShape: 'upturned', nose: 'button', browStyle: 'bushy',
 });
 /* ---------- Dra. Eliana Rojas — mentora ---------- */
 PDEFS.eliana = phMake({
   sprite: 'eliana', outfit: 'labcoat', hair: 'bun', pencil: true, glasses: '#8a5e14', glassHi: '#ffd84a', roundGlasses: true, wrinkles: true, iris: ['#1a0e06', '#4a3020', '#8a6a4a'],
   mats: () => ({ skin: PK.mat(RAMP.skinE, '#1e100a', RAMP.skinE[2]), hair: PK.mat(RAMP.hairE.concat(['#ffffff']), '#1a1c30', RAMP.hairE[1]), top: MAT.violetTop,
     coat: PK.mat(['#2e3c5a', '#56688e', '#8aa0c4', '#bccce4', '#e2ecf8', '#f6faff', '#ffffff'], '#141c30', '#56688e'), pencil: RAMP.yellow }),
-  lash: '#1a0e0a', brow: '#5c5e80', head: { jawDrop: 1.5, rx: 26, chinY: 34 }, face: { mouthY: 23 },
+  lash: '#1a0e0a', brow: '#5c5e80', head: { jawDrop: 1.5, rx: 25.5, chinY: 34.5 }, face: { mouthY: 23 },
+  eyeShape: 'hooded', nose: 'long', lips: 'thin', age: 1, browStyle: 'thin',
 });
 /* ---------- Tía Marea — pescadora mayor ---------- */
 PDEFS.marea = phMake({
   sprite: 'marea', elder: true, outfit: 'raincoat', hair: 'braidBack', hat: 'bucket', wrinkles: true,
   mats: () => ({ skin: PK.mat(RAMP.skinM, '#1e0e0a', RAMP.skinM[2]), hair: PK.mat(RAMP.hairE.concat(['#ffffff']), '#1a1c30', RAMP.hairE[1]), top: MAT.danteOver, coat: PK.mat(RAMP_CH.rain, '#2a1e04'), hat: PK.mat(MAT.kiruBody, '#04201e'), band: RAMP_CH.teal, tie: RAMP.coral }),
-  lash: '#140806', brow: '#8284a6', head: { jawDrop: 1 }, blushAlways: 0.3,
+  lash: '#140806', brow: '#8284a6', head: { jawDrop: 1, jawW: 1.5, cheek: 1.5 }, blushAlways: 0.3, face: { eyeNX: -8, eyeFX: 17, mouthY: 22.5 },
+  eyeShape: 'narrow', nose: 'bulb', age: 2, spots: true,
 });
 /* ---------- Don Cobre — artesano ---------- */
 PDEFS.cobre = phMake({
   sprite: 'cobre', male: true, elder: true, outfit: 'apron', hair: 'bald', mustache: '#d8dae8', glasses: '#c8861a', glassHi: '#ffd84a', wrinkles: true,
   mats: () => ({ skin: PK.mat(RAMP.skinE, '#1e100a', RAMP.skinE[2]), hair: PK.mat(['#2a2c40', '#5c5e80', '#8284a6', '#b0b2cc', '#d8dae8', '#f2f2fa', '#ffffff'], '#1a1c30', '#5c5e80'), top: MAT.tshirtW, apron: RAMP.copper }),
-  lash: '#1a0e0a', brow: '#d8dae8', browDY: -1, head: { jawW: 3, cheek: 2, chinY: 33, rx: 27.5 }, neck: { w: 10 },
+  lash: '#1a0e0a', brow: '#d8dae8', browDY: -1, head: { jawW: 3, cheek: 2, chinY: 33, rx: 27.5, jawDrop: 1 }, neck: { w: 10 },
+  eyeShape: 'hooded', nose: 'bulb', age: 2, browStyle: 'bushy',
   acc(P) { /* brillo de la calva */ P.stamp((pb, c) => { const X = c.X, Y = c.Y; for (const [x, y] of c.S < 1 ? [[64, 20]] : [[62, 19], [63, 19], [64, 19], [61, 20], [62, 20], [66, 21]]) if (c.group(X(x), Y(y)) === 'face') pb.set(X(x), Y(y), RAMP.skinE[6]); }, 5); },
 });
 /* ---------- Alma Semilla — niña ---------- */
@@ -7987,32 +8050,37 @@ PDEFS.nimbo = phMake({
   sprite: 'nimbo', male: true, elder: true, outfit: 'aviator', hair: null, hat: 'aviator', mustache: '#b8bad2', wrinkles: true,
   mats: () => ({ skin: PK.mat(RAMP.skinD, '#3a160e', RAMP.skinD[2]), hair: PK.mat(RAMP.hairE, '#1a1c30', RAMP.hairE[1]), top: NPC_CLOTH[5], vest: RAMP.coral, scarf: RAMP_CH.cream,
     hat: PK.mat(MAT.leather, '#1a0a06'), strap: MAT.leather, frame: RAMP.copper, lens: PK.mat(['#06202e', '#0c3e5c', '#16608a', '#1f86b8', '#2aa9e3', '#7fd8f6', '#e6fdff'], '#06202e') }),
-  lash: '#1a0806', brow: '#a8aac6', browDY: -1, head: { jawW: 1, jawDrop: 1.5 },
+  lash: '#1a0806', brow: '#a8aac6', browDY: -1, head: { jawW: 2.5, jawDrop: 2, chinX: 5.5 },
+  eyeShape: 'narrow', nose: 'hook', age: 2, browStyle: 'bushy', spots: true,
 });
 /* ---------- Consejera Ruth ---------- */
 PDEFS.consejal = phMake({
   sprite: 'consejal', outfit: 'jacket', hair: 'bun', bunX: 31, bunY: 20, bunR: 11, glasses: '#8a5e14', glassHi: '#ffd84a', roundGlasses: true, earring: '#ffd84a', brooch: '#ffd84a',
   mats: () => ({ skin: PK.mat(RAMP.skinN, '#1a0a08', RAMP.skinN[2]), hair: PK.mat(RAMP.hairN.concat(['#7472b0']), '#06050e', RAMP.hairN[1]), top: NPC_CLOTH[0], jacket: RAMP_CH.plum }),
-  lash: '#0a0608', brow: '#15132a', mouthIn: '#5a1418', blush: '#c0604a',
+  lash: '#0a0608', brow: '#15132a', mouthIn: '#5a1418', blush: '#c0604a', head: { rx: 25.5, ry: 29, chinY: 34.5, jawDrop: 0.5 }, face: { eyeY: 7, mouthY: 23, noseY: 15.5 },
+  eyeShape: 'almond', nose: 'long', lipCol: '#a8343e', lips: 'full', cheekbones: true, browStyle: 'arched',
 });
 /* ---------- Operador Iván ---------- */
 PDEFS.operador = phMake({
   sprite: 'operador', male: true, outfit: 'hivis', hair: 'short', hat: 'cap',
   mats: () => ({ skin: PK.mat(RAMP.skinM, '#1e0e0a', RAMP.skinM[2]), hair: PK.mat(RAMP_CH.blackHair.concat(['#7a7a94']), '#04040a', RAMP_CH.blackHair[1]), top: NPC_CLOTH[6], vest: RAMP_CH.hivisO, hat: NPC_CLOTH[1].concat(['#b0e4f4']) }),
-  lash: '#0c0606', brow: '#101018', head: { jawW: 1.5, cheek: 0.6 }, neck: { w: 8.5 },
+  lash: '#0c0606', brow: '#101018', head: { jawW: 3, cheek: 1, chinY: 34, chinX: 5 }, neck: { w: 9.5 }, face: { mouthY: 22.5, noseY: 15.5, eyeNX: -7.5, eyeFX: 16.5 },
+  eyeShape: 'round', nose: 'wide', stubble: '#2a1c1a', browStyle: 'bushy',
   acc(P) { P.ellipse(34, 52, 3, 4, { mat: RAMP_CH.charcoal, z: 34, group: 'earpiece', base: 3, bevel: 1.2 }); P.capsule(35, 56, 46, 64, 0.9, 0.9, { mat: RAMP_CH.charcoal, z: 34.5, group: 'mic', base: 4, bevel: 0.5 }); },
 });
 /* ---------- Doña Celia — pastora ---------- */
 PDEFS.pastora = phMake({
   sprite: 'pastora', elder: true, outfit: 'poncho', hair: 'long', wrinkles: true, stripe: '#ffe14d', stripe2: '#f4a050', blushAlways: 0.35,
   mats: () => ({ skin: PK.mat(RAMP.skinA, '#1e0c0a', RAMP.skinA[2]), hair: PK.mat(RAMP.hairE.concat(['#ffffff']), '#1a1c30', RAMP.hairE[1]), top: NPC_CLOTH[7], poncho: RAMP_CH.terracotta }),
-  lash: '#140606', brow: '#8284a6', head: { jawDrop: 0.5 },
+  lash: '#140606', brow: '#8284a6', head: { jawDrop: 1, rx: 27.5, cheek: 1.8, jawW: 1 }, face: { eyeY: 9, mouthY: 22.5 },
+  eyeShape: 'narrow', nose: 'button', lips: 'thin', age: 2,
 });
 /* ---------- Sr. Ledesma — financiero ---------- */
 PDEFS.financia = phMake({
   sprite: 'financia', male: true, outfit: 'jacket', tie: true, hair: 'short', glasses: '#263442', glassHi: '#7a8aa0',
   mats: () => ({ skin: PK.mat(RAMP.skinE, '#1e100a', RAMP.skinE[2]), hair: PK.mat(RAMP.hairN.concat(['#7472b0']), '#06050e', RAMP.hairN[1]), top: MAT.tshirtW, jacket: RAMP_CH.charcoal, tie: NPC_CLOTH[5] }),
-  lash: '#0e0806', brow: '#211e40', head: { jawDrop: 2.5, rx: 25.5, chinY: 34.5 }, face: { mouthY: 23.5 },
+  lash: '#0e0806', brow: '#211e40', head: { jawDrop: 2.5, rx: 25, chinY: 35, chinX: 3 }, face: { mouthY: 24, eyeY: 7, eyeNX: -6, eyeFX: 15, noseY: 16 },
+  eyeShape: 'almond', nose: 'long', lips: 'thin', cheekbones: true, browStyle: 'thin',
 });
 
 /* =====================================================================
