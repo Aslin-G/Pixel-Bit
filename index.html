@@ -24079,7 +24079,7 @@ const SCBEpi = (() => {
       frect(g, x + 3, y + 3, SW - 6, 11, '#072248'); frect(g, x + 3, y + 3, SW - 6, 1, '#a8c8ff');
       drawText(g, 'PANEL PÚBLICO · EN VIVO', x + 10, y + 6, { font: 'tiny', color: '#e6f8fe' });
       if (Math.floor(t * 2) % 2) { frect(g, x + SW - 12, y + 6, 4, 4, '#ff4e5d'); }
-      const rows = [['TURBIDEZ', '#20d6c7', ((1.2 + 0.2 * Math.sin(t * 0.7)).toFixed(1)) + ' NTU'], ['ENERGÍA', '#ffe14d', Math.round(72 + 6 * Math.sin(t * 0.4)) + ' %'], ['SALMUERA', '#c244a2', 'BOYA OK'], ['RIEGO', '#4ccb70', 'GOTEO']];
+      const rows = [['TURBIDEZ', '#20d6c7', fmt(1.2 + 0.2 * Math.sin(t * 0.7), 1) + ' NTU'], ['ENERGÍA', '#ffe14d', Math.round(72 + 6 * Math.sin(t * 0.4)) + ' %'], ['SALMUERA', '#c244a2', 'BOYA OK'], ['RIEGO', '#4ccb70', 'GOTEO']];
       rows.forEach(([lab, col, val], i) => {
         const ry = y + 18 + i * 16;
         frect(g, x + 6, ry, 3, 11, col);
@@ -24147,7 +24147,7 @@ const SCBL11 = (() => {
   };
   const labels = [
     { x: 562, y: 210, title: 'PARCELA ESCOLAR', sub: 'Goteo + sensor de humedad', kind: 'green', ax: 562, ay: 248 },
-    { x: 960, y: 196, title: 'PANEL PÚBLICO', sub: (sc) => ((1.2 + 0.2 * Math.sin(Game.time * 0.7)).toFixed(1)) + ' NTU en vivo', kind: 'water', ax: 930, ay: 214 },
+    { x: 960, y: 196, title: 'PANEL PÚBLICO', sub: (sc) => fmt(1.2 + 0.2 * Math.sin(Game.time * 0.7), 1) + ' NTU en vivo', kind: 'water', ax: 930, ay: 214 },
   ];
   function props(pb, world) {
     const gy = (x) => world.groundAt(x);
@@ -30938,16 +30938,16 @@ const NX = {
   toma: { label: 'TOMA', icon: 'fish', x: 98, y: 66, out: ['seawater'], inn: ['seawater', 'power'], tip: 'Captación con rejillas y bombas.' },
   pre: { label: 'PRETRAT.', icon: 'filter', x: 156, y: 66, out: ['seawater'], inn: ['seawater'], tip: 'Cribado, coagulación y filtración.' },
   oi: { label: 'OI', icon: 'membrane', x: 220, y: 66, out: ['permeate', 'brine'], inn: ['seawater', 'power'], tip: 'Ósmosis inversa: separa agua y sales con presión.' },
-  tanque: { label: 'TANQUE', icon: 'tank', x: 290, y: 66, out: ['water'], inn: ['permeate'], tip: 'Reserva de agua tratada (remineralizada).' },
-  hogares: { label: 'HOGARES', icon: 'people', x: 370, y: 44, out: [], inn: ['water'], tip: 'Demanda doméstica.' },
-  riego: { label: 'RIEGO', icon: 'plant', x: 370, y: 92, out: [], inn: ['water'], tip: 'Parcelas agroecológicas con goteo.' },
+  tanque: { label: 'TANQUE', icon: 'tank', x: 284, y: 66, out: ['water'], inn: ['permeate'], tip: 'Reserva de agua tratada (remineralizada).' },
+  hogares: { label: 'HOGARES', icon: 'people', x: 380, y: 44, out: [], inn: ['water'], tip: 'Demanda doméstica.' },
+  riego: { label: 'RIEGO', icon: 'plant', x: 380, y: 92, out: [], inn: ['water'], tip: 'Parcelas agroecológicas con goteo.' },
   difusor: { label: 'DIFUSOR', icon: 'drop_brine', x: 156, y: 126, out: [], inn: ['brine'], tip: 'Descarga controlada de salmuera al mar.' },
   pv: { label: 'FV', icon: 'panel', x: 40, y: 166, out: ['power'], inn: [], tip: 'Módulos fotovoltaicos.' },
   eol: { label: 'EÓLICA', icon: 'turbine', x: 40, y: 216, out: ['power'], inn: [], tip: 'Aerogeneradores.' },
   bus: { label: 'BARRA', icon: 'plug', x: 130, y: 190, out: ['power'], inn: ['power'], tip: 'Barra de la microred: reparte la electricidad.' },
   bat: { label: 'BATERÍA', icon: 'battery', x: 130, y: 238, out: ['power'], inn: ['power'], tip: 'Almacena energía (kWh).' },
-  ely: { label: 'ELECTROL.', icon: 'flask', x: 290, y: 166, out: ['h2'], inn: ['power', 'water'], tip: 'Electrolizador: agua + electricidad → H2 + O2.' },
-  h2: { label: 'ALM. H2', icon: 'h2', x: 370, y: 166, out: [], inn: ['h2'], tip: 'Almacenamiento de hidrógeno.' },
+  ely: { label: 'ELECTROL.', icon: 'flask', x: 284, y: 166, out: ['h2'], inn: ['power', 'water'], tip: 'Electrolizador: agua + electricidad → H2 + O2.' },
+  h2: { label: 'ALM. H2', icon: 'h2', x: 380, y: 166, out: [], inn: ['h2'], tip: 'Almacenamiento de hidrógeno.' },
   // variante Ranchería Los Médanos
   pozo: { label: 'POZO', icon: 'water', x: 40, y: 66, out: ['seawater'], inn: ['power'], tip: 'Pozo de agua salobre (≈ 5 g/L).' },
   evap: { label: 'LAGUNA', icon: 'salt', x: 156, y: 126, out: [], inn: ['brine'], tip: 'Laguna de evaporación revestida.' },
@@ -31051,6 +31051,43 @@ function nexusSolve(edges, opts = {}) {
   return { roOn, Qf, Qp, Qb, Cb, tankNet, h2, gen, loadSum, batFlow, vals, brineOut, chain, elyWater };
 }
 
+/** Rótulos de nodo en dos líneas cuando el nombre no cabe en la caja de 48 px (solo visual) */
+const FIXSIMS_NX_LINES = { ely: ['ELECTRO-', 'LIZADOR'] };
+/**
+ * Posición de la etiqueta de caudal de una arista: en el punto medio del tramo más largo si cabe;
+ * si no, encima/debajo del tramo horizontal (o a un lado del vertical) con un tallo de 1 px.
+ * Evita las cajas de los nodos y las etiquetas ya colocadas. → {x, y, stem:[x0,y0,x1,y1]|null}
+ */
+function FIXSIMS_nxPlace(pts, w, rects, placed, board) {
+  const h = 8, hw = Math.ceil(w / 2), cands = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], len = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+    if (len < 1) continue;
+    const mx = Math.round((x0 + x1) / 2), my = Math.round((y0 + y1) / 2), hor = y0 === y1;
+    const fits = hor ? len >= w + 6 : len >= h + 6;
+    cands.push({ x: mx, y: my, stem: null, pen: (fits ? 0 : 60) - Math.min(len, 80) * 0.1 });
+    if (hor) {
+      cands.push({ x: mx, y: my - 19, stem: [mx, my - 15, mx, my - 1], pen: 14 });
+      cands.push({ x: mx, y: my + 19, stem: [mx, my + 1, mx, my + 15], pen: 16 });
+    } else {
+      cands.push({ x: mx - hw - 5, y: my, stem: [mx - 5, my, mx - 1, my], pen: 12 });
+      cands.push({ x: mx + hw + 5, y: my, stem: [mx + 1, my, mx + 5, my], pen: 13 });
+    }
+  }
+  const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  let best = null;
+  for (const c of cands) {
+    const r = { x: c.x - hw, y: c.y - 4, w, h };
+    let pen = c.pen;
+    if (r.x < board.x || r.y < board.y || r.x + r.w > board.x + board.w || r.y + r.h > board.y + board.h) pen += 200;
+    for (const q of rects) if (hit(r, q)) pen += 120;
+    for (const q of placed) if (hit(r, q)) pen += 70;
+    if (!best || pen < best.pen) best = Object.assign({}, c, { pen, r });
+  }
+  if (!best) { const [x, y] = pts[0]; return { x, y, stem: null }; }
+  placed.push({ x: best.r.x - 1, y: best.r.y - 1, w: best.r.w + 2, h: best.r.h + 2 });
+  return best;
+}
 const NexusSim = makeSim({
   title: 'TALLER STEAM · Diagrama vivo del Nexo', icon: 'mosaic', ra: 'RA-08', concepts: ['systemsThinking', 'massBalance'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -31156,9 +31193,12 @@ const NexusSim = makeSim({
     drawText(g, med ? 'RANCHERÍA LOS MÉDANOS' : 'SYNARA · ARIDIA', X0 + 6, Y0 + 4, { font: 'tiny', color: '#56e5ff' });
     // límite del sistema
     lensBoundary(g, X0 + 4, Y0 + 14, WW - 8, HH - 18, '#ffe14d', null);
-    drawText(g, 'LÍMITE DEL SISTEMA', X0 + WW - 6, Y0 + 4, { font: 'tiny', color: '#ffe14d', align: 'right' });
+    // rótulo del límite en la esquina inferior izquierda del rectángulo (lejos de los nodos)
+    { const lw = FONTS.tiny.measure('LÍMITE DEL SISTEMA') + 6, ly = Y0 + HH - 13; frect(g, X0 + 8, ly - 2, lw, 9, '#0e2048'); drawText(g, 'LÍMITE DEL SISTEMA', X0 + 11, ly, { font: 'tiny', color: '#ffe14d' }); }
     const sol = this.live ? nexusSolve(this.edges, { medanos: med, pv: med ? 140 : 320, wind: 160 }) : null;
-    // aristas
+    // aristas (las etiquetas de caudal se colocan después, evitando nodos y otras etiquetas)
+    const nodeRects = this.nodeSet().map(id => ({ x: NX[id].x - 25, y: NX[id].y - 13, w: 50, h: 27 + (id === 'tanque' || NX[id].decoy ? 8 : 0) }));
+    const placed = [], board = { x: X0 + 2, y: Y0 + 12, w: WW - 4, h: HH - 14 };
     for (const e of this.edges) {
       const rate = sol ? clamp(Math.abs(sol.vals[e.key] ?? 1) / (e.kind === 'power' ? 150 : 60), 0.25, 1.4) : 0.6;
       if (e.wrong) {
@@ -31174,8 +31214,11 @@ const NexusSim = makeSim({
       if (sol && !e.wrong && sol.vals[e.key] != null) {
         const v = sol.vals[e.key];
         const txt = e.kind === 'power' ? fmt0(Math.abs(v)) + ' kW' : e.kind === 'h2' ? fmt(v, 1) + ' kg/h' : (v < 1 && v > 0 ? fmt(v * 1000, 0) + ' L/h' : fmt0(v) + ' m³/h');
-        const w = FONTS.tiny.measure(txt) + 4;
-        frect(g, e.mx - w / 2, e.my - 4, w, 8, '#05031a'); drawText(g, txt, e.mx, e.my - 2, { font: 'tiny', align: 'center', color: FLOW_KINDS[e.kind].hi });
+        const w = FONTS.tiny.measure(txt) + 4, L = FIXSIMS_nxPlace(e.pts, w, nodeRects, placed, board), col = FLOW_KINDS[e.kind].hi;
+        if (L.stem) { const [sx, sy, ex, ey] = L.stem; frect(g, Math.min(sx, ex), Math.min(sy, ey), Math.abs(ex - sx) + 1, Math.abs(ey - sy) + 1, col); }
+        const bx = Math.round(L.x - w / 2), by = Math.round(L.y - 4);
+        frect(g, bx, by, w, 8, '#05031a'); if (L.stem) frect(g, bx, by + 7, w, 1, col);
+        drawText(g, txt, bx + 2, by + 2, { font: 'tiny', color: col });
       }
     }
     // nodos
@@ -31187,7 +31230,9 @@ const NexusSim = makeSim({
       const pal = N.decoy ? ['#141626', '#1c1f34', '#4a4e70'] : sel ? ['#6a3e0e', '#9a5e12', '#ffe14d'] : ['#121736', '#1d346c', '#56e5ff'];
       frect(g, x, y + 1, 48, 24, '#05030f'); frect(g, x, y, 48, 24, pal[0]); frect(g, x + 1, y + 1, 46, 22, pal[1]); frect(g, x + 1, y + 1, 46, 1, pal[2]);
       Icons.draw(g, N.icon, x + 2, y + 5);
-      drawText(g, N.label, x + 17, y + 8, { font: 'tiny', color: N.decoy ? '#8a8fb8' : '#fffaf0' });
+      const two = FIXSIMS_NX_LINES[id];
+      if (two) { drawText(g, two[0], x + 16, y + 5, { font: 'tiny', color: '#fffaf0' }); drawText(g, two[1], x + 16, y + 12, { font: 'tiny', color: '#fffaf0' }); }
+      else drawText(g, N.label, x + 16, y + 8, { font: 'tiny', color: N.decoy ? '#8a8fb8' : '#fffaf0' });
       if (N.decoy) drawText(g, 'A 40 KM', x + 24, y + 27, { font: 'tiny', align: 'center', color: '#8a8fb8' });
       // indicador de estado en vivo
       if (sol && !N.decoy) {
@@ -31197,8 +31242,8 @@ const NexusSim = makeSim({
         if (id === 'difusor' || id === 'evap') on = sol.roOn && sol.brineOut;
         fdisc(g, x + 44, y + 4, 2, on ? '#86e36f' : '#ff4e5d');
       }
-      if (id === 'tanque' && sol) { const tn = sol.tankNet; drawText(g, (tn >= 0 ? '+' : '') + fmt(tn, 1), x + 24, y + 27, { font: 'tiny', align: 'center', color: tn >= 0 ? '#86e36f' : '#ff4e5d' }); }
-      if (id === 'bat' && sol) drawText(g, sol.batFlow >= 0 ? 'CARGA' : 'DESCARGA', x + 24, y + 27, { font: 'tiny', align: 'center', color: '#fff09a' });
+      if (id === 'tanque' && sol) { const tn = sol.tankNet; drawText(g, (tn >= 0 ? '+' : '') + fmt(tn, 1), x + 3, y + 27, { font: 'tiny', color: tn >= 0 ? '#86e36f' : '#ff4e5d' }); }
+      if (id === 'bat' && sol) drawText(g, sol.batFlow >= 0 ? 'CARGA' : 'DESCARGA', x + 52, y + 9, { font: 'tiny', color: '#fff09a' });
       if (Gui.button(g, 'nx_' + id, x, y, 48, 24, N.label, { noDraw: true, tip: N.tip })) this.clickNode(id);
     }
     // marcas de eliminación
@@ -32377,6 +32422,16 @@ const DRONE_POINTS = [
   { id: 'D', x: 450, y: 136, name: 'Borde del arrecife', depth: 6, tds: 35.6, turb: 1.5, T: 27.8, eco: 0.95, cost: 0.4, note: 'Arrecife somero: larvas de peces y corales.' },
   { id: 'E', x: 540, y: 58, name: 'Fondo mar adentro', depth: 14, tds: 35.8, turb: 1.2, T: 25.6, eco: 0.15, cost: 0.6, note: 'Agua profunda, fría y estable; tubería más larga.' },
 ];
+/** Etiqueta del punto de muestreo junto a la boya (relleno navy, borde cian, tallo de 1 px hacia la boya) */
+function FIXSIMS_droneTag(g, P) {
+  const w = 156, txt = '{c}' + P.id + ':{/} ' + P.name + '. ' + P.note, th = textHeight(txt, w - 12, { lineH: 10 }), h = th + 8;
+  const below = P.y + 22 + h < H - 96 || P.y < 120;
+  const x = Math.round(clamp(P.x - w / 2, 4, W - w - 4)), y = below ? P.y + 22 : P.y - 22 - h;
+  const sy0 = below ? P.y + 12 : y + h, sy1 = below ? y : P.y - 12;
+  frect(g, P.x, Math.min(sy0, sy1), 1, Math.abs(sy1 - sy0), '#8fdfff');
+  UIK.panel(g, x, y, w, h, 'tech', null, { chamfer: 2, key: false });
+  drawTextBlock(g, txt, x + 6, y + 4, w - 12, { color: '#d9eefc', lineH: 10 });
+}
 const DroneScene = {
   overlay: false, touchControls: true,
   enter(p) {
@@ -32440,24 +32495,30 @@ const DroneScene = {
     // dron con sombra sobre el agua
     SCADrone.drawDrone(g, this.x, this.y, Game.time, !!this.sampling);
     if (this.sampling) { const kk = clamp(this.sampling.k, 0, 1); UIK.bar(g, this.x - 14, this.y + 6, 28, 4, kk, '#56e5ff'); }
-    // panel
-    UIK.panel(g, W - 214, 6, 208, 168, 'glass');
-    drawText(g, 'DRON DE MUESTREO', W - 206, 11, { color: '#ffe14d', font: 'tiny' });
-    UIK.bar(g, W - 206, 20, 120, 6, this.bat, this.bat < 0.25 ? '#ff4e5d' : '#86e36f', '#0a0c22', 10);
-    drawText(g, 'BATERÍA ' + fmt0(this.bat * 100) + '%', W - 80, 20, { font: 'tiny', color: '#cfd6f0' });
+    // panel compacto arriba a la izquierda (sobre la costa, sin boyas; libre de los controles táctiles):
+    // no tapa boyas ni el dron y se vuelve translúcido si el dron entra
+    const PX = 6, PW = 208, PH = 84, PY = 18;
+    const under = this.x > PX - 12 && this.x < PX + PW + 12 && this.y > PY - 14 && this.y < PY + PH + 8;
+    if (under) g.globalAlpha = 0.35;
+    UIK.panel(g, PX, PY, PW, PH, 'glass');
+    drawText(g, 'DRON DE MUESTREO', PX + 8, PY + 5, { color: '#ffe14d', font: 'tiny' });
+    UIK.bar(g, PX + 8, PY + 14, 120, 6, this.bat, this.bat < 0.25 ? '#ff4e5d' : '#86e36f', '#0a0c22', 10);
+    drawText(g, 'BATERÍA ' + fmt0(this.bat * 100) + '%', PX + 134, PY + 14, { font: 'tiny', color: '#cfd6f0' });
     const T = { head: ['PUNTO', 'NTU', 'TDS G/L', 'T °C'], rows: [] };
     for (const P of DRONE_POINTS) { const s = this.samples[P.id]; T.rows.push([P.id + ' ' + P.depth + 'M', s ? fmt(s.turb, 1) + '±' + fmt(s.turbU, 0) : '—', s ? fmt(s.tds, 1) : '—', s ? fmt(s.T, 1) : '—']); }
     T.widths = [0.28, 0.28, 0.24, 0.2];
     // tabla en estilo oscuro
-    let yy = 32;
-    T.head.forEach((h, i) => drawText(g, h, W - 206 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#ffe14d' }));
+    let yy = PY + 26;
+    T.head.forEach((h, i) => drawText(g, h, PX + 8 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#ffe14d' }));
     yy += 9;
-    T.rows.forEach((r, ri) => { r.forEach((v, i) => drawText(g, v, W - 206 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#fffaf0' })); yy += 9; });
+    T.rows.forEach((r, ri) => { r.forEach((v, i) => drawText(g, v, PX + 8 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#fffaf0' })); yy += 9; });
+    g.globalAlpha = 1;
+    // descripción del punto cercano: etiqueta en el mundo con tallo, bajo (o sobre) la boya
     const P = DRONE_POINTS.find(PP => dist(PP.x, PP.y, this.x, this.y) < 30);
-    if (P) drawTextBlock(g, '{c}' + P.id + ':{/} ' + P.name + '. ' + P.note, W - 206, yy + 4, 196, { color: '#cfd6f0' });
+    if (P && this.phase === 'fly') FIXSIMS_droneTag(g, P);
     Gui.begin();
     const n = Object.keys(this.samples).length;
-    if (this.phase === 'fly' && n >= 4 && this.demoDone) { if (Gui.button(g, 'decide', W - 160, 150, 150, 18, 'Decidir punto de toma', { style: 'gold', icon: 'target' })) { this.phase = 'decide'; } }
+    if (this.phase === 'fly' && n >= 4 && this.demoDone) { if (Gui.button(g, 'decide', PX, PY + PH + 4, 150, 18, 'Decidir punto de toma', { style: 'gold', icon: 'target' })) { this.phase = 'decide'; } }
     if (this.phase === 'decide') this.renderDecide(g);
     if (this.phase === 'result') this.renderResult(g);
     Gui.end();
@@ -32478,7 +32539,7 @@ const DroneScene = {
     let y = 98;
     DRONE_POINTS.forEach((P, i) => {
       const s = this.samples[P.id];
-      const label = P.id + ' · ' + P.name + ' (' + P.depth + ' m) — ' + (s ? 'turb. ' + fmt(s.turb, 1) + '±' + fmt(s.turbU, 1) + ' NTU, ' + fmt(s.T, 1) + ' °C' : 'sin muestra');
+      const label = P.name + ' (' + P.depth + ' m) — ' + (s ? 'turb. ' + fmt(s.turb, 1) + '±' + fmt(s.turbU, 1) + ' NTU, ' + fmt(s.T, 1) + ' °C' : 'sin muestra');
       const r = Gui.choice(g, 'dp' + P.id, 72, y, W - 144, label, P.id, { state: this.choice === i ? 'selected' : null });
       if (r.clicked) this.choice = i;
       y += r.h + 2;
@@ -32513,6 +32574,50 @@ DroneScene.overlay = true;
 /* =====================================================================
    Gemelo de la toma — simulador de captación y pretratamiento
    ===================================================================== */
+/** Corte de mar + fondo de arena de Sim01, prerenderizado una vez: rampa con desplazamiento de tono en bandas
+ *  de borde irregular (sin tramado), cúmulos de ruido de 2 px, haces de luz submarinos y arena en estratos con guijarros. */
+const FIXSIMS_SEA01 = {};
+function FIXSIMS_sim01Sea(w, seaH, sandH) {
+  const key = w + 'x' + seaH + 'x' + sandH;
+  if (FIXSIMS_SEA01[key]) return FIXSIMS_SEA01[key];
+  const h = seaH + sandH, pb = new PixelBuffer(w, h), D = pb.data;
+  const R = ['#22dbe7', '#20d6c7', '#16a6cf', '#1283bf', '#1170b4', '#1063a6', '#0e4a8c', '#0d3168'].map(U);
+  const idx = new Uint8Array(w * seaH);
+  for (let y = 0; y < seaH; y++) for (let x = 0; x < w; x++) {
+    const j = (hash2(x >> 3, y >> 2, 11) - 0.5) * 0.035 + Math.sin(x * 0.06 + y * 0.015) * 0.012;
+    const k = clamp(Math.pow(clamp(y / seaH + j, 0, 0.999), 0.9), 0, 0.999);
+    idx[y * w + x] = Math.floor(k * R.length);
+  }
+  // haces de luz: bandas diagonales un tono más claras que se acortan con la profundidad
+  for (let b = 0; b < 5; b++) {
+    const x0 = 6 + b * 31 + Math.round(hash2(b, 3, 5) * 8), bw = 4 + (b % 3) * 2, len = Math.round(seaH * (0.32 + 0.12 * (b % 3)));
+    for (let y = 1; y < len; y++) { const xs = Math.round(x0 + y * 0.32); const ww = y > len * 0.7 ? bw - 2 : bw; for (let xx = xs; xx < xs + ww; xx++) if (xx >= 0 && xx < w) { const i = y * w + xx; if (idx[i] > 0) idx[i]--; } }
+  }
+  for (let i = 0; i < idx.length; i++) D[i] = R[idx[i]];
+  // cúmulos de 2×1 / 2×2 del tono vecino (más claros arriba, más oscuros abajo)
+  for (let y = 2; y < seaH - 2; y += 3) for (let x = 1; x < w - 2; x += 3) {
+    const hv = hash2(x, y, 23); if (hv > 0.22) continue;
+    const i0 = idx[y * w + x], ni = clamp(i0 + (y < seaH * 0.45 ? -1 : 1), 0, R.length - 1), c = R[ni];
+    D[y * w + x] = c; D[y * w + x + 1] = c; if (hv < 0.08) { D[(y + 1) * w + x] = c; D[(y + 1) * w + x + 1] = c; }
+  }
+  // arena en estratos con borde irregular, labio iluminado, guijarros y conchas
+  const S = ['#f6c27a', '#e49c44', '#d48a3c', '#c97c38', '#a8602c', '#86441f'].map(U);
+  const top = new Int16Array(w);
+  for (let x = 0; x < w; x++) top[x] = seaH + Math.round(Math.sin(x * 0.09) * 1.5 + (hash2(x >> 2, 1, 41) - 0.5) * 2);
+  for (let x = 0; x < w; x++) for (let y = top[x]; y < h; y++) {
+    const d = y - top[x] + (hash2(x >> 2, y >> 1, 43) - 0.5) * 1.6;
+    D[y * w + x] = S[d < 1 ? 0 : d < 4 ? 1 : d < 8 ? 2 : d < 15 ? 3 : d < 23 ? 4 : 5];
+  }
+  for (let x = 0; x < w; x++) { const y = top[x] - 1; if (y >= 0) D[y * w + x] = U('#0b2a5e'); }
+  for (let i = 0; i < 34; i++) {
+    const x = Math.floor(hash2(i, 7, 51) * (w - 3)), y = seaH + 5 + Math.floor(hash2(i, 9, 53) * (sandH - 7));
+    const dark = i % 3 !== 0, c = U(dark ? '#6a3418' : '#fde0a8');
+    D[y * w + x] = c; D[y * w + x + 1] = c; if (dark) D[(y + 1) * w + x + 1] = U('#4e2410');
+  }
+  const c = pb.toCanvas();
+  FIXSIMS_SEA01[key] = c;
+  return c;
+}
 const Sim01 = makeSim({
   title: 'GEMELO DE LA TOMA · captación y pretratamiento', icon: 'filter', ra: 'RA-01', concepts: ['pretreatment', 'waterQuality'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -32600,11 +32705,24 @@ const Sim01 = makeSim({
     const X0 = 8, Y0 = 30, WW = 372, HH = 262;
     Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
     // mar en corte
-    for (let y = Y0 + 30; y < Y0 + HH - 30; y++) { const k = (y - Y0 - 30) / (HH - 60); frect(g, X0 + 1, y, 150, 1, rampDither(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0d3168'], k, X0, y)); }
-    fdither(g, X0 + 1, Y0 + 30, 150, HH - 60, '#a07a3a', clamp(turbIn / 60, 0, 0.7));
+    g.drawImage(FIXSIMS_sim01Sea(150, HH - 60, 29), X0 + 1, Y0 + 30);
+    // turbidez sin tramado: velo plano en dos bandas (más denso cerca del fondo) + cúmulos de sedimento (número ∝ NTU)
+    const tk = clamp(turbIn / 60, 0, 1);
+    if (tk > 0.01) {
+      const sh = HH - 60, b2 = Math.round(sh * 0.55);
+      g.fillStyle = '#a07a3a';
+      g.globalAlpha = 0.5 * tk; g.fillRect(X0 + 1, Y0 + 30, 150, sh);
+      g.globalAlpha = 0.2 * tk; g.fillRect(X0 + 1, Y0 + 30 + b2, 150, sh - b2);
+      g.globalAlpha = 1;
+      const n = Math.round(6 + 54 * tk), T = Game.time;
+      for (let i = 0; i < n; i++) {
+        const sx = Math.round(X0 + 3 + ((i * 53 + T * (3 + (i % 5))) % 144)), sy = Math.round(Y0 + 33 + ((i * 97 + T * (1.5 + (i % 3))) % (sh - 6)));
+        const cA = i % 3 === 0 ? '#d8b070' : i % 3 === 1 ? '#a8803e' : '#8a6430';
+        frect(g, sx, sy, 2, 1, cA); if (i % 2) frect(g, sx + (i & 2 ? 1 : 0), sy + 1, 2, 1, '#6e4c22');
+      }
+    }
     if (this.scn.algae) for (let i = 0; i < 40; i++) fpx(g, X0 + 4 + (i * 37) % 146, Y0 + 32 + (i * 7) % 18, '#86e36f');
     for (let x = X0 + 1; x < X0 + 151; x++) fpx(g, x, Y0 + 30 + Math.round(Math.sin(x * 0.2 + Game.time * 3)), '#c6fff2');
-    frect(g, X0 + 1, Y0 + HH - 30, 150, 29, '#c97c38'); fdither(g, X0 + 1, Y0 + HH - 30, 150, 29, '#e49c44', 0.5);
     drawText(g, 'MAR', X0 + 6, Y0 + 34, { font: 'tiny', color: '#e6fdff' });
     // cabezal de toma a la profundidad elegida
     const hy = Y0 + 30 + (c.depth / 15) * (HH - 70);
@@ -32621,7 +32739,7 @@ const Sim01 = makeSim({
     const pY = Y0 + 34;
     Charts.flow(g, [[X0 + 123, Y0 + 26], [X0 + 123, pY - 10], [X0 + 170, pY - 10]], 'seawater', c.q / 100, 3);
     // coagulación
-    frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48'); frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); fdither(g, X0 + 174, pY - 14, 46, 30, '#a07a3a', clamp(turbIn / 50, 0, 0.6));
+    frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48'); frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); frect(g, X0 + 174, pY - 14, 46, 2, '#56c8e8'); g.globalAlpha = clamp(turbIn / 50, 0, 0.6) * 0.75; frect(g, X0 + 174, pY - 14, 46, 30, '#a07a3a'); g.globalAlpha *= 0.5; frect(g, X0 + 174, pY + 2, 46, 14, '#7a5420'); g.globalAlpha = 1;
     for (let i = 0; i < 12; i++) { const fx = X0 + 176 + (i * 13 + Game.time * 8) % 42, fy = pY - 10 + (i * 7) % 24; fdisc(g, fx, fy, 1 + c.coag * 1.5, '#c8a860'); }
     drawText(g, 'COAGULACIÓN', X0 + 197, pY - 30, { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.flow(g, [[X0 + 222, pY], [X0 + 240, pY]], 'seawater', c.q / 100, 3);
@@ -32631,7 +32749,10 @@ const Sim01 = makeSim({
     frect(g, fx0 + 3, fy0 + 40, fw - 6, 26, '#2a2a3a'); frect(g, fx0 + 3, fy0 + 66, fw - 6, 40, '#e4c088');
     for (let i = 0; i < 40; i++) fpx(g, fx0 + 4 + (i * 7) % (fw - 8), fy0 + 67 + (i * 11) % 38, '#c49860');
     const dirt = clamp((this.dp - 0.3) / 1.2, 0, 1);
-    fdither(g, fx0 + 3, fy0 + 40, fw - 6, Math.round(26 + 40 * dirt), '#5a3a1a', 0.3 + dirt * 0.5);
+    // suciedad sin tramado: costra sólida que crece sobre el lecho + penetración como velo plano
+    const cake = Math.round(1 + 9 * dirt);
+    g.globalAlpha = 0.25 + dirt * 0.45; frect(g, fx0 + 3, fy0 + 40, fw - 6, Math.round(26 + 40 * dirt), '#5a3a1a'); g.globalAlpha = 1;
+    frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, cake, '#6e4a1c'); frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, 1, '#a8742c'); frect(g, fx0 + 3, fy0 + 39, fw - 6, 1, '#4a2c12');
     if (this.backwashT > 0) for (let i = 0; i < 8; i++) fpx(g, fx0 + 6 + Math.random() * (fw - 12), fy0 + 10 + Math.random() * 30, '#c6fff2');
     drawText(g, 'FILTRO', fx0 + fw / 2, fy0 - 8, { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.gauge(g, fx0 + fw / 2, fy0 + fh + 22, 13, clamp(this.dp / 1.6, 0, 1), '#56e5ff', 'ΔP', fmt(this.dp, 2));
@@ -33535,7 +33656,15 @@ const Sim02 = makeSim({
     Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
     const fy = Y0 + 34, fh = 54, my = fy + fh, mh = 10, py = my + mh, ph = 40;
     // canal de alimentación → concentrado (sal que aumenta a lo largo)
-    for (let x = 0; x < WW - 60; x++) { const k = x / (WW - 60); frect(g, X0 + 30 + x, fy, 1, fh, mixHex('#1063a6', '#621a66', k * clamp(r.R / 0.6, 0, 1))); }
+    // alimentación turquesa que se oscurece hacia grafito-índigo en el concentrado (bandas, sin degradado continuo)
+    { const NB = 10, bw = Math.ceil((WW - 60) / NB), kR = clamp(r.R / 0.6, 0, 1);
+      for (let b = 0; b < NB; b++) {
+        const k = (b / (NB - 1)) * kR, c = mixHex('#16a6cf', '#2c2c5e', k);
+        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), fh, c);
+        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), 2, mixHex(c, '#bff8ff', 0.35));
+        frect(g, X0 + 30 + b * bw, fy + 2, Math.min(bw, WW - 60 - b * bw), 12, mixHex(c, '#56e5ff', 0.12));
+      }
+    }
     const nSalt = 90, LW = WW - 60;
     for (let i = 0; i < nSalt; i++) {
       const ph2 = ((t * (0.08 + r.Qf / 1200) + i / nSalt) % 1);
@@ -33550,12 +33679,22 @@ const Sim02 = makeSim({
     const nW0 = 40;
     for (let i = 0; i < nW0; i++) { const ph2 = ((t * 0.15 + i / nW0) % 1); fpx(g, X0 + 30 + ph2 * LW, fy + 4 + ((i * 53) % (fh - 8)), '#6cf0db'); }
     // membrana: capas, ensuciamiento e incrustación
-    for (let x = 0; x < WW - 60; x++) frect(g, X0 + 30 + x, my, 1, mh, (x % 4) < 2 ? '#8d6bff' : '#5a44a8');
+    frect(g, X0 + 30, my, WW - 60, mh, '#5a44a8'); for (let x = 0; x < WW - 60; x += 4) frect(g, X0 + 30 + x, my + 1, 2, mh - 2, '#8d6bff');
+    frect(g, X0 + 30, my, WW - 60, 1, '#b49cff'); frect(g, X0 + 30, my + mh - 1, WW - 60, 1, '#3a2a7a');
     const foulH = Math.round(clamp(this.foul || 0, 0, 1) * 8);
     if (foulH) PFDyn.veil(g, X0 + 30, my - foulH, WW - 60, foulH, "#7a5a2a", 0.7);
     if (r.scaleIdx > 0) for (let i = 0; i < 40 * clamp(r.scaleIdx, 0, 1.5); i++) frect(g, X0 + 30 + (WW - 60) * (0.5 + (i * 0.618 % 0.5)), my - 2 - (i % 3), 2, 2, '#ffffff');
     // canal de permeado
-    frect(g, X0 + 30, py, WW - 60, ph, '#0e2b4a');
+    // canal de permeado: fondo cian en bandas + corriente cian luminosa (#48b6ec) con halo de 1 px y chevrones blancos
+    frect(g, X0 + 30, py, WW - 60, ph, '#0f3f66'); frect(g, X0 + 30, py, WW - 60, 3, '#1f6fa8'); frect(g, X0 + 30, py + ph - 8, WW - 60, 8, '#0b3152');
+    { const on = clamp(r.Qp / 40, 0, 1), sy = py + Math.round(ph / 2) - 3;
+      if (on > 0.02) {
+        g.globalAlpha = 0.35 + 0.4 * on; frect(g, X0 + 30, sy - 1, WW - 60, 1, '#8fe0ff'); frect(g, X0 + 30, sy + 6, WW - 60, 1, '#8fe0ff');
+        g.globalAlpha = 0.55 + 0.45 * on; frect(g, X0 + 30, sy, WW - 60, 6, '#48b6ec'); frect(g, X0 + 30, sy, WW - 60, 1, '#a6f4ff'); g.globalAlpha = 1;
+        const step = 26, off = (t * 20 * (0.5 + on)) % step;
+        for (let cx = X0 + 30 + off; cx < X0 + WW - 34; cx += step) { const qx = Math.round(cx); fpx(g, qx, sy + 1, '#ffffff'); fpx(g, qx + 1, sy + 2, '#ffffff'); fpx(g, qx + 2, sy + 3, '#ffffff'); fpx(g, qx + 1, sy + 4, '#ffffff'); fpx(g, qx, sy + 5, '#ffffff'); }
+      }
+    }
     const nW = Math.round(clamp(r.Qp / 2, 0, 34));
     for (let i = 0; i < nW; i++) {
       const ph3 = ((t * 0.7 + i / Math.max(1, nW)) % 1);
@@ -34038,6 +34177,53 @@ const BAY_ALTS = [
   { id: 'inject', name: 'Inyección en pozo profundo', c: { ENERGÍA: 3, COSTO: 4, RIESGO: 4, ESPACIO: 1, MADUREZ: 3, OPERACIÓN: 4, IMPACTO: 3, INCERTIDUMBRE: 5 }, ok: false, note: 'Sin estudios hidrogeológicos, puede contaminar el mismo acuífero del pozo.' },
   { id: 'zero', name: '"Valorización total, cero impacto"', c: { ENERGÍA: 5, COSTO: 5, RIESGO: 3, ESPACIO: 2, MADUREZ: 1, OPERACIÓN: 5, IMPACTO: 2, INCERTIDUMBRE: 5 }, ok: false, note: 'Promesa sin evidencia: alta energía, baja madurez, mercado incierto.' },
 ];
+/** Pluma de salmuera de Sim03 sin tramado: tres bandas magenta por umbral (0,03 · 0,3 · 1 g/L), tramos por filas,
+ *  contorno de 1 px más oscuro, borde iluminado arriba y 28 partículas que se alejan del punto de descarga y se diluyen. */
+const FIXSIMS_PLUME = { buf: null };
+function FIXSIMS_plume(g, P, X0, Y0, src, t) {
+  const nx = BAY.nx, ny = BAY.ny, px = BAY.px;
+  const B = FIXSIMS_PLUME.buf && FIXSIMS_PLUME.buf.length === nx * ny ? FIXSIMS_PLUME.buf : (FIXSIMS_PLUME.buf = new Int8Array(nx * ny));
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { const v = P.concAt(x, y); B[y * nx + x] = v < 0.03 ? -1 : v < 0.3 ? 0 : v < 1 ? 1 : 2; }
+  const at = (x, y) => (x < 0 || y < 0 || x >= nx || y >= ny) ? -1 : B[y * nx + x];
+  const runs = (min, col, a) => {
+    g.globalAlpha = a; g.fillStyle = col;
+    for (let y = 0; y < ny; y++) { let x = 0; while (x < nx) { if (B[y * nx + x] < min) { x++; continue; } const x0 = x; while (x < nx && B[y * nx + x] >= min) x++; g.fillRect(X0 + x0 * px, Y0 + y * px, (x - x0) * px, px); } }
+    g.globalAlpha = 1;
+  };
+  runs(0, '#c244a2', 0.14);
+  runs(1, '#9a3488', 1);
+  runs(2, '#e07ecf', 1);
+  // contornos: 1 px oscuro en el borde exterior de cada banda opaca; brillo de 1 px en el borde superior de la banda alta
+  // isolínea exterior (0,03 g/L): contorno de 1 px sobre el velo de trazas
+  g.globalAlpha = 0.75;
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    if (B[y * nx + x] !== 0) continue;
+    const X = X0 + x * px, Y = Y0 + y * px;
+    if (at(x - 1, y) < 0) frect(g, X, Y, 1, px, '#e07ecf');
+    if (at(x + 1, y) < 0) frect(g, X + px - 1, Y, 1, px, '#e07ecf');
+    if (at(x, y - 1) < 0) frect(g, X, Y, px, 1, '#e07ecf');
+    if (at(x, y + 1) < 0) frect(g, X, Y + px - 1, px, 1, '#e07ecf');
+  }
+  g.globalAlpha = 1;
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    const b = B[y * nx + x]; if (b < 1) continue;
+    const X = X0 + x * px, Y = Y0 + y * px, oc = b === 2 ? '#a8388e' : '#4a1048';
+    if (at(x - 1, y) < b) frect(g, X, Y, 1, px, oc);
+    if (at(x + 1, y) < b) frect(g, X + px - 1, Y, 1, px, oc);
+    if (at(x, y + 1) < b) frect(g, X, Y + px - 1, px, 1, oc);
+    if (at(x, y - 1) < b) frect(g, X, Y, px, 1, b === 2 ? '#ffc6ee' : '#c85aae');
+  }
+  if (!src) return;
+  const sx = X0 + src.x * px + 3, sy = Y0 + src.y * px + 3, u = P.tideU ? P.tideU() : 0, cr = P.cross || 0;
+  for (let i = 0; i < 28; i++) {
+    const ph = (t * (0.12 + (i % 4) * 0.02) + i / 28) % 1, ang = Math.atan2(0.8 + cr * 0.6, u * 0.6) + (hash1(i, 9) - 0.5) * 2.2, d = 6 + ph * 70;
+    const qx = Math.round(sx + Math.cos(ang) * d), qy = Math.round(sy + Math.sin(ang) * d * 0.8);
+    const cx = Math.floor((qx - X0) / px), cy = Math.floor((qy - Y0) / px);
+    if (at(cx, cy) < 0) continue;
+    const col = ph < 0.33 ? '#ffd0f0' : ph < 0.66 ? '#f2a0dc' : '#c050a8';
+    if (ph < 0.5) frect(g, qx, qy, 2, 2, col); else fpx(g, qx, qy, col);
+  }
+}
 const Sim03 = makeSim({
   title: 'GEMELO DE LA BAHÍA · pluma de salmuera', icon: 'drop_brine', ra: 'RA-03', concepts: ['brine', 'massBalance'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -34140,13 +34326,8 @@ const Sim03 = makeSim({
     if (this.phase === 'transfer') { this.drawTransfer(g); return; }
     const P = this.P, X0 = 8, Y0 = 28, c = this.cfg;
     g.drawImage(this.base, X0, Y0);
-    // pluma: celdas con exceso tramadas por concentración
-    const cols = ['#f888b8', '#e05aa0', '#bc3e92', '#ffffff'];
-    for (let y = 0; y < BAY.ny; y++) for (let x = 0; x < BAY.nx; x++) {
-      const v = P.concAt(x, y); if (v < 0.03) continue;
-      const k = clamp(v / 1.5, 0, 1);
-      PFDyn.veil(g, X0 + x * BAY.px, Y0 + y * BAY.px, BAY.px, BAY.px, cols[Math.min(3, Math.floor(k * 3.2))], clamp(0.25 + k * 0.7, 0, 0.95));
-    }
+    // pluma: isolíneas en bandas (trazas < 0,3 g/L como velo plano; ≥ 0,3 y ≥ 1 g/L opacas con contorno) + partículas
+    FIXSIMS_plume(g, P, X0, Y0, c.pt !== 'D' ? BAY_POINTS[c.pt] : null, Game.time);
     // flechas de corriente (marea)
     const s = Math.sin(TAU * P.t / 12.4), u = P.tideU();
     for (let y = 10; y < 34; y += 8) for (let x = 6; x < 62; x += 10) { const ax = X0 + x * BAY.px, ay = Y0 + y * BAY.px; fline(g, ax, ay, ax + u * 2, ay + P.cross * 3, '#c6fff2'); fpx(g, ax + u * 2, ay + P.cross * 3, '#ffffff'); }
@@ -34726,14 +34907,15 @@ const Sim04 = makeSim({
       drawText(g, 'Críticos sin servir: ' + fmt0(r.unservedCrit) + ' kWh   H2: ' + fmt(r.h2kg, 1) + ' kg', CX + 6, 122, { font: 'tiny', color: r.unservedCrit > 0 ? '#ff4e5d' : '#cfd6f0' });
       drawText(g, 'Vertido: ' + fmt0(r.curtailed) + ' kWh', CX + 6, 131, { font: 'tiny', color: '#cfd6f0' });
     }
-    // controles por fase
+    // controles por fase, dentro de su propio panel (como en los demás gemelos)
+    UIK.panel(g, CX, 146, CW, 114, 'tech');
     if (ph === 'guided' || ph === 'free') {
-      this.cfg.tilt = Gui.slider(g, 'tilt', CX + 6, 148, CW - 12, this.cfg.tilt, 0, 40, 1, { label: 'Inclinación de los módulos', unit: '°', disabled: this.done && ph !== 'free' });
-      const tr = Gui.toggle(g, 'trk', CX + 6, 172, 'Seguidor de un eje', this.cfg.tracker); if (!this.done || ph === 'free') this.cfg.tracker = tr;
+      this.cfg.tilt = Gui.slider(g, 'tilt', CX + 6, 151, CW - 12, this.cfg.tilt, 0, 40, 1, { label: 'Inclinación de los módulos', unit: '°', disabled: this.done && ph !== 'free' });
+      const tr = Gui.toggle(g, 'trk', CX + 6, 175, 'Seguidor de un eje', this.cfg.tracker); if (!this.done || ph === 'free') this.cfg.tracker = tr;
     }
     if (ph === 'auto' || ph === 'transfer' || ph === 'free') {
-      const ho = Gui.toggle(g, 'h2o', CX + 6, ph === 'free' ? 190 : 150, 'H2 solo con excedente', this.cfg.h2Only); if (!this.done) { if (ho !== this.cfg.h2Only) { this.cfg.h2Only = ho; this.run(); } }
-      const rs = Gui.toggle(g, 'res', CX + 6, ph === 'free' ? 206 : 166, 'Proteger reserva 30 %', this.cfg.reserve >= 0.3); if (!this.done) { const v = rs ? 0.3 : 0.1; if (v !== this.cfg.reserve) { this.cfg.reserve = v; this.run(); } }
+      const ho = Gui.toggle(g, 'h2o', CX + 6, ph === 'free' ? 193 : 153, 'H2 solo con excedente', this.cfg.h2Only); if (!this.done) { if (ho !== this.cfg.h2Only) { this.cfg.h2Only = ho; this.run(); } }
+      const rs = Gui.toggle(g, 'res', CX + 6, ph === 'free' ? 211 : 171, 'Proteger reserva 30 %', this.cfg.reserve >= 0.3); if (!this.done) { const v = rs ? 0.3 : 0.1; if (v !== this.cfg.reserve) { this.cfg.reserve = v; this.run(); } }
       this.drawTimeline(g, X0, Y0 + 168, CW0);
     }
     const by = 236;
@@ -35125,6 +35307,13 @@ function gustSeries() {
   }
   return s;
 }
+/** Aerogenerador en su bahía del panel: suelo en bandas, sombra de contacto y rótulo de estado (fuera de la gráfica) */
+function FIXSIMS_turbineBay(g, cx, by, size, ang, stopped, gx, gw, pill = true) {
+  frect(g, gx, by, gw, 1, '#3a64b0'); frect(g, gx, by + 1, gw, 2, '#12305a');
+  frect(g, cx - 6, by - 1, 12, 1, '#0a1838');
+  ART.turbine(g, cx, by - 1, size, ang, { col: '#ffffff', shade: '#c8d8e8', stopped });
+  if (stopped && pill) UIK.pill(g, cx - Math.round(size * 0.48) - 4, by - size - 6, 'CORTE 25 m/s', { align: 'right', rim: '#ff4e5d', fill: '#2a0814', color: '#ffe8e4' });
+}
 const Sim05 = makeSim({
   title: 'GEMELO EÓLICO · curva de potencia, estelas y ráfagas', icon: 'wind', ra: 'RA-04', concepts: ['wind', 'microgrid'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -35140,7 +35329,7 @@ const Sim05 = makeSim({
     if (ph === 'guided') { this.v = 9; this.say('Tu turno: el viento llega desde la izquierda a 9 m/s. Reubica las 4 turbinas (clic en una turbina y luego en una celda) para que las pérdidas por estela sean ≤ 6 %. La parcela solo tiene 3 filas.'); }
     if (ph === 'auto') { this.series = gustSeries(); this.m = 0; this.running = false; this.stopped = false; this.energy = 0; this.maxEnergy = 0; this.damage = 0; this.badRestart = 0; this.log = []; this.say('Ráfaga Umbral: el pronóstico de MIRAGE (sin extremos) dice "máximo 19 m/s". El anemómetro del acantilado mide el viento ' + this.lead + ' minutos antes de que llegue. La parada automática fue desactivada para "maximizar producción". Decide tú.'); }
     if (ph === 'transfer') { this.say('Transferencia: despacho nocturno con pronóstico incierto. Elige la reserva protegida de la batería y cuánta electrólisis programar. Se probarán tres noches posibles: calma, viento moderado y ráfagas con paradas.'); }
-    if (ph === 'free') { this.v = 10; this.say('Laboratorio libre.'); }
+    if (ph === 'free') { this.v = 10; this.say('Laboratorio libre: mueve el viento con el deslizador y compara la curva real con la extrapolación v³. Sube el viento por encima de 25 m/s, o reubica las turbinas y mira cómo cambia la estela.'); }
   },
   farm() { return WindModel.farm(this.v, this.layout); },
   step(dt) {
@@ -35225,7 +35414,22 @@ const Sim05 = makeSim({
         f.turbines.forEach((tb, i) => drawText(g, 'T' + (i + 1) + ': v ' + fmt(tb.v, 1) + ' m/s → ' + fmt0(tb.P) + ' kW', CX + 8, 132 + i * 10, { font: 'tiny', color: '#cfd6f0' }));
         if (!this.done && Gui.button(g, 'ev', CX + 8, 204, 100, 18, 'Evaluar', { style: 'good', icon: 'check' })) this.evaluate();
       }
+      if (ph === 'demo') FIXSIMS_turbineBay(g, CX + Math.round(CW / 2), 198, 66, this.t * WindModel.power(this.v) / 120, this.v >= 25, CX + 8, CW - 16);
       if (Gui.button(g, 'hintb', CX + CW - 60, 204, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
+    }
+    if (ph === 'free') {
+      // laboratorio libre: control del viento y lecturas bajo la parcela de estelas
+      const CX = 414, CW = W - CX - 6, PY = 172, PH = 150;
+      UIK.panel(g, CX, PY, CW, PH, 'tech');
+      this.v = Gui.slider(g, 'vfree', CX + 8, PY + 6, CW - 16, this.v, 0, 30, 0.5, { label: 'Velocidad del viento', unit: 'm/s', marks: [{ v: 3, col: '#8ff5c8' }, { v: 12, col: '#ffe14d' }, { v: 25, col: '#ff4e5d' }] });
+      const v = this.v, P = WindModel.power(v), naive = WindModel.naiveCubic(v, 12), f = this.farm(), ideal = P * 4;
+      drawText(g, 'Potencia real: ' + fmt0(P) + ' kW', CX + 8, PY + 34, { color: '#ffffff' });
+      drawText(g, 'Extrapolación v³: ' + fmt0(naive) + ' kW', CX + 8, PY + 48, { color: '#f78acb' });
+      drawText(g, 'Parque: ' + fmt0(f.total) + ' / ' + fmt0(ideal) + ' kW', CX + 8, PY + 64, { color: '#ffe14d' });
+      drawText(g, ideal > 0 ? 'Pérdida por estela: ' + fmt(100 * (1 - f.total / ideal), 1) + ' %' : (v >= 25 ? 'Corte por sobrevelocidad' : 'Bajo el arranque (3 m/s)'), CX + 8, PY + 78, { color: ideal > 0 ? ((1 - f.total / ideal) > 0.06 ? '#ff9a8a' : '#86e36f') : '#ffb93b' });
+      drawText(g, 'Arranque 3 · nominal 12 · corte 25 m/s', CX + 8, PY + 94, { font: 'tiny', color: '#cfd6f0' });
+      FIXSIMS_turbineBay(g, CX + CW - 34, PY + PH - 10, 50, this.t * P / 120, v >= 25, CX + CW - 70, 62, false);
+      if (Gui.button(g, 'hintb', CX + 8, PY + PH - 24, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
     }
     if (this.verdict) {
       const v = this.verdict;
@@ -35241,9 +35445,6 @@ const Sim05 = makeSim({
     const real = [], naive = [];
     for (let v = 0; v <= 30; v += 0.5) { real.push([v, WindModel.power(v)]); naive.push([v, Math.min(1400, WindModel.naiveCubic(v, 12))]); }
     Charts.line(g, x, y, w, h, [{ data: real, color: '#ffffff', label: 'curva real' }, { data: naive, color: '#f78acb', label: 'v³ ingenua' }], { xMin: 0, xMax: 30, yMin: 0, yMax: 1400, legend: true, xLabel: 'm/s', yLabel: 'kW', cursor: this.v, hlines: [{ v: 500, color: '#8ff5c8', label: 'nominal' }] });
-    // turbina dibujada que gira según el viento
-    const tx = x + w - 50, ty = y + h - 10;
-    ART.turbine(g, tx, ty, 60, this.t * WindModel.power(this.v) / 120, { col: '#ffffff', shade: '#c8d8e8', stopped: this.v >= 25 });
   },
   drawLayout(g, x, y, w, h) {
     frect(g, x, y, w, h, '#0e2a3a'); frect(g, x + 1, y + 1, w - 2, h - 2, '#13405a');
@@ -35256,7 +35457,24 @@ const Sim05 = makeSim({
       if (!this.done && Gui.button(g, 'cell' + r + '_' + c, cx, cy, cw - 1, rh - 1, '', { noDraw: true })) { if (!this.layout.some(t => t.x === c && t.y === r * 1.5)) { this.layout[this.selT] = { x: c, y: r * 1.5 }; Audio2.sfx('ui'); } }
     }
     // estelas
-    f.turbines.forEach((tb) => { const cx = x + 30 + tb.x * cw + cw / 2, cy = y + 18 + (tb.y / 1.5) * rh + rh / 2; for (let k = 1; k < 10; k++) fdither(g, cx + k * cw * 0.9, cy - 2 - k * 0.4, cw, 4 + k * 0.8, '#ff9a8a', clamp(0.35 - k * 0.03, 0, 0.4)); });
+    // sin tramado: bandas planas que se ensanchan y se desvanecen aguas abajo + chevrones de 1 px que avanzan con el viento
+    const xR = x + w - 3;
+    f.turbines.forEach((tb) => {
+      const cx = x + 30 + tb.x * cw + cw / 2, cy = Math.round(y + 18 + (tb.y / 1.5) * rh + rh / 2);
+      g.fillStyle = '#ff7a6a';
+      for (let k = 0; k < 10; k++) {
+        const bx = Math.round(cx + 7 + k * cw * 0.9), bw = Math.min(Math.ceil(cw * 0.9), xR - bx), hh = Math.round(4 + k * 1.1) | 1;
+        if (bw <= 0) break;
+        g.globalAlpha = clamp(0.5 - k * 0.042, 0.08, 0.5); g.fillRect(bx, cy - (hh >> 1), bw, hh);
+      }
+      const step = cw * 1.8, off = (this.t * 18) % step;
+      for (let k = 0; k < 5; k++) {
+        const ex = Math.round(cx + 8 + off + k * step); if (ex + 3 > xR) break;
+        g.globalAlpha = clamp(0.9 - k * 0.17, 0.2, 0.9);
+        fpx(g, ex, cy - 2, '#ffd8d0'); fpx(g, ex + 1, cy - 1, '#ffd8d0'); fpx(g, ex + 2, cy, '#ffd8d0'); fpx(g, ex + 1, cy + 1, '#ffd8d0'); fpx(g, ex, cy + 2, '#ffd8d0');
+      }
+      g.globalAlpha = 1;
+    });
     this.layout.forEach((t, i) => {
       const cx = x + 30 + t.x * cw + cw / 2, cy = y + 18 + (t.y / 1.5) * rh + rh / 2;
       const tb = f.turbines.find(q => q.x === t.x && q.y === t.y);
@@ -35790,11 +36008,12 @@ const Sim06 = makeSim({
       if (rv !== this.rule.reserve) { this.rule.reserve = rv; this.runDay(); }
       const ho = Gui.toggle(g, 'ho', CX + 8, 70, 'H2 solo con excedente', this.rule.h2Only); if ((!this.done || ph === 'free') && ho !== this.rule.h2Only) { this.rule.h2Only = ho; this.runDay(); }
       const cf = Gui.toggle(g, 'cf', CX + 8, 86, 'Cargar batería antes que el H2', this.rule.chargeFirst); if ((!this.done || ph === 'free') && cf !== this.rule.chargeFirst) { this.rule.chargeFirst = cf; this.runDay(); }
-      drawText(g, 'Desprendimiento: H2 → riego → OI → críticas', CX + 8, 96, { font: 'tiny', color: '#cfd6f0' });
-      drawText(g, 'SOC al cierre: ' + fmt0(r.socEnd * 100) + ' %   mín: ' + fmt0(r.socMin * 100) + ' %', CX + 8, 104, { font: 'tiny', color: r.socEnd < 0.3 ? '#ff6b6b' : '#b6f05a' });
-      drawText(g, 'Críticas sin servir: ' + fmt0(r.unservedCrit) + ' kWh', CX + 8, 113, { font: 'tiny', color: r.unservedCrit > 0 ? '#ff6b6b' : '#86e36f' });
-      drawText(g, 'H2: ' + fmt(r.h2kg, 1) + ' kg   Vertido: ' + fmt0(r.curtailed) + ' kWh', CX + 8, 122, { font: 'tiny', color: '#d8fff8' });
-      drawText(g, 'Pérdidas BESS estimadas: ≈ ' + fmt0(r.bess.throughput * 0.05) + ' kWh', CX + 8, 131, { font: 'tiny', color: '#ff9f43' });
+      drawText(g, 'Desprendimiento: H2 → riego → OI → críticas', CX + 8, 106, { font: 'tiny', color: '#cfd6f0' });
+      frect(g, CX + 8, 115, CW - 16, 1, '#12305a');
+      drawText(g, 'SOC al cierre: ' + fmt0(r.socEnd * 100) + ' %   mín: ' + fmt0(r.socMin * 100) + ' %', CX + 8, 121, { color: r.socEnd < 0.3 ? '#ff6b6b' : '#b6f05a' });
+      drawText(g, 'Críticas sin servir: ' + fmt0(r.unservedCrit) + ' kWh', CX + 8, 134, { color: r.unservedCrit > 0 ? '#ff6b6b' : '#86e36f' });
+      drawText(g, 'H2: ' + fmt(r.h2kg, 1) + ' kg   Vertido: ' + fmt0(r.curtailed) + ' kWh', CX + 8, 147, { color: '#d8fff8' });
+      drawText(g, 'Pérdidas BESS estimadas: ≈ ' + fmt0(r.bess.throughput * 0.05) + ' kWh', CX + 8, 160, { color: '#ff9f43' });
       if (ph === 'guided' && !this.done && Gui.button(g, 'ev', CX + 8, 204, 100, 18, 'Simular 24 h', { style: 'good', icon: 'play' })) this.evaluate();
       if (Gui.button(g, 'hintb', CX + CW - 60, 204, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
     }
@@ -36409,13 +36628,19 @@ const Sim07 = makeSim({
     frect(g, x, y, 400, 230, '#0a1838');
     // cuba con dos electrodos y membrana
     frect(g, x + 60, y + 40, 280, 160, '#13405a'); frect(g, x + 62, y + 42, 276, 156, '#1a5a74');
-    frect(g, x + 90, y + 50, 10, 140, '#cfe8ee'); frect(g, x + 300, y + 50, 10, 140, '#ff9a8a');
-    frect(g, x + 198, y + 44, 4, 152, '#8d6bff');
+    // agua purificada en bandas (más clara arriba) y electrodos con brillo/sombra de 1 px
+    frect(g, x + 62, y + 42, 276, 2, '#3a8aa8'); frect(g, x + 62, y + 44, 276, 30, '#1d6684'); frect(g, x + 62, y + 150, 276, 48, '#164e68'); frect(g, x + 62, y + 186, 276, 12, '#123f58');
+    frect(g, x + 90, y + 50, 10, 140, '#cfe8ee'); frect(g, x + 90, y + 50, 2, 140, '#ffffff'); frect(g, x + 98, y + 50, 2, 140, '#8ab4c4');
+    frect(g, x + 300, y + 50, 10, 140, '#ff9a8a'); frect(g, x + 300, y + 50, 2, 140, '#ffc6b4'); frect(g, x + 308, y + 50, 2, 140, '#c8605a');
+    frect(g, x + 198, y + 44, 4, 152, '#8d6bff'); frect(g, x + 198, y + 44, 1, 152, '#b49cff');
     drawText(g, 'CÁTODO (−)', x + 95, y + 30, { font: 'tiny', align: 'center', color: '#cfe8ee' });
     drawText(g, 'ÁNODO (+)', x + 305, y + 30, { font: 'tiny', align: 'center', color: '#ff9a8a' });
     drawText(g, 'MEMBRANA', x + 200, y + 202, { font: 'tiny', align: 'center', color: '#b49cff' });
-    for (let i = 0; i < 24; i++) { const ph = (t * 0.9 + i / 24) % 1; fdisc(g, x + 106 + (i % 4) * 6, y + 190 - ph * 140, 1.5, '#d8fff8'); }
-    for (let i = 0; i < 12; i++) { const ph = (t * 0.7 + i / 12) % 1; fdisc(g, x + 286 - (i % 3) * 6, y + 190 - ph * 140, 2, '#ffffff'); }
+    // H2 en el cátodo (verde esmeralda, el doble de burbujas) y O2 en el ánodo (lavanda pálido), con brillo de 1 px
+    for (let i = 0; i < 24; i++) { const ph = (t * 0.9 + i / 24) % 1, bx = Math.round(x + 106 + (i % 4) * 6), by = Math.round(y + 190 - ph * 140); frect(g, bx - 1, by - 1, 3, 3, '#4cd48e'); fpx(g, bx - 1, by - 1, '#ffffff'); fpx(g, bx + 1, by + 1, '#1f8a5c'); }
+    for (let i = 0; i < 12; i++) { const ph = (t * 0.7 + i / 12) % 1, bx = Math.round(x + 286 - (i % 3) * 6), by = Math.round(y + 190 - ph * 140); frect(g, bx - 2, by - 1, 4, 3, '#c8b8f0'); frect(g, bx - 1, by - 2, 2, 5, '#c8b8f0'); fpx(g, bx - 1, by - 1, '#ffffff'); fpx(g, bx + 1, by + 1, '#8a74c8'); }
+    UIK.pill(g, x + 116, y + 46, 'H₂', { font: 'main', rim: '#4cd48e', fill: '#04221c', color: '#c2f5de' });
+    UIK.pill(g, x + 264, y + 46, 'O₂', { font: 'main', align: 'right', rim: '#c8b8f0', fill: '#170628', color: '#f4f0ff' });
     for (let i = 0; i < 10; i++) { const ph = (t * 0.5 + i / 10) % 1; drawText(g, 'H₂O', x + 150 + ((i * 37) % 90), y + 60 + ph * 120, { font: 'tiny', color: '#56e5ff' }); }
     Charts.flow(g, [[x + 20, y + 120], [x + 60, y + 120]], 'power', 1, 3);
     drawText(g, '2 H₂O → 2 H₂ + O₂', x + 200, y + 12, { align: 'center', color: '#ffe14d' });
@@ -36423,8 +36648,8 @@ const Sim07 = makeSim({
     UIK.panel(g, CX, 28, CW, 140, 'tech');
     const kg = this.E / 55;
     drawText(g, 'Energía: ' + fmt0(this.E) + ' kWh', CX + 8, 36, { color: '#ffe14d' });
-    drawText(g, 'H2: ' + fmt(kg, 2) + ' kg', CX + 8, 50, { color: '#d8fff8' });
-    drawText(g, 'O2: ' + fmt(kg * H2_O2_RATIO, 1) + ' kg', CX + 8, 64, { color: '#ffffff' });
+    drawText(g, 'H2: ' + fmt(kg, 2) + ' kg', CX + 8, 50, { color: '#4cd48e' });
+    drawText(g, 'O2: ' + fmt(kg * H2_O2_RATIO, 1) + ' kg', CX + 8, 64, { color: '#c8b8f0' });
     drawText(g, 'Agua estequiométrica: ' + fmt(kg * H2_STOICH_WATER, 1) + ' kg', CX + 8, 78, { color: '#56e5ff' });
     drawText(g, 'Agua retirada (con purificación): ' + fmt(kg * H2_WATER_PER_KG, 1) + ' kg', CX + 8, 92, { font: 'tiny', color: '#a6f4ff' });
     drawText(g, 'SEC = 55 kWh/kg · PCI del H2 ≈ 33,3 kWh/kg', CX + 8, 108, { font: 'tiny', color: '#cfd6f0' });
@@ -36434,6 +36659,7 @@ const Sim07 = makeSim({
     const c = this.calc();
     Charts.frame(g, x, y, 400, 170, '#0a1838');
     const cw = 15, base = y + 150;
+    let curH = null;
     drawText(g, 'EXCEDENTE RENOVABLE (amarillo) Y STACKS (verde/rojo) · kW', x + 6, y + 4, { font: 'tiny', color: '#ffe14d' });
     for (let h = 0; h < 24; h++) {
       const cx = x + 20 + h * cw;
@@ -36442,7 +36668,18 @@ const Sim07 = makeSim({
       const P = this.sched[h] * 300, ph = Math.round(P / 1000 * 120), rh = Math.round(Math.min(P, H2_SURPLUS[h]) / 1000 * 120);
       if (P) { frect(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); frect(g, cx + 3, base - rh, cw - 9, rh, '#86e36f'); }
       if (h % 3 === 0) drawText(g, String(h), cx, base + 4, { font: 'tiny', color: '#8a8fb8' });
-      if ((!this.done || this.phase === 'free') && Gui.button(g, 'hs' + h, cx, y + 16, cw - 2, 136, '', { noDraw: true, tip: h + ':00 · ' + this.sched[h] + ' stacks' })) { this.sched[h] = (this.sched[h] + 1) % 4; Audio2.sfx('ui'); }
+      if (!this.done || this.phase === 'free') {
+        if (Gui.button(g, 'hs' + h, cx, y + 16, cw - 2, 136, '', { noDraw: true, tip: h + ':00 · ' + this.sched[h] + ' stacks' })) { this.sched[h] = (this.sched[h] + 1) % 4; Audio2.sfx('ui'); }
+        const pp = Input.pointer, over = Gui.inputScene && pp.x >= cx && pp.x < cx + cw - 2 && pp.y >= y + 16 && pp.y < y + 152;
+        if ((Gui.inputScene && Gui.isFocused('hs' + h)) || (over && !Gui.keyNav)) curH = h;
+      }
+    }
+    // cursor de hora: marco dorado de 1 px (cubre el contorno de foco) + píldora con la hora, como en las demás gráficas
+    if (curH != null) {
+      const cx = x + 20 + curH * cw, gc = '#ffd23a';
+      frect(g, cx, y + 16, cw - 2, 1, gc); frect(g, cx, y + 151, cw - 2, 1, gc); frect(g, cx, y + 16, 1, 136, gc); frect(g, cx + cw - 3, y + 16, 1, 136, gc);
+      const lbl = curH + ':00 · ' + this.sched[curH] + ' stacks';
+      UIK.pill(g, clamp(cx + (cw - 2) / 2, x + 46, x + 354), y + 18, lbl, { align: 'center', rim: gc, fill: '#1a1404', color: '#fff2c0' });
     }
     const CX = 414, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 200, 'tech');
@@ -37055,7 +37292,7 @@ const Sim08 = makeSim({
     drawText(g, 'Rendimiento: ' + fmt0(lerp(100, 58, k)) + ' %', x + 260, y + 26, { color: k > 0.5 ? '#ff9a8a' : '#c2f58e' });
     const CX = 414, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 120, 'tech');
-    drawTextBlock(g, 'ETc = Kc · ET0. En Aridia, ET0 ≈ 6,5 mm/día. El tomate en floración (Kc ≈ 1,15) pierde ≈ 7,5 mm/día. Con goteo (eficiencia ≈ 0,9) hay que aplicar ≈ 8,3 mm/día brutos.', CX + 8, 34, CW - 16, { font: 'tiny', color: '#cfd6f0' });
+    drawTextBlock(g, 'ETc = Kc · ET0. En Aridia, ET0 ≈ 6,5 mm/día. El tomate en floración (Kc ≈ 1,15) pierde ≈ 7,5 mm/día. Con goteo (eficiencia ≈ 0,9) hay que aplicar ≈ 8,3 mm/día brutos.', CX + 8, 34, CW - 16, { color: '#cfd6f0', lineH: 11 });
   },
   drawBlend(g, x, y) {
     const b = this.blend();
@@ -37069,7 +37306,10 @@ const Sim08 = makeSim({
       Icons.draw(g, k === 'rain' ? 'water' : k === 'perm' ? 'membrane' : 'salt', x + 8, yy + 6);
       const v = Gui.slider(g, 'src' + k, x + 28, yy, 240, this.f[k], 0, S.max, 0.05, { label: S.name, fmt: q => fmt0(q * 100) + ' %', disabled: this.done && this.phase !== 'free', color: S.col });
       if (v !== this.f[k]) { this.f[k] = v; const others = keys.filter(q => q !== k); const rest = Math.max(0, 1 - v); const sum = others.reduce((a, q) => a + this.f[q], 0) || 1; for (const q of others) this.f[q] = Math.min(IRR_SOURCES[q].max, this.f[q] / sum * rest); }
-      drawText(g, 'EC ' + fmt(S.ec, 2) + ' · B ' + fmt(S.boron, 1) + ' · Na ' + S.na + ' · Ca+Mg ' + S.cam, x + 280, yy + 10, { font: 'tiny', color: '#cfd6f0' });
+      // química de la fuente en dos líneas, todo con coma decimal (fmt)
+      const nf = v => Number.isInteger(v) ? fmt0(v) : fmt(v, 1);
+      drawText(g, 'EC ' + fmt(S.ec, 2) + ' · B ' + fmt(S.boron, 1), x + 280, yy + 6, { font: 'tiny', color: '#cfd6f0' });
+      drawText(g, 'Na ' + nf(S.na) + ' · Ca+Mg ' + nf(S.cam), x + 280, yy + 14, { font: 'tiny', color: '#cfd6f0' });
       yy += 30;
     }
     const gp = Gui.toggle(g, 'gyp', x + 28, yy + 4, 'Dosificar yeso (calcio)', this.gyp); if (!this.done || this.phase === 'free') this.gyp = gp;
@@ -37086,8 +37326,9 @@ const Sim08 = makeSim({
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }
     drawText(g, 'Infiltración', sx + 55, sy + 84, { font: 'tiny', align: 'center', color: '#cfd6f0' });
     const CX = 414, CW = W - CX - 6;
-    UIK.panel(g, CX, 28, CW, 120, 'glass');
-    drawTextBlock(g, 'Calidad para riego (FAO-29, orientativo): la EC mide sales; el boro es tóxico en dosis bajas para cultivos sensibles; el SAR (sodio frente a calcio y magnesio) con agua muy pura sella el suelo. Los umbrales dependen de especie, suelo y manejo.', CX + 8, 34, CW - 16, { font: 'tiny', color: '#cfd6f0' });
+    UIK.panel(g, CX, 28, CW, 200, 'glass');
+    drawText(g, 'CALIDAD PARA RIEGO (FAO-29)', CX + 8, 34, { font: 'tiny', color: '#ffe14d' });
+    drawTextBlock(g, 'Orientativo: la EC mide sales; el boro es tóxico en dosis bajas para cultivos sensibles; el SAR (sodio frente a calcio y magnesio) con agua muy pura sella el suelo. Los umbrales dependen de especie, suelo y manejo.', CX + 8, 46, CW - 16, { color: '#cfd6f0', lineH: 11 });
     if (this.phase === 'guided' && !this.done && Gui.button(g, 'ev', CX + 8, 204, 100, 18, 'Evaluar mezcla', { style: 'good', icon: 'check' })) this.evaluate();
     if (Gui.button(g, 'hintb', CX + CW - 60, 204, 54, 18, 'Pista', { style: 'ghost', icon: 'hint' })) this.hint();
   },
@@ -37459,6 +37700,46 @@ async function sideUnits(sc) {
 /* =====================================================================
    Muro de evidencias: cadena causal sistémica
    ===================================================================== */
+/** Muro de evidencias: tablero de corcho y foto del apagón, horneados una vez (sin coste por cuadro) */
+const FIXSIMS_CHAIN = { board: null, photo: null, emerg: [] };
+function FIXSIMS_chainBoard() {
+  if (FIXSIMS_CHAIN.board) return FIXSIMS_CHAIN.board;
+  const c = makeCanvas(W, H), b = c.g;
+  frect(b, 14, 14, W - 28, H - 28, '#3a1a10'); frect(b, 16, 16, W - 32, H - 32, '#7e4429'); frect(b, 16, 16, W - 32, 2, '#c97c38');
+  frect(b, 20, 34, W - 40, H - 54, '#b8864e');
+  for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(b, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
+  SCBK.veil(b, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+  FIXSIMS_CHAIN.board = c; return c;
+}
+function FIXSIMS_chainPhoto(w, h) {
+  if (FIXSIMS_CHAIN.photo) return FIXSIMS_CHAIN.photo;
+  const V = VISTA, seaY = h - 11;
+  const pb = SCBK.nightSky(w, h, { horizonY: seaY });
+  SCBK.stars(pb, w, seaY - 24, 909, { n: 70, y1: seaY - 24 });
+  // ciudad en la colina, sin luz (apagón): capa aparte que se gradúa a noche y se compone sobre el cielo
+  const town = new PixelBuffer(w, h), r = RNG(4242), emerg = [];
+  const hillTop = (x) => Math.round(seaY - 20 - 9 * Math.sin(x * 0.018 + 0.6) - 4 * Math.sin(x * 0.07));
+  const HR = V.P32(['#1a2a3a', '#24384a', '#2e465a']);
+  for (let x = 0; x < w; x++) for (let y = hillTop(x); y < seaY; y++) town.data[y * w + x] = HR[y - hillTop(x) < 2 ? 2 : y - hillTop(x) < 6 ? 1 : 0];
+  const tw = V.synaraTower(town, Math.round(w * 0.72), hillTop(Math.round(w * 0.72)) + 2, 42, {});
+  let x = 4;
+  while (x < w - 14) {
+    const hw = r.int(10, 16), hh = r.int(9, 15), base = hillTop(x + (hw >> 1)) + r.int(6, 12);
+    if (Math.abs(x + hw / 2 - w * 0.72) > 12) {
+      const hs = V.townHouse(town, x, Math.min(seaY - 1, base), hw, hh, 300 + x, { k: 0 });
+      if (hs && hs.wins && r() < 0.35 && hs.wins.length) { const wv = hs.wins[0]; emerg.push([wv[0], wv[1]]); }
+    }
+    x += hw + r.int(1, 4);
+  }
+  SCBK.grade(town, { sat: 0.55, tint: '#26357a', tintK: 0.55, bright: 0.42 });
+  for (let i = 0; i < town.data.length; i++) if (town.data[i] >>> 24) pb.data[i] = town.data[i];
+  // mar oscuro en bandas con reflejos tenues
+  const SEA = V.P32(['#06183a', '#041230', '#030c24', '#020818']);
+  for (let y = seaY; y < h; y++) for (let xx = 0; xx < w; xx++) pb.data[y * w + xx] = SEA[Math.min(3, Math.floor((y - seaY) / 3))];
+  for (let i = 0; i < 26; i++) { const rx = r.int(0, w - 4), ry = seaY + 1 + r.int(0, h - seaY - 2); for (let k = 0; k < 3; k++) V.put(pb, rx + k, ry, U('#2a3a6a')); }
+  FIXSIMS_CHAIN.emerg = emerg.slice(0, 6);
+  FIXSIMS_CHAIN.photo = pb.toCanvas(); return FIXSIMS_CHAIN.photo;
+}
 const ChainScene = {
   overlay: true,
   enter(p) { this.onDone = p.onDone; this.sel = new Set(); this.fb = null; this.order = RNG(91).shuffle(CHAIN_CARDS.slice()); },
@@ -37467,20 +37748,21 @@ const ChainScene = {
   render(g) {
     const t = Game.time;
     SCBK.veil(g, 0, 0, W, H, '#05030f', 0.8);
-    // marco de madera y corcho
-    frect(g, 14, 14, W - 28, H - 28, '#3a1a10'); frect(g, 16, 16, W - 32, H - 32, '#7e4429'); frect(g, 16, 16, W - 32, 2, '#c97c38');
-    frect(g, 20, 34, W - 40, H - 54, '#b8864e');
-    for (let i = 0; i < 900; i++) { const x = 20 + (i * 7919) % (W - 40), y = 34 + (i * 104729) % (H - 54); fpx(g, x, y, (i % 3) ? '#a87440' : '#cc9a60'); }
-    SCBK.veil(g, 20, H - 40, W - 40, 20, '#7e4429', 0.25);
+    // marco de madera y corcho (prerenderizado una vez: antes eran ~900 fillRect por cuadro)
+    g.drawImage(FIXSIMS_chainBoard(), 0, 0);
     drawText(g, 'MURO DE EVIDENCIAS · ¿CÓMO OCURRIÓ?', 28, 21, { color: '#fff6d8', shadow: '#3a1a10' });
     drawText(g, 'Clava los factores que la evidencia respalda. Deja fuera los que los datos contradicen.', W - 28, 23, { font: 'tiny', color: '#ffe08a', align: 'right' });
     // foto central de la crisis
     const cx = 26 + 150 + 2, cy = 50 + 60 + 4, cw = 286, ch = 108;
-    frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0');
-    frect(g, cx + 6, cy + 6, cw - 12, ch - 34, '#0a0c22');
-    for (let k = 0; k < 18; k++) { const bx = cx + 10 + k * 15, bh = 10 + (k * 13) % 30; frect(g, bx, cy + ch - 28 - bh, 12, bh, '#1c1f40'); if ((k * 7) % 5 === 0) fpx(g, bx + 4, cy + ch - 26 - bh + 4, '#ff6b6b'); }
-    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.35);
-    fdisc(g, cx + cw / 2, cy + 30, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 30, 5, '#0a0c22');
+    frect(g, cx + 3, cy + 3, cw, ch, '#5a3826'); frect(g, cx, cy, cw, ch, '#fffaf0'); frect(g, cx, cy + ch - 1, cw, 1, '#d8ccb0');
+    // foto: Synara de noche durante el apagón (mini panorama VISTA prerenderizado) + polvo de la Calima en el cielo
+    g.drawImage(FIXSIMS_chainPhoto(cw - 12, ch - 34), cx + 6, cy + 6);
+    SCBK.veil(g, cx + 6, cy + 6, cw - 12, 20, '#c06a30', 0.22); SCBK.veil(g, cx + 6, cy + 6, cw - 12, 9, '#c06a30', 0.14);
+    // símbolo de MIRAGE sobre la ciudad (anillo magenta con halo de 1 px) y luces de emergencia que parpadean
+    fdisc(g, cx + cw / 2, cy + 22, 9, '#f27ee6'); fdisc(g, cx + cw / 2, cy + 22, 6, '#0a0c22'); g.globalAlpha = 0.35; fdisc(g, cx + cw / 2, cy + 22, 11, '#f27ee6'); g.globalAlpha = 1; fdisc(g, cx + cw / 2, cy + 22, 6, '#0a0c22');
+    if (Math.floor(t * 2) % 2) for (const [ex, ey] of FIXSIMS_CHAIN.emerg) frect(g, cx + 6 + ex, cy + 6 + ey, 2, 2, '#ff4e5d');
+    // cinta adhesiva arriba
+    g.globalAlpha = 0.7; frect(g, cx + cw / 2 - 22, cy - 4, 44, 9, '#efe2b8'); g.globalAlpha = 1; frect(g, cx + cw / 2 - 22, cy - 4, 44, 1, '#fff6d8');
     drawText(g, 'APAGÓN DE SYNARA', cx + cw / 2, cy + ch - 22, { color: '#3a1a10', align: 'center' });
     drawText(g, 'No preguntes quién. Pregunta cómo.', cx + cw / 2, cy + ch - 11, { font: 'tiny', color: '#7e4429', align: 'center' });
         Gui.begin();
@@ -37637,14 +37919,16 @@ const Sim09 = makeSim({
     MO_ALTS.forEach((a, r) => {
       const yy = y + 18 + r * 30;
       const marked = this.marks.has(a.id), picked = this.pick === a.id;
-      if (Gui.button(g, 'alt' + a.id, x + 6, yy, 140, 26, a.id + '. ' + a.name, { style: picked ? 'good' : marked ? 'danger' : 'ghost', align: 'left', disabled: this.done && ph !== 'free' })) {
+      const domTag = ph === 'free' && P.find(q => q.id === a.id).dominated;
+      if (Gui.button(g, 'alt' + a.id, x + 6, yy, 140, 26, domTag ? '' : a.id + '. ' + a.name, { style: picked ? 'good' : marked ? 'danger' : 'ghost', align: 'left', disabled: this.done && ph !== 'free' })) {
         if (ph === 'guided') { if (marked) this.marks.delete(a.id); else this.marks.add(a.id); }
         else this.pick = a.id;
         Audio2.sfx('ui');
       }
       keys.forEach((k, i) => { const v = a.crit[k]; const n = MOModel.normalize(MO_ALTS, { [k]: MO_DIRS[k] }).find(q => q.id === a.id).norm[k]; frect(g, x + 150 + i * 52, yy + 18, Math.round(46 * n), 4, n > 0.66 ? '#86e36f' : n > 0.33 ? '#ffe14d' : '#ff6b6b'); drawText(g, k === 'costo' ? fmt(v, 2) : k === 'equidad' ? fmt(v, 2) : fmt0(v), x + 150 + i * 52, yy + 6, { font: 'tiny', color: '#fffaf0' }); });
       if (ph === 'auto') { const s = this.monoScore(a); drawText(g, String(s), x + 156 + keys.length * 52, yy + 6, { color: a.id === 'M' ? '#ffe14d' : '#f27ee6' }); }
-      if (ph === 'free' && P.find(q => q.id === a.id).dominated) { frect(g, x + 104, yy + 1, 40, 7, '#05081d'); drawText(g, 'DOMINADA', x + 142, yy + 2, { font: 'tiny', color: '#ff9a8a', align: 'right' }); }
+      // dominada: nombre arriba y píldora dentro de la fila (no sobre el borde)
+      if (domTag) { drawText(g, fitText(a.id + '. ' + a.name, 128), x + 12, yy + 3, { color: picked ? '#eafff6' : '#e2ebfc' }); UIK.pill(g, x + 12, yy + 13, 'DOMINADA', { rim: '#ff6b6b', fill: '#2a0814', color: '#ffd0c8' }); }
     });
     const CX = 484, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 232, 'glass');
@@ -37954,25 +38238,66 @@ const CAL_CARDS = {
   },
 };
 
+/** Marco de la tarjeta de crisis: panel navy con bisel, insignia que desborda la esquina,
+ *  franja de alerta ocre en bandas sólidas con brillo de 1 px y estrías de polvo animadas (sin tramado). */
+function FIXSIMS_calimaCard(g, x, y, w, h, c, t) {
+  UIK.panel(g, x, y, w, h, 'tech', null, { chamfer: 3 });
+  const sx = x + 3, sy = y + 3, sw = w - 6;
+  frect(g, sx, sy, sw, 1, '#f6c27a');
+  frect(g, sx, sy + 1, sw, 6, '#d27c38');
+  frect(g, sx, sy + 7, sw, 6, '#bc6630');
+  frect(g, sx, sy + 13, sw, 5, '#a2522a');
+  frect(g, sx, sy + 18, sw, 1, '#6a2e16');
+  frect(g, sx, sy + 19, sw, 1, '#000633');
+  g.fillStyle = '#ffd89a';
+  for (let i = 0; i < 7; i++) {
+    const L = 20 + (i * 13) % 26, span = sw - 24 - L;
+    const bx = Math.round(sx + 24 + ((t * (60 + i * 9) + i * 97) % span)), by = sy + 3 + (i * 5) % 13;
+    g.globalAlpha = 0.22 + (i % 3) * 0.07; g.fillRect(bx, by, L, 1);
+    g.globalAlpha = 0.12; g.fillRect(bx + 6, by + 1, L - 10, 1);
+  }
+  g.globalAlpha = 1;
+  UIK.badge(g, c.icon, x - 3, y - 3, 22, 'tech', { rim: '#f5a576' });
+  drawText(g, fitText('FASE ' + c.phase + ' / 9 · ' + c.title, w - 90, 'bold'), x + 26, y + 7, { font: 'bold', color: '#fff6d8', shadow: '#5a2410' });
+  UIK.pill(g, x + w - 8, y + 5, c.ra, { align: 'right', rim: '#ffd23a', fill: '#2a1206', color: '#fff2c0' });
+  frect(g, x + 6, y + 25, w - 12, 1, '#12305a');
+}
+/** Ventana «en vivo» con el panorama de la tormenta (capturado al abrir la tarjeta) y velo ocre en bandas */
+function FIXSIMS_calimaWindow(g, bn, x, y, w, h, t) {
+  UIK.frame(g, x, y, w, h, 'hud', { bg: '#3a1c0c' });
+  const ix = x + 4, iy = y + 4, iw = w - 8, ih = h - 8;
+  if (bn && bn.c) {
+    const sx = clamp(Math.round(W / 2 - iw / 2 + Math.sin(t * 0.15) * 30), 0, W - iw), sy = clamp(bn.y0 + 6, 0, H - ih);
+    g.drawImage(bn.c, sx, sy, iw, ih, ix, iy, iw, ih);
+  } else {
+    frect(g, ix, iy, iw, ih, '#b8743e'); frect(g, ix, iy + Math.round(ih * 0.4), iw, ih - Math.round(ih * 0.4), '#9a5a30'); frect(g, ix, iy + Math.round(ih * 0.72), iw, ih - Math.round(ih * 0.72), '#6e3a1e');
+  }
+  g.fillStyle = '#c88a48';
+  const b1 = Math.round(ih * 0.45), b2 = Math.round(ih * 0.75);
+  g.globalAlpha = 0.2; g.fillRect(ix, iy, iw, ih);
+  g.globalAlpha = 0.14; g.fillRect(ix, iy + b1, iw, ih - b1);
+  g.globalAlpha = 0.12; g.fillRect(ix, iy + b2, iw, ih - b2);
+  g.fillStyle = '#ffe2b0';
+  for (let i = 0; i < 9; i++) {
+    const L = 10 + (i * 7) % 16, bx = Math.round(ix + ((t * (90 + i * 13) + i * 53) % (iw - L))), by = iy + 14 + (i * 11) % (ih - 18);
+    g.globalAlpha = 0.25 + (i % 3) * 0.08; g.fillRect(bx, by, L, 1);
+  }
+  g.globalAlpha = 1;
+  UIK.pill(g, ix + 2, iy + 2, 'CALIMA · EN VIVO', { rim: '#f5a576', fill: '#2a1206', color: '#fff2c0' });
+  if (Math.sin(t * 6) > 0) { frect(g, ix + iw - 7, iy + 4, 3, 3, '#ff4e5d'); fpx(g, ix + iw - 7, iy + 4, '#ffc6b4'); }
+}
 const CrisisCardScene = {
   overlay: true,
-  enter(p) { this.card = p.card; this.id = p.id; this.onDone = p.onDone; this.sel = -1; this.fb = null; this.t = 0; this.t0 = nowMs(); },
+  enter(p) { this.card = p.card; this.id = p.id; this.onDone = p.onDone; this.sel = -1; this.fb = null; this.t = 0; this.t0 = nowMs(); this.bn = (typeof SCACards !== 'undefined' && typeof GameplayScene !== 'undefined' && GameplayScene.backdrop) ? SCACards.captureBanner(GameplayScene) : null; },
   update(dt) { this.t += dt; if (Input.pressed('cancel') && !this.fb) { Game.pop(); this.onDone && this.onDone(null); } },
   render(g) {
     const c = this.card, t = this.t;
-    fdither(g, 0, 0, W, H, '#1a0804', 0.7);
+    // velo de tormenta sin tramado (alfa plano, bandas más densas en los bordes)
+    UIK.scrim(g, 0.66, '#1a0804');
     const x = 28, y = 18, w = W - 56, h = H - 36;
-    // marco de tarjeta: ocre tormenta con borde eléctrico
-    frect(g, x + 3, y + 4, w, h, '#05030f');
-    frect(g, x, y, w, h, '#2a0e0a'); fdither(g, x, y, w, h, '#4a1a10', 0.4);
-    frect(g, x, y, w, 1, '#56e5ff'); frect(g, x, y + h - 1, w, 1, '#56e5ff'); frect(g, x, y, 1, h, '#56e5ff'); frect(g, x + w - 1, y, 1, h, '#56e5ff');
-    frect(g, x + 2, y + 2, w - 4, 20, '#c06a30'); fdither(g, x + 2, y + 2, w - 4, 10, '#e2a052', 0.4);
-    Icons.draw(g, c.icon, x + 6, y + 5);
-    drawText(g, 'FASE ' + c.phase + ' / 9 · ' + c.title, x + 24, y + 8, { color: '#fff6d8', shadow: '#2a0e0a' });
-    drawText(g, c.ra, x + w - 8, y + 9, { font: 'tiny', color: '#fff6d8', align: 'right' });
-    // banda de tormenta animada
-    for (let i = 0; i < 6; i++) { const bx = x + 2 + ((t * 70 + i * 97) % (w - 40)); fdither(g, bx, y + 24, 36, 2, '#e2a052', 0.5); }
-    let yy = y + 30;
+    // tarjeta: panel navy con bisel (kit de UI) + franja de alerta ocre de la Calima
+    FIXSIMS_calimaCard(g, x, y, w, h, c, t);
+    let yy = y + 32;
     yy += drawTextBlock(g, c.prompt, x + 10, yy, w - 20, { color: '#fffaf0' }) + 6;
     Gui.begin();
     c.options.forEach((o, i) => {
@@ -37982,7 +38307,7 @@ const CrisisCardScene = {
       if (r.clicked && !(this.fb && this.fb.ok)) { this.sel = i; this.fb = null; }
       yy += r.h + 3;
     });
-    if (c.readout) { const rh = Math.min(96, y + h - 60 - yy); if (rh > 40) c.readout(g, x + 10, yy + 4, w - 160, rh); }
+    if (c.readout) { const rh = Math.min(96, y + h - 60 - yy); if (rh > 40) { c.readout(g, x + 10, yy + 4, w - 160, rh); FIXSIMS_calimaWindow(g, this.bn, x + w - 142, yy + 4, 132, rh, t); } }
     if (!this.fb) {
       if (Gui.button(g, 'ok', x + w - 130, y + h - 26, 120, 18, 'Decidir', { style: 'good', icon: 'check', disabled: this.sel < 0 })) {
         const ok = this.sel === c.key;
@@ -38020,7 +38345,7 @@ const PriorityScene = {
   enter(p) { this.onDone = p.onDone; this.order = []; this.fb = null; this.pool = RNG(77).shuffle(CAL_PRIOS.slice()); },
   update() { if (Input.pressed('cancel')) { Game.pop(); this.onDone && this.onDone(null); } },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.75, '#05030f');
     UIK.panel(g, 24, 16, W - 48, H - 32, 'mosaic');
     UIK.header(g, 24, 16, W - 48, 'FASE 8 / 9 · GOBERNANZA: PRIORIDADES TRANSPARENTES', 'mosaic', 'scale');
     drawTextBlock(g, 'Ordena qué se protege primero cuando la energía o el agua no alcanzan. Lo que quede abajo será lo primero en recortarse, y todos podrán verlo.', 34, 38, W - 68, { color: '#fffaf0' });
@@ -38033,10 +38358,14 @@ const PriorityScene = {
     drawText(g, 'ORDEN DE PROTECCIÓN (1 = PRIMERO)', 330, 66, { font: 'tiny', color: '#c2f58e' });
     for (let i = 0; i < CAL_PRIOS.length; i++) {
       const id = this.order[i], c = id && CAL_PRIOS.find(q => q.id === id), yy = 76 + i * 26;
-      frect(g, 328, yy, 278, 22, '#06100a'); frect(g, 328, yy, 278, 1, '#1f854c');
-      drawText(g, String(i + 1), 336, yy + 7, { color: '#ffe14d' });
+      // ranura: caja de número separada + fila navy con bisel (kit de UI), color del nivel de protección
+      const tierCol = i >= 4 ? '#ff9a8a' : i >= 2 ? '#c2f58e' : '#3fe0a0';
+      UIK.panel(g, 328, yy, 20, 22, 'sheet', c ? tierCol : null, { chamfer: 2, key: false, spark: false });
+      UIK.panel(g, 350, yy, 256, 22, 'sheet', null, { chamfer: 2, key: false, spark: !!c });
+      drawText(g, String(i + 1), 338, yy + 6, { font: 'bold', color: c ? '#ffe14d' : '#93a6c8', align: 'center' });
+      if (!c) frect(g, 358, yy + 10, 120, 1, '#12305a');
       const shedTxt = i >= 4 ? 'se recorta primero' : i >= 2 ? 'se protege' : 'nunca se recorta';
-      if (c) { Icons.draw(g, c.icon, 348, yy + 4); drawText(g, c.label, 364, yy + 4, { font: 'tiny', color: '#fffaf0', max: 52 }); drawText(g, shedTxt, 364, yy + 13, { font: 'tiny', color: i >= 4 ? '#ff9a8a' : '#86e36f' }); }
+      if (c) { Icons.draw(g, c.icon, 354, yy + 5); drawText(g, fitText(c.label, 230, 'tiny'), 370, yy + 5, { font: 'tiny', color: '#fffaf0' }); drawText(g, shedTxt, 370, yy + 13, { font: 'tiny', color: tierCol }); }
     }
     if (this.fb) { UIK.panel(g, 34, H - 64, W - 228, 40, this.fb.ok ? 'green' : 'alert'); drawTextBlock(g, this.fb.txt, 40, H - 59, W - 240, { color: '#fffaf0' }); }
     if (!(this.fb && this.fb.ok)) {
@@ -38079,13 +38408,13 @@ const ObjectiveScene = {
   update(dt) { this.t += dt; if (Input.pressed('cancel')) { Game.pop(); this.onDone && this.onDone(null); } },
   render(g) {
     const t = this.t;
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.78, '#05030f');
     UIK.panel(g, 24, 16, W - 48, H - 32, 'mirage');
     UIK.header(g, 24, 16, W - 48, 'FASE 9 / 9 · REESCRIBIR EL OBJETIVO', 'mirage', 'mirror');
     // objetivo antiguo, tachado
     frect(g, 36, 40, W - 72, 22, '#1d0b3a');
     drawText(g, 'OBJETIVO MIRAGE:  MAX ( H2 exportado - costo )   sujeto a: mínimos modelados', 44, 47, { color: '#f27ee6' });
-    if (this.sel.size >= 3) for (let x = 40; x < W - 44; x += 2) fpx(g, x, 51 + ((x >> 3) & 1), '#ff4e5d');
+    if (this.sel.size >= 3) { frect(g, 40, 51, W - 84, 1, '#ff4e5d'); frect(g, 40, 52, W - 84, 1, '#a8243c'); }
     drawText(g, 'Elige las piezas del nuevo objetivo. Un gemelo honesto muestra, no esconde.', 36, 68, { color: '#fffaf0' });
     Gui.begin();
     this.order.forEach((c, i) => {
@@ -38094,14 +38423,23 @@ const ObjectiveScene = {
       let st = on ? 'good' : 'choice';
       if (this.fb && on && !c.ok) st = 'danger';
       if (Gui.button(g, 'o' + c.id, x, y, 182, 28, '', { style: st, disabled: !!(this.fb && this.fb.ok) })) { if (on) this.sel.delete(c.id); else this.sel.add(c.id); this.fb = null; }
-      drawTextBlock(g, c.label, x + 6, y + 5, 170, { font: 'tiny', color: '#fffaf0', lineH: 8 });
+      const lines = wrapText(c.label, 170);
+      drawTextBlock(g, c.label, x + 6, y + (lines.length > 1 ? 3 : 9), 172, { color: '#fffaf0', lineH: 11 });
     });
     // mosaico que se arma con las piezas correctas
     const good = CAL_OBJ.filter(c => c.ok && this.sel.has(c.id)).length, cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'];
     const mx = 36, my = 192;
     drawText(g, 'NUEVO OBJETIVO', mx, my, { font: 'tiny', color: '#c2f58e' });
-    for (let k = 0; k < 6; k++) { const bx = mx + k * 30, on = k < good; frect(g, bx, my + 10, 26, 18, on ? cols[k] : '#1d0b3a'); if (on) fdither(g, bx, my + 10, 26, 9, '#ffffff', 0.25 + 0.1 * Math.sin(t * 3 + k)); }
-    if (this.fb) { UIK.panel(g, 230, my - 2, W - 266, 46, this.fb.ok ? 'green' : 'alert'); drawTextBlock(g, this.fb.txt, 236, my + 3, W - 278, { color: '#fffaf0', font: 'tiny', lineH: 8 }); }
+    for (let k = 0; k < 6; k++) {
+      const bx = mx + k * 30, on = k < good;
+      frect(g, bx, my + 10, 26, 18, '#000633');
+      if (!on) { frect(g, bx + 1, my + 11, 24, 16, '#1d0b3a'); frect(g, bx + 1, my + 11, 24, 1, '#3a1250'); continue; }
+      // tesela con bisel en bandas: brillo 1 px, cuerpo, sombra 2 px con desplazamiento de tono y pulso plano
+      frect(g, bx + 1, my + 11, 24, 16, cols[k]); frect(g, bx + 1, my + 11, 24, 1, shadeTo(cols[k], 0.45));
+      frect(g, bx + 1, my + 25, 24, 2, shade(cols[k], -0.35)); frect(g, bx + 24, my + 12, 1, 13, shade(cols[k], -0.2));
+      g.globalAlpha = 0.18 + 0.1 * Math.sin(t * 3 + k); frect(g, bx + 1, my + 12, 24, 6, '#ffffff'); g.globalAlpha = 1;
+    }
+    if (this.fb) { const fh = Math.max(46, textHeight(this.fb.txt, W - 278, { lineH: 11 }) + 10); UIK.panel(g, 230, my - 2, W - 266, fh, this.fb.ok ? 'green' : 'alert'); drawTextBlock(g, this.fb.txt, 236, my + 3, W - 278, { color: '#fffaf0', lineH: 11 }); }
     if (!(this.fb && this.fb.ok)) { if (Gui.button(g, 'chk', W - 190, H - 44, 150, 18, 'Compilar objetivo', { style: 'good', icon: 'check', disabled: !this.sel.size })) this.check(); }
     else if (Gui.button(g, 'go', W - 190, H - 44, 150, 18, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone({ ok: true }); }
     Gui.end();
@@ -38828,7 +39166,12 @@ const Sim10 = makeSim({
     const rx = x + 90;
     frect(g, rx, wy, 64, 30, '#0a1440');
     for (let k = 0; k < 3; k++) { const on = k < row.trains; frect(g, rx + 4, wy + 3 + k * 9, 56, 7, on ? (row.mode === 'storm' ? '#ffd27a' : '#e6f6fc') : '#1c2350'); if (on) { frect(g, rx + 4, wy + 3 + k * 9, 3, 7, '#1f469e'); frect(g, rx + 57, wy + 3 + k * 9, 3, 7, '#1f469e'); } }
-    if (row.foul > 0.15) fdither(g, rx, wy, 64, 30, '#a8742c', clamp(row.foul, 0, 0.7));
+    if (row.foul > 0.15) {
+      // ensuciamiento sin tramado: costra marrón sólida en el lado de alimentación de cada tren (crece con foul) + velo plano
+      const f = clamp(row.foul, 0, 1), fl = Math.max(3, Math.round(50 * f));
+      for (let k = 0; k < 3; k++) { const ty = wy + 3 + k * 9; frect(g, rx + 7, ty + 4, fl, 3, '#6e4a1c'); frect(g, rx + 7, ty + 4, fl, 1, '#c8944a'); frect(g, rx + 7, ty + 6, fl, 1, '#4a2c12'); }
+      g.globalAlpha = clamp(0.12 + 0.3 * f, 0, 0.42); frect(g, rx, wy, 64, 30, '#a8742c'); g.globalAlpha = 1;
+    }
     drawText(g, 'OI · ' + row.trains + ' trenes', rx + 32, wy + 33, { font: 'tiny', align: 'center', color: '#a6f4ff' });
     Charts.flow(g, [[x + 76, wy + 15], [rx, wy + 15]], 'seawater', row.trains ? 1 : 0, 3);
     // tanque de agua potable
@@ -38839,9 +39182,8 @@ const Sim10 = makeSim({
     Charts.flow(g, [[rx + 64, wy + 15], [tx, wy + 15]], 'permeate', row.prod > 0 ? 1 : 0, 3);
     // usos del agua
     const ux = tx + 46;
-    const uses = [['heart', 'ESENCIAL ' + fmt0(row.essW), '#ff9a8a', 1], ['seed', 'VIVERO 10', '#c2f58e', V.r.critMiss === 0 || this.pol.data ? 1 : 0], ['water', 'NO ESENC. ' + fmt0(row.nonEss), '#a6f4ff', row.nonEss > 0 ? 1 : 0], ['plant', 'RIEGO N.U. ' + fmt0(row.nonUrg), '#86e36f', row.nonUrg > 0 ? 1 : 0]];
+    const uses = [['heart', 'ESENCIAL ' + fmt0(row.essW) + ' m³/h', '#ff9a8a', 1], ['seed', 'VIVERO 10 m³/h', '#c2f58e', V.r.critMiss === 0 || this.pol.data ? 1 : 0], ['water', 'NO ESENC. ' + fmt0(row.nonEss) + ' m³/h', '#a6f4ff', row.nonEss > 0 ? 1 : 0], ['plant', 'RIEGO N.U. ' + fmt0(row.nonUrg) + ' m³/h', '#86e36f', row.nonUrg > 0 ? 1 : 0]];
     uses.forEach(([ic, lb, c, on], i) => { const yy = wy - 6 + i * 13; Icons.draw(g, ic, ux + 14, yy); drawText(g, lb, ux + 30, yy + 4, { font: 'tiny', color: on ? c : '#4a4e70' }); Charts.flow(g, [[tx + 26, wy + 15], [ux + 12, yy + 6]], ic === 'plant' || ic === 'seed' ? 'irrigation' : 'water', on ? 0.8 : 0, 1); });
-    drawText(g, 'm³/h', ux + 100, wy + 46, { font: 'tiny', color: '#8a8fb8', align: 'right' });
     // salmuera: laguna y difusor
     const by = wy + 46, bx = rx;
     Charts.flow(g, [[rx + 60, wy + 30], [rx + 60, by - 3], [rx + 30, by - 3]], 'brine', row.prod > 0 ? 0.7 : 0, 2);
@@ -38873,7 +39215,10 @@ const Sim10 = makeSim({
     if (row.h2KW > 0) drawGasBubbles(g, lx + 110, ey + 22, 14, 14, t, 1);
     // balance y estado
     const bal = row.gen - row.load;
-    drawText(g, 'GEN ' + fmt0(row.gen) + ' · CARGA ' + fmt0(row.load) + ' kW', lx, ey + 44, { font: 'tiny', color: bal >= 0 ? '#c2f58e' : '#ffb93b' });
+    const bcol = bal >= 0 ? '#c2f58e' : '#ffb93b', brx = x + w - 10;
+    drawText(g, 'BALANCE', brx, ey, { font: 'tiny', color: '#93a6c8', align: 'right' });
+    drawText(g, 'GEN ' + fmt0(row.gen) + ' kW', brx, ey + 10, { font: 'tiny', color: bcol, align: 'right' });
+    drawText(g, 'CARGA ' + fmt0(row.load) + ' kW', brx, ey + 19, { font: 'tiny', color: bcol, align: 'right' });
     if (row.shed && row.shed.length) drawText(g, 'RECORTE: ' + row.shed.join(' → '), x + w - 8, y + 5, { font: 'tiny', color: row.shed.includes('APAGÓN') || row.shed.includes('DISPARO') ? '#ff4e5d' : '#ffb93b', align: 'right' });
     if (row.trip) { const fy = y + 112; frect(g, x + 1, fy, w - 2, 12, (Math.floor(t * 6) % 2) ? '#7a1f36' : '#4a1428'); frect(g, x + 1, fy, w - 2, 1, '#ff4e5d'); frect(g, x + 1, fy + 11, w - 2, 1, '#ff4e5d'); drawText(g, 'DISPARO / APAGÓN: SERVICIOS SIN ENERGÍA', x + w / 2, fy + 2, { align: 'center', font: 'tiny', color: '#fffaf0' }); }
   },
@@ -39045,8 +39390,14 @@ const EndingScene = {
     frect(g, 0, 164, W, H - 164, '#04142e');
     this.ps.render(g);
     // título del final
-    drawText(g, 'FINAL', W / 2, 16, { align: 'center', font: 'tiny', color: '#fff6d8', shadow: '#2a1050' });
-    drawTitleText(g, E.title, W / 2, 24, 3, [E.cols[0], E.cols[2], '#ffffff'], { align: 'center', shadow: '#140d26', depth: 2 });
+    // antetítulo en una píldora navy (legible sobre el sol) y título con rampa clara→saturada de un solo tono + contorno
+    UIK.pill(g, W / 2, 8, 'FINAL', { align: 'center', rim: E.cols[0], fill: '#04142e', color: '#fff6d8' });
+    if (!this.titleC || this.titleK !== this.id) {
+      this.titleK = this.id; const tc = makeCanvas(W, 64); tc.g.imageSmoothingEnabled = false;
+      drawTitleText(tc.g, E.title, W / 2, 6, 3, ['#ffffff', mixHex('#ffffff', E.cols[0], 0.45), E.cols[0]], { align: 'center', shadow: '#140d26', depth: 2, outline: '#140d26' });
+      this.titleC = tc;
+    }
+    g.drawImage(this.titleC, 0, 18);
     const x = 40, w = W - 80;
     UIK.panel(g, x, 164, w, H - 172, 'dialog');
     let yy = 172;
@@ -39150,6 +39501,9 @@ const BlankScene = { enter() { }, update() { }, render(g) { SCBEpi.drawBlank(g, 
 /* ---------------------------------------------------------------------
    Poscréditos: una variable desconocida en el vivero
    --------------------------------------------------------------------- */
+/** Poscréditos: punto de la cabeza de cada hablante en la ilustración (19o_scb_post.js) y zonas que el globo evita */
+const FIXSIMS_POST_HEADS = { amaya: [218, 194], kiru: [262, 170] };
+const FIXSIMS_POST_AVOID = [{ x: 200, y: 192, w: 40, h: 80 }, { x: 240, y: 166, w: 44, h: 52 }];
 const PostCreditsScene = {
   enter() {
     this.t = 0; this.i = 0; this.ps = new Particles(120); Audio2.playMusic('oasis');
@@ -39171,12 +39525,16 @@ const PostCreditsScene = {
     this.art.draw(g, t, { amayaExpr: this.i >= 4 ? 'smile' : 'surprised' });
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {
-      const sp = SPEAKERS[L[0]];
-      UIK.panel(g, 120, 300, 400, 40, 'dialog');
-      drawText(g, sp.name, 130, 306, { font: 'tiny', color: sp.color });
-      drawText(g, L[1], 130, 318, { color: '#fffaf0', max: Math.floor(this.lt * 40) });
+      // globo anclado al hablante (nombre en negrita + regla de acento + cola), como en los diálogos
+      const sp = SPEAKERS[L[0]], A = FIXSIMS_POST_HEADS[L[0]] || FIXSIMS_POST_HEADS.amaya, shown = Math.floor(this.lt * 40);
+      UIK.speechBubble(g, A[0], A[1], { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: L[1], max: shown, w: 210, place: L[0] === 'kiru' ? ['bl', 'br'] : ['br', 'bl'], avoid: FIXSIMS_POST_AVOID, minY: 4, more: shown >= L[1].length });
     }
-    if (this.i >= this.lines.length) drawText(g, 'FIN', W / 2, 160, { align: 'center', color: '#fff6d8' });
+    if (this.i >= this.lines.length) {
+      // tarjeta FIN: velo plano en bandas + título grande con rampa y contorno (cacheado)
+      SCBK.veil(g, 0, 118, W, 64, '#04142e', 0.3); SCBK.veil(g, 0, 128, W, 44, '#04142e', 0.3);
+      if (!this.finC) { const fc = makeCanvas(W, 64); fc.g.imageSmoothingEnabled = false; drawTitleText(fc.g, 'FIN', W / 2, 4, 3, ['#ffffff', '#fff6d8', '#ffd27a'], { align: 'center', font: 'bold', shadow: '#140d26', depth: 2, outline: '#140d26' }); this.finC = fc; }
+      g.drawImage(this.finC, 0, 120);
+    }
   },
 };
 

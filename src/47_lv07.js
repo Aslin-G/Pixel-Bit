@@ -547,13 +547,19 @@ const Sim07 = makeSim({
     frect(g, x, y, 400, 230, '#0a1838');
     // cuba con dos electrodos y membrana
     frect(g, x + 60, y + 40, 280, 160, '#13405a'); frect(g, x + 62, y + 42, 276, 156, '#1a5a74');
-    frect(g, x + 90, y + 50, 10, 140, '#cfe8ee'); frect(g, x + 300, y + 50, 10, 140, '#ff9a8a');
-    frect(g, x + 198, y + 44, 4, 152, '#8d6bff');
+    // agua purificada en bandas (más clara arriba) y electrodos con brillo/sombra de 1 px
+    frect(g, x + 62, y + 42, 276, 2, '#3a8aa8'); frect(g, x + 62, y + 44, 276, 30, '#1d6684'); frect(g, x + 62, y + 150, 276, 48, '#164e68'); frect(g, x + 62, y + 186, 276, 12, '#123f58');
+    frect(g, x + 90, y + 50, 10, 140, '#cfe8ee'); frect(g, x + 90, y + 50, 2, 140, '#ffffff'); frect(g, x + 98, y + 50, 2, 140, '#8ab4c4');
+    frect(g, x + 300, y + 50, 10, 140, '#ff9a8a'); frect(g, x + 300, y + 50, 2, 140, '#ffc6b4'); frect(g, x + 308, y + 50, 2, 140, '#c8605a');
+    frect(g, x + 198, y + 44, 4, 152, '#8d6bff'); frect(g, x + 198, y + 44, 1, 152, '#b49cff');
     drawText(g, 'CÁTODO (−)', x + 95, y + 30, { font: 'tiny', align: 'center', color: '#cfe8ee' });
     drawText(g, 'ÁNODO (+)', x + 305, y + 30, { font: 'tiny', align: 'center', color: '#ff9a8a' });
     drawText(g, 'MEMBRANA', x + 200, y + 202, { font: 'tiny', align: 'center', color: '#b49cff' });
-    for (let i = 0; i < 24; i++) { const ph = (t * 0.9 + i / 24) % 1; fdisc(g, x + 106 + (i % 4) * 6, y + 190 - ph * 140, 1.5, '#d8fff8'); }
-    for (let i = 0; i < 12; i++) { const ph = (t * 0.7 + i / 12) % 1; fdisc(g, x + 286 - (i % 3) * 6, y + 190 - ph * 140, 2, '#ffffff'); }
+    // H2 en el cátodo (verde esmeralda, el doble de burbujas) y O2 en el ánodo (lavanda pálido), con brillo de 1 px
+    for (let i = 0; i < 24; i++) { const ph = (t * 0.9 + i / 24) % 1, bx = Math.round(x + 106 + (i % 4) * 6), by = Math.round(y + 190 - ph * 140); frect(g, bx - 1, by - 1, 3, 3, '#4cd48e'); fpx(g, bx - 1, by - 1, '#ffffff'); fpx(g, bx + 1, by + 1, '#1f8a5c'); }
+    for (let i = 0; i < 12; i++) { const ph = (t * 0.7 + i / 12) % 1, bx = Math.round(x + 286 - (i % 3) * 6), by = Math.round(y + 190 - ph * 140); frect(g, bx - 2, by - 1, 4, 3, '#c8b8f0'); frect(g, bx - 1, by - 2, 2, 5, '#c8b8f0'); fpx(g, bx - 1, by - 1, '#ffffff'); fpx(g, bx + 1, by + 1, '#8a74c8'); }
+    UIK.pill(g, x + 116, y + 46, 'H₂', { font: 'main', rim: '#4cd48e', fill: '#04221c', color: '#c2f5de' });
+    UIK.pill(g, x + 264, y + 46, 'O₂', { font: 'main', align: 'right', rim: '#c8b8f0', fill: '#170628', color: '#f4f0ff' });
     for (let i = 0; i < 10; i++) { const ph = (t * 0.5 + i / 10) % 1; drawText(g, 'H₂O', x + 150 + ((i * 37) % 90), y + 60 + ph * 120, { font: 'tiny', color: '#56e5ff' }); }
     Charts.flow(g, [[x + 20, y + 120], [x + 60, y + 120]], 'power', 1, 3);
     drawText(g, '2 H₂O → 2 H₂ + O₂', x + 200, y + 12, { align: 'center', color: '#ffe14d' });
@@ -561,8 +567,8 @@ const Sim07 = makeSim({
     UIK.panel(g, CX, 28, CW, 140, 'tech');
     const kg = this.E / 55;
     drawText(g, 'Energía: ' + fmt0(this.E) + ' kWh', CX + 8, 36, { color: '#ffe14d' });
-    drawText(g, 'H2: ' + fmt(kg, 2) + ' kg', CX + 8, 50, { color: '#d8fff8' });
-    drawText(g, 'O2: ' + fmt(kg * H2_O2_RATIO, 1) + ' kg', CX + 8, 64, { color: '#ffffff' });
+    drawText(g, 'H2: ' + fmt(kg, 2) + ' kg', CX + 8, 50, { color: '#4cd48e' });
+    drawText(g, 'O2: ' + fmt(kg * H2_O2_RATIO, 1) + ' kg', CX + 8, 64, { color: '#c8b8f0' });
     drawText(g, 'Agua estequiométrica: ' + fmt(kg * H2_STOICH_WATER, 1) + ' kg', CX + 8, 78, { color: '#56e5ff' });
     drawText(g, 'Agua retirada (con purificación): ' + fmt(kg * H2_WATER_PER_KG, 1) + ' kg', CX + 8, 92, { font: 'tiny', color: '#a6f4ff' });
     drawText(g, 'SEC = 55 kWh/kg · PCI del H2 ≈ 33,3 kWh/kg', CX + 8, 108, { font: 'tiny', color: '#cfd6f0' });
@@ -572,6 +578,7 @@ const Sim07 = makeSim({
     const c = this.calc();
     Charts.frame(g, x, y, 400, 170, '#0a1838');
     const cw = 15, base = y + 150;
+    let curH = null;
     drawText(g, 'EXCEDENTE RENOVABLE (amarillo) Y STACKS (verde/rojo) · kW', x + 6, y + 4, { font: 'tiny', color: '#ffe14d' });
     for (let h = 0; h < 24; h++) {
       const cx = x + 20 + h * cw;
@@ -580,7 +587,18 @@ const Sim07 = makeSim({
       const P = this.sched[h] * 300, ph = Math.round(P / 1000 * 120), rh = Math.round(Math.min(P, H2_SURPLUS[h]) / 1000 * 120);
       if (P) { frect(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); frect(g, cx + 3, base - rh, cw - 9, rh, '#86e36f'); }
       if (h % 3 === 0) drawText(g, String(h), cx, base + 4, { font: 'tiny', color: '#8a8fb8' });
-      if ((!this.done || this.phase === 'free') && Gui.button(g, 'hs' + h, cx, y + 16, cw - 2, 136, '', { noDraw: true, tip: h + ':00 · ' + this.sched[h] + ' stacks' })) { this.sched[h] = (this.sched[h] + 1) % 4; Audio2.sfx('ui'); }
+      if (!this.done || this.phase === 'free') {
+        if (Gui.button(g, 'hs' + h, cx, y + 16, cw - 2, 136, '', { noDraw: true, tip: h + ':00 · ' + this.sched[h] + ' stacks' })) { this.sched[h] = (this.sched[h] + 1) % 4; Audio2.sfx('ui'); }
+        const pp = Input.pointer, over = Gui.inputScene && pp.x >= cx && pp.x < cx + cw - 2 && pp.y >= y + 16 && pp.y < y + 152;
+        if ((Gui.inputScene && Gui.isFocused('hs' + h)) || (over && !Gui.keyNav)) curH = h;
+      }
+    }
+    // cursor de hora: marco dorado de 1 px (cubre el contorno de foco) + píldora con la hora, como en las demás gráficas
+    if (curH != null) {
+      const cx = x + 20 + curH * cw, gc = '#ffd23a';
+      frect(g, cx, y + 16, cw - 2, 1, gc); frect(g, cx, y + 151, cw - 2, 1, gc); frect(g, cx, y + 16, 1, 136, gc); frect(g, cx + cw - 3, y + 16, 1, 136, gc);
+      const lbl = curH + ':00 · ' + this.sched[curH] + ' stacks';
+      UIK.pill(g, clamp(cx + (cw - 2) / 2, x + 46, x + 354), y + 18, lbl, { align: 'center', rim: gc, fill: '#1a1404', color: '#fff2c0' });
     }
     const CX = 414, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 200, 'tech');

@@ -81,8 +81,14 @@ const EndingScene = {
     frect(g, 0, 164, W, H - 164, '#04142e');
     this.ps.render(g);
     // título del final
-    drawText(g, 'FINAL', W / 2, 16, { align: 'center', font: 'tiny', color: '#fff6d8', shadow: '#2a1050' });
-    drawTitleText(g, E.title, W / 2, 24, 3, [E.cols[0], E.cols[2], '#ffffff'], { align: 'center', shadow: '#140d26', depth: 2 });
+    // antetítulo en una píldora navy (legible sobre el sol) y título con rampa clara→saturada de un solo tono + contorno
+    UIK.pill(g, W / 2, 8, 'FINAL', { align: 'center', rim: E.cols[0], fill: '#04142e', color: '#fff6d8' });
+    if (!this.titleC || this.titleK !== this.id) {
+      this.titleK = this.id; const tc = makeCanvas(W, 64); tc.g.imageSmoothingEnabled = false;
+      drawTitleText(tc.g, E.title, W / 2, 6, 3, ['#ffffff', mixHex('#ffffff', E.cols[0], 0.45), E.cols[0]], { align: 'center', shadow: '#140d26', depth: 2, outline: '#140d26' });
+      this.titleC = tc;
+    }
+    g.drawImage(this.titleC, 0, 18);
     const x = 40, w = W - 80;
     UIK.panel(g, x, 164, w, H - 172, 'dialog');
     let yy = 172;
@@ -186,6 +192,9 @@ const BlankScene = { enter() { }, update() { }, render(g) { SCBEpi.drawBlank(g, 
 /* ---------------------------------------------------------------------
    Poscréditos: una variable desconocida en el vivero
    --------------------------------------------------------------------- */
+/** Poscréditos: punto de la cabeza de cada hablante en la ilustración (19o_scb_post.js) y zonas que el globo evita */
+const FIXSIMS_POST_HEADS = { amaya: [218, 194], kiru: [262, 170] };
+const FIXSIMS_POST_AVOID = [{ x: 200, y: 192, w: 40, h: 80 }, { x: 240, y: 166, w: 44, h: 52 }];
 const PostCreditsScene = {
   enter() {
     this.t = 0; this.i = 0; this.ps = new Particles(120); Audio2.playMusic('oasis');
@@ -207,11 +216,15 @@ const PostCreditsScene = {
     this.art.draw(g, t, { amayaExpr: this.i >= 4 ? 'smile' : 'surprised' });
     const L = this.lines[Math.min(this.i, this.lines.length - 1)];
     if (this.i >= 0 && this.i < this.lines.length) {
-      const sp = SPEAKERS[L[0]];
-      UIK.panel(g, 120, 300, 400, 40, 'dialog');
-      drawText(g, sp.name, 130, 306, { font: 'tiny', color: sp.color });
-      drawText(g, L[1], 130, 318, { color: '#fffaf0', max: Math.floor(this.lt * 40) });
+      // globo anclado al hablante (nombre en negrita + regla de acento + cola), como en los diálogos
+      const sp = SPEAKERS[L[0]], A = FIXSIMS_POST_HEADS[L[0]] || FIXSIMS_POST_HEADS.amaya, shown = Math.floor(this.lt * 40);
+      UIK.speechBubble(g, A[0], A[1], { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: L[1], max: shown, w: 210, place: L[0] === 'kiru' ? ['bl', 'br'] : ['br', 'bl'], avoid: FIXSIMS_POST_AVOID, minY: 4, more: shown >= L[1].length });
     }
-    if (this.i >= this.lines.length) drawText(g, 'FIN', W / 2, 160, { align: 'center', color: '#fff6d8' });
+    if (this.i >= this.lines.length) {
+      // tarjeta FIN: velo plano en bandas + título grande con rampa y contorno (cacheado)
+      SCBK.veil(g, 0, 118, W, 64, '#04142e', 0.3); SCBK.veil(g, 0, 128, W, 44, '#04142e', 0.3);
+      if (!this.finC) { const fc = makeCanvas(W, 64); fc.g.imageSmoothingEnabled = false; drawTitleText(fc.g, 'FIN', W / 2, 4, 3, ['#ffffff', '#fff6d8', '#ffd27a'], { align: 'center', font: 'bold', shadow: '#140d26', depth: 2, outline: '#140d26' }); this.finC = fc; }
+      g.drawImage(this.finC, 0, 120);
+    }
   },
 };

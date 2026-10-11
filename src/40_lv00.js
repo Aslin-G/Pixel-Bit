@@ -10,16 +10,16 @@ const NX = {
   toma: { label: 'TOMA', icon: 'fish', x: 98, y: 66, out: ['seawater'], inn: ['seawater', 'power'], tip: 'Captación con rejillas y bombas.' },
   pre: { label: 'PRETRAT.', icon: 'filter', x: 156, y: 66, out: ['seawater'], inn: ['seawater'], tip: 'Cribado, coagulación y filtración.' },
   oi: { label: 'OI', icon: 'membrane', x: 220, y: 66, out: ['permeate', 'brine'], inn: ['seawater', 'power'], tip: 'Ósmosis inversa: separa agua y sales con presión.' },
-  tanque: { label: 'TANQUE', icon: 'tank', x: 290, y: 66, out: ['water'], inn: ['permeate'], tip: 'Reserva de agua tratada (remineralizada).' },
-  hogares: { label: 'HOGARES', icon: 'people', x: 370, y: 44, out: [], inn: ['water'], tip: 'Demanda doméstica.' },
-  riego: { label: 'RIEGO', icon: 'plant', x: 370, y: 92, out: [], inn: ['water'], tip: 'Parcelas agroecológicas con goteo.' },
+  tanque: { label: 'TANQUE', icon: 'tank', x: 284, y: 66, out: ['water'], inn: ['permeate'], tip: 'Reserva de agua tratada (remineralizada).' },
+  hogares: { label: 'HOGARES', icon: 'people', x: 380, y: 44, out: [], inn: ['water'], tip: 'Demanda doméstica.' },
+  riego: { label: 'RIEGO', icon: 'plant', x: 380, y: 92, out: [], inn: ['water'], tip: 'Parcelas agroecológicas con goteo.' },
   difusor: { label: 'DIFUSOR', icon: 'drop_brine', x: 156, y: 126, out: [], inn: ['brine'], tip: 'Descarga controlada de salmuera al mar.' },
   pv: { label: 'FV', icon: 'panel', x: 40, y: 166, out: ['power'], inn: [], tip: 'Módulos fotovoltaicos.' },
   eol: { label: 'EÓLICA', icon: 'turbine', x: 40, y: 216, out: ['power'], inn: [], tip: 'Aerogeneradores.' },
   bus: { label: 'BARRA', icon: 'plug', x: 130, y: 190, out: ['power'], inn: ['power'], tip: 'Barra de la microred: reparte la electricidad.' },
   bat: { label: 'BATERÍA', icon: 'battery', x: 130, y: 238, out: ['power'], inn: ['power'], tip: 'Almacena energía (kWh).' },
-  ely: { label: 'ELECTROL.', icon: 'flask', x: 290, y: 166, out: ['h2'], inn: ['power', 'water'], tip: 'Electrolizador: agua + electricidad → H2 + O2.' },
-  h2: { label: 'ALM. H2', icon: 'h2', x: 370, y: 166, out: [], inn: ['h2'], tip: 'Almacenamiento de hidrógeno.' },
+  ely: { label: 'ELECTROL.', icon: 'flask', x: 284, y: 166, out: ['h2'], inn: ['power', 'water'], tip: 'Electrolizador: agua + electricidad → H2 + O2.' },
+  h2: { label: 'ALM. H2', icon: 'h2', x: 380, y: 166, out: [], inn: ['h2'], tip: 'Almacenamiento de hidrógeno.' },
   // variante Ranchería Los Médanos
   pozo: { label: 'POZO', icon: 'water', x: 40, y: 66, out: ['seawater'], inn: ['power'], tip: 'Pozo de agua salobre (≈ 5 g/L).' },
   evap: { label: 'LAGUNA', icon: 'salt', x: 156, y: 126, out: [], inn: ['brine'], tip: 'Laguna de evaporación revestida.' },
@@ -123,6 +123,43 @@ function nexusSolve(edges, opts = {}) {
   return { roOn, Qf, Qp, Qb, Cb, tankNet, h2, gen, loadSum, batFlow, vals, brineOut, chain, elyWater };
 }
 
+/** Rótulos de nodo en dos líneas cuando el nombre no cabe en la caja de 48 px (solo visual) */
+const FIXSIMS_NX_LINES = { ely: ['ELECTRO-', 'LIZADOR'] };
+/**
+ * Posición de la etiqueta de caudal de una arista: en el punto medio del tramo más largo si cabe;
+ * si no, encima/debajo del tramo horizontal (o a un lado del vertical) con un tallo de 1 px.
+ * Evita las cajas de los nodos y las etiquetas ya colocadas. → {x, y, stem:[x0,y0,x1,y1]|null}
+ */
+function FIXSIMS_nxPlace(pts, w, rects, placed, board) {
+  const h = 8, hw = Math.ceil(w / 2), cands = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], len = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+    if (len < 1) continue;
+    const mx = Math.round((x0 + x1) / 2), my = Math.round((y0 + y1) / 2), hor = y0 === y1;
+    const fits = hor ? len >= w + 6 : len >= h + 6;
+    cands.push({ x: mx, y: my, stem: null, pen: (fits ? 0 : 60) - Math.min(len, 80) * 0.1 });
+    if (hor) {
+      cands.push({ x: mx, y: my - 19, stem: [mx, my - 15, mx, my - 1], pen: 14 });
+      cands.push({ x: mx, y: my + 19, stem: [mx, my + 1, mx, my + 15], pen: 16 });
+    } else {
+      cands.push({ x: mx - hw - 5, y: my, stem: [mx - 5, my, mx - 1, my], pen: 12 });
+      cands.push({ x: mx + hw + 5, y: my, stem: [mx + 1, my, mx + 5, my], pen: 13 });
+    }
+  }
+  const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  let best = null;
+  for (const c of cands) {
+    const r = { x: c.x - hw, y: c.y - 4, w, h };
+    let pen = c.pen;
+    if (r.x < board.x || r.y < board.y || r.x + r.w > board.x + board.w || r.y + r.h > board.y + board.h) pen += 200;
+    for (const q of rects) if (hit(r, q)) pen += 120;
+    for (const q of placed) if (hit(r, q)) pen += 70;
+    if (!best || pen < best.pen) best = Object.assign({}, c, { pen, r });
+  }
+  if (!best) { const [x, y] = pts[0]; return { x, y, stem: null }; }
+  placed.push({ x: best.r.x - 1, y: best.r.y - 1, w: best.r.w + 2, h: best.r.h + 2 });
+  return best;
+}
 const NexusSim = makeSim({
   title: 'TALLER STEAM · Diagrama vivo del Nexo', icon: 'mosaic', ra: 'RA-08', concepts: ['systemsThinking', 'massBalance'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -228,9 +265,12 @@ const NexusSim = makeSim({
     drawText(g, med ? 'RANCHERÍA LOS MÉDANOS' : 'SYNARA · ARIDIA', X0 + 6, Y0 + 4, { font: 'tiny', color: '#56e5ff' });
     // límite del sistema
     lensBoundary(g, X0 + 4, Y0 + 14, WW - 8, HH - 18, '#ffe14d', null);
-    drawText(g, 'LÍMITE DEL SISTEMA', X0 + WW - 6, Y0 + 4, { font: 'tiny', color: '#ffe14d', align: 'right' });
+    // rótulo del límite en la esquina inferior izquierda del rectángulo (lejos de los nodos)
+    { const lw = FONTS.tiny.measure('LÍMITE DEL SISTEMA') + 6, ly = Y0 + HH - 13; frect(g, X0 + 8, ly - 2, lw, 9, '#0e2048'); drawText(g, 'LÍMITE DEL SISTEMA', X0 + 11, ly, { font: 'tiny', color: '#ffe14d' }); }
     const sol = this.live ? nexusSolve(this.edges, { medanos: med, pv: med ? 140 : 320, wind: 160 }) : null;
-    // aristas
+    // aristas (las etiquetas de caudal se colocan después, evitando nodos y otras etiquetas)
+    const nodeRects = this.nodeSet().map(id => ({ x: NX[id].x - 25, y: NX[id].y - 13, w: 50, h: 27 + (id === 'tanque' || NX[id].decoy ? 8 : 0) }));
+    const placed = [], board = { x: X0 + 2, y: Y0 + 12, w: WW - 4, h: HH - 14 };
     for (const e of this.edges) {
       const rate = sol ? clamp(Math.abs(sol.vals[e.key] ?? 1) / (e.kind === 'power' ? 150 : 60), 0.25, 1.4) : 0.6;
       if (e.wrong) {
@@ -246,8 +286,11 @@ const NexusSim = makeSim({
       if (sol && !e.wrong && sol.vals[e.key] != null) {
         const v = sol.vals[e.key];
         const txt = e.kind === 'power' ? fmt0(Math.abs(v)) + ' kW' : e.kind === 'h2' ? fmt(v, 1) + ' kg/h' : (v < 1 && v > 0 ? fmt(v * 1000, 0) + ' L/h' : fmt0(v) + ' m³/h');
-        const w = FONTS.tiny.measure(txt) + 4;
-        frect(g, e.mx - w / 2, e.my - 4, w, 8, '#05031a'); drawText(g, txt, e.mx, e.my - 2, { font: 'tiny', align: 'center', color: FLOW_KINDS[e.kind].hi });
+        const w = FONTS.tiny.measure(txt) + 4, L = FIXSIMS_nxPlace(e.pts, w, nodeRects, placed, board), col = FLOW_KINDS[e.kind].hi;
+        if (L.stem) { const [sx, sy, ex, ey] = L.stem; frect(g, Math.min(sx, ex), Math.min(sy, ey), Math.abs(ex - sx) + 1, Math.abs(ey - sy) + 1, col); }
+        const bx = Math.round(L.x - w / 2), by = Math.round(L.y - 4);
+        frect(g, bx, by, w, 8, '#05031a'); if (L.stem) frect(g, bx, by + 7, w, 1, col);
+        drawText(g, txt, bx + 2, by + 2, { font: 'tiny', color: col });
       }
     }
     // nodos
@@ -259,7 +302,9 @@ const NexusSim = makeSim({
       const pal = N.decoy ? ['#141626', '#1c1f34', '#4a4e70'] : sel ? ['#6a3e0e', '#9a5e12', '#ffe14d'] : ['#121736', '#1d346c', '#56e5ff'];
       frect(g, x, y + 1, 48, 24, '#05030f'); frect(g, x, y, 48, 24, pal[0]); frect(g, x + 1, y + 1, 46, 22, pal[1]); frect(g, x + 1, y + 1, 46, 1, pal[2]);
       Icons.draw(g, N.icon, x + 2, y + 5);
-      drawText(g, N.label, x + 17, y + 8, { font: 'tiny', color: N.decoy ? '#8a8fb8' : '#fffaf0' });
+      const two = FIXSIMS_NX_LINES[id];
+      if (two) { drawText(g, two[0], x + 16, y + 5, { font: 'tiny', color: '#fffaf0' }); drawText(g, two[1], x + 16, y + 12, { font: 'tiny', color: '#fffaf0' }); }
+      else drawText(g, N.label, x + 16, y + 8, { font: 'tiny', color: N.decoy ? '#8a8fb8' : '#fffaf0' });
       if (N.decoy) drawText(g, 'A 40 KM', x + 24, y + 27, { font: 'tiny', align: 'center', color: '#8a8fb8' });
       // indicador de estado en vivo
       if (sol && !N.decoy) {
@@ -269,8 +314,8 @@ const NexusSim = makeSim({
         if (id === 'difusor' || id === 'evap') on = sol.roOn && sol.brineOut;
         fdisc(g, x + 44, y + 4, 2, on ? '#86e36f' : '#ff4e5d');
       }
-      if (id === 'tanque' && sol) { const tn = sol.tankNet; drawText(g, (tn >= 0 ? '+' : '') + fmt(tn, 1), x + 24, y + 27, { font: 'tiny', align: 'center', color: tn >= 0 ? '#86e36f' : '#ff4e5d' }); }
-      if (id === 'bat' && sol) drawText(g, sol.batFlow >= 0 ? 'CARGA' : 'DESCARGA', x + 24, y + 27, { font: 'tiny', align: 'center', color: '#fff09a' });
+      if (id === 'tanque' && sol) { const tn = sol.tankNet; drawText(g, (tn >= 0 ? '+' : '') + fmt(tn, 1), x + 3, y + 27, { font: 'tiny', color: tn >= 0 ? '#86e36f' : '#ff4e5d' }); }
+      if (id === 'bat' && sol) drawText(g, sol.batFlow >= 0 ? 'CARGA' : 'DESCARGA', x + 52, y + 9, { font: 'tiny', color: '#fff09a' });
       if (Gui.button(g, 'nx_' + id, x, y, 48, 24, N.label, { noDraw: true, tip: N.tip })) this.clickNode(id);
     }
     // marcas de eliminación

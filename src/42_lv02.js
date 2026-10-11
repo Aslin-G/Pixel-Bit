@@ -704,7 +704,15 @@ const Sim02 = makeSim({
     Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
     const fy = Y0 + 34, fh = 54, my = fy + fh, mh = 10, py = my + mh, ph = 40;
     // canal de alimentación → concentrado (sal que aumenta a lo largo)
-    for (let x = 0; x < WW - 60; x++) { const k = x / (WW - 60); frect(g, X0 + 30 + x, fy, 1, fh, mixHex('#1063a6', '#621a66', k * clamp(r.R / 0.6, 0, 1))); }
+    // alimentación turquesa que se oscurece hacia grafito-índigo en el concentrado (bandas, sin degradado continuo)
+    { const NB = 10, bw = Math.ceil((WW - 60) / NB), kR = clamp(r.R / 0.6, 0, 1);
+      for (let b = 0; b < NB; b++) {
+        const k = (b / (NB - 1)) * kR, c = mixHex('#16a6cf', '#2c2c5e', k);
+        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), fh, c);
+        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), 2, mixHex(c, '#bff8ff', 0.35));
+        frect(g, X0 + 30 + b * bw, fy + 2, Math.min(bw, WW - 60 - b * bw), 12, mixHex(c, '#56e5ff', 0.12));
+      }
+    }
     const nSalt = 90, LW = WW - 60;
     for (let i = 0; i < nSalt; i++) {
       const ph2 = ((t * (0.08 + r.Qf / 1200) + i / nSalt) % 1);
@@ -719,12 +727,22 @@ const Sim02 = makeSim({
     const nW0 = 40;
     for (let i = 0; i < nW0; i++) { const ph2 = ((t * 0.15 + i / nW0) % 1); fpx(g, X0 + 30 + ph2 * LW, fy + 4 + ((i * 53) % (fh - 8)), '#6cf0db'); }
     // membrana: capas, ensuciamiento e incrustación
-    for (let x = 0; x < WW - 60; x++) frect(g, X0 + 30 + x, my, 1, mh, (x % 4) < 2 ? '#8d6bff' : '#5a44a8');
+    frect(g, X0 + 30, my, WW - 60, mh, '#5a44a8'); for (let x = 0; x < WW - 60; x += 4) frect(g, X0 + 30 + x, my + 1, 2, mh - 2, '#8d6bff');
+    frect(g, X0 + 30, my, WW - 60, 1, '#b49cff'); frect(g, X0 + 30, my + mh - 1, WW - 60, 1, '#3a2a7a');
     const foulH = Math.round(clamp(this.foul || 0, 0, 1) * 8);
     if (foulH) PFDyn.veil(g, X0 + 30, my - foulH, WW - 60, foulH, "#7a5a2a", 0.7);
     if (r.scaleIdx > 0) for (let i = 0; i < 40 * clamp(r.scaleIdx, 0, 1.5); i++) frect(g, X0 + 30 + (WW - 60) * (0.5 + (i * 0.618 % 0.5)), my - 2 - (i % 3), 2, 2, '#ffffff');
     // canal de permeado
-    frect(g, X0 + 30, py, WW - 60, ph, '#0e2b4a');
+    // canal de permeado: fondo cian en bandas + corriente cian luminosa (#48b6ec) con halo de 1 px y chevrones blancos
+    frect(g, X0 + 30, py, WW - 60, ph, '#0f3f66'); frect(g, X0 + 30, py, WW - 60, 3, '#1f6fa8'); frect(g, X0 + 30, py + ph - 8, WW - 60, 8, '#0b3152');
+    { const on = clamp(r.Qp / 40, 0, 1), sy = py + Math.round(ph / 2) - 3;
+      if (on > 0.02) {
+        g.globalAlpha = 0.35 + 0.4 * on; frect(g, X0 + 30, sy - 1, WW - 60, 1, '#8fe0ff'); frect(g, X0 + 30, sy + 6, WW - 60, 1, '#8fe0ff');
+        g.globalAlpha = 0.55 + 0.45 * on; frect(g, X0 + 30, sy, WW - 60, 6, '#48b6ec'); frect(g, X0 + 30, sy, WW - 60, 1, '#a6f4ff'); g.globalAlpha = 1;
+        const step = 26, off = (t * 20 * (0.5 + on)) % step;
+        for (let cx = X0 + 30 + off; cx < X0 + WW - 34; cx += step) { const qx = Math.round(cx); fpx(g, qx, sy + 1, '#ffffff'); fpx(g, qx + 1, sy + 2, '#ffffff'); fpx(g, qx + 2, sy + 3, '#ffffff'); fpx(g, qx + 1, sy + 4, '#ffffff'); fpx(g, qx, sy + 5, '#ffffff'); }
+      }
+    }
     const nW = Math.round(clamp(r.Qp / 2, 0, 34));
     for (let i = 0; i < nW; i++) {
       const ph3 = ((t * 0.7 + i / Math.max(1, nW)) % 1);

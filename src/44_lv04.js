@@ -509,14 +509,15 @@ const Sim04 = makeSim({
       drawText(g, 'Críticos sin servir: ' + fmt0(r.unservedCrit) + ' kWh   H2: ' + fmt(r.h2kg, 1) + ' kg', CX + 6, 122, { font: 'tiny', color: r.unservedCrit > 0 ? '#ff4e5d' : '#cfd6f0' });
       drawText(g, 'Vertido: ' + fmt0(r.curtailed) + ' kWh', CX + 6, 131, { font: 'tiny', color: '#cfd6f0' });
     }
-    // controles por fase
+    // controles por fase, dentro de su propio panel (como en los demás gemelos)
+    UIK.panel(g, CX, 146, CW, 114, 'tech');
     if (ph === 'guided' || ph === 'free') {
-      this.cfg.tilt = Gui.slider(g, 'tilt', CX + 6, 148, CW - 12, this.cfg.tilt, 0, 40, 1, { label: 'Inclinación de los módulos', unit: '°', disabled: this.done && ph !== 'free' });
-      const tr = Gui.toggle(g, 'trk', CX + 6, 172, 'Seguidor de un eje', this.cfg.tracker); if (!this.done || ph === 'free') this.cfg.tracker = tr;
+      this.cfg.tilt = Gui.slider(g, 'tilt', CX + 6, 151, CW - 12, this.cfg.tilt, 0, 40, 1, { label: 'Inclinación de los módulos', unit: '°', disabled: this.done && ph !== 'free' });
+      const tr = Gui.toggle(g, 'trk', CX + 6, 175, 'Seguidor de un eje', this.cfg.tracker); if (!this.done || ph === 'free') this.cfg.tracker = tr;
     }
     if (ph === 'auto' || ph === 'transfer' || ph === 'free') {
-      const ho = Gui.toggle(g, 'h2o', CX + 6, ph === 'free' ? 190 : 150, 'H2 solo con excedente', this.cfg.h2Only); if (!this.done) { if (ho !== this.cfg.h2Only) { this.cfg.h2Only = ho; this.run(); } }
-      const rs = Gui.toggle(g, 'res', CX + 6, ph === 'free' ? 206 : 166, 'Proteger reserva 30 %', this.cfg.reserve >= 0.3); if (!this.done) { const v = rs ? 0.3 : 0.1; if (v !== this.cfg.reserve) { this.cfg.reserve = v; this.run(); } }
+      const ho = Gui.toggle(g, 'h2o', CX + 6, ph === 'free' ? 193 : 153, 'H2 solo con excedente', this.cfg.h2Only); if (!this.done) { if (ho !== this.cfg.h2Only) { this.cfg.h2Only = ho; this.run(); } }
+      const rs = Gui.toggle(g, 'res', CX + 6, ph === 'free' ? 211 : 171, 'Proteger reserva 30 %', this.cfg.reserve >= 0.3); if (!this.done) { const v = rs ? 0.3 : 0.1; if (v !== this.cfg.reserve) { this.cfg.reserve = v; this.run(); } }
       this.drawTimeline(g, X0, Y0 + 168, CW0);
     }
     const by = 236;

@@ -499,6 +499,16 @@ const DRONE_POINTS = [
   { id: 'D', x: 450, y: 136, name: 'Borde del arrecife', depth: 6, tds: 35.6, turb: 1.5, T: 27.8, eco: 0.95, cost: 0.4, note: 'Arrecife somero: larvas de peces y corales.' },
   { id: 'E', x: 540, y: 58, name: 'Fondo mar adentro', depth: 14, tds: 35.8, turb: 1.2, T: 25.6, eco: 0.15, cost: 0.6, note: 'Agua profunda, fría y estable; tubería más larga.' },
 ];
+/** Etiqueta del punto de muestreo junto a la boya (relleno navy, borde cian, tallo de 1 px hacia la boya) */
+function FIXSIMS_droneTag(g, P) {
+  const w = 156, txt = '{c}' + P.id + ':{/} ' + P.name + '. ' + P.note, th = textHeight(txt, w - 12, { lineH: 10 }), h = th + 8;
+  const below = P.y + 22 + h < H - 96 || P.y < 120;
+  const x = Math.round(clamp(P.x - w / 2, 4, W - w - 4)), y = below ? P.y + 22 : P.y - 22 - h;
+  const sy0 = below ? P.y + 12 : y + h, sy1 = below ? y : P.y - 12;
+  frect(g, P.x, Math.min(sy0, sy1), 1, Math.abs(sy1 - sy0), '#8fdfff');
+  UIK.panel(g, x, y, w, h, 'tech', null, { chamfer: 2, key: false });
+  drawTextBlock(g, txt, x + 6, y + 4, w - 12, { color: '#d9eefc', lineH: 10 });
+}
 const DroneScene = {
   overlay: false, touchControls: true,
   enter(p) {
@@ -562,24 +572,30 @@ const DroneScene = {
     // dron con sombra sobre el agua
     SCADrone.drawDrone(g, this.x, this.y, Game.time, !!this.sampling);
     if (this.sampling) { const kk = clamp(this.sampling.k, 0, 1); UIK.bar(g, this.x - 14, this.y + 6, 28, 4, kk, '#56e5ff'); }
-    // panel
-    UIK.panel(g, W - 214, 6, 208, 168, 'glass');
-    drawText(g, 'DRON DE MUESTREO', W - 206, 11, { color: '#ffe14d', font: 'tiny' });
-    UIK.bar(g, W - 206, 20, 120, 6, this.bat, this.bat < 0.25 ? '#ff4e5d' : '#86e36f', '#0a0c22', 10);
-    drawText(g, 'BATERÍA ' + fmt0(this.bat * 100) + '%', W - 80, 20, { font: 'tiny', color: '#cfd6f0' });
+    // panel compacto arriba a la izquierda (sobre la costa, sin boyas; libre de los controles táctiles):
+    // no tapa boyas ni el dron y se vuelve translúcido si el dron entra
+    const PX = 6, PW = 208, PH = 84, PY = 18;
+    const under = this.x > PX - 12 && this.x < PX + PW + 12 && this.y > PY - 14 && this.y < PY + PH + 8;
+    if (under) g.globalAlpha = 0.35;
+    UIK.panel(g, PX, PY, PW, PH, 'glass');
+    drawText(g, 'DRON DE MUESTREO', PX + 8, PY + 5, { color: '#ffe14d', font: 'tiny' });
+    UIK.bar(g, PX + 8, PY + 14, 120, 6, this.bat, this.bat < 0.25 ? '#ff4e5d' : '#86e36f', '#0a0c22', 10);
+    drawText(g, 'BATERÍA ' + fmt0(this.bat * 100) + '%', PX + 134, PY + 14, { font: 'tiny', color: '#cfd6f0' });
     const T = { head: ['PUNTO', 'NTU', 'TDS G/L', 'T °C'], rows: [] };
     for (const P of DRONE_POINTS) { const s = this.samples[P.id]; T.rows.push([P.id + ' ' + P.depth + 'M', s ? fmt(s.turb, 1) + '±' + fmt(s.turbU, 0) : '—', s ? fmt(s.tds, 1) : '—', s ? fmt(s.T, 1) : '—']); }
     T.widths = [0.28, 0.28, 0.24, 0.2];
     // tabla en estilo oscuro
-    let yy = 32;
-    T.head.forEach((h, i) => drawText(g, h, W - 206 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#ffe14d' }));
+    let yy = PY + 26;
+    T.head.forEach((h, i) => drawText(g, h, PX + 8 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#ffe14d' }));
     yy += 9;
-    T.rows.forEach((r, ri) => { r.forEach((v, i) => drawText(g, v, W - 206 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#fffaf0' })); yy += 9; });
+    T.rows.forEach((r, ri) => { r.forEach((v, i) => drawText(g, v, PX + 8 + [0, 54, 108, 152][i], yy, { font: 'tiny', color: '#fffaf0' })); yy += 9; });
+    g.globalAlpha = 1;
+    // descripción del punto cercano: etiqueta en el mundo con tallo, bajo (o sobre) la boya
     const P = DRONE_POINTS.find(PP => dist(PP.x, PP.y, this.x, this.y) < 30);
-    if (P) drawTextBlock(g, '{c}' + P.id + ':{/} ' + P.name + '. ' + P.note, W - 206, yy + 4, 196, { color: '#cfd6f0' });
+    if (P && this.phase === 'fly') FIXSIMS_droneTag(g, P);
     Gui.begin();
     const n = Object.keys(this.samples).length;
-    if (this.phase === 'fly' && n >= 4 && this.demoDone) { if (Gui.button(g, 'decide', W - 160, 150, 150, 18, 'Decidir punto de toma', { style: 'gold', icon: 'target' })) { this.phase = 'decide'; } }
+    if (this.phase === 'fly' && n >= 4 && this.demoDone) { if (Gui.button(g, 'decide', PX, PY + PH + 4, 150, 18, 'Decidir punto de toma', { style: 'gold', icon: 'target' })) { this.phase = 'decide'; } }
     if (this.phase === 'decide') this.renderDecide(g);
     if (this.phase === 'result') this.renderResult(g);
     Gui.end();
@@ -600,7 +616,7 @@ const DroneScene = {
     let y = 98;
     DRONE_POINTS.forEach((P, i) => {
       const s = this.samples[P.id];
-      const label = P.id + ' · ' + P.name + ' (' + P.depth + ' m) — ' + (s ? 'turb. ' + fmt(s.turb, 1) + '±' + fmt(s.turbU, 1) + ' NTU, ' + fmt(s.T, 1) + ' °C' : 'sin muestra');
+      const label = P.name + ' (' + P.depth + ' m) — ' + (s ? 'turb. ' + fmt(s.turb, 1) + '±' + fmt(s.turbU, 1) + ' NTU, ' + fmt(s.T, 1) + ' °C' : 'sin muestra');
       const r = Gui.choice(g, 'dp' + P.id, 72, y, W - 144, label, P.id, { state: this.choice === i ? 'selected' : null });
       if (r.clicked) this.choice = i;
       y += r.h + 2;
@@ -635,6 +651,50 @@ DroneScene.overlay = true;
 /* =====================================================================
    Gemelo de la toma — simulador de captación y pretratamiento
    ===================================================================== */
+/** Corte de mar + fondo de arena de Sim01, prerenderizado una vez: rampa con desplazamiento de tono en bandas
+ *  de borde irregular (sin tramado), cúmulos de ruido de 2 px, haces de luz submarinos y arena en estratos con guijarros. */
+const FIXSIMS_SEA01 = {};
+function FIXSIMS_sim01Sea(w, seaH, sandH) {
+  const key = w + 'x' + seaH + 'x' + sandH;
+  if (FIXSIMS_SEA01[key]) return FIXSIMS_SEA01[key];
+  const h = seaH + sandH, pb = new PixelBuffer(w, h), D = pb.data;
+  const R = ['#22dbe7', '#20d6c7', '#16a6cf', '#1283bf', '#1170b4', '#1063a6', '#0e4a8c', '#0d3168'].map(U);
+  const idx = new Uint8Array(w * seaH);
+  for (let y = 0; y < seaH; y++) for (let x = 0; x < w; x++) {
+    const j = (hash2(x >> 3, y >> 2, 11) - 0.5) * 0.035 + Math.sin(x * 0.06 + y * 0.015) * 0.012;
+    const k = clamp(Math.pow(clamp(y / seaH + j, 0, 0.999), 0.9), 0, 0.999);
+    idx[y * w + x] = Math.floor(k * R.length);
+  }
+  // haces de luz: bandas diagonales un tono más claras que se acortan con la profundidad
+  for (let b = 0; b < 5; b++) {
+    const x0 = 6 + b * 31 + Math.round(hash2(b, 3, 5) * 8), bw = 4 + (b % 3) * 2, len = Math.round(seaH * (0.32 + 0.12 * (b % 3)));
+    for (let y = 1; y < len; y++) { const xs = Math.round(x0 + y * 0.32); const ww = y > len * 0.7 ? bw - 2 : bw; for (let xx = xs; xx < xs + ww; xx++) if (xx >= 0 && xx < w) { const i = y * w + xx; if (idx[i] > 0) idx[i]--; } }
+  }
+  for (let i = 0; i < idx.length; i++) D[i] = R[idx[i]];
+  // cúmulos de 2×1 / 2×2 del tono vecino (más claros arriba, más oscuros abajo)
+  for (let y = 2; y < seaH - 2; y += 3) for (let x = 1; x < w - 2; x += 3) {
+    const hv = hash2(x, y, 23); if (hv > 0.22) continue;
+    const i0 = idx[y * w + x], ni = clamp(i0 + (y < seaH * 0.45 ? -1 : 1), 0, R.length - 1), c = R[ni];
+    D[y * w + x] = c; D[y * w + x + 1] = c; if (hv < 0.08) { D[(y + 1) * w + x] = c; D[(y + 1) * w + x + 1] = c; }
+  }
+  // arena en estratos con borde irregular, labio iluminado, guijarros y conchas
+  const S = ['#f6c27a', '#e49c44', '#d48a3c', '#c97c38', '#a8602c', '#86441f'].map(U);
+  const top = new Int16Array(w);
+  for (let x = 0; x < w; x++) top[x] = seaH + Math.round(Math.sin(x * 0.09) * 1.5 + (hash2(x >> 2, 1, 41) - 0.5) * 2);
+  for (let x = 0; x < w; x++) for (let y = top[x]; y < h; y++) {
+    const d = y - top[x] + (hash2(x >> 2, y >> 1, 43) - 0.5) * 1.6;
+    D[y * w + x] = S[d < 1 ? 0 : d < 4 ? 1 : d < 8 ? 2 : d < 15 ? 3 : d < 23 ? 4 : 5];
+  }
+  for (let x = 0; x < w; x++) { const y = top[x] - 1; if (y >= 0) D[y * w + x] = U('#0b2a5e'); }
+  for (let i = 0; i < 34; i++) {
+    const x = Math.floor(hash2(i, 7, 51) * (w - 3)), y = seaH + 5 + Math.floor(hash2(i, 9, 53) * (sandH - 7));
+    const dark = i % 3 !== 0, c = U(dark ? '#6a3418' : '#fde0a8');
+    D[y * w + x] = c; D[y * w + x + 1] = c; if (dark) D[(y + 1) * w + x + 1] = U('#4e2410');
+  }
+  const c = pb.toCanvas();
+  FIXSIMS_SEA01[key] = c;
+  return c;
+}
 const Sim01 = makeSim({
   title: 'GEMELO DE LA TOMA · captación y pretratamiento', icon: 'filter', ra: 'RA-01', concepts: ['pretreatment', 'waterQuality'],
   phases: ['demo', 'guided', 'auto', 'transfer', 'free'],
@@ -722,11 +782,24 @@ const Sim01 = makeSim({
     const X0 = 8, Y0 = 30, WW = 372, HH = 262;
     Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
     // mar en corte
-    for (let y = Y0 + 30; y < Y0 + HH - 30; y++) { const k = (y - Y0 - 30) / (HH - 60); frect(g, X0 + 1, y, 150, 1, rampDither(['#20d6c7', '#16a6cf', '#1283bf', '#1063a6', '#0d3168'], k, X0, y)); }
-    fdither(g, X0 + 1, Y0 + 30, 150, HH - 60, '#a07a3a', clamp(turbIn / 60, 0, 0.7));
+    g.drawImage(FIXSIMS_sim01Sea(150, HH - 60, 29), X0 + 1, Y0 + 30);
+    // turbidez sin tramado: velo plano en dos bandas (más denso cerca del fondo) + cúmulos de sedimento (número ∝ NTU)
+    const tk = clamp(turbIn / 60, 0, 1);
+    if (tk > 0.01) {
+      const sh = HH - 60, b2 = Math.round(sh * 0.55);
+      g.fillStyle = '#a07a3a';
+      g.globalAlpha = 0.5 * tk; g.fillRect(X0 + 1, Y0 + 30, 150, sh);
+      g.globalAlpha = 0.2 * tk; g.fillRect(X0 + 1, Y0 + 30 + b2, 150, sh - b2);
+      g.globalAlpha = 1;
+      const n = Math.round(6 + 54 * tk), T = Game.time;
+      for (let i = 0; i < n; i++) {
+        const sx = Math.round(X0 + 3 + ((i * 53 + T * (3 + (i % 5))) % 144)), sy = Math.round(Y0 + 33 + ((i * 97 + T * (1.5 + (i % 3))) % (sh - 6)));
+        const cA = i % 3 === 0 ? '#d8b070' : i % 3 === 1 ? '#a8803e' : '#8a6430';
+        frect(g, sx, sy, 2, 1, cA); if (i % 2) frect(g, sx + (i & 2 ? 1 : 0), sy + 1, 2, 1, '#6e4c22');
+      }
+    }
     if (this.scn.algae) for (let i = 0; i < 40; i++) fpx(g, X0 + 4 + (i * 37) % 146, Y0 + 32 + (i * 7) % 18, '#86e36f');
     for (let x = X0 + 1; x < X0 + 151; x++) fpx(g, x, Y0 + 30 + Math.round(Math.sin(x * 0.2 + Game.time * 3)), '#c6fff2');
-    frect(g, X0 + 1, Y0 + HH - 30, 150, 29, '#c97c38'); fdither(g, X0 + 1, Y0 + HH - 30, 150, 29, '#e49c44', 0.5);
     drawText(g, 'MAR', X0 + 6, Y0 + 34, { font: 'tiny', color: '#e6fdff' });
     // cabezal de toma a la profundidad elegida
     const hy = Y0 + 30 + (c.depth / 15) * (HH - 70);
@@ -743,7 +816,7 @@ const Sim01 = makeSim({
     const pY = Y0 + 34;
     Charts.flow(g, [[X0 + 123, Y0 + 26], [X0 + 123, pY - 10], [X0 + 170, pY - 10]], 'seawater', c.q / 100, 3);
     // coagulación
-    frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48'); frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); fdither(g, X0 + 174, pY - 14, 46, 30, '#a07a3a', clamp(turbIn / 50, 0, 0.6));
+    frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48'); frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); frect(g, X0 + 174, pY - 14, 46, 2, '#56c8e8'); g.globalAlpha = clamp(turbIn / 50, 0, 0.6) * 0.75; frect(g, X0 + 174, pY - 14, 46, 30, '#a07a3a'); g.globalAlpha *= 0.5; frect(g, X0 + 174, pY + 2, 46, 14, '#7a5420'); g.globalAlpha = 1;
     for (let i = 0; i < 12; i++) { const fx = X0 + 176 + (i * 13 + Game.time * 8) % 42, fy = pY - 10 + (i * 7) % 24; fdisc(g, fx, fy, 1 + c.coag * 1.5, '#c8a860'); }
     drawText(g, 'COAGULACIÓN', X0 + 197, pY - 30, { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.flow(g, [[X0 + 222, pY], [X0 + 240, pY]], 'seawater', c.q / 100, 3);
@@ -753,7 +826,10 @@ const Sim01 = makeSim({
     frect(g, fx0 + 3, fy0 + 40, fw - 6, 26, '#2a2a3a'); frect(g, fx0 + 3, fy0 + 66, fw - 6, 40, '#e4c088');
     for (let i = 0; i < 40; i++) fpx(g, fx0 + 4 + (i * 7) % (fw - 8), fy0 + 67 + (i * 11) % 38, '#c49860');
     const dirt = clamp((this.dp - 0.3) / 1.2, 0, 1);
-    fdither(g, fx0 + 3, fy0 + 40, fw - 6, Math.round(26 + 40 * dirt), '#5a3a1a', 0.3 + dirt * 0.5);
+    // suciedad sin tramado: costra sólida que crece sobre el lecho + penetración como velo plano
+    const cake = Math.round(1 + 9 * dirt);
+    g.globalAlpha = 0.25 + dirt * 0.45; frect(g, fx0 + 3, fy0 + 40, fw - 6, Math.round(26 + 40 * dirt), '#5a3a1a'); g.globalAlpha = 1;
+    frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, cake, '#6e4a1c'); frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, 1, '#a8742c'); frect(g, fx0 + 3, fy0 + 39, fw - 6, 1, '#4a2c12');
     if (this.backwashT > 0) for (let i = 0; i < 8; i++) fpx(g, fx0 + 6 + Math.random() * (fw - 12), fy0 + 10 + Math.random() * 30, '#c6fff2');
     drawText(g, 'FILTRO', fx0 + fw / 2, fy0 - 8, { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.gauge(g, fx0 + fw / 2, fy0 + fh + 22, 13, clamp(this.dp / 1.6, 0, 1), '#56e5ff', 'ΔP', fmt(this.dp, 2));

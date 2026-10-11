@@ -85,7 +85,7 @@ const SCBEpi = (() => {
       frect(g, x + 3, y + 3, SW - 6, 11, '#072248'); frect(g, x + 3, y + 3, SW - 6, 1, '#a8c8ff');
       drawText(g, 'PANEL PÚBLICO · EN VIVO', x + 10, y + 6, { font: 'tiny', color: '#e6f8fe' });
       if (Math.floor(t * 2) % 2) { frect(g, x + SW - 12, y + 6, 4, 4, '#ff4e5d'); }
-      const rows = [['TURBIDEZ', '#20d6c7', ((1.2 + 0.2 * Math.sin(t * 0.7)).toFixed(1)) + ' NTU'], ['ENERGÍA', '#ffe14d', Math.round(72 + 6 * Math.sin(t * 0.4)) + ' %'], ['SALMUERA', '#c244a2', 'BOYA OK'], ['RIEGO', '#4ccb70', 'GOTEO']];
+      const rows = [['TURBIDEZ', '#20d6c7', fmt(1.2 + 0.2 * Math.sin(t * 0.7), 1) + ' NTU'], ['ENERGÍA', '#ffe14d', Math.round(72 + 6 * Math.sin(t * 0.4)) + ' %'], ['SALMUERA', '#c244a2', 'BOYA OK'], ['RIEGO', '#4ccb70', 'GOTEO']];
       rows.forEach(([lab, col, val], i) => {
         const ry = y + 18 + i * 16;
         frect(g, x + 6, ry, 3, 11, col);

@@ -250,25 +250,66 @@ const CAL_CARDS = {
   },
 };
 
+/** Marco de la tarjeta de crisis: panel navy con bisel, insignia que desborda la esquina,
+ *  franja de alerta ocre en bandas sólidas con brillo de 1 px y estrías de polvo animadas (sin tramado). */
+function FIXSIMS_calimaCard(g, x, y, w, h, c, t) {
+  UIK.panel(g, x, y, w, h, 'tech', null, { chamfer: 3 });
+  const sx = x + 3, sy = y + 3, sw = w - 6;
+  frect(g, sx, sy, sw, 1, '#f6c27a');
+  frect(g, sx, sy + 1, sw, 6, '#d27c38');
+  frect(g, sx, sy + 7, sw, 6, '#bc6630');
+  frect(g, sx, sy + 13, sw, 5, '#a2522a');
+  frect(g, sx, sy + 18, sw, 1, '#6a2e16');
+  frect(g, sx, sy + 19, sw, 1, '#000633');
+  g.fillStyle = '#ffd89a';
+  for (let i = 0; i < 7; i++) {
+    const L = 20 + (i * 13) % 26, span = sw - 24 - L;
+    const bx = Math.round(sx + 24 + ((t * (60 + i * 9) + i * 97) % span)), by = sy + 3 + (i * 5) % 13;
+    g.globalAlpha = 0.22 + (i % 3) * 0.07; g.fillRect(bx, by, L, 1);
+    g.globalAlpha = 0.12; g.fillRect(bx + 6, by + 1, L - 10, 1);
+  }
+  g.globalAlpha = 1;
+  UIK.badge(g, c.icon, x - 3, y - 3, 22, 'tech', { rim: '#f5a576' });
+  drawText(g, fitText('FASE ' + c.phase + ' / 9 · ' + c.title, w - 90, 'bold'), x + 26, y + 7, { font: 'bold', color: '#fff6d8', shadow: '#5a2410' });
+  UIK.pill(g, x + w - 8, y + 5, c.ra, { align: 'right', rim: '#ffd23a', fill: '#2a1206', color: '#fff2c0' });
+  frect(g, x + 6, y + 25, w - 12, 1, '#12305a');
+}
+/** Ventana «en vivo» con el panorama de la tormenta (capturado al abrir la tarjeta) y velo ocre en bandas */
+function FIXSIMS_calimaWindow(g, bn, x, y, w, h, t) {
+  UIK.frame(g, x, y, w, h, 'hud', { bg: '#3a1c0c' });
+  const ix = x + 4, iy = y + 4, iw = w - 8, ih = h - 8;
+  if (bn && bn.c) {
+    const sx = clamp(Math.round(W / 2 - iw / 2 + Math.sin(t * 0.15) * 30), 0, W - iw), sy = clamp(bn.y0 + 6, 0, H - ih);
+    g.drawImage(bn.c, sx, sy, iw, ih, ix, iy, iw, ih);
+  } else {
+    frect(g, ix, iy, iw, ih, '#b8743e'); frect(g, ix, iy + Math.round(ih * 0.4), iw, ih - Math.round(ih * 0.4), '#9a5a30'); frect(g, ix, iy + Math.round(ih * 0.72), iw, ih - Math.round(ih * 0.72), '#6e3a1e');
+  }
+  g.fillStyle = '#c88a48';
+  const b1 = Math.round(ih * 0.45), b2 = Math.round(ih * 0.75);
+  g.globalAlpha = 0.2; g.fillRect(ix, iy, iw, ih);
+  g.globalAlpha = 0.14; g.fillRect(ix, iy + b1, iw, ih - b1);
+  g.globalAlpha = 0.12; g.fillRect(ix, iy + b2, iw, ih - b2);
+  g.fillStyle = '#ffe2b0';
+  for (let i = 0; i < 9; i++) {
+    const L = 10 + (i * 7) % 16, bx = Math.round(ix + ((t * (90 + i * 13) + i * 53) % (iw - L))), by = iy + 14 + (i * 11) % (ih - 18);
+    g.globalAlpha = 0.25 + (i % 3) * 0.08; g.fillRect(bx, by, L, 1);
+  }
+  g.globalAlpha = 1;
+  UIK.pill(g, ix + 2, iy + 2, 'CALIMA · EN VIVO', { rim: '#f5a576', fill: '#2a1206', color: '#fff2c0' });
+  if (Math.sin(t * 6) > 0) { frect(g, ix + iw - 7, iy + 4, 3, 3, '#ff4e5d'); fpx(g, ix + iw - 7, iy + 4, '#ffc6b4'); }
+}
 const CrisisCardScene = {
   overlay: true,
-  enter(p) { this.card = p.card; this.id = p.id; this.onDone = p.onDone; this.sel = -1; this.fb = null; this.t = 0; this.t0 = nowMs(); },
+  enter(p) { this.card = p.card; this.id = p.id; this.onDone = p.onDone; this.sel = -1; this.fb = null; this.t = 0; this.t0 = nowMs(); this.bn = (typeof SCACards !== 'undefined' && typeof GameplayScene !== 'undefined' && GameplayScene.backdrop) ? SCACards.captureBanner(GameplayScene) : null; },
   update(dt) { this.t += dt; if (Input.pressed('cancel') && !this.fb) { Game.pop(); this.onDone && this.onDone(null); } },
   render(g) {
     const c = this.card, t = this.t;
-    fdither(g, 0, 0, W, H, '#1a0804', 0.7);
+    // velo de tormenta sin tramado (alfa plano, bandas más densas en los bordes)
+    UIK.scrim(g, 0.66, '#1a0804');
     const x = 28, y = 18, w = W - 56, h = H - 36;
-    // marco de tarjeta: ocre tormenta con borde eléctrico
-    frect(g, x + 3, y + 4, w, h, '#05030f');
-    frect(g, x, y, w, h, '#2a0e0a'); fdither(g, x, y, w, h, '#4a1a10', 0.4);
-    frect(g, x, y, w, 1, '#56e5ff'); frect(g, x, y + h - 1, w, 1, '#56e5ff'); frect(g, x, y, 1, h, '#56e5ff'); frect(g, x + w - 1, y, 1, h, '#56e5ff');
-    frect(g, x + 2, y + 2, w - 4, 20, '#c06a30'); fdither(g, x + 2, y + 2, w - 4, 10, '#e2a052', 0.4);
-    Icons.draw(g, c.icon, x + 6, y + 5);
-    drawText(g, 'FASE ' + c.phase + ' / 9 · ' + c.title, x + 24, y + 8, { color: '#fff6d8', shadow: '#2a0e0a' });
-    drawText(g, c.ra, x + w - 8, y + 9, { font: 'tiny', color: '#fff6d8', align: 'right' });
-    // banda de tormenta animada
-    for (let i = 0; i < 6; i++) { const bx = x + 2 + ((t * 70 + i * 97) % (w - 40)); fdither(g, bx, y + 24, 36, 2, '#e2a052', 0.5); }
-    let yy = y + 30;
+    // tarjeta: panel navy con bisel (kit de UI) + franja de alerta ocre de la Calima
+    FIXSIMS_calimaCard(g, x, y, w, h, c, t);
+    let yy = y + 32;
     yy += drawTextBlock(g, c.prompt, x + 10, yy, w - 20, { color: '#fffaf0' }) + 6;
     Gui.begin();
     c.options.forEach((o, i) => {
@@ -278,7 +319,7 @@ const CrisisCardScene = {
       if (r.clicked && !(this.fb && this.fb.ok)) { this.sel = i; this.fb = null; }
       yy += r.h + 3;
     });
-    if (c.readout) { const rh = Math.min(96, y + h - 60 - yy); if (rh > 40) c.readout(g, x + 10, yy + 4, w - 160, rh); }
+    if (c.readout) { const rh = Math.min(96, y + h - 60 - yy); if (rh > 40) { c.readout(g, x + 10, yy + 4, w - 160, rh); FIXSIMS_calimaWindow(g, this.bn, x + w - 142, yy + 4, 132, rh, t); } }
     if (!this.fb) {
       if (Gui.button(g, 'ok', x + w - 130, y + h - 26, 120, 18, 'Decidir', { style: 'good', icon: 'check', disabled: this.sel < 0 })) {
         const ok = this.sel === c.key;
@@ -316,7 +357,7 @@ const PriorityScene = {
   enter(p) { this.onDone = p.onDone; this.order = []; this.fb = null; this.pool = RNG(77).shuffle(CAL_PRIOS.slice()); },
   update() { if (Input.pressed('cancel')) { Game.pop(); this.onDone && this.onDone(null); } },
   render(g) {
-    fdither(g, 0, 0, W, H, '#05030f', 0.75);
+    UIK.scrim(g, 0.75, '#05030f');
     UIK.panel(g, 24, 16, W - 48, H - 32, 'mosaic');
     UIK.header(g, 24, 16, W - 48, 'FASE 8 / 9 · GOBERNANZA: PRIORIDADES TRANSPARENTES', 'mosaic', 'scale');
     drawTextBlock(g, 'Ordena qué se protege primero cuando la energía o el agua no alcanzan. Lo que quede abajo será lo primero en recortarse, y todos podrán verlo.', 34, 38, W - 68, { color: '#fffaf0' });
@@ -329,10 +370,14 @@ const PriorityScene = {
     drawText(g, 'ORDEN DE PROTECCIÓN (1 = PRIMERO)', 330, 66, { font: 'tiny', color: '#c2f58e' });
     for (let i = 0; i < CAL_PRIOS.length; i++) {
       const id = this.order[i], c = id && CAL_PRIOS.find(q => q.id === id), yy = 76 + i * 26;
-      frect(g, 328, yy, 278, 22, '#06100a'); frect(g, 328, yy, 278, 1, '#1f854c');
-      drawText(g, String(i + 1), 336, yy + 7, { color: '#ffe14d' });
+      // ranura: caja de número separada + fila navy con bisel (kit de UI), color del nivel de protección
+      const tierCol = i >= 4 ? '#ff9a8a' : i >= 2 ? '#c2f58e' : '#3fe0a0';
+      UIK.panel(g, 328, yy, 20, 22, 'sheet', c ? tierCol : null, { chamfer: 2, key: false, spark: false });
+      UIK.panel(g, 350, yy, 256, 22, 'sheet', null, { chamfer: 2, key: false, spark: !!c });
+      drawText(g, String(i + 1), 338, yy + 6, { font: 'bold', color: c ? '#ffe14d' : '#93a6c8', align: 'center' });
+      if (!c) frect(g, 358, yy + 10, 120, 1, '#12305a');
       const shedTxt = i >= 4 ? 'se recorta primero' : i >= 2 ? 'se protege' : 'nunca se recorta';
-      if (c) { Icons.draw(g, c.icon, 348, yy + 4); drawText(g, c.label, 364, yy + 4, { font: 'tiny', color: '#fffaf0', max: 52 }); drawText(g, shedTxt, 364, yy + 13, { font: 'tiny', color: i >= 4 ? '#ff9a8a' : '#86e36f' }); }
+      if (c) { Icons.draw(g, c.icon, 354, yy + 5); drawText(g, fitText(c.label, 230, 'tiny'), 370, yy + 5, { font: 'tiny', color: '#fffaf0' }); drawText(g, shedTxt, 370, yy + 13, { font: 'tiny', color: tierCol }); }
     }
     if (this.fb) { UIK.panel(g, 34, H - 64, W - 228, 40, this.fb.ok ? 'green' : 'alert'); drawTextBlock(g, this.fb.txt, 40, H - 59, W - 240, { color: '#fffaf0' }); }
     if (!(this.fb && this.fb.ok)) {
@@ -375,13 +420,13 @@ const ObjectiveScene = {
   update(dt) { this.t += dt; if (Input.pressed('cancel')) { Game.pop(); this.onDone && this.onDone(null); } },
   render(g) {
     const t = this.t;
-    fdither(g, 0, 0, W, H, '#05030f', 0.78);
+    UIK.scrim(g, 0.78, '#05030f');
     UIK.panel(g, 24, 16, W - 48, H - 32, 'mirage');
     UIK.header(g, 24, 16, W - 48, 'FASE 9 / 9 · REESCRIBIR EL OBJETIVO', 'mirage', 'mirror');
     // objetivo antiguo, tachado
     frect(g, 36, 40, W - 72, 22, '#1d0b3a');
     drawText(g, 'OBJETIVO MIRAGE:  MAX ( H2 exportado - costo )   sujeto a: mínimos modelados', 44, 47, { color: '#f27ee6' });
-    if (this.sel.size >= 3) for (let x = 40; x < W - 44; x += 2) fpx(g, x, 51 + ((x >> 3) & 1), '#ff4e5d');
+    if (this.sel.size >= 3) { frect(g, 40, 51, W - 84, 1, '#ff4e5d'); frect(g, 40, 52, W - 84, 1, '#a8243c'); }
     drawText(g, 'Elige las piezas del nuevo objetivo. Un gemelo honesto muestra, no esconde.', 36, 68, { color: '#fffaf0' });
     Gui.begin();
     this.order.forEach((c, i) => {
@@ -390,14 +435,23 @@ const ObjectiveScene = {
       let st = on ? 'good' : 'choice';
       if (this.fb && on && !c.ok) st = 'danger';
       if (Gui.button(g, 'o' + c.id, x, y, 182, 28, '', { style: st, disabled: !!(this.fb && this.fb.ok) })) { if (on) this.sel.delete(c.id); else this.sel.add(c.id); this.fb = null; }
-      drawTextBlock(g, c.label, x + 6, y + 5, 170, { font: 'tiny', color: '#fffaf0', lineH: 8 });
+      const lines = wrapText(c.label, 170);
+      drawTextBlock(g, c.label, x + 6, y + (lines.length > 1 ? 3 : 9), 172, { color: '#fffaf0', lineH: 11 });
     });
     // mosaico que se arma con las piezas correctas
     const good = CAL_OBJ.filter(c => c.ok && this.sel.has(c.id)).length, cols = ['#20d6c7', '#ffe14d', '#4ccb70', '#ff6b6b', '#ffffff', '#c8861a'];
     const mx = 36, my = 192;
     drawText(g, 'NUEVO OBJETIVO', mx, my, { font: 'tiny', color: '#c2f58e' });
-    for (let k = 0; k < 6; k++) { const bx = mx + k * 30, on = k < good; frect(g, bx, my + 10, 26, 18, on ? cols[k] : '#1d0b3a'); if (on) fdither(g, bx, my + 10, 26, 9, '#ffffff', 0.25 + 0.1 * Math.sin(t * 3 + k)); }
-    if (this.fb) { UIK.panel(g, 230, my - 2, W - 266, 46, this.fb.ok ? 'green' : 'alert'); drawTextBlock(g, this.fb.txt, 236, my + 3, W - 278, { color: '#fffaf0', font: 'tiny', lineH: 8 }); }
+    for (let k = 0; k < 6; k++) {
+      const bx = mx + k * 30, on = k < good;
+      frect(g, bx, my + 10, 26, 18, '#000633');
+      if (!on) { frect(g, bx + 1, my + 11, 24, 16, '#1d0b3a'); frect(g, bx + 1, my + 11, 24, 1, '#3a1250'); continue; }
+      // tesela con bisel en bandas: brillo 1 px, cuerpo, sombra 2 px con desplazamiento de tono y pulso plano
+      frect(g, bx + 1, my + 11, 24, 16, cols[k]); frect(g, bx + 1, my + 11, 24, 1, shadeTo(cols[k], 0.45));
+      frect(g, bx + 1, my + 25, 24, 2, shade(cols[k], -0.35)); frect(g, bx + 24, my + 12, 1, 13, shade(cols[k], -0.2));
+      g.globalAlpha = 0.18 + 0.1 * Math.sin(t * 3 + k); frect(g, bx + 1, my + 12, 24, 6, '#ffffff'); g.globalAlpha = 1;
+    }
+    if (this.fb) { const fh = Math.max(46, textHeight(this.fb.txt, W - 278, { lineH: 11 }) + 10); UIK.panel(g, 230, my - 2, W - 266, fh, this.fb.ok ? 'green' : 'alert'); drawTextBlock(g, this.fb.txt, 236, my + 3, W - 278, { color: '#fffaf0', lineH: 11 }); }
     if (!(this.fb && this.fb.ok)) { if (Gui.button(g, 'chk', W - 190, H - 44, 150, 18, 'Compilar objetivo', { style: 'good', icon: 'check', disabled: !this.sel.size })) this.check(); }
     else if (Gui.button(g, 'go', W - 190, H - 44, 150, 18, 'Continuar', { style: 'good', icon: 'play' })) { Game.pop(); this.onDone && this.onDone({ ok: true }); }
     Gui.end();
@@ -1124,7 +1178,12 @@ const Sim10 = makeSim({
     const rx = x + 90;
     frect(g, rx, wy, 64, 30, '#0a1440');
     for (let k = 0; k < 3; k++) { const on = k < row.trains; frect(g, rx + 4, wy + 3 + k * 9, 56, 7, on ? (row.mode === 'storm' ? '#ffd27a' : '#e6f6fc') : '#1c2350'); if (on) { frect(g, rx + 4, wy + 3 + k * 9, 3, 7, '#1f469e'); frect(g, rx + 57, wy + 3 + k * 9, 3, 7, '#1f469e'); } }
-    if (row.foul > 0.15) fdither(g, rx, wy, 64, 30, '#a8742c', clamp(row.foul, 0, 0.7));
+    if (row.foul > 0.15) {
+      // ensuciamiento sin tramado: costra marrón sólida en el lado de alimentación de cada tren (crece con foul) + velo plano
+      const f = clamp(row.foul, 0, 1), fl = Math.max(3, Math.round(50 * f));
+      for (let k = 0; k < 3; k++) { const ty = wy + 3 + k * 9; frect(g, rx + 7, ty + 4, fl, 3, '#6e4a1c'); frect(g, rx + 7, ty + 4, fl, 1, '#c8944a'); frect(g, rx + 7, ty + 6, fl, 1, '#4a2c12'); }
+      g.globalAlpha = clamp(0.12 + 0.3 * f, 0, 0.42); frect(g, rx, wy, 64, 30, '#a8742c'); g.globalAlpha = 1;
+    }
     drawText(g, 'OI · ' + row.trains + ' trenes', rx + 32, wy + 33, { font: 'tiny', align: 'center', color: '#a6f4ff' });
     Charts.flow(g, [[x + 76, wy + 15], [rx, wy + 15]], 'seawater', row.trains ? 1 : 0, 3);
     // tanque de agua potable
@@ -1135,9 +1194,8 @@ const Sim10 = makeSim({
     Charts.flow(g, [[rx + 64, wy + 15], [tx, wy + 15]], 'permeate', row.prod > 0 ? 1 : 0, 3);
     // usos del agua
     const ux = tx + 46;
-    const uses = [['heart', 'ESENCIAL ' + fmt0(row.essW), '#ff9a8a', 1], ['seed', 'VIVERO 10', '#c2f58e', V.r.critMiss === 0 || this.pol.data ? 1 : 0], ['water', 'NO ESENC. ' + fmt0(row.nonEss), '#a6f4ff', row.nonEss > 0 ? 1 : 0], ['plant', 'RIEGO N.U. ' + fmt0(row.nonUrg), '#86e36f', row.nonUrg > 0 ? 1 : 0]];
+    const uses = [['heart', 'ESENCIAL ' + fmt0(row.essW) + ' m³/h', '#ff9a8a', 1], ['seed', 'VIVERO 10 m³/h', '#c2f58e', V.r.critMiss === 0 || this.pol.data ? 1 : 0], ['water', 'NO ESENC. ' + fmt0(row.nonEss) + ' m³/h', '#a6f4ff', row.nonEss > 0 ? 1 : 0], ['plant', 'RIEGO N.U. ' + fmt0(row.nonUrg) + ' m³/h', '#86e36f', row.nonUrg > 0 ? 1 : 0]];
     uses.forEach(([ic, lb, c, on], i) => { const yy = wy - 6 + i * 13; Icons.draw(g, ic, ux + 14, yy); drawText(g, lb, ux + 30, yy + 4, { font: 'tiny', color: on ? c : '#4a4e70' }); Charts.flow(g, [[tx + 26, wy + 15], [ux + 12, yy + 6]], ic === 'plant' || ic === 'seed' ? 'irrigation' : 'water', on ? 0.8 : 0, 1); });
-    drawText(g, 'm³/h', ux + 100, wy + 46, { font: 'tiny', color: '#8a8fb8', align: 'right' });
     // salmuera: laguna y difusor
     const by = wy + 46, bx = rx;
     Charts.flow(g, [[rx + 60, wy + 30], [rx + 60, by - 3], [rx + 30, by - 3]], 'brine', row.prod > 0 ? 0.7 : 0, 2);
@@ -1169,7 +1227,10 @@ const Sim10 = makeSim({
     if (row.h2KW > 0) drawGasBubbles(g, lx + 110, ey + 22, 14, 14, t, 1);
     // balance y estado
     const bal = row.gen - row.load;
-    drawText(g, 'GEN ' + fmt0(row.gen) + ' · CARGA ' + fmt0(row.load) + ' kW', lx, ey + 44, { font: 'tiny', color: bal >= 0 ? '#c2f58e' : '#ffb93b' });
+    const bcol = bal >= 0 ? '#c2f58e' : '#ffb93b', brx = x + w - 10;
+    drawText(g, 'BALANCE', brx, ey, { font: 'tiny', color: '#93a6c8', align: 'right' });
+    drawText(g, 'GEN ' + fmt0(row.gen) + ' kW', brx, ey + 10, { font: 'tiny', color: bcol, align: 'right' });
+    drawText(g, 'CARGA ' + fmt0(row.load) + ' kW', brx, ey + 19, { font: 'tiny', color: bcol, align: 'right' });
     if (row.shed && row.shed.length) drawText(g, 'RECORTE: ' + row.shed.join(' → '), x + w - 8, y + 5, { font: 'tiny', color: row.shed.includes('APAGÓN') || row.shed.includes('DISPARO') ? '#ff4e5d' : '#ffb93b', align: 'right' });
     if (row.trip) { const fy = y + 112; frect(g, x + 1, fy, w - 2, 12, (Math.floor(t * 6) % 2) ? '#7a1f36' : '#4a1428'); frect(g, x + 1, fy, w - 2, 1, '#ff4e5d'); frect(g, x + 1, fy + 11, w - 2, 1, '#ff4e5d'); drawText(g, 'DISPARO / APAGÓN: SERVICIOS SIN ENERGÍA', x + w / 2, fy + 2, { align: 'center', font: 'tiny', color: '#fffaf0' }); }
   },
