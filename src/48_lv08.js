@@ -563,8 +563,8 @@ const Sim08 = makeSim({
   },
   drawBlend(g, x, y) {
     const b = this.blend();
-    // tres fuentes con sus barras de mezcla
-    UIK.panel(g, x, y, 400, 230, 'tech');
+    // tres fuentes con sus barras de mezcla (panel de 196 px: el perfil de suelo queda por encima del globo de KIRU)
+    UIK.panel(g, x, y, 400, 196, 'tech');
     drawText(g, 'MEZCLA DE FUENTES PARA RIEGO', x + 8, y + 6, { font: 'tiny', color: '#ffe14d' });
     let yy = y + 18;
     const keys = ['perm', 'well', 'rain'];
@@ -586,12 +586,12 @@ const Sim08 = makeSim({
     row('Boro', fmt(b.boron, 2) + ' mg/L (< 0,75 fríjol)', b.boron < 0.75, yy + 44);
     row('SAR', fmt(b.sar, 1) + ' · riesgo de infiltración ' + fmt0(b.infil * 100) + ' %', b.infil < 0.3, yy + 58);
     // dibujo de suelo según infiltración
-    const sx = x + 280, sy = y + 128;
-    frect(g, sx, sy, 110, 80, '#7a4e2e');
+    const sx = x + 280, sy = y + 116;
+    frect(g, sx, sy, 110, 64, '#7a4e2e'); frect(g, sx, sy + 40, 110, 24, '#6a4228'); frect(g, sx, sy + 63, 110, 1, '#4a2c1a');
     const depth = Math.round((1 - b.infil) * 60);
     g.globalAlpha = 0.22; frect(g, sx, sy, 110, depth, '#56e5ff'); g.globalAlpha = 0.14; frect(g, sx, sy + Math.round(depth * 0.5), 110, depth - Math.round(depth * 0.5), '#2c8ad8'); g.globalAlpha = 1;
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }
-    drawText(g, 'Infiltración', sx + 55, sy + 84, { font: 'tiny', align: 'center', color: '#cfd6f0' });
+    drawText(g, 'Infiltración', sx + 55, sy + 68, { font: 'tiny', align: 'center', color: '#cfd6f0' });
     const CX = 414, CW = W - CX - 6;
     UIK.panel(g, CX, 28, CW, 200, 'glass');
     drawText(g, 'CALIDAD PARA RIEGO (FAO-29)', CX + 8, 34, { font: 'tiny', color: '#ffe14d' });
