@@ -2,7 +2,11 @@
 
 Videojuego educativo STEAM en **pixel art cinematográfico** sobre el nexo **agua – energía – hidrógeno – agroecología** en una costa árida. Todo el juego es un único archivo autocontenido: **`index.html`**. Funciona sin conexión, sin librerías, sin recursos externos y sin enviar datos a ningún servidor.
 
+Todo el apartado gráfico se rediseñó a partir de una referencia visual de alta prioridad (`docs/art/referencia_visual.jpg`): pixel art denso y saturado, paisajes en 8–10 planos de parallax con perspectiva atmosférica, arquitectura y tecnología en 3/4, personajes de unos 74 px con retratos de 96 px y una interfaz azul marino con biseles. Todo se genera por código dentro del propio archivo.
+
 ![Pantalla de título](docs/img/titulo.png)
+![Nivel 01 — La Boca del Mar: muelle de la toma con corte submarino](docs/img/nivel01.png)
+![Mapa del Nexo](docs/img/mapa.png)
 
 ## Cómo jugar
 
@@ -51,6 +55,8 @@ Cada capítulo sigue el patrón pedagógico del documento maestro: fenómeno obs
 El aprendizaje se registra con evidencias (RA-01 a RA-09), un modelo de dominio por concepto, la **taxonomía SOLO** y un **banco de 135 ítems** (diagnósticos, cálculos, diseño, debates y retos manipulativos). El **Atlas del Nexo** reúne más de 60 fichas con definición, variables, unidades, relaciones, ejemplo, límites, error frecuente y fuente.
 
 ![Nivel 03 — Los Cañones de Sal](docs/img/nivel03.png)
+![Nivel 05 — Las Torres de Brisa](docs/img/nivel05.png)
+![Nivel 08 — El Oasis de las Raíces](docs/img/nivel08.png)
 ![Simulador de la pluma de salmuera](docs/img/sim03.png)
 ![Nivel 10 — La Gran Calima](docs/img/nivel10.png)
 ![Control Mosaico Vivo](docs/img/sim10.png)
@@ -78,12 +84,17 @@ node tools/smoke.js                  # prueba de humo en navegador (requiere Pla
 node tools/shot.js "test=level&lv=3&nocard=1&px=900" captura.png 2 1500
 ```
 
-Parámetros de prueba útiles (solo para desarrollo): `?test=level&lv=N&px=X&nocard=1`, `?test=sim&lv=N&s=SimNN&phase=guided`, `?test=map`, `?test=scene&s=NombreEscena`.
+Parámetros de prueba útiles (solo para desarrollo): `?test=level&lv=N&px=X&nocard=1`, `?test=sim&lv=N&s=SimNN&phase=guided`, `?test=map`, `?test=scene&s=NombreEscena`, `?test=ui` (galería de interfaz), `?test=portraits2` (retratos), `?test=charsheet&char=amaya` (animaciones de un personaje).
 
 | Archivo | Contenido |
 |---|---|
-| `00_core` – `07_state` | utilidades, pixel buffer y tramado, fuentes bitmap, audio procedural, entrada, motor de escenas, interfaz pixel, estado y guardado |
-| `10_rig` – `16_biomes` | rig de personajes por capas, personajes y NPC, accesorios, fondos parallax, retratos 128 px, tecnología y biomas |
+| `00_core` – `07_state` | utilidades, pixel buffer, fuentes bitmap (con glifos científicos), audio procedural, entrada, motor de escenas, interfaz pixel, estado y guardado |
+| `06c_ui_widgets` | piezas de interfaz del estilo de la referencia: bloque de retrato del HUD, minimapa, globos, panel PREGUNTA, tarjetas de capítulo |
+| `10_rig` – `16_biomes` | rig de personajes v2 por materiales, personajes y NPC, accesorios, fondos base, retratos 96 px con busto de HUD, tecnología y biomas base |
+| `17a` – `17r` | paleta oficial y kit VISTA de panoramas: cielo, nubes, relieve, ciudad, energía, vida, luz, interiores, desierto, acantilados, salinas, agro, H2, polvo |
+| `18a` – `18x` | kit PF del plano jugable: terreno en 3/4, flora, agua en corte, infraestructura, rótulos y etiquetas en el mundo, fauna, estaciones y kits por nivel |
+| `19a` – `19y` | escenas ilustradas: título, prólogo, dron, tarjetas, créditos, finales, poscréditos y epílogo |
+| `1c` – `1e_bio_*` | panoramas de cada bioma construidos con el kit VISTA |
 | `20_models` | modelos científicos (OI, salmuera, FV, eólica, BESS, H2, agro, microrred, multiobjetivo) y su validación |
 | `21_learning` – `24_codex_more` | aprendizaje, SOLO, banco de preguntas, extras y Atlas del Nexo |
 | `30_world` – `32_gameplay` | mundo de plataformas, historia y diálogos, escena de juego |
@@ -91,4 +102,4 @@ Parámetros de prueba útiles (solo para desarrollo): `?test=level&lv=N&px=X&noc
 | `4b_epilogue` | finales, epílogo, créditos finales y poscréditos |
 | `50_scenes`, `51_teacher`, `99_main` | título, mapa, menús, ajustes, docente, práctica, créditos y arranque |
 
-La dirección artística (pixel art de alto detalle, resolución lógica 640 × 360, escalado sin suavizado, 5–8 capas de parallax, iluminación y sombras tramadas, reflejos en el agua, partículas y paletas intensas) y el plan de trabajo están documentados en [`docs/DEV_PLAN.md`](docs/DEV_PLAN.md).
+La dirección artística está fijada en [`docs/art/STYLE_LOCK.md`](docs/art/STYLE_LOCK.md) (reglas, rampas de color, escala, planos, interfaz y presupuesto de rendimiento), con los análisis medidos de la referencia en `docs/art/analisis/` y la evaluación del resultado en [`docs/art/analisis/06_evaluacion_final.md`](docs/art/analisis/06_evaluacion_final.md). El plan de trabajo está en [`docs/DEV_PLAN.md`](docs/DEV_PLAN.md).
