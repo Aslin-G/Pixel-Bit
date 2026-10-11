@@ -22330,6 +22330,58 @@ const SCAIntro = (() => {
   /** Envuelve un dinámico para que reciba g a través de rotors() */
   const dyn = (fn) => (g, cam, L) => { _g = g; fn(g, cam, L); };
 
+  /** Figura diminuta del plano medio (≈11 px): cabeza, túnica de color, piernas y, si jug, cántaro en la cabeza */
+  function tinyFolk(pb, x, yb, col, jug) {
+    const C = U(col), Cd = V.shU(C, -0.3, 260), SK = U('#8a5a3a'), SKl = U('#b47a50'), SH = U('#a8783e');
+    for (let q = -2; q <= 3; q++) V.put(pb, x + q, yb, SH);
+    V.put(pb, x, yb - 1, U('#3a2418')); V.put(pb, x + 2, yb - 1, U('#3a2418')); V.put(pb, x, yb - 2, U('#3a2418')); V.put(pb, x + 2, yb - 2, U('#3a2418'));
+    for (let y = yb - 7; y < yb - 2; y++) for (let xx = x - (y > yb - 4 ? 1 : 0); xx <= x + 2; xx++) V.put(pb, xx, y, xx === x + 2 || y === yb - 3 ? Cd : C);
+    V.put(pb, x, yb - 8, SKl); V.put(pb, x + 1, yb - 8, SK); V.put(pb, x, yb - 9, SKl); V.put(pb, x + 1, yb - 9, SK); V.put(pb, x + 2, yb - 9, U('#2a1810'));
+    if (jug) { for (const [dx, dy, c] of [[0, -10, '#c86a3a'], [1, -10, '#a8502c'], [-1, -11, '#e08a50'], [0, -11, '#c86a3a'], [1, -11, '#c86a3a'], [2, -11, '#a8502c'], [0, -12, '#e08a50'], [1, -12, '#c86a3a']]) V.put(pb, x + dx, yb + dy, U(c)); }
+    else { for (let y = yb - 6; y < yb - 2; y++) V.put(pb, x + 3, y, U('#2a72aa')); V.put(pb, x + 3, yb - 7, U('#8cc8ec')); }
+  }
+  /** Carro de bidones con burro (plano medio) */
+  function donkeyCart(pb, x, yb) {
+    const D = V.P32(['#3a2a24', '#5a463a', '#7a6454', '#9a8470']), W2 = V.P32(['#3a2418', '#5a3a22', '#7a5434', '#9a6e46']);
+    for (let q = -6; q <= 26; q++) V.put(pb, x + q, yb + 1, U('#a8783e'));
+    // burro: cuerpo, cabeza, orejas, patas
+    for (let y = yb - 7; y < yb - 3; y++) for (let xx = x + 16; xx < x + 24; xx++) V.put(pb, xx, y, D[y === yb - 7 ? 3 : xx > x + 21 ? 1 : 2]);
+    for (let y = yb - 10; y < yb - 6; y++) for (let xx = x + 24; xx < x + 27; xx++) V.put(pb, xx, y, D[y === yb - 10 ? 3 : 2]);
+    V.put(pb, x + 24, yb - 11, D[1]); V.put(pb, x + 25, yb - 12, D[1]); V.put(pb, x + 26, yb - 8, D[0]);
+    for (const lx of [x + 17, x + 19, x + 21, x + 23]) for (let y = yb - 3; y <= yb; y++) V.put(pb, lx, y, D[0]);
+    // varas y caja del carro con dos bidones azules
+    for (let xx = x + 8; xx < x + 17; xx++) V.put(pb, xx, yb - 5, W2[1]);
+    for (let y = yb - 6; y < yb - 1; y++) for (let xx = x - 4; xx < x + 9; xx++) V.put(pb, xx, y, W2[y === yb - 6 ? 3 : xx === x - 4 ? 2 : 1]);
+    for (const bx of [x - 2, x + 3]) for (let y = yb - 11; y < yb - 6; y++) for (let xx = bx; xx < bx + 4; xx++) V.put(pb, xx, y, U(y === yb - 11 ? '#8cc8ec' : xx === bx ? '#4a9ad0' : '#2a72aa'));
+    // rueda
+    for (const [dx, dy] of [[0, -3], [1, -3], [-1, -2], [2, -2], [-1, -1], [2, -1], [0, 0], [1, 0]]) V.put(pb, x + 2 + dx, yb + dy, W2[0]);
+    V.put(pb, x + 2, yb - 2, W2[3]);
+  }
+  /** Barca de pesca fondeada en 3/4: casco con borda, cubierta clara, cabina blanca, mástil y reflejo */
+  function fishBoat(pb, cx, yw) {
+    const HL = V.P32(['#1a2a4a', '#24406a', '#2e5a8a', '#e8e4de', '#c83a3a']), DK = V.P32(['#7a5434', '#9a6e46', '#c08a5a']);
+    const L = 40;
+    for (let x = -L / 2; x <= L / 2; x++) {
+      const bow = x > L / 2 - 8 ? (x - (L / 2 - 8)) * 0.5 : 0, stern = x < -L / 2 + 3 ? 1 : 0;
+      const yTop = yw - 8 + Math.round(bow * 0.6) - stern, yBot = yw - Math.round(bow);
+      for (let y = yTop; y <= yBot; y++) V.put(pb, cx + x, y, y === yTop ? HL[3] : y === yTop + 1 ? HL[4] : y > yBot - 2 ? HL[0] : x < -L / 4 ? HL[2] : HL[1]);
+      // cubierta vista desde arriba (3/4)
+      if (x > -L / 2 + 1 && x < L / 2 - 4) for (let y = yTop - 3; y < yTop; y++) V.put(pb, cx + x, y, DK[y === yTop - 3 ? 2 : 1]);
+    }
+    for (let y = yw - 20; y < yw - 11; y++) for (let x = -10; x < 2; x++) V.put(pb, cx + x, y, U(y === yw - 20 ? '#ffffff' : x === 1 ? '#a8b0c0' : '#e8ecf2'));
+    for (let x = -8; x < 0; x += 3) { V.put(pb, cx + x, yw - 17, U('#2a4a78')); V.put(pb, cx + x + 1, yw - 17, U('#56a8e0')); }
+    for (let y = yw - 34; y < yw - 11; y++) V.put(pb, cx + 6, y, U('#5a3a22'));
+    for (let x = 6; x < 18; x++) V.put(pb, cx + x, yw - 34 + Math.round((x - 6) * 1.6), U('#3a3a4a'));
+    // reflejo roto y estela de espuma alrededor del casco
+    for (let x = -L / 2; x <= L / 2; x += 1) { if (hash2(x, yw, 3) < 0.55) V.blend(pb, cx + x, yw + 2 + ((x >> 2) & 1), U('#1a3a6a'), 0.45); if ((x & 3) === 0) V.put(pb, cx + x, yw + 1, U('#e8f6ff')); }
+  }
+  /** Boya cónica con banda y linterna */
+  function buoy(pb, x, yw, col) {
+    const C = U(col), Cd = V.shU(C, -0.3, 260);
+    for (let y = yw - 7; y <= yw; y++) { const hw = Math.round((y - (yw - 7)) * 0.45) + 1; for (let xx = x - hw; xx <= x + hw; xx++) V.put(pb, xx, y, y === yw - 3 ? U('#f4f0e8') : xx > x ? Cd : C); }
+    for (let y = yw - 9; y < yw - 7; y++) V.put(pb, x, y, U('#3a3a4a'));
+    for (let xx = x - 4; xx <= x + 4; xx++) if (Math.abs(xx - x) !== 3) V.put(pb, xx, yw + 1, U('#e8f6ff'));
+  }
   /* =================================================================
      0 · ARIDIA EN LA SEQUÍA (mediodía blanco, calima de calor)
      ================================================================= */
@@ -22400,6 +22452,9 @@ const SCAIntro = (() => {
       const r = RNG(97);
       for (let i = 0; i < 36; i++) { const x = r.int(0, w), y = r.int(6, h - 4); PFFlora.tuft(pb, x, y, 3 + (y / h) * 6, 2 + (y / h) * 5, 970 + i, PFFlora.DRY); }
       for (const [x, y, hh] of [[300, 40, 16], [610, 30, 14], [30, 80, 20]]) V.cardon(pb, x, y, hh, x, { k: 0.05 });
+      // caravana del agua: aguadoras con cántaros vacíos y un carro de bidones tirado por un burro, hacia la ciudad
+      donkeyCart(pb, 336, 64);
+      for (const [x, y, c, jug] of [[284, 62, '#c84a3a', 1], [296, 64, '#2a72aa', 0], [308, 63, '#e8b040', 1], [320, 65, '#6a4a8a', 1], [272, 61, '#3a8a5a', 0]]) tinyFolk(pb, x, y, c, jug);
     });
     // primer plano: tierra agrietada, pozo seco, depósito vacío con aguja en rojo y árbol muerto
     const drip = { x: 0, y: 0 };
@@ -22476,10 +22531,18 @@ const SCAIntro = (() => {
       for (let x = 0; x < 300; x++) if (info.top[x] < h - 1) { V.put(pb, x, h - 1, FO[4]); if (hash2(x, 1, 3) < 0.5) V.put(pb, x, h - 2, FO[3]); }
     }, { dyn: dyn((g, cam, L) => rotors(B, L, cam, capeT)) });
     // mar cercano
-    B.vplane(0.45, 176, H - 176, (pb) => SCAKit.nearSea(pb, { seed: 31, t0: 0.12, t1: 0.86 }), {
+    const buoys = [];
+    const nearL = B.vplane(0.45, 176, H - 176, (pb) => {
+      SCAKit.nearSea(pb, { seed: 31, t0: 0.12, t1: 0.86 });
+      // barca de pesca fondeada (casco en 3/4 con cubierta, cabina y reflejo) y boyas de señalización
+      fishBoat(pb, 150, 64);
+      for (const [x, y, c] of [[300, 50, '#e83b41'], [236, 92, '#ffd23a'], [420, 70, '#e83b41']]) { buoy(pb, x, y, c); buoys.push([x, y - 9, c]); }
+    }, {
       dyn: (g, cam, L) => {
-        const [ox] = B.vofs(L, cam), t = T();
+        const [ox, oy] = B.vofs(L, cam), t = T();
         SCAKit.drawSeaGlints(g, 40, t, 0, 180, W + 40, 130, ox);
+        // destellos de las boyas (cada una con su ritmo)
+        for (let i = 0; i < buoys.length; i++) { const [x, y, c] = buoys[i]; if (Math.floor(t * 1.2 + i * 0.7) % 2) { V.drawGlow(g, x + ox, y + oy, 3, c, 0.7); g.fillStyle = '#fff6d8'; g.fillRect(x + ox, y + oy, 1, 1); } }
         // velero que cruza escorado por el viento
         const bx = ((t * 9) % (W + 120)) - 60 + ox * 0.2, by = 214 + Math.sin(t * 1.4) * 1.5;
         g.fillStyle = '#3a2418'; g.fillRect(Math.round(bx) - 8, Math.round(by), 18, 2); g.fillStyle = '#7a4a2a'; g.fillRect(Math.round(bx) - 7, Math.round(by) + 2, 15, 1);
