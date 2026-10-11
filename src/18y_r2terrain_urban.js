@@ -33,6 +33,7 @@ const R2TERRAIN_Urban = (() => {
   const ASHLAR = ['#24140e', '#3e2418', '#5e3826', '#82513a', '#a46c4c', '#c08a62', '#d8a87c', '#ecc89c', '#f8e2bc'];
   const KERB = ['#3a2a2a', '#5e4c48', '#8a786c', '#b2a08c', '#d2c2aa', '#e8dac2', '#faf0dc'];
   const COBW = ['#1a1218', '#2c1e24', '#42302e', '#5a4238', '#745646', '#8e6c56', '#a88468', '#c09e7e', '#d8ba98', '#ecd4b4'];
+  const TERRA = ['#3a1408', '#5e2210', '#86361a', '#a84e26', '#c86a36', '#e08a4e', '#f2ae70', '#fcd6a0'];
   const PILW = ['#3a2418', '#5e3e2c', '#86604a', '#ab8466', '#c9a482', '#e0c29e', '#f2dcbc', '#fcf0da'];
   const SANDJ = ['#3a2410', '#5a3a1c', '#7a5430', '#9a7046', '#b88c5c', '#d2a874', '#e8c48e'];
   const ACEQ = ['#06304a', '#0a5a78', '#0f8aa6', '#1ab8cc', '#5edcea', '#b8f4fa', '#ffffff'];
@@ -120,6 +121,8 @@ const R2TERRAIN_Urban = (() => {
       b.sx = b.x0 + pw + 10 + Math.floor(hash1(i, seed + 9) * Math.max(1, inner - 90)); // escalera
       b.dirR = hash1(i, seed + 10) < 0.5;
       b.mc = Math.floor(hash1(i, seed + 11) * 2);                                       // hilada del friso
+      const kc = hash1(i, seed + 12); b.cop = kc < 0.5 ? 0 : kc < 0.74 ? 1 : 2;          // cornisa: lisa, dentículos, alero de teja
+      if (hash1(i, seed + 13) < 0.24) b.patch = { cx: b.x0 + pw + inner * (0.15 + hash1(i, seed + 14) * 0.7), cy: 18 + Math.floor(hash1(i, seed + 15) * Math.max(1, plinth - 34)), rx: 12 + Math.floor(hash1(i, seed + 16) * 14), ry: 7 + Math.floor(hash1(i, seed + 17) * 7) };
       bays.push(b); x += bw; i++;
     }
     L = { bays, top, plinth }; _lay.set(key, L); return L;
@@ -202,6 +205,18 @@ const R2TERRAIN_Urban = (() => {
               if (hb > 0.82) { hg += (K.vn(x * 0.45, y * 0.45, bid) - 0.5) * 1.4; alb -= 0.05; }
               // velo de humedad bajo la albardilla y manchas de cal
               if (d < 14 && K.vn(x * 0.08, 1, seed + 53) > 0.55) alb -= 0.07;
+              // chorreones de lluvia bajo la albardilla (verticales, se desvanecen hacia abajo)
+              const rs = K.vn(x * 0.33, 7.7, seed + 58); if (rs > 0.7) alb -= 0.14 * (rs - 0.7) / 0.3 * Math.max(0, 1 - (d - 6) / 38);
+            }
+            // remiendo de ladrillo (reparación antigua): aparejo a soga 8×4 con llagas de mortero
+            if (b.patch) {
+              const P_ = b.patch, ex = (x - P_.cx) / P_.rx, ey = (d - P_.cy) / P_.ry;
+              if (ex * ex + ey * ey + (K.vn(x * 0.2, y * 0.2, seed + 59) - 0.5) * 0.7 < 1) {
+                const br = Math.floor(d / 4), bxx = x + 4000 + (br & 1) * 4, lx = bxx % 8, ly = d % 4;
+                m = 5; fix = 0;
+                if (lx === 0 || ly === 0) { hg = -1.4; alb = 0.9; m = 3; }
+                else { hg = 0.6 + hash2(Math.floor(bxx / 8), br, seed + 60) * 0.6 - (lx === 7 || ly === 3 ? 0.5 : 0); alb = 0.94 + (hash2(Math.floor(bxx / 8), br, seed + 61) - 0.5) * 0.22; }
+              }
             }
             // friso de mosaico (crujía tipo 5)
             if (b.kind === 5 && ci === b.mc && dt > 0 && dl >= 0) {
@@ -258,6 +273,12 @@ const R2TERRAIN_Urban = (() => {
               if (Math.abs(x - b.cx) < 5 && d >= plinth && K.vn(x * 0.5, y * 0.1, seed + 56) > 0.3) fix = MS[2 + (hash2(x, y, 57) < 0.3 ? 1 : 0)];
             }
           }
+          // cornisa bajo la albardilla: dentículos de caliza o alero de teja árabe (fuera de pilastras)
+          if (!inPil && b.cop && d >= 6 && d < (b.cop === 1 ? 10 : 12)) {
+            fix = 0; fl = 0;
+            if (b.cop === 1) { m = 1; const u = (x + 4000) % 6; hg = u < 4 ? 4.2 - (u === 3 ? 0.8 : 0) - (d === 9 ? 1 : 0) : 0.2; alb = u < 4 ? 1.05 : 0.8; }
+            else { m = 5; const u = ((x + 4000) % 7) / 7, q = d - 6; hg = 3.2 + 2.6 * Math.sin(Math.PI * u) - (q === 5 ? 1.5 : 0); alb = 1.02 + (q === 5 ? -0.1 : 0) + (hash1(Math.floor((x + 4000) / 7), seed + 62) - 0.5) * 0.14; }
+          }
         } else {
           const e = d - wallH;
           if (e < 2) { hg = -1.5; alb = 0.7; m = 0; }
@@ -307,7 +328,7 @@ const R2TERRAIN_Urban = (() => {
       }
     }
     const R = R2TERRAIN_Rock.ramp17;
-    const mats = [R(s.wallRamp || ASHLAR, '#2a0c2e'), R(KERB, '#2a1438'), R(COBW, '#1e0c2a'), R(SANDJ, '#2a0c2e'), R(PILW, '#2a0c2e')];
+    const mats = [R(s.wallRamp || ASHLAR, '#2a0c2e'), R(KERB, '#2a1438'), R(COBW, '#1e0c2a'), R(SANDJ, '#2a0c2e'), R(PILW, '#2a0c2e'), R(TERRA, '#2a0c2e')];
     const buf = shade({ w, h, bx0, H, A, M, FIX, F, mats, gyA, seed, dark: [wallH + 16, 100, 0.38], noise: 0.06, grain1: true });
     return { bx0, w, h, buf, LY, wallH, gut };
   }
