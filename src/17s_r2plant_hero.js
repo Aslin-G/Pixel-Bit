@@ -626,7 +626,8 @@ const R2PLANT = (() => {
   function plumeStrip(o = {}) {
     const mode = o.mode || 'under', n = o.n || 16, s = o.s || 1;
     const w = o.w || Math.round((mode === 'under' ? 130 : 64) * s), h = o.h || Math.round((mode === 'under' ? 64 : 26) * s);
-    const key = [mode, n, w, h, o.seed || 1, o.bed || 0, s, o.k || 0].join('|'); let st = _strips.get(key); if (st) return st;
+    const bo = o.bedOff || null;
+    const key = [mode, n, w, h, o.seed || 1, o.bed || 0, s, o.k || 0, bo ? bo.join(',') : ''].join('|'); let st = _strips.get(key); if (st) return st;
     const r = RNG(o.seed || 7), M = o.count || Math.round((mode === 'under' ? 340 : 150) * Math.max(0.5, s));
     const bed = o.bed ?? (h - 3), surf = o.surf ?? Math.round(4 * s);
     const hz = (c) => U(V.hzc(c, o.k || 0));
@@ -636,6 +637,56 @@ const R2PLANT = (() => {
     for (let i = 0; i < M; i++) parts.push({ b: r(), vx: (0.35 + r() * 0.9) * 30 * s, vy0: (r() - 0.3) * 14 * s, sp: r(), ph: r() * TAU, sz: r(), dr: (r() - 0.5) * 2 });
     const P_ = 2.4; // periodo del bucle (s)
     const g = 70 * s, tBed = (p) => Math.sqrt(2 * Math.max(4, bed - p.sp * 7 * s) / g);
+    if (mode === 'cloud') {
+      /* Pluma densa en racimos (sin tramado): chorro casi blanco en la boca → nube magenta saturada
+         que cae curvándose aguas abajo → capa violeta pegada al lecho que se aleja y se diluye hacia
+         el azul. Ruido de valor animado en bucle sin costura (fundido entre dos fases). */
+      const sd = (o.seed || 7) * 13, Pn = Math.max(24, bed), drift = o.drift ?? 0.55;
+      const NZ = (x, y, ph) => vnoise(x * 0.17, (y - ph * Pn) * 0.17, sd) * (1 - ph) + vnoise(x * 0.17, (y - (ph - 1) * Pn) * 0.17, sd) * ph;
+      const NZ2 = (x, y, ph) => vnoise((x - ph * 40) * 0.12, y * 0.3, sd + 5) * (1 - ph) + vnoise((x - (ph - 1) * 40) * 0.12, y * 0.3, sd + 5) * ph;
+      // chorro horizontal que se curva al caer (x ∝ √y) + arrastre aguas abajo
+      const xc = (y) => { const u = y / bed; return Math.round(s * (3 + 16 * Math.sqrt(u)) + Math.pow(u, 1.6) * bed * drift * 0.6); };
+      st = V.strip(n, w, h, (pb, f) => {
+        const ph = f / n;
+        // 1) columna que cae
+        for (let y = 0; y <= bed; y++) {
+          const u = y / bed, c = xc(y), hw = (3.2 + Math.sqrt(u) * 9 + u * 9 + Math.sin(y * 0.21 + ph * TAU) * 1.4) * s;
+          for (let x = Math.floor(c - hw); x <= Math.ceil(c + hw); x++) {
+            if (x < 0 || x >= w) continue;
+            const d = 1 - Math.abs(x - c) / (hw + 0.5), v = NZ(x, y, ph) * 0.58 + d * 0.78 - u * 0.1;
+            if (y < 3 * s && d > 0.25) { V.blend(pb, x, y, COLS[y < 1.5 * s ? 0 : 1], 0.95); continue; }
+            if (v > 1.0) V.blend(pb, x, y, COLS[u < 0.4 ? 1 : 2], 0.95);
+            else if (v > 0.82) V.blend(pb, x, y, COLS[2], 0.93);
+            else if (v > 0.64) V.blend(pb, x, y, COLS[u < 0.5 ? 3 : 4], 0.88);
+            else if (v > 0.5) V.blend(pb, x, y, COLS[5], 0.72 - u * 0.15);
+            else if (v > 0.38) V.blend(pb, x, y, COLS[6], 0.42 - u * 0.1);
+            else if (v > 0.3 && d > 0.05) V.blend(pb, x, y, COLS[7], 0.22);
+          }
+        }
+        // 2) capa de fondo (más densa que el agua): se arrastra y se diluye magenta → violeta → azul
+        const x0b = xc(bed) - Math.round(10 * s);
+        for (let x = Math.max(0, x0b); x < w; x++) {
+          const u = (x - x0b) / Math.max(1, w - x0b), bx = bed + (bo ? (bo[clamp(x, 0, bo.length - 1)] || 0) : 0);
+          const thick = (13 - u * 9 + (vnoise(x * 0.09, ph * 3, sd + 9) - 0.5) * 5) * s;
+          for (let y = Math.round(bx - thick); y <= bx + 2; y++) {
+            if (y < 0 || y >= h) continue;
+            const q = (bx + 2 - y) / (thick + 2), v = NZ2(x, y, ph) * 0.7 + (1 - q) * 0.55 - u * 0.42;
+            const ci = u < 0.25 ? 3 : u < 0.45 ? 4 : u < 0.62 ? 6 : u < 0.8 ? 7 : 8;
+            if (v > 0.62) V.blend(pb, x, y, COLS[Math.max(2, ci - 1)], 0.9 - u * 0.45);
+            else if (v > 0.46) V.blend(pb, x, y, COLS[ci], 0.75 - u * 0.4);
+            else if (v > 0.34) V.blend(pb, x, y, COLS[Math.min(9, ci + 1)], 0.42 - u * 0.25);
+          }
+        }
+        // 3) grumos sueltos que se desprenden (racimos de 2×2)
+        for (let i = 0; i < 26; i++) {
+          const b = hash1(i, sd), a = ((ph + b) % 1), side = hash1(i, sd + 1);
+          const y = Math.round(a * bed), x = Math.round(xc(y) + (side - 0.5) * (6 + a * 26) * s + a * 6 * s);
+          const cc = COLS[a < 0.3 ? 1 : a < 0.6 ? 3 : 5], al = 0.9 - a * 0.5;
+          for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 2; xx++) V.blend(pb, x + xx, y + yy, cc, al);
+        }
+      });
+      st.mode = mode; _strips.set(key, st); return st;
+    }
     st = V.strip(n, w, h, (pb, f) => {
       const tt = (f / n) * P_;
       if (mode === 'under') {
@@ -678,7 +729,7 @@ const R2PLANT = (() => {
   function drawPlume(g, st, x, y, t, a = 1, fps = 6.6) {
     if (!st) return;
     if (a < 1) g.globalAlpha = a;
-    V.drawStrip(g, st, Math.floor(t * fps), Math.round(x), Math.round(y) - (st.mode === 'under' ? 0 : Math.round(st.h * 0.25)));
+    V.drawStrip(g, st, Math.floor(t * fps), Math.round(x), Math.round(y) - (st.mode === 'surface' ? Math.round(st.h * 0.25) : 0));
     g.globalAlpha = 1;
   }
 
@@ -716,12 +767,97 @@ const R2PLANT = (() => {
     if (o.plume) drawPlume(g, o.plume, I.mouth.x + ox, I.mouth.y + oy, t, o.plumeA ?? 1);
   }
 
-  return { hero, drawFx, plumeStrip, drawPlume, drawChevrons, permHalo, powerHalo, PAL, prof };
+  /* =================================================================
+     Emisario de salmuera para cortes submarinos del plano jugable (mundo)
+     ================================================================= */
+  /** Tubería grafito-índigo gruesa con bridas, abrazaderas y bloques de anclaje de hormigón,
+      boca abierta con brillo magenta y pluma densa que cae, se pega al lecho y se diluye.
+      pts: polilínea ortogonal [[x,y],…] en mundo; el último punto es la boca (mira en la
+      dirección del último tramo). o: {r=4, bed (y del lecho bajo la boca), w (largo de la pluma),
+      k, seed, anchors:[x…] bloques bajo tramos horizontales, bedAt(x)} → {c,x,y,mouth,strip,dir} */
+  function outfall(pts, o = {}) {
+    const r = o.r ?? 4, pad = r + 14;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [a, b] of pts) { x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, a); y1 = Math.max(y1, b); }
+    const bedMax = o.bedAt ? Math.max(...(o.anchors || []).map((a) => o.bedAt(a)), y1 + r + 4) : y1 + r + 10;
+    x0 -= pad; y0 -= pad; x1 += pad; y1 = Math.max(y1 + pad, bedMax + 2);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, pb = new PixelBuffer(w, h);
+    const L = pts.map(([a, b]) => [a - x0, b - y0]);
+    const CN = V.P32(V.hz(PAL.conc, o.k || 0)), BR = V.P32(V.hz(PAL.brine, o.k || 0)), ST = V.P32(V.hz(PAL.steel, o.k || 0));
+    // bloques de anclaje (hormigón con algas) bajo los tramos horizontales, apoyados en el lecho
+    for (const ax of (o.anchors || [])) {
+      const lx = ax - x0, seg = L.findIndex((p, i) => i + 1 < L.length && p[1] === L[i + 1][1] && Math.min(p[0], L[i + 1][0]) <= lx && Math.max(p[0], L[i + 1][0]) >= lx);
+      if (seg < 0) continue;
+      const py = L[seg][1], top = py + r - 1, bot = (o.bedAt ? o.bedAt(ax) : py + r + 10) - y0 + 1, bw = 2 * r + 4;
+      for (let yy = top; yy <= bot; yy++) for (let xx = 0; xx < bw; xx++) {
+        const u = xx / (bw - 1), edge = xx === 0 || xx === bw - 1 || yy === bot;
+        let b = 0.62 - u * 0.34 - ((yy - top) / Math.max(1, bot - top)) * 0.12;
+        if (xx === 1) b += 0.16; if (edge) b = 0.12;
+        if (yy > bot - 3 && hash2(xx, yy, ax) < 0.5) { V.put(pb, lx - (bw >> 1) + xx, yy, U(['#2e5232', '#3e6a3a', '#24402a'][(xx + yy) % 3])); continue; }
+        V.put(pb, lx - (bw >> 1) + xx, yy, CN[ix(CN, b)]);
+      }
+    }
+    PFInfra.pipe(pb, L, r, 'brine', { flange: o.flange ?? 18 });
+    // abrazaderas de acero sobre los tramos
+    for (let i = 0; i + 1 < L.length; i++) {
+      const [a0, b0] = L[i], [a1, b1] = L[i + 1], len = Math.abs(a1 - a0) + Math.abs(b1 - b0);
+      for (let q = 9; q < len - 6; q += 18) {
+        const px = a0 + Math.sign(a1 - a0) * q, py = b0 + Math.sign(b1 - b0) * q;
+        if (b0 === b1) for (let j = -r - 1; j <= r + 1; j++) { V.put(pb, px + 4, py + j, ST[j < 0 ? 8 : 3]); }
+        else for (let j = -r - 1; j <= r + 1; j++) V.put(pb, px + j, py + 4, ST[j < 0 ? 8 : 3]);
+      }
+    }
+    // boca abierta: anillo de brida, interior oscuro y destello magenta
+    const [mx, my] = L[L.length - 1], [px_, py_] = L[L.length - 2];
+    const dir = Math.sign(mx - px_) || 0, dv = Math.sign(my - py_) || 0;
+    if (dir) {
+      for (let j = -r - 2; j <= r + 2; j++) { V.put(pb, mx, my + j, BR[Math.abs(j) > r + 1 ? 0 : j < 0 ? 9 : 5]); V.put(pb, mx + dir, my + j, BR[Math.abs(j) > r + 1 ? 0 : j < 0 ? 7 : 3]); }
+      for (let j = -r + 1; j <= r - 1; j++) { V.put(pb, mx + 2 * dir, my + j, BR[Math.abs(j) === r - 1 ? 2 : 0]); }
+      for (let j = -r + 2; j <= r - 2; j++) V.put(pb, mx + 2 * dir, my + j, U(Math.abs(j) < 2 ? '#ff5ad8' : '#8a2c84'));
+    } else {
+      for (let j = -r - 2; j <= r + 2; j++) { V.put(pb, mx + j, my, BR[Math.abs(j) > r + 1 ? 0 : j < 0 ? 9 : 5]); V.put(pb, mx + j, my + dv, BR[Math.abs(j) > r + 1 ? 0 : 3]); }
+      for (let j = -r + 2; j <= r - 2; j++) V.put(pb, mx + j, my + 2 * dv, U(Math.abs(j) < 2 ? '#ff5ad8' : '#8a2c84'));
+    }
+    const mouth = { x: x0 + mx + 2 * dir, y: y0 + my + 2 * dv };
+    // tinte de profundidad: lo sumergido se funde hacia el azul del agua (sin tramado)
+    if (o.water) {
+      const wc = U(o.water.col || '#0c5c94');
+      for (let py = 0; py < h; py++) {
+        const dep = y0 + py - o.water.wy; if (dep <= 0) continue;
+        const a = Math.min(o.water.max ?? 0.42, 0.1 + dep / 160);
+        for (let px = 0; px < w; px++) { const c = pb.data[py * w + px]; if (c >>> 24) pb.data[py * w + px] = (V.mixU ? V.mixU(c, wc, a) : c); }
+      }
+    }
+    const bed = Math.round((o.bed ?? (mouth.y + 60)) - mouth.y);
+    const pw = o.w || 150, bedOff = o.bedAt ? Array.from({ length: pw }, (_, i) => Math.round(o.bedAt(mouth.x + (dir || 1) * i) - mouth.y - bed)) : null;
+    const strip = plumeStrip({ mode: o.mode || 'cloud', w: pw, h: bed + 10 + (bedOff ? Math.max(0, ...bedOff) : 0), bed, bedOff, s: o.s || 1.15, seed: o.seed || 21, k: o.k || 0, count: o.count, drift: o.drift });
+    return { c: pb.toCanvas(), x: x0, y: y0, mouth, strip, dir: dir || 1, glow: PFK.glow(7, '#ff5ad8', 4) };
+  }
+  /** Dibuja el emisario y su pluma animada (2–3 drawImage). o.pipe=false solo pluma; o.plume=false solo tubería */
+  function drawOutfall(g, O, ox, oy, t, o = {}) {
+    if (!O) return;
+    const sx = O.x - ox, sy = O.y - oy;
+    if (sx > W + 160 || sx + O.c.width < -160) return;
+    if (o.plume !== false) {
+      const a = o.a ?? 1;
+      if (a < 1) g.globalAlpha = a;
+      V.drawStrip(g, O.strip, Math.floor(t * 6.6), Math.round(O.mouth.x - ox - (O.dir < 0 ? O.strip.w : 0)), Math.round(O.mouth.y - oy - 1), O.dir < 0);
+      g.globalAlpha = 1;
+    }
+    if (o.pipe === false) return;
+    g.drawImage(O.c, Math.round(sx), Math.round(sy));
+    // resplandor magenta pulsante en la boca
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5 + 0.2 * Math.sin(t * 3.1);
+    g.drawImage(O.glow, Math.round(O.mouth.x - ox - 7 + O.dir * 2), Math.round(O.mouth.y - oy - 7));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+
+  return { hero, drawFx, plumeStrip, drawPlume, drawChevrons, permHalo, powerHalo, outfall, drawOutfall, PAL, prof };
 })();
 
 /** Colocación de la planta protagonista en el plano costero (0,5) del Nivel 1 (1c_bio_coast.js):
     pie frontal derecho en x de plano, escala y pendiente del diorama. */
-const R2PLANT_L1 = { x: 770, s: 0.95, slope: 0.03 };
+const R2PLANT_L1 = { x: 730, s: 0.95, slope: 0.03 };
 
 /* Banco de pruebas: ?test=scene&s=R2PLANT_TEST&p={"s":1,"z":1} */
 const R2PLANT_TEST = {

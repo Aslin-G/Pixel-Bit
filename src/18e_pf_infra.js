@@ -410,3 +410,101 @@ const PFInfra = (() => {
   }
   return { box3q, cylV, cylH, pipe, valve, gauge, cabinet, lamp, bollard, lifeRing, crate, barrel, pvPanel, windowQ, wallFront, pumpHouse, intakeTower, mediaFilters, glassHall, gantry, transformer, drawFlows, drawLeds, gallery, STEEL, BAND, GLASS, ROOF, PIPES };
 })();
+
+/* =====================================================================
+   R2PLANT · ampliaciones del kit PFInfra (corrientes científicas)
+   PFInfra.powerLine(pb, pts, o) → {pts}  línea eléctrica estática (mundo, prerender)
+       o.style 'conduit' (por defecto): conducto grafito con alma amarilla, abrazaderas y
+               cajas de empalme · 'aerial': postes con cruceta y aisladores y cable en
+               catenaria entre los puntos (o.sag px, o.groundAt(x) pie del poste). Devuelve
+               la polilínea del cable para animarla con drawPower.
+   PFInfra.drawPower(g, sc, runs)  flujo de energía animado: halo amarillo cacheado que pulsa
+       (1 drawImage por tramo visible) + chevrones amarillos a 26 px/s (≈3 fillRect cada uno).
+       runs: [{pts, rate?: n|fn(sc), on?: fn(sc), gap?, bold?=true, col?='#fffbe0', r?}] en mundo.
+   Gancho del corte submarino: def.pf.waterFx(g, sc, Wt) se invoca tras pintar cada masa de
+   agua del kit PF (antes del terreno): emisarios, plumas y otros efectos sumergidos.
+   ===================================================================== */
+(() => {
+  const CAB = ['#16141c', '#2a282e', '#4f4d51', '#716f76', '#948e91'];
+  const YEL = ['#6e4e0c', '#a47614', '#d49e22', '#f2c23a', '#ffdc66', '#fff0b0'];
+  /** Línea eléctrica estática: conducto o tendido aéreo */
+  function powerLine(pb, pts, o = {}) {
+    const C = PFK.P32(CAB), Y = PFK.P32(YEL);
+    if ((o.style || 'conduit') === 'aerial') {
+      const sag = o.sag ?? 6, out = [];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], n = Math.max(2, Math.round(Math.abs(x1 - x0) / 6));
+        for (let q = (i ? 1 : 0); q <= n; q++) { const u = q / n; out.push([Math.round(x0 + (x1 - x0) * u), Math.round(y0 + (y1 - y0) * u + sag * 4 * u * (1 - u))]); }
+      }
+      // postes de acero de 3 px con capitel, cruceta, aisladores cerámicos y placa de riesgo eléctrico
+      for (const [px, py] of pts) {
+        const base = o.groundAt ? o.groundAt(px) : py + 40;
+        for (let y = py - 3; y < base; y++) { PFK.put(pb, px - 1, y, C[4]); PFK.put(pb, px, y, C[3]); PFK.put(pb, px + 1, y, C[1]); }
+        for (let y = base - 3; y < base; y++) for (let x = px - 2; x <= px + 2; x++) PFK.put(pb, x, y, C[x < px ? 3 : 1]);
+        for (let x = px - 7; x <= px + 7; x++) { PFK.put(pb, x, py - 3, C[4]); PFK.put(pb, x, py - 2, C[2]); PFK.put(pb, x, py - 1, C[0]); }
+        for (const ix of [px - 6, px + 6]) { PFK.put(pb, ix, py - 4, U('#f4f2ee')); PFK.put(pb, ix, py - 5, U('#bab6bc')); PFK.put(pb, ix, py - 6, U('#f4f2ee')); }
+        for (let y = py + 5; y < py + 9; y++) for (let x = px - 1; x <= px + 1; x++) PFK.put(pb, x, y, (y === py + 5 || y === py + 8) ? C[0] : Y[x === px ? 4 : 3]);
+      }
+      // cable: 2 px (alma amarilla encima, sombra debajo) colgado de los aisladores
+      for (let i = 0; i + 1 < out.length; i++) { PFK.lineFn(pb, out[i][0], out[i][1] + 1, out[i + 1][0], out[i + 1][1] + 1, () => C[0]); PFK.lineFn(pb, out[i][0], out[i][1], out[i + 1][0], out[i + 1][1], () => Y[2]); }
+      return { pts: out };
+    }
+    // conducto: 7 px (tinta, brillo, alma amarilla de 3 px, sombra, tinta), abrazaderas cada 16 px,
+    // cajas de empalme en los extremos y codos reforzados
+    const ROW = [C[0], C[4], Y[5], Y[4], Y[2], C[1], C[0]];
+    const seg = (a, b) => {
+      const [x0, y0] = a, [x1, y1] = b;
+      if (y0 === y1) {
+        const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+        for (let x = xa; x <= xb; x++) {
+          for (let j = -3; j <= 3; j++) PFK.put(pb, x, y0 + j, ROW[j + 3]);
+          if ((x - xa) % 16 === 8) for (let j = -3; j <= 3; j++) { PFK.put(pb, x, y0 + j, j === -3 || j === 3 ? C[0] : C[j < 0 ? 4 : 2]); PFK.put(pb, x + 1, y0 + j, j === -3 || j === 3 ? C[0] : C[1]); }
+        }
+      } else {
+        const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+        for (let y = ya; y <= yb; y++) {
+          for (let j = -3; j <= 3; j++) PFK.put(pb, x0 + j, y, ROW[j + 3]);
+          if ((y - ya) % 16 === 8) for (let j = -3; j <= 3; j++) { PFK.put(pb, x0 + j, y, j === -3 || j === 3 ? C[0] : C[j < 0 ? 4 : 2]); PFK.put(pb, x0 + j, y + 1, j === -3 || j === 3 ? C[0] : C[1]); }
+        }
+      }
+    };
+    for (let i = 0; i + 1 < pts.length; i++) seg(pts[i], pts[i + 1]);
+    for (let i = 1; i < pts.length - 1; i++) { const [x, y] = pts[i]; for (let yy = -4; yy <= 4; yy++) for (let xx = -4; xx <= 4; xx++) PFK.put(pb, x + xx, y + yy, Math.abs(xx) === 4 || Math.abs(yy) === 4 ? C[0] : yy < -1 ? C[4] : C[2]); }
+    if (o.boxes !== false) for (const [x, y] of [pts[0], pts[pts.length - 1]]) {
+      for (let yy = -5; yy <= 5; yy++) for (let xx = -4; xx <= 4; xx++) PFK.put(pb, x + xx, y + yy, Math.abs(xx) === 4 || Math.abs(yy) === 5 ? C[0] : yy === -4 ? C[4] : (Math.abs(xx) <= 1 && Math.abs(yy) <= 2) ? Y[(xx + yy) & 1 ? 3 : 5] : xx === 3 ? C[1] : C[2]);
+    }
+    return { pts };
+  }
+  /** Flujo de energía animado (halo cacheado + chevrones amarillos) */
+  function drawPower(g, sc, runs) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time;
+    for (const run of runs) {
+      if (run.on && !run.on(sc)) continue;
+      const rate = typeof run.rate === 'function' ? run.rate(sc) : (run.rate ?? 1);
+      if (rate <= 0) continue;
+      if (!run._b) { let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const [a, b] of run.pts) { x0 = Math.min(x0, a); x1 = Math.max(x1, a); y0 = Math.min(y0, b); y1 = Math.max(y1, b); } run._b = [x0, y0, x1, y1]; }
+      const [bx0, by0, bx1, by1] = run._b;
+      if (bx1 - ox < -10 || bx0 - ox > W + 10 || by1 - oy < -10 || by0 - oy > H + 10) continue;
+      if (!run._h && typeof R2PLANT !== 'undefined') run._h = R2PLANT.powerHalo(run.pts, run.r ?? 1);
+      if (run._h) {
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = (0.42 + 0.22 * Math.sin(t * 5.3 + bx0 * 0.01)) * Math.min(1, rate);
+        g.drawImage(run._h.c, run._h.x - ox, run._h.y - oy);
+        g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+      }
+      if (typeof R2PLANT !== 'undefined') R2PLANT.drawChevrons(g, run.pts, -ox, -oy, t * rate, { col: run.col || '#fffbe0', speed: 26, gap: run.gap || 10, bold: run.bold ?? true });
+    }
+  }
+  PFInfra.powerLine = powerLine;
+  PFInfra.drawPower = drawPower;
+  PFInfra.PIPES.power = { ramp: YEL, ink: '#3e2a06', chev: '#fff0b0', glow: '#ffd84a' };
+  // gancho del corte submarino (encadenable con otros envoltorios de PFWater.renderBack)
+  if (typeof PFWater !== 'undefined' && !PFWater.__r2waterFx) {
+    const base = PFWater.renderBack;
+    PFWater.renderBack = function (g, sc, Wt) {
+      base(g, sc, Wt);
+      const fx = sc && sc.def && sc.def.pf && sc.def.pf.waterFx;
+      if (fx) fx(g, sc, Wt);
+    };
+    PFWater.__r2waterFx = true;
+  }
+})();
