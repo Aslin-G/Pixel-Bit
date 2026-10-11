@@ -81,6 +81,9 @@ function charMats() {
     jacketAm: Mat({ ramp: R2.jacketAm, outline: '#4b0706', line: R2.jacketAm[1] }),
     topAm: Mat({ ramp: R2.topAm, outline: '#2a1a20', line: R2.topAm[1] }),
     packAm: Mat({ ramp: R2.packSteel, outline: '#171d35', line: R2.packSteel[1] }),
+    // r2-chars: bolsillo exterior (acero algo más azul) y esterilla enrollada (terracota)
+    packAm2: Mat({ ramp: ['#0a1424', '#142a46', '#1e4466', '#2e5f86', '#4a7ea4', '#7aa6c4', '#b4d2e4'], outline: '#0e1530', line: '#142a46' }),
+    rollAm: Mat({ ramp: RAMP_CH.terracotta, outline: '#2a0a04', line: RAMP_CH.terracotta[1] }),
     leatherAm: Mat({ ramp: R2.leatherAm, outline: '#1e0a04', line: R2.leatherAm[1] }),
     flapAm: Mat({ ramp: RAMP_CH.flapAm, outline: '#1e0a04', line: RAMP_CH.flapAm[1] }),
     shortsAm: Mat({ ramp: R2.shortsAm, outline: '#1e1a18', line: R2.shortsAm[1] }),
@@ -235,6 +238,68 @@ const EYE_AM = {
   blink: { oy: 1, rows: ['KKKKK', '..ss.'] },
 };
 
+/* =====================================================================
+   r2-chars — coleta alta voluminosa de Amaya (referencia): lazo en la
+   coronilla-nuca, volumen que sube y cae en abanico de 8 mechones con
+   puntas onduladas; movimiento secundario por segmento (retraso + onda),
+   sobrepaso al aterrizar y flotación al caer. Brillos de 1 px a lo largo
+   de los mechones superiores (lado de la luz).
+   ===================================================================== */
+const R2CHARS_PONY_CLUMPS = [
+  // [ángulo inicial (rad sobre π = atrás; + = arriba), largo, radio raíz, curvatura por segmento, de fondo]
+  [0.78, 18, 2.8, -0.32, 1], [0.62, 23, 3.7, -0.31, 0], [0.45, 26, 4.3, -0.30, 0], [0.28, 27, 4.5, -0.29, 0],
+  [0.10, 26, 4.3, -0.28, 0], [-0.08, 23, 3.8, -0.27, 1], [-0.25, 19, 3.2, -0.26, 1], [-0.42, 14, 2.6, -0.24, 1],
+];
+function R2CHARS_pony(R, o, H, tie, pose) {
+  const { hx, hy, ry } = o;
+  const hp = pose.hair || { base: 0, amp: 0.08, P: 0, lag: 0.45 };
+  const rx0 = hx - 5.2, ry0 = hy - ry + 2.2;
+  // base < 0 → la coleta se estira hacia atrás (carrera, caída) y el abanico se cierra;
+  // base > 0 → cae más (despegue, aterrizaje); hp.up rota el abanico hacia arriba (flotar al caer)
+  const b = clamp(hp.base, -1, 1);
+  const sp = b < 0 ? 1 + b * 0.75 : 1 + b * 0.15, cf = b < 0 ? 1 + b * 0.7 : 1 + b * 0.55;
+  const off = (hp.up || 0) - (b > 0 ? b * 0.32 : 0);
+  const segs = 6, lines = [];
+  R2CHARS_PONY_CLUMPS.forEach(([a0, len, r0, curl, dk], i) => {
+    const sl = len * (b < 0 ? 1 - b * 0.1 : 1) / segs;
+    let a = Math.PI + a0 * sp + off, x = rx0 - 0.6 + i * 0.12, y = ry0 + (i - 3) * 0.5;
+    const pts = [[x, y]];
+    for (let j = 1; j <= segs; j++) {
+      // la gravedad pesa más hacia la punta: arranque casi recto hacia atrás y caída al final
+      a += curl * cf * (0.35 + 1.3 * j / segs) + hp.amp * Math.sin(hp.P - j * hp.lag - i * 0.7) * 0.45 * (j / segs + 0.4);
+      x += Math.cos(a) * sl; y += Math.sin(a) * sl;
+      pts.push([x, y]);
+    }
+    lines.push(pts);
+    R.strand(pts, r0 * (b < 0 ? 1 - b * 0.12 : 1), 0.3, { mat: H, base: dk ? 3 : 4, z: 45 + (dk ? -0.4 : 0) + i * 0.01, group: 'pony' + (i % 3), lineIdx: 1, taper: 1.3, rim: true, bevel: Math.max(1, r0 * 0.55) });
+  });
+  // volumen en la raíz: la coleta nace gruesa y se abre en abanico
+  const ma = Math.PI + 0.3 * sp + off - 0.15 * cf;
+  R.ellipse(rx0 + Math.cos(ma) * 6, ry0 + Math.sin(ma) * 5 + 0.5, 7, 5.2, { mat: H, base: 3, z: 44.5, group: 'ponyM', bevel: 2.6, shiny: true }, ma - Math.PI);
+  // lazo amarillo
+  R.ellipse(rx0, ry0 + 0.4, 1.7, 2.3, { mat: tie, base: 4, z: 56, group: 'tie', bevel: 0.9, shiny: true }, 0.5);
+  o.ponyRoot = [rx0, ry0];
+  // brillos: trazo corto de 1 px por el lado iluminado (arriba) de los 3 mechones superiores
+  R.stamp(pb => {
+    const zb = R.zbuf, parts = R.zparts; if (!zb) return;
+    const hl = U(H.ramp[6]), hl2 = U(H.ramp[5]);
+    for (const i of [1, 2, 3]) {
+      const pts = lines[i], r0 = R2CHARS_PONY_CLUMPS[i][2];
+      for (let j = 1; j <= 3; j++) {
+        const [ax, ay] = pts[j], [bx, by] = pts[j + 1];
+        const nx = -(by - ay), ny = bx - ax, nl = Math.hypot(nx, ny) || 1, side = ny > 0 ? -1 : 1;
+        for (let s2 = 0; s2 < 1; s2 += 0.3) {
+          const w = r0 * (1 - (j + s2) / 6) * 0.5;
+          const x = Math.round(lerp(ax, bx, s2) + nx / nl * w * side), y = Math.round(lerp(ay, by, s2) + ny / nl * w * side);
+          if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) continue;
+          const k = y * pb.w + x, pp = zb[k];
+          if (pp >= 0 && parts[pp].group.startsWith('pony')) pb.data[k] = j === 1 ? hl : hl2;
+        }
+      }
+    }
+  }, 97);
+}
+
 /* ------------------------------------------------------------------ */
 /* AMAYA SERRANO — canon de la referencia (STYLE LOCK §10)              */
 /* ------------------------------------------------------------------ */
@@ -254,7 +319,7 @@ const AMAYA_D = {
     this.foreMat = M.skinAm;
     this.sock = M.sockAm;
     this.accessories = [
-      { kind: 'backpack', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, w: 7.2, h: 9.8 },
+      { kind: 'pack2', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, pocket: M.packAm2, roll: M.rollAm, w: 7.4, h: 10 },
       { kind: 'goggles', frame: M.gogFrame, strap: M.gogStrap },
     ];
   },
@@ -326,11 +391,8 @@ const AMAYA_D = {
     // casquete + volumen trasero hasta la nuca
     HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.84, faceDX: -1.4, faceDY: -1.0, base: 3 });
     R.ellipse(hx - rx * 0.55, hy + 1, 5, 7.5, { mat: H, base: 3, z: 54, group: 'hair', bevel: 2.2 }, 0.25);
-    // coleta alta voluminosa: 6 mechones afilados que se abren hacia atrás
-    HAIR2.ponytail(R, o, H, {
-      root: [-3.5, -ry + 1.2], dir: 3.12, tie: M.tieAm, z: 45, base: 3, mass: 13,
-      clumps: [[0.5, 13, 3.0, -0.16], [0.26, 18, 4.0, -0.24], [0.02, 20, 4.3, -0.3], [-0.2, 18, 4.0, -0.34], [-0.42, 15, 3.4, -0.38], [-0.66, 11, 2.7, -0.4]],
-    });
+    // coleta alta voluminosa (r2-chars): abanico de 8 mechones que sube y cae, con movimiento secundario
+    R2CHARS_pony(R, o, H, M.tieAm, pose);
     // flequillo en puntas hasta la línea de las cejas
     // (las puntas terminan sobre la pestaña: la frente y el ojo quedan despejados)
     HAIR2.bangs(R, o, H, [
@@ -343,20 +405,6 @@ const AMAYA_D = {
     HAIR2.lock(R, o, H, [[-1.6, -5], [-1.5, 2], [-0.6, 7.5]], 1.7);
     // brillo en arco sobre la coronilla y en la coleta
     HAIR2.shine(R, o, ['hair', 'bangs'], RAMP.hairAm[6], -2.6, -1.25, 0.74);
-    R.stamp(pb => {
-      const zb = R.zbuf, parts = R.zparts; if (!zb) return;
-      const hl = U(RAMP.hairAm[6]), hl2 = U(RAMP.hairAm[5]);
-      // trazos de brillo de 1 px a lo largo de los mechones superiores de la coleta
-      if (!o.ponyRoot) return;
-      const [px, py] = o.ponyRoot;
-      for (let k = 2; k < 9; k++) {
-        const hp = pose.hair || { base: 0 };
-        const a = 3.12 - hp.base * 0.25 + 0.28 - k * 0.07 * clamp(1 + hp.base * 0.6, 0.35, 1.8);
-        const x = Math.round(px + Math.cos(a) * k), y = Math.round(py + Math.sin(a) * k - 1);
-        const i = y * pb.w + x; if (i < 0 || i >= zb.length) continue;
-        const p = zb[i]; if (p >= 0 && parts[p].group.startsWith('pony')) pb.data[i] = k < 6 ? hl : hl2;
-      }
-    }, 97);
   },
   render(anim, t, opts) { return renderHumanoid('amaya', AMAYA_D, anim, t, opts); },
 };
