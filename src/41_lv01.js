@@ -50,6 +50,8 @@ LEVELS[1] = {
     },
     /** Elementos sumergidos: toma con rejilla (bajo la torre), succiones de bombas, arrecifes, cardumen */
     water: { intake: { x: 1462, y: 408, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 22, schools: 6, fishX: [380, 1980] },
+    /** Dentro del corte (tras el agua, antes del terreno): emisario de salmuera con su pluma densa (R2PLANT) */
+    waterFx(g, sc) { R2PLANT.drawOutfall(g, R2PLANT_lv1Outfall(), sc.cam.ox, sc.cam.oy, Game.time, { pipe: false }); },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
       { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
@@ -69,6 +71,7 @@ LEVELS[1] = {
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
     { x: 1506, y: 372, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 396 },
     { x: 1250, y: 388, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 408 },
+    { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 448, ay: 318 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
@@ -125,8 +128,9 @@ LEVELS[1] = {
     I.box3q(pb, 1516, deckY - 9, 40, 17, 10, { ramp: ['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'], front: (xx, yy, u, v) => PFK.P32(['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'])[(xx - 1516) % 4 === 0 ? 2 : 3 - Math.round(v)] });
     for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < 5; xx++) if (Math.abs(xx - 2) + Math.abs(yy - 2) <= 2) PFK.put(pb, 1546 + xx, deckY - 21 + yy, U(Math.abs(xx - 2) + Math.abs(yy - 2) === 2 ? '#2a282e' : '#ffd84a'));
     I.cylV(pb, 1586, deckY - 8, 8, 50, { dome: 0.5, bands: [{ y: 9, h: 3 }, { y: 38, h: 2 }], ladder: true, plate: '#11bedd', stain: true });
-    // bandeja de cables: transformador → casa de bombas
-    for (let x = 1146; x < 1182; x++) { PFK.put(pb, x, 238, U('#2a282e')); PFK.put(pb, x, 239, U('#4f4d51')); if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76')); }
+    // bandeja de cables: transformador → casa de bombas (conducto eléctrico con alma amarilla, PFInfra.powerLine)
+    for (let x = 1146; x < 1182; x++) if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76'));
+    for (const run of LV1_POWER) if (run.conduit) I.powerLine(pb, run.pts, { boxes: run.boxes });
     // succión: torre → nave de rejas → casa de bombas; impulsión: casa de bombas → filtros
     I.pipe(pb, [[1432, 238], [1398, 238]], 3, 'sea', { flange: 12 });
     I.pipe(pb, [[1302, 238], [1272, 238]], 3, 'sea', { flange: 12 });
@@ -152,6 +156,9 @@ LEVELS[1] = {
     for (const [x, h, l] of [[1940, 60, 6], [2160, 74, -6], [2290, 56, 4], [2440, 80, -8], [2580, 62, 5]]) F.palm(pb, x, back(x) + 2, h, l, x);
     F.tree(pb, 2060, back(2060) + 3, 62, 93); F.tree(pb, 2390, back(2390) + 3, 54, 94, { wide: 1.1 });
     for (let x = 1900; x < 2600; x += 40 + r.int(0, 40)) rockPile(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x + 7);
+    // tendido aéreo de la subestación (derecha) hacia las bombas de la toma: energía en amarillo
+    const aer = I.powerLine(pb, LV1_POLES.map((x) => [x, back(x) + 2 - 50]), { style: 'aerial', sag: 7, groundAt: (x) => back(x) + 3 });
+    LV1_POWER.find((r) => r.aerial).pts = aer.pts;
     PFSigns.post(pb, 2440, gy(2440) - 7, [{ text: 'PLANTA OI' }, { text: 'LA TOMA', dir: -1 }], 19); // 100 px antes de la salida (2540): KIRU no lo tapa
     F.hibiscusBush(pb, 2470, gy(2470) - 5, 20, 14, 95);
   },
@@ -184,6 +191,7 @@ LEVELS[1] = {
     // flujos en tuberías (chevrones): agua de mar turquesa y agua pretratada azul claro
     PFInfra.drawFlows(g, sc, LV1_FLOWS);
     PFInfra.drawLeds(g, sc, LV1_LEDS);
+    PFInfra.drawPower(g, sc, LV1_POWER);
     // luz de advertencia de la torre (mástil) — verde en servicio, roja con la compuerta cerrada
     const on = Math.floor(t * 2) % 2;
     if (on) { const lx = 1476 - ox, ly = 134 - oy; frect(g, lx - 1, ly, 3, 3, S.gateClosed ? '#ff4e5d' : '#3fe0a0'); PFK.drawGlow(g, lx + 0.5, ly + 1.5, 5, S.gateClosed ? '#ff4e5d' : '#3fe0a0', 0.6); }
@@ -200,6 +208,8 @@ LEVELS[1] = {
     frect(g, gx - 5, gy2 + 2, 3, 1, '#3fe0a0'); frect(g, gx + 3, gy2 + 2, 3, 1, '#ff4e5d');
     fline(g, gx, gy2, gx + Math.cos(a) * 5, gy2 + Math.sin(a) * 5, dp > 0.7 ? '#ff4e5d' : '#140d26');
   },
+  /** Tubería del emisario por delante de la cara de la playa y de la cresta (la pluma va en pf.waterFx) */
+  renderFront(g, sc) { R2PLANT.drawOutfall(g, R2PLANT_lv1Outfall(), sc.cam.ox, sc.cam.oy, Game.time, { plume: false }); },
   renderGrade(g, sc) {
     const S = sc.state;
     if (S.storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.storm * 0.55; frect(g, 0, 0, W, H, '#c09070'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
@@ -313,6 +323,13 @@ const LV1_FLOWS = [
   { pts: [[1650, 216], [1804, 216]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
   { pts: [[1656, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
 ];
+/** Energía (amarillo): conductos en el muelle y tendido aéreo del sendero (pts del cable al prerender) */
+const LV1_POLES = [2520, 2400, 2276, 2152, 2030];
+const LV1_POWER = [
+  { pts: [[1146, 236], [1182, 236]], conduit: true, rate: (sc) => sc.state.gateClosed ? 0.25 : (sc.state.q || 100) / 100 },
+  { pts: [[1274, 264], [1424, 264]], conduit: true, boxes: true, rate: (sc) => sc.state.gateClosed ? 0.25 : (sc.state.q || 100) / 100 },
+  { pts: [], aerial: true, rate: 1, gap: 11 },
+];
 const LV1_LEDS = [
   { x: 1065, y: 271, col: '#3fe0a0', hz: 1 }, { x: 1067, y: 271, col: '#ffd84a', hz: 1.7, ph: 0.3 },
   { x: 1284, y: 249, col: '#3fe0a0', hz: 1.2 }, { x: 1286, y: 249, col: '#ff5a4a', hz: 2, ph: 0.5 },
@@ -320,6 +337,18 @@ const LV1_LEDS = [
   { x: 1446, y: 220, col: '#17f3f7', hz: 1.5 }, { x: 1628, y: 240, col: '#3fe0a0', hz: 1.1 }, { x: 1817, y: 262, col: '#ff9f43', hz: 1.8 },
 ];
 LEVELS[1].pf.fauna = { eagle: { x0: 60, x1: 760, y: 70 }, gulls: [{ x: 300, y: 90, n: 4 }, { x: 900, y: 110, n: 3 }, { x: 1500, y: 80, n: 4 }, { x: 2200, y: 100, n: 3 }], drones: [{ x: 1600, y: 168, r: 30 }, { x: 2300, y: 150, r: 40 }] };
+
+/* ---------------- emisario de salmuera en el corte (R2PLANT) ---------------- */
+/** Baja de la playa, gira mar adentro y descarga bajo la superficie, lejos de la toma
+    (x 1462): la pluma densa cae, se pega al lecho y se diluye. Prerender perezoso (una vez). */
+let R2PLANT_LV1_OUT = null;
+function R2PLANT_lv1Outfall() {
+  if (!R2PLANT_LV1_OUT) {
+    const bed = (x) => LEVELS[1].pf.bedAt(x);
+    R2PLANT_LV1_OUT = R2PLANT.outfall([[398, 299], [398, 312], [434, 312]], { r: 6, flange: 14, bed: bed(480) - 2, bedAt: (x) => bed(x) - 2, w: 176, seed: 23, s: 1.2, water: { wy: 296 } });
+  }
+  return R2PLANT_LV1_OUT;
+}
 
 /* ---------------- piezas del guion ---------------- */
 function kiruEcho(sc, id, text) {

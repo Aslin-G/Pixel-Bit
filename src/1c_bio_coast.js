@@ -176,9 +176,10 @@ BIOMES.coast = function (L) {
     },
   });
   /* ---------------- costa: FV, H₂, planta SYNARA (0,5) ---------------- */
-  const COAST_YS = 96, COAST_LY = planeY(0.5, COAST_YS);
-  const coastFx = { pv: [], glows: [], perm: null, outfall: null, fauna: [] };
-  B.vplane(0.5, COAST_YS, 112, (pb, w, h) => {
+  /* plano alto (208 px) para que quepa la planta protagonista; la línea de costa sigue en pantalla ≈ 192 */
+  const COAST_YS = 0, COAST_LY = planeY(0.5, COAST_YS);
+  const coastFx = { pv: [], glows: [], perm: null, outfall: null, fauna: [], plant: null, plume: null };
+  B.vplane(0.5, COAST_YS, 208, (pb, w, h) => {
     const k = 0.03, r = RNG(81);
     const yB = h - 16; // línea de costa (pantalla ≈ 192)
     const peaks = [
@@ -210,24 +211,24 @@ BIOMES.coast = function (L) {
     V.scatterVeg(pb, (x) => info.top[x] < yB - 1 ? info.top[x] + 1 : null, 300, w, 8200, { k, gap: 8, mix: { tree: 3, shrub: 4, palm: 2, flower: 1 } });
     for (let x = 300; x < w; x += r.int(26, 60)) if (info.top[x] < yB - 2) V.palm(pb, x, yB - 1, r.int(18, 28), r.range(-5, 5), 8300 + x, { k });
     // planta de hidrógeno verde en la meseta central
-    const h2 = V.h2Plant(pb, 896, info.yAt(940, 8) - 1, { k, s: 1 });
+    const h2 = V.h2Plant(pb, 880, info.yAt(940, 8) - 1, { k, s: 1.4 }); // grande: su etiqueta señala un objeto visible
     coastFx.glows.push(...h2.glows);
     labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Hidrógeno', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
-    // cadena desaladora SYNARA en su plataforma sobre la orilla
-    // depósito de agua potable en la ladera (fin de la tubería de permeado, sube hacia el pueblo)
-    const tkX = 568, tkY = (info.onSurf(tkX, 10) ?? 60) + 1;
-    const dc = V.desalChain(pb, 330, yB + 4, { k, s: 1, climb: 0, permTo: [[tkX - 8, yB - 20], [tkX - 8, tkY - 4], [tkX - 6, tkY - 4]] });
-    V.cylV(pb, tkX, tkY, 6, 11, V.ARCH.WHITE, { k, dome: 0.5, bands: [[3, 3, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
-    coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
-    const A = dc.anchors;
+    // PLANTA SYNARA protagonista (R2PLANT) en 3/4 sobre la orilla: pretratamiento → membranas →
+    // agua potable/remineralización → emisario de salmuera. La toma es el muelle del plano jugable.
+    const PL = R2PLANT.hero(pb, R2PLANT_L1.x, yB + 3, { s: R2PLANT_L1.s, k, from: 'pretrat', slope: R2PLANT_L1.slope });
+    coastFx.plant = PL;
+    coastFx.plume = R2PLANT.plumeStrip({ mode: 'surface', s: R2PLANT_L1.s, k, seed: 13 });
+    coastFx.foot = [PL.x0 - 6, PL.x1 + 8];
+    const A = PL.anchors, cx = (a) => [Math.max(0, Math.round(2 * (a - 600))), Math.round(2 * a - 40)];
     labels.push(
-      { x: A.membranas.x - 40, y: COAST_LY + A.membranas.y - 22, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
-      { x: A.potable.x + 40, y: COAST_LY + A.potable.y - 28, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
-      { x: A.salmuera.x - 4, y: COAST_LY + A.salmuera.y - 35, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
+      { x: A.pretrat.x - 26, y: COAST_LY + A.pretrat.y - 6, f: 0.5, title: 'PRETRATAMIENTO', kind: 'water', camX: cx(A.pretrat.x), ax: A.pretrat.x, ay: COAST_LY + A.pretrat.y + 4 },
+      { x: A.membranas.x + 4, y: COAST_LY + A.membranas.y - 12, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: cx(A.membranas.x), ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 6 },
+      { x: A.potable.x + 6, y: COAST_LY + A.potable.y - 14, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: cx(A.potable.x), ax: A.potable.x, ay: COAST_LY + A.potable.y + 6 },
     );
     // rocas en la orilla con espuma
     for (let x = 300; x < w; x += r.int(30, 90)) {
-      if (x > 326 && x < 566) continue;
+      if (x > coastFx.foot[0] && x < coastFx.foot[1]) continue;
       const rw = r.int(4, 9);
       V.ellipse(pb, x, yB + 1, rw, 3, (nx, ny) => V.P32(V.RAMPS.low)[clamp(Math.round(5 - nx * 2 - ny * 3), 0, 9)]);
       for (let q = -rw - 1; q <= rw + 1; q++) V.put(pb, x + q, yB + 3, FOAM[2]);
@@ -249,16 +250,11 @@ BIOMES.coast = function (L) {
       }
       // halos esmeralda del H₂ (pulso suave)
       for (const [x, y, r] of coastFx.glows) V.drawGlow(g, x + ox, y + oy, r, '#4cd48e', 0.45 + 0.25 * Math.sin(t * 2 + x));
-      // chevrones del permeado
-      if (coastFx.perm) V.drawFlow(g, coastFx.perm, ox, oy, t, { col: '#f4ffff', speed: 12, gap: 6 });
-      // pluma de salmuera controlada (magenta, se hunde y diluye junto al emisario)
-      if (coastFx.outfall) {
-        const { x, y } = coastFx.outfall;
-        for (let i = 0; i < 12; i++) {
-          const u = ((t * 0.25 + i / 12) % 1), px = x + ox + 1 + u * 16 + Math.sin(i * 2.1 + t) * 1.5, py = y + oy + 1 + u * 3;
-          g.globalAlpha = 0.75 * (1 - u); g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2'; g.fillRect(Math.round(px), Math.round(py), 1 + (u < 0.4 ? 1 : 0), 1);
-        }
-        g.globalAlpha = 1;
+      // planta protagonista: halo pulsante del permeado, chevrones (permeado, energía), LED, farolas,
+      // espuma al pie y pluma de salmuera densa en la boca del emisario
+      if (coastFx.plant) {
+        const P = coastFx.plant;
+        if (P.x1 + ox > -20 && P.x0 + ox < W + 20) R2PLANT.drawFx(g, P, ox, oy, t, { plume: coastFx.plume });
       }
       V.drawFauna(g, coastFx.fauna, ox, oy, t);
       V.drawMotes(g, 16, t, 7, { y0: 60, y1: 200 });

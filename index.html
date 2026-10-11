@@ -13778,7 +13778,10 @@ const R2PLANT = (() => {
     pm([[L(276), L(42), BY + L(6)], [L(258), L(42), BY + L(6)]], S(2));
     /* ================= 6. PRETRATAMIENTO ================= */
     // alimentación de agua de mar desde la toma (por detrás de la balsa, con soportes)
-    if (fromIntake) sea3.push(pipe3([[HX + HW, L(34), HY + L(8)], [TX - L(6), L(34), HY + L(8)], [TX - L(6), L(34), DY + L(12)], [TX, L(34), DY + L(12)]], S(3), C.sea, { flange: L(12), supports: L(16), supportY: JY }));
+    // (por delante y por encima de la balsa: tubería turquesa gruesa y luminosa, como en la referencia)
+    const SEAY = DY + L(11), SEAZ = L(25);
+    if (fromIntake) sea3.push(pipe3([[HX + HW - L(3), SEAZ, SEAY], [TX - L(5), SEAZ, SEAY], [TX - L(5), L(34), SEAY], [TX, L(34), SEAY]], S(4), C.sea, { flange: L(11), core: 0.95, supports: L(14), supportY: DY }));
+    else sea3.push(pipe3([[DX0 - L(8), SEAZ, SEAY], [TX - L(5), SEAZ, SEAY], [TX - L(5), L(34), SEAY], [TX, L(34), SEAY]], S(4), C.sea, { flange: L(11), core: 0.95, supports: L(14), supportY: DY }));
     // tambor de tamices horizontal sobre cunas
     for (const q of [L(5), L(32)]) box(TX + q, L(31), DY, S(4), L(6), L(6), flat(C.steel, 0.5, 0.75, 0.3, 0.04, 7));
     tubeX(TX, TX + L(42), L(34), DY + L(12), S(6), C.steel, { bands: [L(6), L(21), L(36)], bandW: S(2), capR: true });
@@ -13816,6 +13819,8 @@ const R2PLANT = (() => {
     /* ================= 8. PERMEADO (cian luminoso, delante) ================= */
     // cabezal de permeado → corre por delante → sube junto al bloque → entra al depósito
     pm([[MX1 - L(4), MZf - L(2), DY + L(13)], [L(256), MZf - L(2), DY + L(13)], [L(256), MZf - L(2), BY + L(15)], [L(300), MZf - L(2), BY + L(15)], [L(300), MZf - L(2), BY + L(11)]], S(3));
+    // banco trasero: colector de permeado elevado que sube, cruza por encima del bastidor y entra al depósito
+    pm([[MX0 + L(10), MZb + L(2), DY + MH - L(3)], [MX0 + L(10), MZb + L(2), DY + MH + L(13)], [L(278), MZb + L(2), DY + MH + L(13)], [L(278), MZb + L(2), BY + L(20)]], S(3));
     // depósito → sale hacia la ciudad (sube por el borde derecho)
     pm([[L(304), L(36), BY + L(10)], [L(320), L(36), BY + L(10)], [L(320), L(36), BY + L(42)], [L(336), L(36), BY + L(42)]], S(3));
     /* ================= 9. BOMBA DE ALTA PRESIÓN + armario eléctrico ================= */
@@ -13831,6 +13836,9 @@ const R2PLANT = (() => {
     box(EX, L(1), DY, L(9), L(4), L(12), flat(C.navy, 0.62, 0.86, 0.36, 0.05, 13));
     for (let q = 0; q < 3; q++) led(EX + L(2) + q * L(2), L(1), DY + L(9), ['#ffd84a', '#3fe0a0', '#ff5a4a'][q]);
     pow3.push([[EX + L(9), L(1), DY + L(10)], [PX + L(13), L(1), DY + L(10)], [PX + L(13), L(3), DY + L(10)]]);
+    // acometida eléctrica desde el borde izquierdo (subestación) por el frente de la cubierta hasta el armario
+    pow3.push([[DX0 + L(fromIntake ? 2 : 4), -L(1), DY + L(2)], [EX - L(2), -L(1), DY + L(2)], [EX - L(2), L(1), DY + L(2)], [EX - L(2), L(1), DY + L(6)]]);
+    // conductos eléctricos grafito (la energía se lee por su halo amarillo y sus chevrones en drawFx)
     for (const pl of pow3) pipe3(pl, 1, C.cable, { elbowRing: false, ink: C.cable[0] });
     /* ================= 10. SALMUERA (grafito-índigo, emisario con boca) ================= */
     const BRX = L(274), BRZ = -L(4);
@@ -13889,6 +13897,7 @@ const R2PLANT = (() => {
     for (const n in anchors) { const [a, b] = tf(anchors[n][0], anchors[n][1]); info.anchors[n] = { x: a, y: b }; }
     info.halo = permHalo(info.perm, info.permR);
     info.haloSea = info.sea.length ? permHalo(info.sea, info.sea.map(() => S(3)), '#11bedd', '#c8f6ff') : null;
+    info.haloPow = info.power.length ? permHalo(info.power, info.power.map(() => 1), '#ffd84a', '#fff4b0') : null;
     return info;
   }
 
@@ -13951,7 +13960,8 @@ const R2PLANT = (() => {
   function plumeStrip(o = {}) {
     const mode = o.mode || 'under', n = o.n || 16, s = o.s || 1;
     const w = o.w || Math.round((mode === 'under' ? 130 : 64) * s), h = o.h || Math.round((mode === 'under' ? 64 : 26) * s);
-    const key = [mode, n, w, h, o.seed || 1, o.bed || 0, s, o.k || 0].join('|'); let st = _strips.get(key); if (st) return st;
+    const bo = o.bedOff || null;
+    const key = [mode, n, w, h, o.seed || 1, o.bed || 0, s, o.k || 0, bo ? bo.join(',') : ''].join('|'); let st = _strips.get(key); if (st) return st;
     const r = RNG(o.seed || 7), M = o.count || Math.round((mode === 'under' ? 340 : 150) * Math.max(0.5, s));
     const bed = o.bed ?? (h - 3), surf = o.surf ?? Math.round(4 * s);
     const hz = (c) => U(V.hzc(c, o.k || 0));
@@ -13961,6 +13971,56 @@ const R2PLANT = (() => {
     for (let i = 0; i < M; i++) parts.push({ b: r(), vx: (0.35 + r() * 0.9) * 30 * s, vy0: (r() - 0.3) * 14 * s, sp: r(), ph: r() * TAU, sz: r(), dr: (r() - 0.5) * 2 });
     const P_ = 2.4; // periodo del bucle (s)
     const g = 70 * s, tBed = (p) => Math.sqrt(2 * Math.max(4, bed - p.sp * 7 * s) / g);
+    if (mode === 'cloud') {
+      /* Pluma densa en racimos (sin tramado): chorro casi blanco en la boca → nube magenta saturada
+         que cae curvándose aguas abajo → capa violeta pegada al lecho que se aleja y se diluye hacia
+         el azul. Ruido de valor animado en bucle sin costura (fundido entre dos fases). */
+      const sd = (o.seed || 7) * 13, Pn = Math.max(24, bed), drift = o.drift ?? 0.55;
+      const NZ = (x, y, ph) => vnoise(x * 0.17, (y - ph * Pn) * 0.17, sd) * (1 - ph) + vnoise(x * 0.17, (y - (ph - 1) * Pn) * 0.17, sd) * ph;
+      const NZ2 = (x, y, ph) => vnoise((x - ph * 40) * 0.12, y * 0.3, sd + 5) * (1 - ph) + vnoise((x - (ph - 1) * 40) * 0.12, y * 0.3, sd + 5) * ph;
+      // chorro horizontal que se curva al caer (x ∝ √y) + arrastre aguas abajo
+      const xc = (y) => { const u = y / bed; return Math.round(s * (3 + 16 * Math.sqrt(u)) + Math.pow(u, 1.6) * bed * drift * 0.6); };
+      st = V.strip(n, w, h, (pb, f) => {
+        const ph = f / n;
+        // 1) columna que cae
+        for (let y = 0; y <= bed; y++) {
+          const u = y / bed, c = xc(y), hw = (3.2 + Math.sqrt(u) * 9 + u * 9 + Math.sin(y * 0.21 + ph * TAU) * 1.4) * s;
+          for (let x = Math.floor(c - hw); x <= Math.ceil(c + hw); x++) {
+            if (x < 0 || x >= w) continue;
+            const d = 1 - Math.abs(x - c) / (hw + 0.5), v = NZ(x, y, ph) * 0.58 + d * 0.78 - u * 0.1;
+            if (y < 3 * s && d > 0.25) { V.blend(pb, x, y, COLS[y < 1.5 * s ? 0 : 1], 0.95); continue; }
+            if (v > 1.0) V.blend(pb, x, y, COLS[u < 0.4 ? 1 : 2], 0.95);
+            else if (v > 0.82) V.blend(pb, x, y, COLS[2], 0.93);
+            else if (v > 0.64) V.blend(pb, x, y, COLS[u < 0.5 ? 3 : 4], 0.88);
+            else if (v > 0.5) V.blend(pb, x, y, COLS[5], 0.72 - u * 0.15);
+            else if (v > 0.38) V.blend(pb, x, y, COLS[6], 0.42 - u * 0.1);
+            else if (v > 0.3 && d > 0.05) V.blend(pb, x, y, COLS[7], 0.22);
+          }
+        }
+        // 2) capa de fondo (más densa que el agua): se arrastra y se diluye magenta → violeta → azul
+        const x0b = xc(bed) - Math.round(10 * s);
+        for (let x = Math.max(0, x0b); x < w; x++) {
+          const u = (x - x0b) / Math.max(1, w - x0b), bx = bed + (bo ? (bo[clamp(x, 0, bo.length - 1)] || 0) : 0);
+          const thick = (13 - u * 9 + (vnoise(x * 0.09, ph * 3, sd + 9) - 0.5) * 5) * s;
+          for (let y = Math.round(bx - thick); y <= bx + 2; y++) {
+            if (y < 0 || y >= h) continue;
+            const q = (bx + 2 - y) / (thick + 2), v = NZ2(x, y, ph) * 0.7 + (1 - q) * 0.55 - u * 0.42;
+            const ci = u < 0.25 ? 3 : u < 0.45 ? 4 : u < 0.62 ? 6 : u < 0.8 ? 7 : 8;
+            if (v > 0.62) V.blend(pb, x, y, COLS[Math.max(2, ci - 1)], 0.9 - u * 0.45);
+            else if (v > 0.46) V.blend(pb, x, y, COLS[ci], 0.75 - u * 0.4);
+            else if (v > 0.34) V.blend(pb, x, y, COLS[Math.min(9, ci + 1)], 0.42 - u * 0.25);
+          }
+        }
+        // 3) grumos sueltos que se desprenden (racimos de 2×2)
+        for (let i = 0; i < 26; i++) {
+          const b = hash1(i, sd), a = ((ph + b) % 1), side = hash1(i, sd + 1);
+          const y = Math.round(a * bed), x = Math.round(xc(y) + (side - 0.5) * (6 + a * 26) * s + a * 6 * s);
+          const cc = COLS[a < 0.3 ? 1 : a < 0.6 ? 3 : 5], al = 0.9 - a * 0.5;
+          for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 2; xx++) V.blend(pb, x + xx, y + yy, cc, al);
+        }
+      });
+      st.mode = mode; _strips.set(key, st); return st;
+    }
     st = V.strip(n, w, h, (pb, f) => {
       const tt = (f / n) * P_;
       if (mode === 'under') {
@@ -14003,7 +14063,7 @@ const R2PLANT = (() => {
   function drawPlume(g, st, x, y, t, a = 1, fps = 6.6) {
     if (!st) return;
     if (a < 1) g.globalAlpha = a;
-    V.drawStrip(g, st, Math.floor(t * fps), Math.round(x), Math.round(y) - (st.mode === 'under' ? 0 : Math.round(st.h * 0.25)));
+    V.drawStrip(g, st, Math.floor(t * fps), Math.round(x), Math.round(y) - (st.mode === 'surface' ? Math.round(st.h * 0.25) : 0));
     g.globalAlpha = 1;
   }
 
@@ -14016,13 +14076,14 @@ const R2PLANT = (() => {
     g.globalCompositeOperation = 'lighter';
     if (I.halo) { g.globalAlpha = 0.66 + 0.3 * Math.sin(t * 2.4); g.drawImage(I.halo.c, I.halo.x + ox, I.halo.y + oy); }
     if (I.haloSea) { g.globalAlpha = 0.32 + 0.1 * Math.sin(t * 1.7 + 1); g.drawImage(I.haloSea.c, I.haloSea.x + ox, I.haloSea.y + oy); }
+    if (I.haloPow) { g.globalAlpha = 0.5 + 0.25 * Math.sin(t * 5.3); g.drawImage(I.haloPow.c, I.haloPow.x + ox, I.haloPow.y + oy); }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     // chevrones: permeado blanco 20 px/s, agua de mar y pretratada más tenues, energía amarilla
     if (o.chev !== false) {
       for (const p of I.perm) drawChevrons(g, p, ox, oy, t, { col: '#ffffff', speed: 20, gap: Math.max(7, Math.round(11 * I.s)), bold: I.s >= 0.8 });
       for (const p of I.sea) drawChevrons(g, p, ox, oy, t, { col: '#c8f6ff', speed: 14, gap: 12 });
       for (const p of I.pre) drawChevrons(g, p, ox, oy, t, { col: '#e8f4ff', speed: 12, gap: 13 });
-      g.globalAlpha = 0.9; for (const p of I.power) drawChevrons(g, p, ox, oy, t, { col: '#ffe14d', speed: 26, gap: 7 }); g.globalAlpha = 1;
+      for (const p of I.power) drawChevrons(g, p, ox, oy, t, { col: '#fff4b0', speed: 26, gap: 7, bold: I.s >= 0.8 });
     }
     // LED a 1–2 Hz y farolas
     for (const [x, y, c] of I.leds) if (Math.floor(t * 1.6 + x * 0.13) % 2) { g.fillStyle = c; g.fillRect(x + ox, y + oy, 1, 1); }
@@ -14041,8 +14102,97 @@ const R2PLANT = (() => {
     if (o.plume) drawPlume(g, o.plume, I.mouth.x + ox, I.mouth.y + oy, t, o.plumeA ?? 1);
   }
 
-  return { hero, drawFx, plumeStrip, drawPlume, drawChevrons, permHalo, powerHalo, PAL, prof };
+  /* =================================================================
+     Emisario de salmuera para cortes submarinos del plano jugable (mundo)
+     ================================================================= */
+  /** Tubería grafito-índigo gruesa con bridas, abrazaderas y bloques de anclaje de hormigón,
+      boca abierta con brillo magenta y pluma densa que cae, se pega al lecho y se diluye.
+      pts: polilínea ortogonal [[x,y],…] en mundo; el último punto es la boca (mira en la
+      dirección del último tramo). o: {r=4, bed (y del lecho bajo la boca), w (largo de la pluma),
+      k, seed, anchors:[x…] bloques bajo tramos horizontales, bedAt(x)} → {c,x,y,mouth,strip,dir} */
+  function outfall(pts, o = {}) {
+    const r = o.r ?? 4, pad = r + 14;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [a, b] of pts) { x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, a); y1 = Math.max(y1, b); }
+    const bedMax = o.bedAt ? Math.max(...(o.anchors || []).map((a) => o.bedAt(a)), y1 + r + 4) : y1 + r + 10;
+    x0 -= pad; y0 -= pad; x1 += pad; y1 = Math.max(y1 + pad, bedMax + 2);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, pb = new PixelBuffer(w, h);
+    const L = pts.map(([a, b]) => [a - x0, b - y0]);
+    const CN = V.P32(V.hz(PAL.conc, o.k || 0)), BR = V.P32(V.hz(PAL.brine, o.k || 0)), ST = V.P32(V.hz(PAL.steel, o.k || 0));
+    // bloques de anclaje (hormigón con algas) bajo los tramos horizontales, apoyados en el lecho
+    for (const ax of (o.anchors || [])) {
+      const lx = ax - x0, seg = L.findIndex((p, i) => i + 1 < L.length && p[1] === L[i + 1][1] && Math.min(p[0], L[i + 1][0]) <= lx && Math.max(p[0], L[i + 1][0]) >= lx);
+      if (seg < 0) continue;
+      const py = L[seg][1], top = py + r - 1, bot = (o.bedAt ? o.bedAt(ax) : py + r + 10) - y0 + 1, bw = 2 * r + 4;
+      for (let yy = top; yy <= bot; yy++) for (let xx = 0; xx < bw; xx++) {
+        const u = xx / (bw - 1), edge = xx === 0 || xx === bw - 1 || yy === bot;
+        let b = 0.62 - u * 0.34 - ((yy - top) / Math.max(1, bot - top)) * 0.12;
+        if (xx === 1) b += 0.16; if (edge) b = 0.12;
+        if (yy > bot - 3 && hash2(xx, yy, ax) < 0.5) { V.put(pb, lx - (bw >> 1) + xx, yy, U(['#2e5232', '#3e6a3a', '#24402a'][(xx + yy) % 3])); continue; }
+        V.put(pb, lx - (bw >> 1) + xx, yy, CN[ix(CN, b)]);
+      }
+    }
+    PFInfra.pipe(pb, L, r, 'brine', { flange: o.flange ?? 18 });
+    // abrazaderas de acero sobre los tramos
+    for (let i = 0; i + 1 < L.length; i++) {
+      const [a0, b0] = L[i], [a1, b1] = L[i + 1], len = Math.abs(a1 - a0) + Math.abs(b1 - b0);
+      for (let q = 9; q < len - 6; q += 18) {
+        const px = a0 + Math.sign(a1 - a0) * q, py = b0 + Math.sign(b1 - b0) * q;
+        if (b0 === b1) for (let j = -r - 1; j <= r + 1; j++) { V.put(pb, px + 4, py + j, ST[j < 0 ? 8 : 3]); }
+        else for (let j = -r - 1; j <= r + 1; j++) V.put(pb, px + j, py + 4, ST[j < 0 ? 8 : 3]);
+      }
+    }
+    // boca abierta: anillo de brida, interior oscuro y destello magenta
+    const [mx, my] = L[L.length - 1], [px_, py_] = L[L.length - 2];
+    const dir = Math.sign(mx - px_) || 0, dv = Math.sign(my - py_) || 0;
+    if (dir) {
+      for (let j = -r - 2; j <= r + 2; j++) { V.put(pb, mx, my + j, BR[Math.abs(j) > r + 1 ? 0 : j < 0 ? 9 : 5]); V.put(pb, mx + dir, my + j, BR[Math.abs(j) > r + 1 ? 0 : j < 0 ? 7 : 3]); }
+      for (let j = -r + 1; j <= r - 1; j++) { V.put(pb, mx + 2 * dir, my + j, BR[Math.abs(j) === r - 1 ? 2 : 0]); }
+      for (let j = -r + 2; j <= r - 2; j++) V.put(pb, mx + 2 * dir, my + j, U(Math.abs(j) < 2 ? '#ff5ad8' : '#8a2c84'));
+    } else {
+      for (let j = -r - 2; j <= r + 2; j++) { V.put(pb, mx + j, my, BR[Math.abs(j) > r + 1 ? 0 : j < 0 ? 9 : 5]); V.put(pb, mx + j, my + dv, BR[Math.abs(j) > r + 1 ? 0 : 3]); }
+      for (let j = -r + 2; j <= r - 2; j++) V.put(pb, mx + j, my + 2 * dv, U(Math.abs(j) < 2 ? '#ff5ad8' : '#8a2c84'));
+    }
+    const mouth = { x: x0 + mx + 2 * dir, y: y0 + my + 2 * dv };
+    // tinte de profundidad: lo sumergido se funde hacia el azul del agua (sin tramado)
+    if (o.water) {
+      const wc = U(o.water.col || '#0c5c94');
+      for (let py = 0; py < h; py++) {
+        const dep = y0 + py - o.water.wy; if (dep <= 0) continue;
+        const a = Math.min(o.water.max ?? 0.42, 0.1 + dep / 160);
+        for (let px = 0; px < w; px++) { const c = pb.data[py * w + px]; if (c >>> 24) pb.data[py * w + px] = (V.mixU ? V.mixU(c, wc, a) : c); }
+      }
+    }
+    const bed = Math.round((o.bed ?? (mouth.y + 60)) - mouth.y);
+    const pw = o.w || 150, bedOff = o.bedAt ? Array.from({ length: pw }, (_, i) => Math.round(o.bedAt(mouth.x + (dir || 1) * i) - mouth.y - bed)) : null;
+    const strip = plumeStrip({ mode: o.mode || 'cloud', w: pw, h: bed + 10 + (bedOff ? Math.max(0, ...bedOff) : 0), bed, bedOff, s: o.s || 1.15, seed: o.seed || 21, k: o.k || 0, count: o.count, drift: o.drift });
+    return { c: pb.toCanvas(), x: x0, y: y0, mouth, strip, dir: dir || 1, glow: PFK.glow(7, '#ff5ad8', 4) };
+  }
+  /** Dibuja el emisario y su pluma animada (2–3 drawImage). o.pipe=false solo pluma; o.plume=false solo tubería */
+  function drawOutfall(g, O, ox, oy, t, o = {}) {
+    if (!O) return;
+    const sx = O.x - ox, sy = O.y - oy;
+    if (sx > W + 160 || sx + O.c.width < -160) return;
+    if (o.plume !== false) {
+      const a = o.a ?? 1;
+      if (a < 1) g.globalAlpha = a;
+      V.drawStrip(g, O.strip, Math.floor(t * 6.6), Math.round(O.mouth.x - ox - (O.dir < 0 ? O.strip.w : 0)), Math.round(O.mouth.y - oy - 1), O.dir < 0);
+      g.globalAlpha = 1;
+    }
+    if (o.pipe === false) return;
+    g.drawImage(O.c, Math.round(sx), Math.round(sy));
+    // resplandor magenta pulsante en la boca
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5 + 0.2 * Math.sin(t * 3.1);
+    g.drawImage(O.glow, Math.round(O.mouth.x - ox - 7 + O.dir * 2), Math.round(O.mouth.y - oy - 7));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+
+  return { hero, drawFx, plumeStrip, drawPlume, drawChevrons, permHalo, powerHalo, outfall, drawOutfall, PAL, prof };
 })();
+
+/** Colocación de la planta protagonista en el plano costero (0,5) del Nivel 1 (1c_bio_coast.js):
+    pie frontal derecho en x de plano, escala y pendiente del diorama. */
+const R2PLANT_L1 = { x: 800, s: 0.95, slope: 0.03 };
 
 /* Banco de pruebas: ?test=scene&s=R2PLANT_TEST&p={"s":1,"z":1} */
 const R2PLANT_TEST = {
@@ -15959,6 +16109,104 @@ const PFInfra = (() => {
     pvPanel(pb, 430, 140, 30, 10);
   }
   return { box3q, cylV, cylH, pipe, valve, gauge, cabinet, lamp, bollard, lifeRing, crate, barrel, pvPanel, windowQ, wallFront, pumpHouse, intakeTower, mediaFilters, glassHall, gantry, transformer, drawFlows, drawLeds, gallery, STEEL, BAND, GLASS, ROOF, PIPES };
+})();
+
+/* =====================================================================
+   R2PLANT · ampliaciones del kit PFInfra (corrientes científicas)
+   PFInfra.powerLine(pb, pts, o) → {pts}  línea eléctrica estática (mundo, prerender)
+       o.style 'conduit' (por defecto): conducto grafito con alma amarilla, abrazaderas y
+               cajas de empalme · 'aerial': postes con cruceta y aisladores y cable en
+               catenaria entre los puntos (o.sag px, o.groundAt(x) pie del poste). Devuelve
+               la polilínea del cable para animarla con drawPower.
+   PFInfra.drawPower(g, sc, runs)  flujo de energía animado: halo amarillo cacheado que pulsa
+       (1 drawImage por tramo visible) + chevrones amarillos a 26 px/s (≈3 fillRect cada uno).
+       runs: [{pts, rate?: n|fn(sc), on?: fn(sc), gap?, bold?=true, col?='#fffbe0', r?}] en mundo.
+   Gancho del corte submarino: def.pf.waterFx(g, sc, Wt) se invoca tras pintar cada masa de
+   agua del kit PF (antes del terreno): emisarios, plumas y otros efectos sumergidos.
+   ===================================================================== */
+(() => {
+  const CAB = ['#16141c', '#2a282e', '#4f4d51', '#716f76', '#948e91'];
+  const YEL = ['#6e4e0c', '#a47614', '#d49e22', '#f2c23a', '#ffdc66', '#fff0b0'];
+  /** Línea eléctrica estática: conducto o tendido aéreo */
+  function powerLine(pb, pts, o = {}) {
+    const C = PFK.P32(CAB), Y = PFK.P32(YEL);
+    if ((o.style || 'conduit') === 'aerial') {
+      const sag = o.sag ?? 6, out = [];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], n = Math.max(2, Math.round(Math.abs(x1 - x0) / 6));
+        for (let q = (i ? 1 : 0); q <= n; q++) { const u = q / n; out.push([Math.round(x0 + (x1 - x0) * u), Math.round(y0 + (y1 - y0) * u + sag * 4 * u * (1 - u))]); }
+      }
+      // postes de acero de 3 px con capitel, cruceta, aisladores cerámicos y placa de riesgo eléctrico
+      for (const [px, py] of pts) {
+        const base = o.groundAt ? o.groundAt(px) : py + 40;
+        for (let y = py - 3; y < base; y++) { PFK.put(pb, px - 1, y, C[4]); PFK.put(pb, px, y, C[3]); PFK.put(pb, px + 1, y, C[1]); }
+        for (let y = base - 3; y < base; y++) for (let x = px - 2; x <= px + 2; x++) PFK.put(pb, x, y, C[x < px ? 3 : 1]);
+        for (let x = px - 7; x <= px + 7; x++) { PFK.put(pb, x, py - 3, C[4]); PFK.put(pb, x, py - 2, C[2]); PFK.put(pb, x, py - 1, C[0]); }
+        for (const ix of [px - 6, px + 6]) { PFK.put(pb, ix, py - 4, U('#f4f2ee')); PFK.put(pb, ix, py - 5, U('#bab6bc')); PFK.put(pb, ix, py - 6, U('#f4f2ee')); }
+        for (let y = py + 5; y < py + 9; y++) for (let x = px - 1; x <= px + 1; x++) PFK.put(pb, x, y, (y === py + 5 || y === py + 8) ? C[0] : Y[x === px ? 4 : 3]);
+      }
+      // cable: 2 px (alma amarilla encima, sombra debajo) colgado de los aisladores
+      for (let i = 0; i + 1 < out.length; i++) { PFK.lineFn(pb, out[i][0], out[i][1] + 1, out[i + 1][0], out[i + 1][1] + 1, () => C[0]); PFK.lineFn(pb, out[i][0], out[i][1], out[i + 1][0], out[i + 1][1], () => Y[2]); }
+      return { pts: out };
+    }
+    // conducto: 7 px (tinta, brillo, alma amarilla de 3 px, sombra, tinta), abrazaderas cada 16 px,
+    // cajas de empalme en los extremos y codos reforzados
+    const ROW = [C[0], C[4], Y[5], Y[4], Y[2], C[1], C[0]];
+    const seg = (a, b) => {
+      const [x0, y0] = a, [x1, y1] = b;
+      if (y0 === y1) {
+        const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+        for (let x = xa; x <= xb; x++) {
+          for (let j = -3; j <= 3; j++) PFK.put(pb, x, y0 + j, ROW[j + 3]);
+          if ((x - xa) % 16 === 8) for (let j = -3; j <= 3; j++) { PFK.put(pb, x, y0 + j, j === -3 || j === 3 ? C[0] : C[j < 0 ? 4 : 2]); PFK.put(pb, x + 1, y0 + j, j === -3 || j === 3 ? C[0] : C[1]); }
+        }
+      } else {
+        const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+        for (let y = ya; y <= yb; y++) {
+          for (let j = -3; j <= 3; j++) PFK.put(pb, x0 + j, y, ROW[j + 3]);
+          if ((y - ya) % 16 === 8) for (let j = -3; j <= 3; j++) { PFK.put(pb, x0 + j, y, j === -3 || j === 3 ? C[0] : C[j < 0 ? 4 : 2]); PFK.put(pb, x0 + j, y + 1, j === -3 || j === 3 ? C[0] : C[1]); }
+        }
+      }
+    };
+    for (let i = 0; i + 1 < pts.length; i++) seg(pts[i], pts[i + 1]);
+    for (let i = 1; i < pts.length - 1; i++) { const [x, y] = pts[i]; for (let yy = -4; yy <= 4; yy++) for (let xx = -4; xx <= 4; xx++) PFK.put(pb, x + xx, y + yy, Math.abs(xx) === 4 || Math.abs(yy) === 4 ? C[0] : yy < -1 ? C[4] : C[2]); }
+    if (o.boxes !== false) for (const [x, y] of [pts[0], pts[pts.length - 1]]) {
+      for (let yy = -5; yy <= 5; yy++) for (let xx = -4; xx <= 4; xx++) PFK.put(pb, x + xx, y + yy, Math.abs(xx) === 4 || Math.abs(yy) === 5 ? C[0] : yy === -4 ? C[4] : (Math.abs(xx) <= 1 && Math.abs(yy) <= 2) ? Y[(xx + yy) & 1 ? 3 : 5] : xx === 3 ? C[1] : C[2]);
+    }
+    return { pts };
+  }
+  /** Flujo de energía animado (halo cacheado + chevrones amarillos) */
+  function drawPower(g, sc, runs) {
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time;
+    for (const run of runs) {
+      if (run.on && !run.on(sc)) continue;
+      const rate = typeof run.rate === 'function' ? run.rate(sc) : (run.rate ?? 1);
+      if (rate <= 0) continue;
+      if (!run._b) { let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const [a, b] of run.pts) { x0 = Math.min(x0, a); x1 = Math.max(x1, a); y0 = Math.min(y0, b); y1 = Math.max(y1, b); } run._b = [x0, y0, x1, y1]; }
+      const [bx0, by0, bx1, by1] = run._b;
+      if (bx1 - ox < -10 || bx0 - ox > W + 10 || by1 - oy < -10 || by0 - oy > H + 10) continue;
+      if (!run._h && typeof R2PLANT !== 'undefined') run._h = R2PLANT.powerHalo(run.pts, run.r ?? 1);
+      if (run._h) {
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = (0.42 + 0.22 * Math.sin(t * 5.3 + bx0 * 0.01)) * Math.min(1, rate);
+        g.drawImage(run._h.c, run._h.x - ox, run._h.y - oy);
+        g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+      }
+      if (typeof R2PLANT !== 'undefined') R2PLANT.drawChevrons(g, run.pts, -ox, -oy, t * rate, { col: run.col || '#fffbe0', speed: 26, gap: run.gap || 10, bold: run.bold ?? true });
+    }
+  }
+  PFInfra.powerLine = powerLine;
+  PFInfra.drawPower = drawPower;
+  PFInfra.PIPES.power = { ramp: YEL, ink: '#3e2a06', chev: '#fff0b0', glow: '#ffd84a' };
+  // gancho del corte submarino (encadenable con otros envoltorios de PFWater.renderBack)
+  if (typeof PFWater !== 'undefined' && !PFWater.__r2waterFx) {
+    const base = PFWater.renderBack;
+    PFWater.renderBack = function (g, sc, Wt) {
+      base(g, sc, Wt);
+      const fx = sc && sc.def && sc.def.pf && sc.def.pf.waterFx;
+      if (fx) fx(g, sc, Wt);
+    };
+    PFWater.__r2waterFx = true;
+  }
 })();
 
 /* ===== 18f_pf_signs.js ===== */
@@ -25793,6 +26041,8 @@ const SCBK = (() => {
               pluma de salmuera; plan de reparación con plantones.
    SCBEnd.make(id) → {draw(g, t)}  (prerender ≈ 300–500 ms; ≈250 fillRect/cuadro)
    ===================================================================== */
+/** El barrio bajo de los finales empieza a la derecha de la planta protagonista */
+const R2PLANT_ENDTOWN = 452;
 const SCBEnd = (() => {
   const V = VISTA;
   const IH = 164; // alto de la ilustración
@@ -25895,10 +26145,7 @@ const SCBEnd = (() => {
       V.fields(pb, 300, w, yB + 3, h, { k: 0.08, seed: 75, gold: M.gold, irrig: !M.dust });
       const SAND = V.P32(V.hz(['#c58440', '#edaf5f', '#fccf85'], k)), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
       for (let x = 150; x < w; x++) { V.put(pb, x, yB, SAND[2]); V.put(pb, x, yB + 1, SAND[1]); V.put(pb, x, yB + 2, SAND[0]); if (info.top[x] >= yB) V.put(pb, x, yB - 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); for (let y = yB + 3; y < h; y++) if (x < 300) V.put(pb, x, y, SAND[y > yB + 6 ? 0 : 1]); }
-      // la desaladora SYNARA, con el mismo orden de proceso del Nivel 1 (más grande en la victoria técnica)
-      const dc = V.desalChain(pb, M.cold ? 168 : 178, yB + 3, { k, s: M.cold ? 0.62 : 0.52, climb: 5 });
-      fx.perm = dc.perm;
-      if (M.mangrove) fx.plume = [dc.outfall.x, PLY + dc.outfall.y];
+      // (la desaladora SYNARA va en su propio plano, delante de la colina: R2PLANT.hero)
       const pv = V.pvArray(pb, 330, info.yAt(380, 6) - 1, { tables: M.cold ? 4 : 3, cols: 10, rows: 2, cw: 3, ch: 2, gap: 2, skew: 2, k, shift: 2 });
       fx.glints.push({ x: pv.x0 + 2, y: PLY + pv.y0 + 2, len: pv.x1 - pv.x0 - 4, ph: 0.2, sp: 0.18 });
       if (M.dust) V.dustOn(pb, pv.x0, pv.y0, pv.x1 - pv.x0, pv.y1 - pv.y0, '#c88a50', 0.5);
@@ -25911,7 +26158,6 @@ const SCBEnd = (() => {
     }, {
       tag: 'plain', dyn: (g) => {
         const t = T();
-        if (fx.perm) V.drawFlow(g, fx.perm, 0, PLY, t, { col: '#f4ffff', speed: 10, gap: 5 });
         V.drawPulse(g, fx.glows, 0, 0, t, '#4cd48e', 0.35, 0.2, 2);
         V.drawGlints(g, fx.glints, 0, 0, t);
       },
@@ -25981,17 +26227,26 @@ const SCBEnd = (() => {
         V.drawFauna(g, fx.fauna, 0, 0, t);
       },
     });
+    /* ---------- SYNARA: planta desaladora protagonista en 3/4 (R2PLANT.hero, 17s) ----------
+       Delante de la colina y del llano, sobre el mar entre la cornisa y el barrio: espigón de toma →
+       pretratamiento → membranas → agua potable → emisario de salmuera. Mayor en la victoria técnica;
+       pluma de salmuera más intensa en la deuda. */
+    const PS = M.cold ? 0.7 : 0.62, PRX = M.cold ? 428 : 414, PWY = 147, PLN = 16;
+    fx.r2plume = R2PLANT.plumeStrip({ mode: 'surface', s: M.mangrove ? 1.1 : 0.8, seed: 17, k: M.dust ? 0.12 : 0 });
+    P(PLN, IH - PLN, (pb) => { fx.plant = R2PLANT.hero(pb, PRX, PWY - PLN, { s: PS, k: M.cold ? 0.08 : 0.04, from: 'intake', workers: !M.cold || true, lights: true }); }, {
+      tag: 'synara', dyn: (g) => R2PLANT.drawFx(g, fx.plant, 0, PLN, T(), { plume: fx.r2plume, plumeA: M.mangrove ? 1 : M.festive ? 0.72 : 0.85 }),
+    });
     /* ---------- barrio bajo con vecinos (plano medio) ---------- */
     P(108, 56, (pb, w, h) => {
       const k = 0.03, r = RNG(101);
-      const info = V.relief(pb, { yBase: h - 10, nv: 20, dvy: 0.3, seed: 105, hMax: 30, x0: 250, H: V.massif([{ x: 380, v: 10, h: 18, w: 150, d: 14, k: 1.1 }, { x: 560, v: 10, h: 26, w: 200, d: 16, k: 1.1 }], { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: M.hzc, k0: 0, k: 0.03 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.16 * M.vegK, maxSlope: 1.3, minY: 6, size: 3 } });
+      const info = V.relief(pb, { yBase: h - 10, nv: 20, dvy: 0.3, seed: 105, hMax: 30, x0: R2PLANT_ENDTOWN - 18, H: V.massif([{ x: 380, v: 10, h: 18, w: 150, d: 14, k: 1.1 }, { x: 560, v: 10, h: 26, w: 200, d: 16, k: 1.1 }], { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: M.hzc, k0: 0, k: 0.03 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.16 * M.vegK, maxSlope: 1.3, minY: 6, size: 3 } });
       const GR = V.P32(V.hz(M.dust ? ['#4a3a1c', '#6a5226', '#8a6a32', '#a88440', '#c49c52'] : ['#2a3a0c', '#3b5312', '#597611', '#7b981a', '#9cb42c'], k));
-      for (let x = 250; x < w; x++) for (let y = h - 10; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
-      const town = V.hillTown(pb, { x0: 268, x1: w + 8, seed: 109, k, bunting: M.festive ? 0.9 : M.cold ? 0 : 0.4, lit: M.lit, rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.03) * 1), w: [14, 24], h: [10, 18], gap: [-4, 8], hole: 0.15, veg: 0.85 * M.vegK, vegGap: [10, 24], roofs: M.cold ? ['flat', 'solar', 'flat'] : ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles'], scale: 1.2, s: 2, flowers: M.dust ? 0.05 : 0.5 }] });
+      for (let x = R2PLANT_ENDTOWN - 18; x < w; x++) for (let y = h - 10; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
+      const town = V.hillTown(pb, { x0: R2PLANT_ENDTOWN, x1: w + 8, seed: 109, k, bunting: M.festive ? 0.9 : M.cold ? 0 : 0.4, lit: M.lit, rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.03) * 1), w: [14, 24], h: [10, 18], gap: [-4, 8], hole: 0.15, veg: 0.85 * M.vegK, vegGap: [10, 24], roofs: M.cold ? ['flat', 'solar', 'flat'] : ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles'], scale: 1.2, s: 2, flowers: M.dust ? 0.05 : 0.5 }] });
       for (const [x, y] of town.tops) if (M.festive && hash2(x, y, 11) < 0.3) { const PL = U('#e8e4de'); for (let q = 0; q < 8; q++) V.put(pb, x, y - q, PL); fx.flags.push({ x, y: 108 + y - 8, col: SCBK.CLOTH[(x >> 3) % 6] }); }
       if (M.lit) for (const hs of town.houses) if (hash2(hs.x, 1, 3) < 0.5) fx.lanterns.push([hs.x + 3, 108 + hs.y - hs.h + 2, 3]);
       // vecinos en la calle (más gente en el mosaico; casi nadie en la victoria técnica)
-      for (let i = 0; i < M.folk; i++) { const x = r.int(262, w - 4); SCBK.folk(pb, x, h - 2 - r.int(0, 3), 900 + i, { k, pose: M.festive ? 'cheer' : null, cols: M.cold ? ['#8a94ac', '#c8d0dc', '#5a6a8a'] : null }); }
+      for (let i = 0; i < M.folk; i++) { const x = r.int(R2PLANT_ENDTOWN - 6, w - 4); SCBK.folk(pb, x, h - 2 - r.int(0, 3), 900 + i, { k, pose: M.festive ? 'cheer' : null, cols: M.cold ? ['#8a94ac', '#c8d0dc', '#5a6a8a'] : null }); }
       if (M.festive) { const KC = ['#e83b41', '#f5dc5a', '#8d6bff', '#11bedd', '#ff9f43', '#3fe0a0']; for (let i = 0; i < 4; i++) fx.kites.push({ x: 300 + i * 90, y: 60 + (i % 2) * 12, col: KC[i], sp: 0.6, ph: i, tail: 10, line: [8, 30] }); }
     }, {
       tag: 'low', dyn: (g) => {
@@ -27085,9 +27340,10 @@ BIOMES.coast = function (L) {
     },
   });
   /* ---------------- costa: FV, H₂, planta SYNARA (0,5) ---------------- */
-  const COAST_YS = 96, COAST_LY = planeY(0.5, COAST_YS);
-  const coastFx = { pv: [], glows: [], perm: null, outfall: null, fauna: [] };
-  B.vplane(0.5, COAST_YS, 112, (pb, w, h) => {
+  /* plano alto (208 px) para que quepa la planta protagonista; la línea de costa sigue en pantalla ≈ 192 */
+  const COAST_YS = 0, COAST_LY = planeY(0.5, COAST_YS);
+  const coastFx = { pv: [], glows: [], perm: null, outfall: null, fauna: [], plant: null, plume: null };
+  B.vplane(0.5, COAST_YS, 208, (pb, w, h) => {
     const k = 0.03, r = RNG(81);
     const yB = h - 16; // línea de costa (pantalla ≈ 192)
     const peaks = [
@@ -27119,24 +27375,24 @@ BIOMES.coast = function (L) {
     V.scatterVeg(pb, (x) => info.top[x] < yB - 1 ? info.top[x] + 1 : null, 300, w, 8200, { k, gap: 8, mix: { tree: 3, shrub: 4, palm: 2, flower: 1 } });
     for (let x = 300; x < w; x += r.int(26, 60)) if (info.top[x] < yB - 2) V.palm(pb, x, yB - 1, r.int(18, 28), r.range(-5, 5), 8300 + x, { k });
     // planta de hidrógeno verde en la meseta central
-    const h2 = V.h2Plant(pb, 896, info.yAt(940, 8) - 1, { k, s: 1 });
+    const h2 = V.h2Plant(pb, 880, info.yAt(940, 8) - 1, { k, s: 1.4 }); // grande: su etiqueta señala un objeto visible
     coastFx.glows.push(...h2.glows);
     labels.push({ x: h2.label.x, y: COAST_LY + h2.label.y - 2, f: 0.5, title: 'H₂ VERDE', sub: 'Hidrógeno', kind: 'green', ax: h2.label.x, ay: COAST_LY + h2.label.y + 8 });
-    // cadena desaladora SYNARA en su plataforma sobre la orilla
-    // depósito de agua potable en la ladera (fin de la tubería de permeado, sube hacia el pueblo)
-    const tkX = 568, tkY = (info.onSurf(tkX, 10) ?? 60) + 1;
-    const dc = V.desalChain(pb, 330, yB + 4, { k, s: 1, climb: 0, permTo: [[tkX - 8, yB - 20], [tkX - 8, tkY - 4], [tkX - 6, tkY - 4]] });
-    V.cylV(pb, tkX, tkY, 6, 11, V.ARCH.WHITE, { k, dome: 0.5, bands: [[3, 3, ['#0c2e4a', '#217b9c', '#22c1e7', '#71dfef', '#abfafd']]] });
-    coastFx.perm = dc.perm; coastFx.outfall = dc.outfall;
-    const A = dc.anchors;
+    // PLANTA SYNARA protagonista (R2PLANT) en 3/4 sobre la orilla: pretratamiento → membranas →
+    // agua potable/remineralización → emisario de salmuera. La toma es el muelle del plano jugable.
+    const PL = R2PLANT.hero(pb, R2PLANT_L1.x, yB + 3, { s: R2PLANT_L1.s, k, from: 'pretrat', slope: R2PLANT_L1.slope });
+    coastFx.plant = PL;
+    coastFx.plume = R2PLANT.plumeStrip({ mode: 'surface', s: R2PLANT_L1.s, k, seed: 13 });
+    coastFx.foot = [PL.x0 - 6, PL.x1 + 8];
+    const A = PL.anchors, cx = (a) => [Math.max(0, Math.round(2 * (a - 600))), Math.round(2 * a - 40)];
     labels.push(
-      { x: A.membranas.x - 40, y: COAST_LY + A.membranas.y - 22, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: [0, 760], ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 8 },
-      { x: A.potable.x + 40, y: COAST_LY + A.potable.y - 28, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: [0, 760], ax: A.potable.x + 10, ay: COAST_LY + A.potable.y + 8 },
-      { x: A.salmuera.x - 4, y: COAST_LY + A.salmuera.y - 35, f: 0.5, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', camX: [0, 760], ax: A.salmuera.x + 1, ay: COAST_LY + A.salmuera.y - 2 },
+      { x: A.pretrat.x - 26, y: COAST_LY + A.pretrat.y - 6, f: 0.5, title: 'PRETRATAMIENTO', kind: 'water', camX: cx(A.pretrat.x), ax: A.pretrat.x, ay: COAST_LY + A.pretrat.y + 4 },
+      { x: A.membranas.x + 4, y: COAST_LY + A.membranas.y - 12, f: 0.5, title: 'MEMBRANAS', kind: 'water', camX: cx(A.membranas.x), ax: A.membranas.x, ay: COAST_LY + A.membranas.y + 6 },
+      { x: A.potable.x + 6, y: COAST_LY + A.potable.y - 14, f: 0.5, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', camX: cx(A.potable.x), ax: A.potable.x, ay: COAST_LY + A.potable.y + 6 },
     );
     // rocas en la orilla con espuma
     for (let x = 300; x < w; x += r.int(30, 90)) {
-      if (x > 326 && x < 566) continue;
+      if (x > coastFx.foot[0] && x < coastFx.foot[1]) continue;
       const rw = r.int(4, 9);
       V.ellipse(pb, x, yB + 1, rw, 3, (nx, ny) => V.P32(V.RAMPS.low)[clamp(Math.round(5 - nx * 2 - ny * 3), 0, 9)]);
       for (let q = -rw - 1; q <= rw + 1; q++) V.put(pb, x + q, yB + 3, FOAM[2]);
@@ -27158,16 +27414,11 @@ BIOMES.coast = function (L) {
       }
       // halos esmeralda del H₂ (pulso suave)
       for (const [x, y, r] of coastFx.glows) V.drawGlow(g, x + ox, y + oy, r, '#4cd48e', 0.45 + 0.25 * Math.sin(t * 2 + x));
-      // chevrones del permeado
-      if (coastFx.perm) V.drawFlow(g, coastFx.perm, ox, oy, t, { col: '#f4ffff', speed: 12, gap: 6 });
-      // pluma de salmuera controlada (magenta, se hunde y diluye junto al emisario)
-      if (coastFx.outfall) {
-        const { x, y } = coastFx.outfall;
-        for (let i = 0; i < 12; i++) {
-          const u = ((t * 0.25 + i / 12) % 1), px = x + ox + 1 + u * 16 + Math.sin(i * 2.1 + t) * 1.5, py = y + oy + 1 + u * 3;
-          g.globalAlpha = 0.75 * (1 - u); g.fillStyle = i % 3 ? '#e07ecf' : '#c244a2'; g.fillRect(Math.round(px), Math.round(py), 1 + (u < 0.4 ? 1 : 0), 1);
-        }
-        g.globalAlpha = 1;
+      // planta protagonista: halo pulsante del permeado, chevrones (permeado, energía), LED, farolas,
+      // espuma al pie y pluma de salmuera densa en la boca del emisario
+      if (coastFx.plant) {
+        const P = coastFx.plant;
+        if (P.x1 + ox > -20 && P.x0 + ox < W + 20) R2PLANT.drawFx(g, P, ox, oy, t, { plume: coastFx.plume });
       }
       V.drawFauna(g, coastFx.fauna, ox, oy, t);
       V.drawMotes(g, 16, t, 7, { y0: 60, y1: 200 });
@@ -34509,6 +34760,8 @@ LEVELS[1] = {
     },
     /** Elementos sumergidos: toma con rejilla (bajo la torre), succiones de bombas, arrecifes, cardumen */
     water: { intake: { x: 1462, y: 408, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 22, schools: 6, fishX: [380, 1980] },
+    /** Dentro del corte (tras el agua, antes del terreno): emisario de salmuera con su pluma densa (R2PLANT) */
+    waterFx(g, sc) { R2PLANT.drawOutfall(g, R2PLANT_lv1Outfall(), sc.cam.ox, sc.cam.oy, Game.time, { pipe: false }); },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
       { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
@@ -34528,6 +34781,7 @@ LEVELS[1] = {
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
     { x: 1506, y: 372, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 396 },
     { x: 1250, y: 388, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 408 },
+    { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 448, ay: 318 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
@@ -34584,8 +34838,9 @@ LEVELS[1] = {
     I.box3q(pb, 1516, deckY - 9, 40, 17, 10, { ramp: ['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'], front: (xx, yy, u, v) => PFK.P32(['#0e2a1e', '#1a4a32', '#2a6a48', '#3d926a', '#6ab890', '#a8e0c0'])[(xx - 1516) % 4 === 0 ? 2 : 3 - Math.round(v)] });
     for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < 5; xx++) if (Math.abs(xx - 2) + Math.abs(yy - 2) <= 2) PFK.put(pb, 1546 + xx, deckY - 21 + yy, U(Math.abs(xx - 2) + Math.abs(yy - 2) === 2 ? '#2a282e' : '#ffd84a'));
     I.cylV(pb, 1586, deckY - 8, 8, 50, { dome: 0.5, bands: [{ y: 9, h: 3 }, { y: 38, h: 2 }], ladder: true, plate: '#11bedd', stain: true });
-    // bandeja de cables: transformador → casa de bombas
-    for (let x = 1146; x < 1182; x++) { PFK.put(pb, x, 238, U('#2a282e')); PFK.put(pb, x, 239, U('#4f4d51')); if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76')); }
+    // bandeja de cables: transformador → casa de bombas (conducto eléctrico con alma amarilla, PFInfra.powerLine)
+    for (let x = 1146; x < 1182; x++) if (x % 6 === 0) for (let y = 240; y < deckY - 9; y++) PFK.put(pb, x, y, U('#716f76'));
+    for (const run of LV1_POWER) if (run.conduit) I.powerLine(pb, run.pts, { boxes: run.boxes });
     // succión: torre → nave de rejas → casa de bombas; impulsión: casa de bombas → filtros
     I.pipe(pb, [[1432, 238], [1398, 238]], 3, 'sea', { flange: 12 });
     I.pipe(pb, [[1302, 238], [1272, 238]], 3, 'sea', { flange: 12 });
@@ -34611,6 +34866,9 @@ LEVELS[1] = {
     for (const [x, h, l] of [[1940, 60, 6], [2160, 74, -6], [2290, 56, 4], [2440, 80, -8], [2580, 62, 5]]) F.palm(pb, x, back(x) + 2, h, l, x);
     F.tree(pb, 2060, back(2060) + 3, 62, 93); F.tree(pb, 2390, back(2390) + 3, 54, 94, { wide: 1.1 });
     for (let x = 1900; x < 2600; x += 40 + r.int(0, 40)) rockPile(pb, x, back(x) + 5, 14 + r.int(0, 12), 6 + r.int(0, 5), x + 7);
+    // tendido aéreo de la subestación (derecha) hacia las bombas de la toma: energía en amarillo
+    const aer = I.powerLine(pb, LV1_POLES.map((x) => [x, back(x) + 2 - 50]), { style: 'aerial', sag: 7, groundAt: (x) => back(x) + 3 });
+    LV1_POWER.find((r) => r.aerial).pts = aer.pts;
     PFSigns.post(pb, 2440, gy(2440) - 7, [{ text: 'PLANTA OI' }, { text: 'LA TOMA', dir: -1 }], 19); // 100 px antes de la salida (2540): KIRU no lo tapa
     F.hibiscusBush(pb, 2470, gy(2470) - 5, 20, 14, 95);
   },
@@ -34643,6 +34901,7 @@ LEVELS[1] = {
     // flujos en tuberías (chevrones): agua de mar turquesa y agua pretratada azul claro
     PFInfra.drawFlows(g, sc, LV1_FLOWS);
     PFInfra.drawLeds(g, sc, LV1_LEDS);
+    PFInfra.drawPower(g, sc, LV1_POWER);
     // luz de advertencia de la torre (mástil) — verde en servicio, roja con la compuerta cerrada
     const on = Math.floor(t * 2) % 2;
     if (on) { const lx = 1476 - ox, ly = 134 - oy; frect(g, lx - 1, ly, 3, 3, S.gateClosed ? '#ff4e5d' : '#3fe0a0'); PFK.drawGlow(g, lx + 0.5, ly + 1.5, 5, S.gateClosed ? '#ff4e5d' : '#3fe0a0', 0.6); }
@@ -34659,6 +34918,8 @@ LEVELS[1] = {
     frect(g, gx - 5, gy2 + 2, 3, 1, '#3fe0a0'); frect(g, gx + 3, gy2 + 2, 3, 1, '#ff4e5d');
     fline(g, gx, gy2, gx + Math.cos(a) * 5, gy2 + Math.sin(a) * 5, dp > 0.7 ? '#ff4e5d' : '#140d26');
   },
+  /** Tubería del emisario por delante de la cara de la playa y de la cresta (la pluma va en pf.waterFx) */
+  renderFront(g, sc) { R2PLANT.drawOutfall(g, R2PLANT_lv1Outfall(), sc.cam.ox, sc.cam.oy, Game.time, { plume: false }); },
   renderGrade(g, sc) {
     const S = sc.state;
     if (S.storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.storm * 0.55; frect(g, 0, 0, W, H, '#c09070'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
@@ -34772,6 +35033,13 @@ const LV1_FLOWS = [
   { pts: [[1650, 216], [1804, 216]], kind: 'sea', rate: (sc) => sc.state.gateClosed ? 0 : (sc.state.q || 100) / 100 },
   { pts: [[1656, 264], [1872, 264], [1872, 268], [1995, 268], [1995, 252], [2125, 252], [2125, 236], [2345, 236], [2345, 222], [2600, 222]], kind: 'pre', rate: 0.8 },
 ];
+/** Energía (amarillo): conductos en el muelle y tendido aéreo del sendero (pts del cable al prerender) */
+const LV1_POLES = [2520, 2400, 2276, 2152, 2030];
+const LV1_POWER = [
+  { pts: [[1146, 236], [1182, 236]], conduit: true, rate: (sc) => sc.state.gateClosed ? 0.25 : (sc.state.q || 100) / 100 },
+  { pts: [[1274, 264], [1424, 264]], conduit: true, boxes: true, rate: (sc) => sc.state.gateClosed ? 0.25 : (sc.state.q || 100) / 100 },
+  { pts: [], aerial: true, rate: 1, gap: 11 },
+];
 const LV1_LEDS = [
   { x: 1065, y: 271, col: '#3fe0a0', hz: 1 }, { x: 1067, y: 271, col: '#ffd84a', hz: 1.7, ph: 0.3 },
   { x: 1284, y: 249, col: '#3fe0a0', hz: 1.2 }, { x: 1286, y: 249, col: '#ff5a4a', hz: 2, ph: 0.5 },
@@ -34779,6 +35047,18 @@ const LV1_LEDS = [
   { x: 1446, y: 220, col: '#17f3f7', hz: 1.5 }, { x: 1628, y: 240, col: '#3fe0a0', hz: 1.1 }, { x: 1817, y: 262, col: '#ff9f43', hz: 1.8 },
 ];
 LEVELS[1].pf.fauna = { eagle: { x0: 60, x1: 760, y: 70 }, gulls: [{ x: 300, y: 90, n: 4 }, { x: 900, y: 110, n: 3 }, { x: 1500, y: 80, n: 4 }, { x: 2200, y: 100, n: 3 }], drones: [{ x: 1600, y: 168, r: 30 }, { x: 2300, y: 150, r: 40 }] };
+
+/* ---------------- emisario de salmuera en el corte (R2PLANT) ---------------- */
+/** Baja de la playa, gira mar adentro y descarga bajo la superficie, lejos de la toma
+    (x 1462): la pluma densa cae, se pega al lecho y se diluye. Prerender perezoso (una vez). */
+let R2PLANT_LV1_OUT = null;
+function R2PLANT_lv1Outfall() {
+  if (!R2PLANT_LV1_OUT) {
+    const bed = (x) => LEVELS[1].pf.bedAt(x);
+    R2PLANT_LV1_OUT = R2PLANT.outfall([[398, 299], [398, 312], [434, 312]], { r: 6, flange: 14, bed: bed(480) - 2, bedAt: (x) => bed(x) - 2, w: 176, seed: 23, s: 1.2, water: { wy: 296 } });
+  }
+  return R2PLANT_LV1_OUT;
+}
 
 /* ---------------- piezas del guion ---------------- */
 function kiruEcho(sc, id, text) {

@@ -17,6 +17,8 @@
               pluma de salmuera; plan de reparación con plantones.
    SCBEnd.make(id) → {draw(g, t)}  (prerender ≈ 300–500 ms; ≈250 fillRect/cuadro)
    ===================================================================== */
+/** El barrio bajo de los finales empieza a la derecha de la planta protagonista */
+const R2PLANT_ENDTOWN = 452;
 const SCBEnd = (() => {
   const V = VISTA;
   const IH = 164; // alto de la ilustración
@@ -119,10 +121,7 @@ const SCBEnd = (() => {
       V.fields(pb, 300, w, yB + 3, h, { k: 0.08, seed: 75, gold: M.gold, irrig: !M.dust });
       const SAND = V.P32(V.hz(['#c58440', '#edaf5f', '#fccf85'], k)), FOAM = V.P32(['#7cdfec', '#d2ecee', '#ffffff']);
       for (let x = 150; x < w; x++) { V.put(pb, x, yB, SAND[2]); V.put(pb, x, yB + 1, SAND[1]); V.put(pb, x, yB + 2, SAND[0]); if (info.top[x] >= yB) V.put(pb, x, yB - 1, FOAM[(x >> 2) % 3 === 0 ? 2 : 1]); for (let y = yB + 3; y < h; y++) if (x < 300) V.put(pb, x, y, SAND[y > yB + 6 ? 0 : 1]); }
-      // la desaladora SYNARA, con el mismo orden de proceso del Nivel 1 (más grande en la victoria técnica)
-      const dc = V.desalChain(pb, M.cold ? 168 : 178, yB + 3, { k, s: M.cold ? 0.62 : 0.52, climb: 5 });
-      fx.perm = dc.perm;
-      if (M.mangrove) fx.plume = [dc.outfall.x, PLY + dc.outfall.y];
+      // (la desaladora SYNARA va en su propio plano, delante de la colina: R2PLANT.hero)
       const pv = V.pvArray(pb, 330, info.yAt(380, 6) - 1, { tables: M.cold ? 4 : 3, cols: 10, rows: 2, cw: 3, ch: 2, gap: 2, skew: 2, k, shift: 2 });
       fx.glints.push({ x: pv.x0 + 2, y: PLY + pv.y0 + 2, len: pv.x1 - pv.x0 - 4, ph: 0.2, sp: 0.18 });
       if (M.dust) V.dustOn(pb, pv.x0, pv.y0, pv.x1 - pv.x0, pv.y1 - pv.y0, '#c88a50', 0.5);
@@ -135,7 +134,6 @@ const SCBEnd = (() => {
     }, {
       tag: 'plain', dyn: (g) => {
         const t = T();
-        if (fx.perm) V.drawFlow(g, fx.perm, 0, PLY, t, { col: '#f4ffff', speed: 10, gap: 5 });
         V.drawPulse(g, fx.glows, 0, 0, t, '#4cd48e', 0.35, 0.2, 2);
         V.drawGlints(g, fx.glints, 0, 0, t);
       },
@@ -205,17 +203,26 @@ const SCBEnd = (() => {
         V.drawFauna(g, fx.fauna, 0, 0, t);
       },
     });
+    /* ---------- SYNARA: planta desaladora protagonista en 3/4 (R2PLANT.hero, 17s) ----------
+       Delante de la colina y del llano, sobre el mar entre la cornisa y el barrio: espigón de toma →
+       pretratamiento → membranas → agua potable → emisario de salmuera. Mayor en la victoria técnica;
+       pluma de salmuera más intensa en la deuda. */
+    const PS = M.cold ? 0.7 : 0.62, PRX = M.cold ? 428 : 414, PWY = 147, PLN = 16;
+    fx.r2plume = R2PLANT.plumeStrip({ mode: 'surface', s: M.mangrove ? 1.1 : 0.8, seed: 17, k: M.dust ? 0.12 : 0 });
+    P(PLN, IH - PLN, (pb) => { fx.plant = R2PLANT.hero(pb, PRX, PWY - PLN, { s: PS, k: M.cold ? 0.08 : 0.04, from: 'intake', workers: !M.cold || true, lights: true }); }, {
+      tag: 'synara', dyn: (g) => R2PLANT.drawFx(g, fx.plant, 0, PLN, T(), { plume: fx.r2plume, plumeA: M.mangrove ? 1 : M.festive ? 0.72 : 0.85 }),
+    });
     /* ---------- barrio bajo con vecinos (plano medio) ---------- */
     P(108, 56, (pb, w, h) => {
       const k = 0.03, r = RNG(101);
-      const info = V.relief(pb, { yBase: h - 10, nv: 20, dvy: 0.3, seed: 105, hMax: 30, x0: 250, H: V.massif([{ x: 380, v: 10, h: 18, w: 150, d: 14, k: 1.1 }, { x: 560, v: 10, h: 26, w: 200, d: 16, k: 1.1 }], { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: M.hzc, k0: 0, k: 0.03 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.16 * M.vegK, maxSlope: 1.3, minY: 6, size: 3 } });
+      const info = V.relief(pb, { yBase: h - 10, nv: 20, dvy: 0.3, seed: 105, hMax: 30, x0: R2PLANT_ENDTOWN - 18, H: V.massif([{ x: 380, v: 10, h: 18, w: 150, d: 14, k: 1.1 }, { x: 560, v: 10, h: 26, w: 200, d: 16, k: 1.1 }], { seed: 105, rough: 0.4, scale: 0.06, apron: 3 }), ramp: V.RAMPS.low, contrast: 1.7, facet: 0.25, haze: { col: M.hzc, k0: 0, k: 0.03 }, rim: M.rimN, tex: 0.06, veg: { ramp: V.RAMPS.vegLow, density: 0.16 * M.vegK, maxSlope: 1.3, minY: 6, size: 3 } });
       const GR = V.P32(V.hz(M.dust ? ['#4a3a1c', '#6a5226', '#8a6a32', '#a88440', '#c49c52'] : ['#2a3a0c', '#3b5312', '#597611', '#7b981a', '#9cb42c'], k));
-      for (let x = 250; x < w; x++) for (let y = h - 10; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
-      const town = V.hillTown(pb, { x0: 268, x1: w + 8, seed: 109, k, bunting: M.festive ? 0.9 : M.cold ? 0 : 0.4, lit: M.lit, rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.03) * 1), w: [14, 24], h: [10, 18], gap: [-4, 8], hole: 0.15, veg: 0.85 * M.vegK, vegGap: [10, 24], roofs: M.cold ? ['flat', 'solar', 'flat'] : ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles'], scale: 1.2, s: 2, flowers: M.dust ? 0.05 : 0.5 }] });
+      for (let x = R2PLANT_ENDTOWN - 18; x < w; x++) for (let y = h - 10; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
+      const town = V.hillTown(pb, { x0: R2PLANT_ENDTOWN, x1: w + 8, seed: 109, k, bunting: M.festive ? 0.9 : M.cold ? 0 : 0.4, lit: M.lit, rows: [{ y: (x) => h - 4 + Math.round(Math.sin(x * 0.03) * 1), w: [14, 24], h: [10, 18], gap: [-4, 8], hole: 0.15, veg: 0.85 * M.vegK, vegGap: [10, 24], roofs: M.cold ? ['flat', 'solar', 'flat'] : ['terrace', 'tiles', 'dome', 'solar', 'terrace', 'tiles'], scale: 1.2, s: 2, flowers: M.dust ? 0.05 : 0.5 }] });
       for (const [x, y] of town.tops) if (M.festive && hash2(x, y, 11) < 0.3) { const PL = U('#e8e4de'); for (let q = 0; q < 8; q++) V.put(pb, x, y - q, PL); fx.flags.push({ x, y: 108 + y - 8, col: SCBK.CLOTH[(x >> 3) % 6] }); }
       if (M.lit) for (const hs of town.houses) if (hash2(hs.x, 1, 3) < 0.5) fx.lanterns.push([hs.x + 3, 108 + hs.y - hs.h + 2, 3]);
       // vecinos en la calle (más gente en el mosaico; casi nadie en la victoria técnica)
-      for (let i = 0; i < M.folk; i++) { const x = r.int(262, w - 4); SCBK.folk(pb, x, h - 2 - r.int(0, 3), 900 + i, { k, pose: M.festive ? 'cheer' : null, cols: M.cold ? ['#8a94ac', '#c8d0dc', '#5a6a8a'] : null }); }
+      for (let i = 0; i < M.folk; i++) { const x = r.int(R2PLANT_ENDTOWN - 6, w - 4); SCBK.folk(pb, x, h - 2 - r.int(0, 3), 900 + i, { k, pose: M.festive ? 'cheer' : null, cols: M.cold ? ['#8a94ac', '#c8d0dc', '#5a6a8a'] : null }); }
       if (M.festive) { const KC = ['#e83b41', '#f5dc5a', '#8d6bff', '#11bedd', '#ff9f43', '#3fe0a0']; for (let i = 0; i < 4; i++) fx.kites.push({ x: 300 + i * 90, y: 60 + (i % 2) * 12, col: KC[i], sp: 0.6, ph: i, tail: 10, line: [8, 30] }); }
     }, {
       tag: 'low', dyn: (g) => {
