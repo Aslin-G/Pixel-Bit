@@ -22749,13 +22749,19 @@ const R2TERRAIN_Rock = (() => {
   const LXY = Math.hypot(LV[0], LV[1]), SDX = LV[0] / LXY, SDY = LV[1] / LXY, SLOPE = LV[2] / LXY;
   const NONE = -999;
   const _r17 = new Map();
+  /** Realce de croma (u32 ABGR): aleja cada canal de la luminancia */
+  function sat(u, k) {
+    const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, l = 0.3 * r + 0.55 * g + 0.15 * b;
+    const f = (c) => clamp(Math.round(l + (c - l) * k), 0, 255);
+    return ((u >>> 24) << 24 | f(b) << 16 | f(g) << 8 | f(r)) >>> 0;
+  }
   /** Rampa de 17 tonos interpolada + versión en sombra (desvío a granate-violeta) */
   function ramp17(ramp, hue = '#2a0c2e') {
     const key = ramp; let o = _r17.get(key); if (o && o.hue === hue) return o;
     const P = K.P32(ramp), n = P.length, N = 17, lit = new Uint32Array(N), sh = new Uint32Array(N), V = U(hue);
     for (let i = 0; i < N; i++) {
       const a = i / (N - 1) * (n - 1), i0 = Math.floor(a), i1 = Math.min(n - 1, i0 + 1);
-      lit[i] = K.mixU(P[i0], P[i1], a - i0);
+      lit[i] = sat(K.mixU(P[i0], P[i1], a - i0), 1.16);
       sh[i] = K.mixU(lit[i], V, 0.1 + 0.26 * (1 - i / (N - 1)));
     }
     o = { lit, sh, N, hue }; _r17.set(key, o); return o;
@@ -22767,7 +22773,13 @@ const R2TERRAIN_Rock = (() => {
     const mMin = o.mMin || 64, mMax = o.mMax || 170, cMin = o.cMin || 14, cMax = o.cMax || 34;
     for (let x = bx0 - r.int(0, 40); x < bx1 + 10;) {
       const mw = r.int(mMin, mMax), i = ms.length;
-      const m = { i, x0: x, x1: x + mw, pro: r() * 7, lean: (r() - 0.5) * 0.14, sd: r.int(1, 1e6), gw: r.int(2, 4), notch: r.int(4, 11), tier: null, tier2: null };
+      const m = { i, x0: x, x1: x + mw, pro: r() * 7, lean: (r() - 0.5) * 0.14, sd: r.int(1, 1e6), gw: r.int(2, 5), notch: r.int(4, 11), tier: null, tier2: null,
+        // forma de macizo: arista vertical (plano izquierdo a la luz, derecho en sombra), cuerpo que se adelanta
+        // o retrocede con la profundidad y tono propio (macizos distintos a 640 px)
+        ridge: x + mw * (0.3 + r() * 0.45), rk: 0.12 + r() * 0.22, rkR: 0.2 + r() * 0.3, bul: (r() - 0.35) * 0.06, malb: (r() - 0.5) * 0.14, cave: null };
+      // contrafuertes (macizos muy salientes que arrojan sombra granate sobre el vecino) y huecos/cuevas
+      if (o.buttress !== false && r() < 0.38) { m.pro = 11 + r() * 9; m.malb += 0.05; }
+      if (o.caves !== false && r() < 0.32) m.cave = { cx: x + mw * (0.25 + r() * 0.5), d: r.int(34, 130), rx: r.int(7, 16), ry: r.int(6, 13), dep: 9 + r() * 8 };
       if (o.tiers !== false) {
         const k = r();
         const mk = (dMin, dMax, kind) => ({ d: r.int(dMin, dMax), kind, amt: r.int(4, 9), x0: x + r.int(0, Math.round(mw * 0.35)), x1: x + mw - r.int(0, Math.round(mw * 0.35)) });
@@ -22782,8 +22794,8 @@ const R2TERRAIN_Rock = (() => {
         // bloques escalonados: cada bloque inferior sobresale un poco más (vista en 3/4 desde arriba: se ven sus
         // cabezas iluminadas); algunos retroceden (voladizo con sombra arrojada)
         const br = []; let d = r.int(10, 34), acc = 0;
-        while (d < h + 40) { acc += r() < 0.18 ? -(1.5 + r() * 2) : 0.4 + r() * 2.2; br.push({ d, tilt: (r() - 0.5) * 0.5, off: acc, bt: r.int(2, 5), bb: r.int(1, 3), joint: r() < 0.85, iL: r.int(0, 2), iR: r.int(0, 2), rc: r.int(2, 6), jw: r() < 0.45 ? 2 : 1 }); d += r.int(18, 50); }
-        cols.push({ i: cols.length, x0: cx, x1: cx + cw, m, pro: (r() - 0.5) * 4.2, bl: r.int(2, 6), brw: r.int(1, 3), sd: r.int(1, 1e6), cap: r.int(2, 9), fused: r() < 0.3, br, off0: (r() - 0.5) * 3, hang: r() < 0.16 });
+        while (d < h + 40) { acc += r() < 0.18 ? -(1.5 + r() * 2) : 0.4 + r() * 2.2; br.push({ d, tilt: (r() - 0.5) * 0.5, off: acc, bt: r.int(2, 5), bb: r.int(1, 3), joint: r() < 0.74, iL: r.int(0, 2), iR: r.int(0, 2), rc: r.int(2, 6), jw: r() < 0.45 ? 2 : 1 }); d += r.int(20, 54); }
+        cols.push({ i: cols.length, x0: cx, x1: cx + cw, m, pro: (r() - 0.5) * 4.2, bl: r.int(2, 6), brw: r.int(1, 3), sd: r.int(1, 1e6), cap: r.int(2, 9), fused: r() < 0.38, br, off0: (r() - 0.5) * 3, hang: r() < 0.16 });
         cx += cw;
       }
       m.c1 = cols.length;
@@ -22807,7 +22819,7 @@ const R2TERRAIN_Rock = (() => {
     const eM = new Int32Array(ms.length), eC = new Int32Array(cols.length);
     const gyAt = (x) => gyA[clamp(x - bx0, 0, w - 1)];
     const screeD = o.scree === false ? 1e9 : (o.screeD ?? 120);
-    const chipW = o.chip === false ? 0 : 11, chipH = 13;
+    const chipW = o.chip === false ? 0 : 13, chipH = 15;
     for (let y = 0; y < h; y++) {
       // bordes de macizo y de columna en esta fila (serpentean con y, se inclinan con la profundidad)
       for (let i = 0; i < ms.length; i++) {
@@ -22834,7 +22846,8 @@ const R2TERRAIN_Rock = (() => {
         const left = eC[ci], right = ci + 1 < cols.length ? eC[ci + 1] : c.x1;
         const dl = x - left, dr = right - 1 - x;
         const mL = ci === m.c0, mR = ci + 1 === m.c1;
-        let hg = m.pro + c.pro, alb = 1 + (hash1(ci, sd + 77) - 0.5) * 0.09 + (m.pro / 7 - 0.5) * 0.14, fl = 0;
+        let hg = m.pro + c.pro, alb = 1 + (hash1(ci, sd + 77) - 0.5) * 0.09 + (m.pro / 7 - 0.5) * 0.14 + m.malb, fl = 0;
+        { const rx = x - m.ridge - m.lean * Math.max(0, d), q = rx < 0 ? -rx * m.rk : rx * m.rkR; hg -= 14 * Math.tanh(q / 14); hg += m.bul * Math.min(d, 160); }
         // canto superior (cara superior vista en 3/4) con muesca en los barrancos
         const notch = mL && dl < m.gw + 3 ? m.notch - Math.max(0, dl - m.gw) * 2 : 0;
         const cap = o.cap === false ? 0 : Math.max(c.cap, notch);
@@ -22858,7 +22871,8 @@ const R2TERRAIN_Rock = (() => {
           // fuera de las esquinas → grieta en V; dentro, perfil por lado: cabeza ancha iluminada arriba,
           // bisel de luz a la izquierda, bisel de sombra a la derecha y panza oscura abajo
           const fusedL = c.fused && !mL && !(b && b.iL);
-          const exL = fusedL ? 99 : el, exR = er + 1;
+          const nc = cols[ci + 1], fusedR = nc && nc.fused && !mR && !(b && b.iR);
+          const exL = fusedL ? 99 : el, exR = fusedR ? 99 : er + 1;
           const eyT = b && b.joint ? dt - b.jw + 1 : dt + 99, eyB = nb && nb.joint ? db + 1 : db + 99;
           const ex = Math.min(exL, exR), ey = Math.min(eyT, eyB), rc = b ? b.rc : 3;
           const e = (ex < rc && ey < rc) ? rc - Math.hypot(rc - ex, rc - ey) : Math.min(ex, ey);
@@ -22889,12 +22903,17 @@ const R2TERRAIN_Rock = (() => {
           if (T.kind > 0) { if (d >= td + 4) hg += T.amt; else if (d >= td) { hg += T.amt * (d - td + 1) / 5; if (!fl) fl = 5; } }
           else { if (d < td - 1) hg += T.amt; else if (d < td + 1) hg += T.amt * (td + 1 - d) / 3; }
         }
+        // cueva / hueco: cuenco que se hunde con borde irregular (sombra arrojada y oclusión profundas)
+        if (m.cave) {
+          const C = m.cave, ex = (x - C.cx) / C.rx, ey = (d - C.d) / C.ry, rr = ex * ex + ey * ey + (K.vn(x * 0.2, y * 0.2, sd + 50) - 0.5) * 0.5;
+          if (rr < 1) { hg -= C.dep * Math.sqrt(1 - rr); alb -= 0.08; if (rr < 0.55) fl = fl || 6; }
+        }
         // estratos (albedo y juntas de estratificación que se interrumpen)
         if (o.strata !== false) {
-          const sv = d + (K.vn(x * 0.012, 3.3, sd) - 0.5) * 16 + (K.vn(x * 0.05, 4.1, sd) - 0.5) * 4;
-          const band = Math.floor(sv / 15), bf = sv - band * 15;
-          alb += (hash1(band, sd + 5) - 0.5) * 0.12;
-          if (bf < 1 && d > cap + 2 && K.vn(x * 0.06, band, sd + 6) > 0.5) hg -= 1.3;
+          const sv = d + (K.vn(x * 0.012, 3.3, sd) - 0.5) * 22 + (K.vn(x * 0.05, 4.1, sd) - 0.5) * 5;
+          const band = Math.floor(sv / 23), bf = sv - band * 23;
+          alb += (hash1(band, sd + 5) - 0.5) * 0.1;
+          if (bf < 1 && d > cap + 2 && K.vn(x * 0.045, band, sd + 6) > 0.68) hg -= 1.1;
         }
         // vetas de humedad bajo las juntas (oscuras y verticales)
         if (hash1(x, sd + 8) < 0.07 && K.vn(x * 0.3, y * 0.04, sd + 9) > 0.55) alb -= 0.08;
@@ -22942,11 +22961,12 @@ const R2TERRAIN_Rock = (() => {
         const mean = cnt ? (S[yb * SW + xb] - S[ya * SW + xb] - S[yb * SW + xa] + S[ya * SW + xa]) / cnt : h0;
         const ao = Math.min(0.2, Math.max(0, mean - h0) * 0.028);
         const d = y - gyA[x], fl = F[i];
-        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 80) / 170, 0, 0.28);
-        t += (hash2((bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * 0.055;
+        let t = A[i] * (0.2 + 0.8 * lam * (1 - 0.72 * sh)) - ao - clamp((d - 70) / 160, 0, 0.34);
+        t += (hash2((bx0 + x) >> 1, y >> 1, sd + 31) - 0.5) * 0.042;
         if (fl === 1 || fl === 2) t = Math.min(t, fl === 2 ? 0.13 + (d < 8 ? 0.2 : 0) : 0.24);
+        else if (fl === 6) t = Math.min(t, 0.1 + lam * 0.12);
         const k = clamp(Math.round(t * 16), 1, fl === 3 ? 16 : 14);
-        const cool = clamp(sh * 0.9 + (fl === 2 ? 0.8 : fl === 1 ? 0.5 : 0) + clamp((d - 90) / 120, 0, 0.5), 0, 1);
+        const cool = clamp(sh * 0.9 + (fl === 2 ? 0.8 : fl === 1 ? 0.5 : fl === 6 ? 0.9 : 0) + clamp((d - 90) / 120, 0, 0.5), 0, 1);
         let u = cool > 0.05 ? K.mixU(RR.lit[k], RR.sh[k], cool) : RR.lit[k];
         if (fl === 3 && d <= 1 && k > 11) u = K.mixU(u, lip, 0.6);
         buf[i] = u;
