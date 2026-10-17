@@ -27428,7 +27428,7 @@ const R2LIGHT_TOD = {
   },
   dusk: {
     // atardecer: oscuros hacia índigo, medios hacia terracota, luces hacia oro (sin malva: no sube el magenta)
-    grade: { map: ['#1a1040', '#38245e', '#6a4060', '#b86a52', '#f6a058', '#ffe2a8'], mapK: 0.24, shade: '#2c1a5c', shadeK: 0.18, lift: '#ffc070', liftK: 0.16, sat: 1.16, warmMag: 0.5, vgrad: [0.03, -0.07] },
+    grade: { map: ['#1a1040', '#38245e', '#6a4060', '#b86a52', '#f6a058', '#ffe2a8'], mapK: 0.14, shade: '#2c1a5c', shadeK: 0.2, lift: '#ffb468', liftK: 0.3, sat: 1.14, warmMag: 0.5, vgrad: [0.03, -0.07] },
     rim: { col: '#ffb070', k: 0.62, side: 1, terrain: 0.6 },
     cast: { col: '#4a2a7a', a: 0.5, len: 1.7, maxLen: 110, hMax: 64, lit: '#ffa860', litK: 0.22 },
     char: { mul: '#ffdccc', mulK: 0.3, shade: '#3a1d62', shadeK: 0.22, lift: '#ffc090', liftK: 0.22, rim: '#ffc27a', rimK: 0.8, shadowCol: '#2a1040', shadowA: 0.66, cast: 1.6, castA: 0.44 },
@@ -27463,13 +27463,13 @@ const R2LIGHT_CFG = {
   6: { tod: 'interior', env: 'tech',
     shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.35, slant: 0.22, wTop: 0.5, wBot: 0.8, col: '#a8e4ff', a: 0.1, soft: 0.9, pool: { col: '#b8ecff', a: 0.55 }, on: (sc) => !sc.state.blackout },
     lampPools: { a: 0.3, wk: 4.5, reach: 160 }, arcs: { top: 198, col: '#a6e6ff', a: 0.85 } },
-  7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0.2, shade: '#2a1e5e', shadeK: 0.16, lift: '#ffc080', liftK: 0.14, sat: 1.18, warmMag: 0.3, vgrad: [0.03, -0.07] } },
+  7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.28, sat: 1.16, warmMag: 0.3, vgrad: [0.03, -0.07] } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk',
     shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },
     lampPools: { a: 0.36, wk: 5, reach: 170 }, grade: { mul: '#ffe0d4', mulK: 0.16, shade: '#2a1a50', shadeK: 0.22, lift: '#ffc898', liftK: 0.16, sat: 1.14, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
-  11: { tod: 'dusk', env: 'dusk', grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.24, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc878', liftK: 0.14, sat: 1.14, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
+  11: { tod: 'dusk', env: 'dusk', grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.14, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc070', liftK: 0.26, sat: 1.12, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };
 
 const R2LIGHT = (() => {
