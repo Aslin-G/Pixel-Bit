@@ -5100,7 +5100,11 @@ const RAMP_CH = {
   sockAm: ['#5a3a1a', '#a8784a', '#d8a868', '#f7c782', '#fbe0b0', '#fff4dc'],
   tieAm: ['#3a2606', '#7a5a10', '#b88a18', '#e6b422', '#ffd84a', '#fff08a'],
   strapNavy: ['#08080f', '#14162a', '#1e2340', '#2a3358', '#3a4670', '#56648c'],
-  flapAm: ['#1e0a04', '#4a1e0c', '#7a3412', '#a8521e', '#cc7432', '#e8984c', '#f6c07a'],
+  // r2-chars: cuero óxido de la mochila de la referencia (mediana #832d1a, brillo naranja)
+  flapAm: ['#1c0604', '#3e1008', '#661c0c', '#8c2e14', '#b0441c', '#d0622a', '#ec8c44'],
+  // r2-chars: cuerpo y bolsillo de la mochila en pizarra-navy (la referencia es oscura y poco saturada)
+  packSlateAm: ['#0a0c1c', '#161a32', '#22294a', '#323c62', '#4a5680', '#6e7ca2', '#a4b0cc'],
+  packPktAm: ['#10142a', '#1e2440', '#2e3658', '#444e72', '#606c8e', '#8692b0', '#b8c2d8'],
   denim: ['#0a1428', '#122446', '#1c3866', '#2a5088', '#3e6ca8', '#6a92c8', '#a8c4e4'],
   khaki: ['#2a2010', '#4a3a1e', '#6e5a32', '#94804a', '#b8a468', '#d6c690', '#efe4bc'],
   cream: ['#3a2a1e', '#6a5440', '#9a8264', '#c4ae8c', '#e4d4b4', '#f8eedc', '#ffffff'],
@@ -5140,9 +5144,9 @@ function charMats() {
     skinAm: Mat({ ramp: R2.skinAm, outline: '#602316', line: R2.skinAm[2] }),
     jacketAm: Mat({ ramp: R2.jacketAm, outline: '#4b0706', line: R2.jacketAm[1] }),
     topAm: Mat({ ramp: R2.topAm, outline: '#2a1a20', line: R2.topAm[1] }),
-    packAm: Mat({ ramp: R2.packSteel, outline: '#171d35', line: R2.packSteel[1] }),
+    packAm: Mat({ ramp: RAMP_CH.packSlateAm, outline: '#0a0c1c', line: RAMP_CH.packSlateAm[1] }),
     // r2-chars: bolsillo exterior (acero algo más azul) y esterilla enrollada (terracota)
-    packAm2: Mat({ ramp: ['#0a1424', '#142a46', '#1e4466', '#2e5f86', '#4a7ea4', '#7aa6c4', '#b4d2e4'], outline: '#0e1530', line: '#142a46' }),
+    packAm2: Mat({ ramp: RAMP_CH.packPktAm, outline: '#0c0e20', line: RAMP_CH.packPktAm[1] }),
     rollAm: Mat({ ramp: RAMP_CH.terracotta, outline: '#2a0a04', line: RAMP_CH.terracotta[1] }),
     leatherAm: Mat({ ramp: R2.leatherAm, outline: '#1e0a04', line: R2.leatherAm[1] }),
     flapAm: Mat({ ramp: RAMP_CH.flapAm, outline: '#1e0a04', line: RAMP_CH.flapAm[1] }),
@@ -7546,7 +7550,7 @@ PDEFS.amaya = () => {
   const M = {
     skin: PK.mat(R.skinAm, '#602316', R.skinAm[2]), hair: PK.mat(['#1c0503', '#33100a', '#4e1c10', '#6e2c18', '#8e4022', '#b05a30', '#d07c46', '#eaa064'], '#1a0405', '#33100a'),
     jacket: PK.mat(R.jacketAm, '#4b0706', R.jacketAm[2]), top: PK.mat(R.topAm, '#2a1a20', R.topAm[2]),
-    pack: PK.mat(R.packSteel, '#171d35', R.packSteel[1]), flap: PK.mat(C.flapAm, '#1e0a04', C.flapAm[1]), leather: PK.mat(R.leatherAm, '#1e0a04', R.leatherAm[1]),
+    pack: PK.mat(C.packSlateAm, '#0a0c1c', C.packSlateAm[1]), flap: PK.mat(C.flapAm, '#1e0a04', C.flapAm[1]), leather: PK.mat(R.leatherAm, '#1e0a04', R.leatherAm[1]),
     strap: PK.mat(C.strapNavy, '#070813', C.strapNavy[0]), frame: PK.mat(R.gogFrame, '#0e0a14', R.gogFrame[1]), lens: PK.mat(R.gogLens, '#06202e', R.gogLens[1]),
     tie: PK.mat(C.tieAm, '#2a1404', C.tieAm[1]),
   };
