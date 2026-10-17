@@ -27453,14 +27453,20 @@ const R2LIGHT_TOD = {
 const R2LIGHT_CFG = {
   0: { tod: 'day' },
   1: { tod: 'day' },
-  2: { tod: 'interior', env: 'tech' },
+  2: { tod: 'interior', env: 'tech',
+    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, col: '#fff0d0', a: 0.22, pool: { col: '#fff4dc', a: 0.62 } },
+    lampPools: { a: 0.34, wk: 5, reach: 150 } },
   3: { tod: 'dusk', env: 'dusk' },
   4: { tod: 'day', cast: { col: '#4a2a6a', a: 0.36, len: 0.3, maxLen: 40 } },
   5: { tod: 'day' },
-  6: { tod: 'interior', env: 'tech' },
+  6: { tod: 'interior', env: 'tech',
+    shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.35, slant: 0.22, col: '#d8f4ff', a: 0.22, pool: { col: '#e0f6ff', a: 0.62 }, on: (sc) => !sc.state.blackout },
+    lampPools: { a: 0.3, wk: 4.5, reach: 160 }, arcs: { top: 198, col: '#a6e6ff', a: 0.85 } },
   7: { tod: 'dusk', env: 'dusk', grade: { map: ['#140f3a', '#36285e', '#6e4a82', '#c27488', '#ffae86', '#ffe2c0'], mapK: 0.38, shade: '#2a1e5e', shadeK: 0.2, sat: 1.08, vgrad: [0.04, -0.10] } },
   8: { tod: 'day' },
-  9: { tod: 'interior', env: 'dusk', grade: { mul: '#ffe0d4', mulK: 0.2, shade: '#2a1a50', shadeK: 0.3, lift: '#ffc898', liftK: 0.16, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
+  9: { tod: 'interior', env: 'dusk',
+    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, col: '#ffc890', a: 0.27, pool: { col: '#ffcf96', a: 0.78 }, moteCol: '#ffe8c0' },
+    lampPools: { a: 0.36, wk: 5, reach: 170 }, grade: { mul: '#ffe0d4', mulK: 0.2, shade: '#2a1a50', shadeK: 0.3, lift: '#ffc898', liftK: 0.16, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
   11: { tod: 'dusk', env: 'dusk', grade: { map: ['#1e1034', '#4e2a5a', '#9a5a6a', '#e09068', '#ffc470', '#ffecb8'], mapK: 0.36, shade: '#3a1e58', shadeK: 0.18, sat: 1.08, vgrad: [0.04, -0.08] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };
@@ -27853,6 +27859,134 @@ const R2LIGHT = (() => {
     finally { if (own) g.drawImage = CC.di; else delete g.drawImage; CC = null; }
     return true;
   }
+  /* ---------- interiores: haces de los ventanales, charcos de luz y reflejo en el suelo ----------
+     Los ventanales viven en un plano del fondo (B.layers[tag], paralaje f); el haz es rígido con su
+     ventanal (no se despega al mover la cámara) y baja hasta el suelo del plano jugable, donde deja
+     un charco de luz y un reflejo en el frente del suelo. Lámparas: charco bajo cada halo cálido de
+     los kits (PFB.glows / PFDyn.glows) con la lista del cuadro anterior (sin coste de recogida). */
+  const IL = { shaft: new Map(), pool: new Map(), lamps: [], lampsNext: [] };
+  /** Haz inclinado: arriba w0, abajo w1, alto h, desplazamiento horizontal total s; 4 niveles de alfa */
+  function shaftSprite(w0, w1, h, s, col) {
+    const k = [w0, w1, h, s, col].join('|'); let c = IL.shaft.get(k); if (c) return c;
+    const cw = Math.ceil(Math.max(w0, w1) + Math.abs(s)) + 2, x0 = s < 0 ? -s : 0, [r, g, b] = hexToRgb(col);
+    c = makeCanvas(cw, h); const img = c.g.createImageData(cw, h), D = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < h; y++) {
+      const v = y / Math.max(1, h - 1), bw = w0 + (w1 - w0) * v, cx = x0 + s * v + (Math.max(w0, w1) - bw) / 2;
+      const fall = v < 0.25 ? 1 : v < 0.55 ? 0.8 : v < 0.8 ? 0.62 : 0.48;
+      for (let x = 0; x < cw; x++) {
+        const d = (x - cx) / bw; if (d < 0 || d > 1) continue;
+        const e = Math.min(d, 1 - d) * 2, lv = e < 0.18 ? 0.35 : e < 0.45 ? 0.7 : 1;
+        // listón más claro en el centro de cada haz (vidriera): rayos legibles sin tramado
+        const core = Math.abs(d - 0.5) < 0.08 ? 1.25 : 1;
+        D[y * cw + x] = ((Math.round(Math.min(1, lv * fall * core) * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0;
+      }
+    }
+    c.g.putImageData(img, 0, 0); c.x0 = x0; IL.shaft.set(k, c); return c;
+  }
+  /** Charco de luz en la cara superior del suelo (band px) + reflejo en el frente (refl px), 3 bandas */
+  function poolSprite(w, band, refl, col) {
+    const k = [w, band, refl, col].join('|'); let c = IL.pool.get(k); if (c) return c;
+    const h = band + refl + 1, [r, g, b] = hexToRgb(col); c = makeCanvas(w, h);
+    const img = c.g.createImageData(w, h), D = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = (x - w / 2) / (w / 2);
+      let a;
+      if (y <= band) { const v = (band - y) / Math.max(1, band), d = Math.hypot(u, v * 0.9); a = d < 0.5 ? 1 : d < 0.78 ? 0.62 : d < 1 ? 0.3 : 0; }
+      else { const q = (y - band) / refl, d = Math.abs(u); a = d < 0.42 ? 0.55 * (1 - q) : d < 0.7 ? 0.28 * (1 - q) : 0; if ((y - band) & 1) a *= 0.6; }
+      if (a > 0) D[y * w + x] = ((Math.round(a * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0;
+    }
+    c.g.putImageData(img, 0, 0); c.band = band; IL.pool.set(k, c); return c;
+  }
+  function shaftList(sc) {
+    const S = st.cfg.shafts; if (!S) return null;
+    if (S.on && !S.on(sc)) return null;
+    const B = sc.backdrop; let L = null;
+    for (const l of (B && B.layers) || []) if (l.tag === S.layer) { L = l; break; }
+    if (!L) return null;
+    const [ox, oy] = B.vofs(L, sc.cam), out = [];
+    const cam = sc.cam, W_ = sc.world;
+    for (let x = S.x0; x < (L.c ? L.c.width : W_.w) + S.step; x += S.step) {
+      const sx = x + ox; if (sx > W + 140 || sx + S.w < -140) continue;
+      const top = Math.round(S.y0 + (S.y1 - S.y0) * (S.from ?? 0.35) + oy);
+      const w0 = Math.round(S.w * (S.wTop ?? 0.62)), w1 = Math.round(S.w * (S.wBot ?? 0.92));
+      // suelo bajo el centro del pie del haz (se itera una vez: el suelo de interiores es casi plano)
+      const sl = S.slant * st.sd;
+      let bx = sx + S.w / 2 + sl * 140;
+      let fy = Math.round(W_.groundAt(clamp(Math.round(bx + cam.ox), 0, W_.w)) - cam.oy);
+      const h = Math.max(20, (fy - top + 3) & ~3), s = Math.round(sl * h);
+      bx = sx + (S.w - w0) / 2 + s + w1 / 2 - (Math.max(w0, w1) - w1) / 2;
+      fy = Math.round(W_.groundAt(clamp(Math.round(bx + cam.ox), 0, W_.w)) - cam.oy);
+      out.push({ sx: Math.round(sx + (S.w - Math.max(w0, w1)) / 2), top, w0, w1, h, s, bx: Math.round(bx), fy });
+    }
+    return out;
+  }
+  /** Antes de los personajes: charcos de luz de ventanales y lámparas sobre el suelo */
+  function floorLights(g, sc) {
+    if (!st.on) return;
+    const S = st.cfg.shafts, t = Game.time;
+    g.globalCompositeOperation = 'lighter';
+    const list = S ? shaftList(sc) : null;
+    if (list) {
+      const P = S.pool || {}, col = P.col || S.col;
+      g.globalAlpha = Math.min(1, (P.a ?? 0.5) * (0.92 + 0.08 * Math.sin(t * 0.5)));
+      for (const q of list) { const pw = Math.round(q.w1 * (P.wk ?? 1.25)), c = poolSprite(pw, P.band ?? 10, P.refl ?? 8, col); g.drawImage(c, q.bx - (pw >> 1), q.fy - c.band); }
+    }
+    if (st.cfg.lampPools) {
+      const W_ = sc.world, LP = st.cfg.lampPools;
+      g.globalAlpha = LP.a ?? 0.4;
+      for (const [x, gy, col, r] of IL.lamps) { const pw = Math.round(r * (LP.wk ?? 5)), c = poolSprite(pw, LP.band ?? 8, LP.refl ?? 5, col); g.drawImage(c, Math.round(x - sc.cam.ox) - (pw >> 1), Math.round(gy - sc.cam.oy) - c.band); }
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  /** Delante de los personajes: haces volumétricos de los ventanales y halo de los arcos eléctricos */
+  function airLights(g, sc) {
+    IL.lamps = IL.lampsNext; IL.lampsNext = [];
+    if (!st.on) return;
+    const S = st.cfg.shafts, t = Game.time;
+    g.globalCompositeOperation = 'lighter';
+    const list = S ? shaftList(sc) : null;
+    if (list) {
+      g.globalAlpha = Math.min(1, (S.a ?? 0.16) * (0.9 + 0.1 * Math.sin(t * 0.37)));
+      for (const q of list) { const c = shaftSprite(q.w0, q.w1, q.h, q.s, S.col); g.drawImage(c, q.sx - c.x0 + (q.s < 0 ? 0 : 0), q.top); }
+      // motas de polvo en suspensión dentro de los haces (1 px, deriva lenta)
+      if (S.motes !== false) {
+        g.fillStyle = S.moteCol || '#fff8e8';
+        for (let i = 0; i < list.length; i++) {
+          const q = list[i];
+          for (let k = 0; k < 7; k++) {
+            const ph = (t * (0.05 + k * 0.011) + k * 0.137 + i * 0.31) % 1, v = ph, bw = q.w0 + (q.w1 - q.w0) * v;
+            const x = q.sx + q.s * v + (Math.max(q.w0, q.w1) - bw) / 2 + bw * ((k * 0.383 + i * 0.17 + Math.sin(t * 0.7 + k) * 0.05) % 1);
+            g.globalAlpha = 0.5 * Math.sin(ph * Math.PI);
+            g.fillRect(Math.round(x), Math.round(q.top + q.h * v), 1, 1);
+          }
+        }
+      }
+    }
+    // arcos eléctricos: halo vertical parpadeante + charco cian en su base (world.hazards con potencia)
+    const A = st.cfg.arcs;
+    if (A) {
+      const W_ = sc.world, cam = sc.cam;
+      for (const hz of W_.hazards) {
+        if (!hz.on || !hz.power) continue;
+        const sx = Math.round(hz.x - cam.ox); if (sx < -30 || sx > W + 30) continue;
+        const top = Math.round(A.top - cam.oy), bot = Math.round(W_.groundAt(hz.x + (hz.w >> 1)) - cam.oy), fl = 0.6 + 0.4 * Math.abs(Math.sin(t * 31 + hz.x));
+        const p = R2LIGHT_GLOW.profile(A.col, true);
+        g.globalAlpha = Math.min(1, (A.a ?? 0.9) * fl);
+        g.drawImage(p, 0, 0, p.width, 1, sx + (hz.w >> 1) - p.R, top, p.width, bot - top);
+        g.drawImage(p, 0, 0, p.width, 1, sx + (hz.w >> 1) - p.R - 4, top + 6, p.width + 8, bot - top - 6);
+        const pw = 54, c = poolSprite(pw, 9, 6, A.col); g.globalAlpha = Math.min(1, 0.8 * fl); g.drawImage(c, sx + (hz.w >> 1) - (pw >> 1), bot - c.band);
+      }
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  /** Registro de halos cálidos de lámparas (lo llaman los ganchos de PFB.glows / PFDyn.glows) */
+  function lampAt(sc, x, y, col, r) {
+    if (!st.on || !st.cfg.lampPools || sc !== GameplayScene || r < 7) return;
+    const gy = sc.world.groundAt(clamp(Math.round(x), 0, sc.world.w)), d = gy - y;
+    if (d < 12 || d > (st.cfg.lampPools.reach ?? 150)) return;
+    const sx = x - sc.cam.ox; if (sx < -80 || sx > W + 80) return;
+    if (IL.lampsNext.length < 24) IL.lampsNext.push([x, gy, col, r]);
+  }
   /* ---------- preparación del nivel ---------- */
   function prepare(sc) {
     st.on = false; st.layers = {}; st.glow = null; st.sprites = new WeakMap(); st.casts = new WeakMap();
@@ -27900,12 +28034,157 @@ const R2LIGHT = (() => {
     blitSpans(g, st.glow.c, st.glow.S, sc.cam.ox, sc.cam.oy);
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
-  return { cfg, prepare, release, on, blit, glowLayer, drawChar: drawCharLit, stats, _st: st, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
+  return { cfg, prepare, release, on, blit, glowLayer, drawChar: drawCharLit, floorLights, airLights, lampAt, stats, _st: st, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
 })();
 /** Envoltorio global para 30_world.js: personaje con sombras y luz del nivel (cae a drawChar sin r2-light) */
 function R2LIGHT_drawChar(g, e, charId, anim, time, x, y, facing, opts, info) {
   return R2LIGHT.drawChar(g, e, charId, anim, time, x, y, facing, opts || {}, info);
 }
+
+/* =====================================================================
+   R2LIGHT_GLOW — halos aditivos cacheados para emisivos dinámicos.
+   Se engancha de forma genérica a los kits que los niveles ya usan, sin
+   tocar sus ficheros: tras dibujar, añade el halo de su emisivo.
+   · PFInfra.drawFlows / PFDyn.flowsImg: halo a lo largo de cada tramo
+     visible por tipo de fluido (permeado/UPW cian, salmuera magenta,
+     H2 verde, energía amarillo; agua de mar y pretratada tenue).
+     1 drawImage por tramo (perfil de 1 px estirado → bandas sólidas).
+   · PFInfra.drawLeds: halo de 4 px en cada LED encendido.
+   · PFB.screens: resplandor rectangular de la pantalla (caché w×h×color).
+   · R2PLANT.drawOutfall: halo de la pluma de salmuera (tira desenfocada
+     en 3 bandas, mismo cuadro que la pluma).
+   Solo actúa en el plano jugable con r2-light activo (R2LIGHT.on).
+   ===================================================================== */
+const R2LIGHT_GLOW = (() => {
+  const KIND = {
+    product: ['#48d4f0', 1], perm: ['#48d4f0', 1], upw: ['#7ff0ff', 1], water: ['#48d4f0', 0.8],
+    brine: ['#ff5ad8', 0.75], h2: ['#3fe0a0', 1], power: ['#ffd84a', 0.9], elec: ['#ffd84a', 0.9],
+    sea: ['#11bedd', 0.3], cool: ['#56e5ff', 0.5], irrig: ['#6cf0db', 0.45],
+  };
+  const prof = new Map(), led = new Map(), scr = new Map();
+  const live = (sc) => typeof R2LIGHT !== 'undefined' && sc && R2LIGHT.on(sc) && R2LIGHT._st.cfg && R2LIGHT._st.cfg.glow;
+  const gk = () => R2LIGHT._st.cfg.glow || 1;
+  /** Perfil transversal del halo de una tubería: 1×(2R+1) (o (2R+1)×1), 4 bandas sólidas */
+  function profile(col, vert) {
+    const k = col + (vert ? 'v' : 'h'); let c = prof.get(k); if (c) return c;
+    const R = 7, n = 2 * R + 1, [r, g, b] = hexToRgb(col);
+    c = vert ? makeCanvas(n, 1) : makeCanvas(1, n);
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(i - R), a = d <= 1 ? 0.1 : d <= 3 ? 0.15 : d <= 5 ? 0.2 : d <= 6 ? 0.1 : 0.05;
+      c.g.fillStyle = `rgba(${r},${g},${b},${a})`;
+      if (vert) c.g.fillRect(i, 0, 1, 1); else c.g.fillRect(0, i, 1, 1);
+    }
+    c.R = R; prof.set(k, c); return c;
+  }
+  function runs(g, sc, list) {
+    if (!live(sc) || !list || !list.length) return;
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time, K0 = gk();
+    g.globalCompositeOperation = 'lighter';
+    for (const run of list) {
+      const K = KIND[run.kind]; if (!K) continue;
+      const rate = typeof run.rate === 'function' ? run.rate(sc) : (run.rate ?? 1);
+      if (rate <= 0) continue;
+      const a = K[1] * K0 * (0.55 + 0.45 * Math.min(1, rate)) * (0.8 + 0.2 * Math.sin(t * 2.4 + (run.pts[0][0] || 0) * 0.013));
+      g.globalAlpha = Math.min(1, a);
+      for (let i = 0; i < run.pts.length - 1; i++) {
+        const [x0, y0] = run.pts[i], [x1, y1] = run.pts[i + 1];
+        const xa = Math.min(x0, x1) - ox, xb = Math.max(x0, x1) - ox, ya = Math.min(y0, y1) - oy, yb = Math.max(y0, y1) - oy;
+        if (xb < -10 || xa > W + 10 || yb < -10 || ya > H + 10) continue;
+        if (y0 === y1) { const p = profile(K[0], false), A = Math.max(-8, Math.round(xa)), B = Math.min(W + 8, Math.round(xb) + 1); if (B > A) g.drawImage(p, 0, 0, 1, p.height, A, Math.round(ya) - p.R, B - A, p.height); }
+        else if (x0 === x1) { const p = profile(K[0], true), A = Math.max(-8, Math.round(ya)), B = Math.min(H + 8, Math.round(yb) + 1); if (B > A) g.drawImage(p, 0, 0, p.width, 1, Math.round(xa) - p.R, A, p.width, B - A); }
+      }
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  function leds(g, sc, list) {
+    if (!live(sc) || !list || !list.length) return;
+    const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time, k = Math.min(1, 0.7 * gk());
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = k;
+    for (const L of list) {
+      const x = L.x - ox, y = L.y - oy; if (x < -6 || x > W + 6 || y < -6 || y > H + 6) continue;
+      if (Math.sin((t * (L.hz || 1.5) + (L.ph || 0)) * TAU) <= -0.2) continue;
+      let c = led.get(L.col); if (!c) { c = PFK.glow(4, L.col, 3, 0.55); led.set(L.col, c); }
+      g.drawImage(c, Math.round(x) - 4, Math.round(y) - 4);
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  /** Resplandor de pantalla: dentro 0,12 · borde 1–2 px 0,24 · 3–4 px 0,12 · 5–6 px 0,05 */
+  function screenGlow(w, h, col) {
+    const k = w + 'x' + h + col; let c = scr.get(k); if (c) return c;
+    const P = 6, cw = w + 2 * P, ch = h + 2 * P, [r, g, b] = hexToRgb(col);
+    c = makeCanvas(cw, ch); const img = c.g.createImageData(cw, ch), D = img.data;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      const dx = Math.max(P - x, x - (P + w - 1), 0), dy = Math.max(P - y, y - (P + h - 1), 0), d = Math.max(dx, dy) + Math.min(dx, dy) * 0.5;
+      const a = d === 0 ? 0.12 : d <= 2 ? 0.24 : d <= 4 ? 0.12 : d <= 6 ? 0.05 : 0;
+      const i = (y * cw + x) * 4; D[i] = r; D[i + 1] = g; D[i + 2] = b; D[i + 3] = Math.round(a * 255);
+    }
+    c.g.putImageData(img, 0, 0); c.P = P; scr.set(k, c); return c;
+  }
+  function screens(g, sc, list) {
+    if (!live(sc) || !list || !list.length) return;
+    const ox = sc.cam.ox, oy = sc.cam.oy, k = Math.min(1, 0.75 * gk());
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = k;
+    for (const S of list) {
+      const x = Math.round(S.x - ox), y = Math.round(S.y - oy);
+      if (x > W + 6 || x + S.w < -6 || y > H + 6 || y + S.h < -6) continue;
+      if (S.on && !S.on(sc)) continue;
+      const col = typeof S.col === 'function' ? S.col(sc) : (S.col || '#56e5ff');
+      const c = screenGlow(S.w, S.h, col);
+      g.drawImage(c, x - c.P, y - c.P);
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  /** Tira de pluma desenfocada (radio 3) en 3 bandas sólidas, magenta */
+  function plumeGlow(strip) {
+    if (strip._r2g !== undefined) return strip._r2g;
+    const w = strip.c.width, h = strip.c.height, R = 3, n = strip.n, fw = strip.w;
+    const rd = document.createElement('canvas'); rd.width = w; rd.height = h;
+    const rg = rd.getContext('2d', { willReadFrequently: true }); rg.drawImage(strip.c, 0, 0);
+    const src = rg.getImageData(0, 0, w, h).data, A = new Float32Array(w * h), tmp = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) A[i] = src[i * 4 + 3] / 255;
+    // desenfoque de caja separable dentro de cada cuadro (no se mezclan cuadros vecinos)
+    for (let f = 0; f < n; f++) for (let y = 0; y < h; y++) for (let x = 0; x < fw; x++) {
+      let s = 0; for (let k = -R; k <= R; k++) { const xx = x + k; if (xx >= 0 && xx < fw) s += A[y * w + f * fw + xx]; }
+      tmp[y * w + f * fw + x] = s / (2 * R + 1);
+    }
+    const out = makeCanvas(w, h), img = out.g.createImageData(w, h), D = img.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let s = 0; for (let k = -R; k <= R; k++) { const yy = y + k; if (yy >= 0 && yy < h) s += tmp[yy * w + x]; }
+      const v = s / (2 * R + 1), a = v > 0.45 ? 0.3 : v > 0.2 ? 0.2 : v > 0.06 ? 0.1 : 0;
+      if (a) { const i = (y * w + x) * 4; D[i] = 255; D[i + 1] = 90; D[i + 2] = 216; D[i + 3] = Math.round(a * 255); }
+    }
+    out.g.putImageData(img, 0, 0);
+    return (strip._r2g = { c: out, n, w: fw, h: strip.h });
+  }
+  function outfall(g, O, ox, oy, t, o) {
+    if (!O || !O.strip || (o && o.plume === false) || !live(GameplayScene)) return;
+    const sx = O.x - ox; if (sx > W + 160 || sx + O.c.width < -160) return;
+    const G = plumeGlow(O.strip); if (!G) return;
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (o && o.a != null ? o.a : 1) * 0.8 * gk());
+    PFK.drawStrip(g, G, Math.floor(t * 6.6), Math.round(O.mouth.x - ox - (O.dir < 0 ? G.w : 0)), Math.round(O.mouth.y - oy - 1), O.dir < 0);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+  /* ---------- instalación de los ganchos (una vez, al cargar) ---------- */
+  function wrap(obj, name, after) {
+    if (!obj || typeof obj[name] !== 'function' || obj[name]._r2g) return;
+    const f = obj[name], w = function () { const r = f.apply(this, arguments); try { after.apply(this, arguments); } catch (e) { /* el halo nunca rompe el cuadro */ } return r; };
+    w._r2g = true; obj[name] = w;
+  }
+  if (typeof PFInfra !== 'undefined') { wrap(PFInfra, 'drawFlows', (g, sc, rs) => runs(g, sc, rs)); wrap(PFInfra, 'drawLeds', (g, sc, l) => leds(g, sc, l)); }
+  if (typeof PFDyn !== 'undefined') wrap(PFDyn, 'flowsImg', (g, sc, rs) => runs(g, sc, rs));
+  if (typeof PFB !== 'undefined') wrap(PFB, 'screens', (g, sc, l) => screens(g, sc, l));
+  if (typeof R2PLANT !== 'undefined') wrap(R2PLANT, 'drawOutfall', (g, O, ox, oy, t, o) => outfall(g, O, ox, oy, t, o));
+  // lámparas: charco de luz en el suelo bajo cada halo grande (lo dibuja R2LIGHT.floorLights)
+  if (typeof PFB !== 'undefined') wrap(PFB, 'glows', (g, sc, list) => {
+    if (!live(sc) || !list) return;
+    for (const L of list) { if (L.mode === 'blink' || (L.on && !L.on(sc))) continue; R2LIGHT.lampAt(sc, L.x, L.y, typeof L.col === 'function' ? L.col(sc) : L.col, L.r || 6); }
+  });
+  if (typeof PFDyn !== 'undefined') {
+    wrap(PFDyn, 'glows', (g, cam, list, col = '#ffd890', r = 8) => { const sc = GameplayScene; if (!live(sc) || !list) return; for (const p of list) R2LIGHT.lampAt(sc, p[0], p[1], p[2] || col, p[3] || r); });
+    wrap(PFDyn, 'wallLamps', (g, sc) => { if (!live(sc) || !sc.world.pfLamps) return; for (const [x, y] of sc.world.pfLamps) R2LIGHT.lampAt(sc, x, y, '#ffd890', 9); });
+  }
+  return { runs, leds, screens, outfall, profile, KIND };
+})();
 
 /* ===== 1c_bio_coast.js ===== */
 /* =====================================================================
@@ -33815,6 +34094,8 @@ const GameplayScene = {
     if (R2L) R2LIGHT.blit(g, this, 'terrainC'); else g.drawImage(this.terrainC, ox, oy, W, H, 0, 0, W, H);
     for (const p of this.world.platforms) if (!p.baked) drawPlatform(g, p, ox, oy);
     for (const l of this.world.ladders) drawLadder(g, l, ox, oy);
+    // charcos de luz (ventanales, lámparas) sobre el suelo, bajo los personajes
+    if (R2L) R2LIGHT.floorLights(g, this);
     // entidades: estaciones, actores, kiru, jugadora
     const ents = this.world.entities.slice().sort((a, b) => (a.z || 0) - (b.z || 0) || ((a instanceof Station) ? -1 : 0) - ((b instanceof Station) ? -1 : 0));
     for (const e of ents) if (!(e instanceof Player) && !(e instanceof Kiru)) e.render(g, cam);
@@ -33826,6 +34107,8 @@ const GameplayScene = {
     if (def.renderFront) def.renderFront(g, this, camI);
     if (this.propsFrontC) { if (R2L) R2LIGHT.blit(g, this, 'propsFrontC'); else g.drawImage(this.propsFrontC, ox, oy, W, H, 0, 0, W, H); }
     this.world.ps.render(g, ox, oy);
+    // haces volumétricos de los ventanales y halos de arcos (delante de los personajes)
+    if (R2L) R2LIGHT.airLights(g, this);
     B.render(g, camI, 'front');
     // planos frontales (f > 1): oclusores de encuadre
     if (this.pf) PFStage.renderFrontPlane(g, this);

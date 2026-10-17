@@ -192,6 +192,8 @@ const GameplayScene = {
     if (R2L) R2LIGHT.blit(g, this, 'terrainC'); else g.drawImage(this.terrainC, ox, oy, W, H, 0, 0, W, H);
     for (const p of this.world.platforms) if (!p.baked) drawPlatform(g, p, ox, oy);
     for (const l of this.world.ladders) drawLadder(g, l, ox, oy);
+    // charcos de luz (ventanales, lámparas) sobre el suelo, bajo los personajes
+    if (R2L) R2LIGHT.floorLights(g, this);
     // entidades: estaciones, actores, kiru, jugadora
     const ents = this.world.entities.slice().sort((a, b) => (a.z || 0) - (b.z || 0) || ((a instanceof Station) ? -1 : 0) - ((b instanceof Station) ? -1 : 0));
     for (const e of ents) if (!(e instanceof Player) && !(e instanceof Kiru)) e.render(g, cam);
@@ -203,6 +205,8 @@ const GameplayScene = {
     if (def.renderFront) def.renderFront(g, this, camI);
     if (this.propsFrontC) { if (R2L) R2LIGHT.blit(g, this, 'propsFrontC'); else g.drawImage(this.propsFrontC, ox, oy, W, H, 0, 0, W, H); }
     this.world.ps.render(g, ox, oy);
+    // haces volumétricos de los ventanales y halos de arcos (delante de los personajes)
+    if (R2L) R2LIGHT.airLights(g, this);
     B.render(g, camI, 'front');
     // planos frontales (f > 1): oclusores de encuadre
     if (this.pf) PFStage.renderFrontPlane(g, this);
