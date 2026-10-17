@@ -597,6 +597,37 @@ const R2LIGHT = (() => {
     const sx = x - sc.cam.ox; if (sx < -80 || sx > W + 80) return;
     if (IL.lampsNext.length < 24) IL.lampsNext.push([x, gy, col, r]);
   }
+  /* ---------- planos del fondo por franjas (≤ 2 pasadas a pantalla completa) ----------
+     Durante B.render se interceptan los blits de lienzos ≥ 600×300 (planos de paralaje y capas
+     aditivas de haces): si su contenido opaco cubre < 80 % del lienzo, se dibujan por franjas
+     recortadas a ese contenido (mismo resultado de píxel, mismo modo y alfa). El cielo y los muros
+     macizos siguen siendo un único blit. */
+  const BK = new WeakMap();
+  function backSpans(img) {
+    let r = BK.get(img); if (r !== undefined) return r;
+    const w = img.width, h = img.height, c = document.createElement('canvas'); c.width = w; c.height = h;
+    const gg = c.getContext('2d', { willReadFrequently: true }); gg.drawImage(img, 0, 0);
+    const d = gg.getImageData(0, 0, w, h).data, A = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) if (d[i * 4 + 3] > 2) A[i] = 1;
+    const S = spans(A, w, h); let area = 0;
+    for (let i = 0; i < S.length; i++) for (const [a, b] of S[i]) area += (b - a) * Math.min(SW, w - i * SW);
+    r = area / (w * h) < 0.8 ? S : null; BK.set(img, r); return r;
+  }
+  let BKdi = null;
+  function backDraw(img, x, y) {
+    if (arguments.length === 3 && img && img.width >= 600 && img.height >= 300 && img.getContext) {
+      const S = backSpans(img);
+      if (S) { const di = this.drawImage; this.drawImage = BKdi; try { blitSpans(this, img, S, -x, -y); } finally { this.drawImage = di; } return; }
+    }
+    return BKdi.apply(this, arguments);
+  }
+  function backdrop(g, sc, camI, which) {
+    const B = sc.backdrop; if (!B) return;
+    if (!st.on) { B.render(g, camI, which); return; }
+    const own = Object.prototype.hasOwnProperty.call(g, 'drawImage'), prev = BKdi;
+    BKdi = g.drawImage; g.drawImage = backDraw;
+    try { B.render(g, camI, which); } finally { if (own) g.drawImage = BKdi; else delete g.drawImage; BKdi = prev; }
+  }
   /* ---------- preparación del nivel ---------- */
   function prepare(sc) {
     st.on = false; st.layers = {}; st.glow = null; st.sprites = new WeakMap(); st.casts = new WeakMap();
@@ -644,7 +675,7 @@ const R2LIGHT = (() => {
     blitSpans(g, st.glow.c, st.glow.S, sc.cam.ox, sc.cam.oy);
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
-  return { cfg, prepare, release, on, blit, glowLayer, drawChar: drawCharLit, floorLights, airLights, lampAt, stats, _st: st, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
+  return { cfg, prepare, release, on, blit, glowLayer, drawChar: drawCharLit, floorLights, airLights, lampAt, backdrop, stats, _st: st, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
 })();
 /** Envoltorio global para 30_world.js: personaje con sombras y luz del nivel (cae a drawChar sin r2-light) */
 function R2LIGHT_drawChar(g, e, charId, anim, time, x, y, facing, opts, info) {

@@ -178,7 +178,8 @@ const GameplayScene = {
     if (def.renderSky) def.renderSky(g, this, camI); else if (B.sky) g.drawImage(B.sky, 0, Math.round(-oy * 0.05));
     if (def.skyFx) def.skyFx(g, this, camI);
     B.drawClouds(g, camI, 1 + (B.weather.wind || 0));
-    B.render(g, camI, 'back');
+    // r2-light: planos de paralaje dispersos por franjas recortadas (≤ 2 pasadas a pantalla completa)
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(this)) R2LIGHT.backdrop(g, this, camI, 'back'); else B.render(g, camI, 'back');
     if (this.pf) PFStage.renderBack(g, this);
     if (def.renderBack) def.renderBack(g, this, camI);
     // accesorios estáticos de fondo (mundo; con kit PF incluyen las caras superiores del suelo)
@@ -207,7 +208,7 @@ const GameplayScene = {
     this.world.ps.render(g, ox, oy);
     // haces volumétricos de los ventanales y halos de arcos (delante de los personajes)
     if (R2L) R2LIGHT.airLights(g, this);
-    B.render(g, camI, 'front');
+    if (R2L) R2LIGHT.backdrop(g, this, camI, 'front'); else B.render(g, camI, 'front');
     // planos frontales (f > 1): oclusores de encuadre
     if (this.pf) PFStage.renderFrontPlane(g, this);
     // gradación de luz / clima
