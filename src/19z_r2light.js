@@ -33,28 +33,28 @@ const R2LIGHT_TOD = {
     grade: { shade: '#2a1c5a', shadeK: 0.07, vgrad: [0.02, -0.04] },
     rim: { col: '#fbc371', k: 0.42, side: 0.75, terrain: 0.45 },
     cast: { col: '#8a4a5a', a: 0.4, len: 0.6, maxLen: 30, hMax: 34 },
-    char: { rim: '#fff0c8', rimK: 0.55, shadowCol: '#2a1838', shadowA: 0.5, cast: 0.5, castA: 0.26 },
+    char: { rim: '#fff0c8', rimK: 0.5, shadowCol: '#2a1838', shadowA: 0.62, cast: 0.42, castA: 0.34 },
     glow: 1,
   },
   dusk: {
     grade: { map: ['#1c0f3a', '#4a2462', '#8e4a78', '#d27a78', '#ffb27a', '#ffe0b0'], mapK: 0.42, shade: '#3a1d62', shadeK: 0.2, sat: 1.12, vgrad: [0.04, -0.10] },
     rim: { col: '#ffb070', k: 0.62, side: 1, terrain: 0.6 },
     cast: { col: '#4a2a7a', a: 0.5, len: 1.7, maxLen: 110, hMax: 64, lit: '#ffa860', litK: 0.22 },
-    char: { mul: '#ffdccc', mulK: 0.3, shade: '#3a1d62', shadeK: 0.22, lift: '#ffc090', liftK: 0.22, rim: '#ffc27a', rimK: 0.85, shadowCol: '#2a1040', shadowA: 0.55, cast: 1.6, castA: 0.32 },
+    char: { mul: '#ffdccc', mulK: 0.3, shade: '#3a1d62', shadeK: 0.22, lift: '#ffc090', liftK: 0.22, rim: '#ffc27a', rimK: 0.8, shadowCol: '#2a1040', shadowA: 0.66, cast: 1.6, castA: 0.44 },
     glow: 1.3,
   },
   storm: {
     grade: { shade: '#3a1a14', shadeK: 0.22, lift: '#ffd8a0', liftK: 0.14, vgrad: [0.04, -0.08] },
     rim: { col: '#ffa060', k: 0.4, side: 0.8, terrain: 0.4 },
     cast: null,
-    char: { lift: '#ffd0a0', liftK: 0.12, rim: '#ffb070', rimK: 0.6, shadowCol: '#2a140c', shadowA: 0.5, cast: 0, castA: 0 },
+    char: { lift: '#ffd0a0', liftK: 0.12, rim: '#ffb070', rimK: 0.6, shadowCol: '#2a140c', shadowA: 0.62, cast: 0, castA: 0 },
     glow: 1.6,
   },
   interior: {
     grade: { mul: '#e4ecff', mulK: 0.14, shade: '#121c48', shadeK: 0.3, lift: '#fff4dc', liftK: 0.06, vgrad: [0.0, -0.06] },
     rim: { col: '#c8e8ff', k: 0.3, side: 0.6, terrain: 0.3 },
     cast: { col: '#202a5a', a: 0.3, len: 0.22, maxLen: 30 },
-    char: { shade: '#121c48', shadeK: 0.12, rim: '#d0f0ff', rimK: 0.5, shadowCol: '#0e1230', shadowA: 0.55, cast: 0.18, castA: 0.24 },
+    char: { shade: '#121c48', shadeK: 0.12, rim: '#d0f0ff', rimK: 0.5, shadowCol: '#0e1230', shadowA: 0.66, cast: 0.2, castA: 0.3 },
     glow: 1.35,
   },
 };
@@ -304,6 +304,165 @@ const R2LIGHT = (() => {
     c.g.putImageData(img, 0, 0);
     return { c, S: spans(Am, w, h) };
   }
+  /* ---------- personajes: sombra de contacto, sombra arrojada y luz del lado del sol ----------
+     drawChar se llama tal cual (cuadro, parpadeo y fase son del rig); durante esa llamada se intercepta
+     el drawImage del sprite y se sustituye por su versión reiluminada (caché por lienzo de sprite y
+     orientación), precedida de las sombras en el suelo de apoyo. */
+  let CC = null;                 // personaje en curso
+  const CHR = { contact: new Map(), rd: null };
+  /** Lectura de píxeles por un lienzo de trabajo con willReadFrequently (sin avisos de lectura repetida) */
+  function readPixels(img) {
+    const w = img.width, h = img.height;
+    if (!CHR.rd || CHR.rd.width < w || CHR.rd.height < h) {
+      const c = document.createElement('canvas'); c.width = Math.max(w, 160); c.height = Math.max(h, 200);
+      c.g = c.getContext('2d', { willReadFrequently: true }); CHR.rd = c;
+    }
+    const g = CHR.rd.g; g.clearRect(0, 0, w, h); g.drawImage(img, 0, 0);
+    return g.getImageData(0, 0, w, h);
+  }
+  /** Versión del sprite en orientación de pantalla, con gradación del nivel y luz de borde 1 px del sol */
+  function litSprite(img, facing) {
+    let rec = st.sprites.get(img); if (!rec) { rec = {}; st.sprites.set(img, rec); }
+    const key = facing < 0 ? 'l' : 'r'; if (rec[key]) return rec[key];
+    const w = img.width, h = img.height, C = st.cfg.char || {};
+    const sg = readPixels(img), S = new Uint32Array(sg.data.buffer);
+    const c = makeCanvas(w, h), out = c.g.createImageData(w, h), D = new Uint32Array(out.data.buffer);
+    if (facing < 0) { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) D[y * w + x] = S[y * w + (w - 1 - x)]; } else D.set(S);
+    const grade = st.charGrade, rc = C.rim ? rgb(C.rim) : null, rk = C.rimK || 0, sx = -st.sd;
+    const src = new Uint32Array(D), A = (i) => src[i] >>> 24 > 8, Lu = (u) => (0.299 * (u & 255) + 0.587 * ((u >>> 8) & 255) + 0.114 * ((u >>> 16) & 255)) / 255;
+    // ¿el vecino hacia (dx,dy) es exterior? (transparente, o contorno oscuro con exterior detrás)
+    const outside = (x, y, dx, dy) => {
+      const x1 = x + dx, y1 = y + dy; if (x1 < 0 || y1 < 0 || x1 >= w || y1 >= h) return true;
+      const j = y1 * w + x1; if (!A(j)) return true;
+      if (Lu(src[j]) > 0.22) return false;
+      const x2 = x1 + dx, y2 = y1 + dy; return x2 < 0 || y2 < 0 || x2 >= w || y2 >= h || !A(y2 * w + x2);
+    };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, u = src[i]; if (!A(i)) continue;
+      let r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255;
+      const L0 = Lu(u);
+      if (grade && L0 > 0.1) { const o = grade(r, g, b, 0); r = o[0]; g = o[1]; b = o[2]; }
+      if (rc && rk && L0 > 0.22 && L0 < 0.95) {
+        const side = outside(x, y, sx, 0), top = outside(x, y, 0, -1);
+        if (side || top) {
+          // borde del sol: sube hacia el color de la luz conservando algo del tono del material
+          const k = rk * (side && top ? 1 : side ? 0.85 : 0.5);
+          const m = Math.max(r, g, b, 1), lift = Math.min(1.5, 235 / m);
+          r += (Math.min(255, rc[0] * 0.6 + r * lift * 0.4) - r) * k; g += (Math.min(255, rc[1] * 0.6 + g * lift * 0.4) - g) * k; b += (Math.min(255, rc[2] * 0.6 + b * lift * 0.4) - b) * k;
+        }
+      }
+      D[i] = ((u & 0xff000000) | (cl8(b) << 16) | (cl8(g) << 8) | cl8(r)) >>> 0;
+    }
+    c.g.putImageData(out, 0, 0);
+    // sombra arrojada (proyección de la silueta sobre la banda del suelo, en orientación de pantalla)
+    const fx = facing < 0 ? w - 1 - (CHARS[CC.charId].ox ?? 30) : (CHARS[CC.charId].ox ?? 30), fy = CHARS[CC.charId].oy ?? 78;
+    rec[key] = { c, cast: castOf(src, w, h, fx, fy), fx, fy };
+    return rec[key];
+  }
+  /** Lienzo de sombra arrojada: cada píxel a altura hh sobre los pies se desplaza dir·hh·len en x
+      y sube hh·sq dentro de la banda del suelo; 2 bandas sólidas (cerca / lejos) */
+  function castOf(src, w, h, fx, fy) {
+    const C = st.cfg.char || {}, len = C.cast || 0, A = C.castA || 0;
+    if (!len || !A) return null;
+    const dir = st.sd, sq = st.cfg.charSq ?? 0.15, th = 3;
+    let maxH = 0;
+    for (let y = 0; y < Math.min(h, fy); y++) for (let x = 0; x < w; x++) if (src[y * w + x] >>> 24 > 8) { maxH = Math.max(maxH, fy - y); break; }
+    if (!maxH) return null;
+    const ext = Math.ceil(maxH * len) + 2, cw = w + ext + 2, chh = Math.ceil(maxH * sq) + th + 3;
+    const x0 = dir > 0 ? 0 : -ext;       // columna de lienzo 0 ↔ columna de sprite x0
+    const M = new Uint8Array(cw * chh);
+    for (let y = 0; y < Math.min(h, fy); y++) for (let x = 0; x < w; x++) {
+      if (!(src[y * w + x] >>> 24 > 8)) continue;
+      const hh = fy - y, xa = x + dir * hh * len, xb = x + dir * (hh + 1) * len;
+      const ya = chh - 1 - Math.round(hh * sq);
+      const lo = Math.round(Math.min(xa, xb)), hi = Math.round(Math.max(xa, xb));
+      const band = hh < maxH * 0.42 ? 2 : 1;
+      for (let X = lo; X <= hi; X++) { const cx = X - x0; if (cx < 0 || cx >= cw) continue; for (let k = 0; k < th; k++) { const cy = ya - k; if (cy < 0) continue; const j = cy * cw + cx; if (M[j] < band) M[j] = band; } }
+    }
+    const c = makeCanvas(cw, chh), img = c.g.createImageData(cw, chh), O = new Uint32Array(img.data.buffer), col = rgb(C.shadowCol || '#2a1838');
+    const near = ((Math.round(A * 255) << 24) | (col[2] << 16) | (col[1] << 8) | col[0]) >>> 0, far = ((Math.round(A * 0.62 * 255) << 24) | (col[2] << 16) | (col[1] << 8) | col[0]) >>> 0;
+    for (let i = 0; i < M.length; i++) if (M[i]) O[i] = M[i] === 2 ? near : far;
+    c.g.putImageData(img, 0, 0);
+    return { c, x0, h: chh, ext };
+  }
+  /** Sombra de contacto en 2 bandas sólidas (elipse aplastada) */
+  function contactOf(rx) {
+    const C = st.cfg.char || {}, k = rx + '|' + (C.shadowCol || '') + '|' + (C.shadowA || 0.5);
+    let c = CHR.contact.get(k); if (c) return c;
+    const w = rx * 2 + 3, hh = 5; c = makeCanvas(w, hh);
+    const col = rgb(C.shadowCol || '#2a1838'), a = C.shadowA ?? 0.5;
+    for (let y = 0; y < hh; y++) {
+      const yy = (y - 2) / 2.4, hw = Math.round((rx + 1.2) * Math.sqrt(Math.max(0, 1 - yy * yy)));
+      if (hw <= 0) continue;
+      c.g.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${(a * 0.6).toFixed(3)})`; c.g.fillRect(rx + 1 - hw, y, hw * 2 + 1, 1);
+      const ih = Math.round(hw * 0.62);
+      if (ih > 0 && y >= 1 && y <= 3) { c.g.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${(a * 0.7).toFixed(3)})`; c.g.fillRect(rx + 1 - ih, y, ih * 2 + 1, 1); }
+    }
+    c.rx = rx; CHR.contact.set(k, c); return c;
+  }
+  /** Altura de apoyo (mundo) bajo un personaje y tramo continuo para su sombra */
+  function supportOf(e) {
+    const W_ = e.world; if (!W_) return null;
+    const x = e.x, yb = W_.supportAt(x, e.y - 1, e.y + 900, false);
+    if (!(yb < W_.h + 40)) return null;
+    const wa = W_.waterAt(x, yb - 2); if (wa && wa.y < yb - 3) return null;   // en el agua: sin sombra en el fondo
+    let plat = null;
+    if (yb < W_.groundAt(x) - 1) for (const p of W_.platforms) { const py = p.y + (p.dy || 0); if (x >= p.x && x <= p.x + p.w && Math.abs(py - yb) < 1.5) { plat = p; break; } }
+    return { y: yb, plat };
+  }
+  function drawShadows(g, img, L, sx0, sy0) {
+    const e = CC.e, S = CC.sup; if (!S) return;
+    const cam = GameplayScene.cam, gyS = Math.round(S.y - cam.oy), air = Math.max(0, gyS - CC.dy - (CC.lift || 0));
+    const W_ = e.world, C = st.cfg.char || {};
+    // tramo de suelo continuo: |Δy| ≤ 6 respecto al apoyo; la sombra se corta en bordes de acantilado
+    const okAt = (wx) => {
+      if (S.plat) return wx >= S.plat.x && wx <= S.plat.x + S.plat.w;
+      if (wx < 0 || wx > W_.w) return false;
+      return Math.abs(W_.groundAt(wx) - S.y) <= 6;
+    };
+    const fade = Math.max(0, 1 - air / 70) * (CC.alpha ?? 1);
+    if (fade <= 0) return;
+    // contacto
+    const rx = Math.max(4, Math.round(((img.anchors && img.anchors.shadowR) || CHARS[CC.charId].shadowR || 9) * (1 - Math.min(0.5, air / 80)) * (CC.contactK || 1)));
+    const sh = contactOf(rx);
+    g.globalAlpha = fade;
+    g.drawImage(sh, CC.dx - rx - 1, gyS - 3);
+    // arrojada (por tramos de 16 px que siguen la pendiente del suelo; se corta en huecos y bordes)
+    const K = L.cast;
+    if (K && !CC.noCast) {
+      const dir = st.sd, shift = Math.round(dir * air * (C.cast || 0));
+      const cxF = CC.dx - (L.fx - K.x0) + shift, fC = L.fx - K.x0, cw = K.c.width, n = Math.ceil(cw / 16);
+      for (let q = 0; q < n; q++) {
+        const i = dir > 0 ? q : n - 1 - q, a = i * 16, ww = Math.min(16, cw - a), mid = a + ww / 2;
+        const beyond = dir > 0 ? mid > fC : mid < fC, sxp = cxF + a, wxm = Math.round(sxp + mid - a + cam.ox);
+        if (!okAt(wxm)) { if (beyond) break; continue; }
+        if (sxp + ww < 0 || sxp > W) continue;
+        const dy = S.plat ? 0 : Math.round(W_.groundAt(wxm) - S.y);
+        g.drawImage(K.c, a, 0, ww, K.h, sxp, gyS - K.h + 1 + dy, ww, K.h);
+      }
+    }
+    g.globalAlpha = 1;
+  }
+  function charDraw(img, x, y) {
+    const di = CC ? CC.di : CanvasRenderingContext2D.prototype.drawImage;
+    if (!CC || CC.done || arguments.length !== 3 || !img || !img.anchors) return di.apply(this, arguments);
+    CC.done = true;
+    const L = litSprite(img, CC.facing);
+    const def = CHARS[CC.charId], ox = def.ox ?? 30, oy = def.oy ?? 78;
+    const sx0 = CC.facing < 0 ? CC.dx + ox + 1 - img.width : CC.dx - ox, sy0 = CC.dy - oy;
+    this.save(); this.setTransform(CC.T);
+    try { drawShadows(this, img, L, sx0, sy0); CC.di.call(this, L.c, sx0, sy0); } finally { this.restore(); }
+  }
+  /** drawChar con la luz del nivel. info: {lift (px que el dibujo flota sobre el ancla), contactK, noCast} */
+  function drawCharLit(g, e, charId, anim, time, x, y, facing, opts, info) {
+    if (!st.on || !e || e.world !== GameplayScene.world || !CHARS[charId]) { drawChar(g, charId, anim, time, x, y, facing, opts); return false; }
+    const own = Object.prototype.hasOwnProperty.call(g, 'drawImage');
+    CC = { e, charId, facing: facing < 0 ? -1 : 1, dx: Math.round(x), dy: Math.round(y), T: g.getTransform(), di: g.drawImage, done: false, sup: supportOf(e), lift: info && info.lift, contactK: info && info.contactK, noCast: info && info.noCast, alpha: info && info.alpha };
+    g.drawImage = charDraw;
+    try { drawChar(g, charId, anim, time, x, y, facing, Object.assign({}, opts, { shadow: false })); }
+    finally { if (own) g.drawImage = CC.di; else delete g.drawImage; CC = null; }
+    return true;
+  }
   /* ---------- preparación del nivel ---------- */
   function prepare(sc) {
     st.on = false; st.layers = {}; st.glow = null; st.sprites = new WeakMap(); st.casts = new WeakMap();
@@ -314,6 +473,8 @@ const R2LIGHT = (() => {
     const sun = (B && B.sun) || null;
     st.sd = C.sd ?? (sun ? (sun.x > W / 2 + 30 ? -1 : 1) : 1);
     st.band = C.band ?? 12;
+    st.charGrade = compileGrade(C.char);
+    CHR.contact.clear();
     // ambiente de la luz de borde del rig
     if (typeof SpriteCache !== 'undefined') { st.env0 = SpriteCache.env; if (C.env) { SpriteCache.env = C.env; st.envSet = true; } else st.envSet = false; }
     // capas estáticas: reiluminar y recortar
@@ -349,5 +510,9 @@ const R2LIGHT = (() => {
     blitSpans(g, st.glow.c, st.glow.S, sc.cam.ox, sc.cam.oy);
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
-  return { cfg, prepare, release, on, blit, glowLayer, stats, _st: st, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
+  return { cfg, prepare, release, on, blit, glowLayer, drawChar: drawCharLit, stats, _st: st, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
 })();
+/** Envoltorio global para 30_world.js: personaje con sombras y luz del nivel (cae a drawChar sin r2-light) */
+function R2LIGHT_drawChar(g, e, charId, anim, time, x, y, facing, opts, info) {
+  return R2LIGHT.drawChar(g, e, charId, anim, time, x, y, facing, opts || {}, info);
+}

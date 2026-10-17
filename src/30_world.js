@@ -321,7 +321,8 @@ class Player extends Entity {
     if (this.inv > 0 && (Math.floor(this.inv * 20) % 2) && this.anim !== 'hit') return;
     const x = this.x - cam.ox, y = this.y - cam.oy;
     if (this.gliding) drawGlider(g, x + this.facing * 2, y - 102, this.facing); // vela sobre la cabeza (sprite de 74 px, puños en alto ≈ y−76)
-    drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item });
+    // r2-light: sombra de contacto + arrojada y luz del sol del nivel (cae a drawChar sin r2-light)
+    R2LIGHT_drawChar(g, this, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item }, this.gliding ? { noCast: true } : null);
     const wadeW = this.wading && this.world.waterAt(this.x, this.y - 2);
     if (wadeW) { const wy = Math.round(wadeW.y - cam.oy), dh = Math.max(0, Math.round(this.y - cam.oy) - wy); frect(g, x - 12, wy, 24, 1, '#d2ecee'); g.globalAlpha = 0.55; frect(g, x - 11, wy + 1, 22, dh, wadeW.wade || '#11bedd'); g.globalAlpha = 0.35; frect(g, x - 11, wy + 3, 22, Math.max(0, dh - 2), wadeW.wadeDeep || '#0a71a3'); g.globalAlpha = 1; fpx(g, x - 12 + ((Game.frame >> 3) % 24), wy, '#ffffff'); fpx(g, x - 13 + ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); fpx(g, x + 11 - ((Game.frame >> 2) % 3), wy - 1, '#ffffff'); }
   }
@@ -399,9 +400,11 @@ class Kiru extends Entity {
   get dropY() { return Math.round(KIRU_LIFT - (this.lift ?? KIRU_LIFT)); }
   render(g, cam) {
     const x = this.x - cam.ox, y = this.y - cam.oy, dy = this.dropY;
-    drawChar(g, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false });
-    // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
-    const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+    // r2-light: KIRU flota; sombra de contacto tenue y sombra arrojada desprendida del suelo
+    if (!R2LIGHT_drawChar(g, this, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false }, { contactK: 0.85, alpha: 0.7 })) {
+      // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
+      const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+    }
     if (this.scanT > 0) {
       // anillos de escaneo centrados en el visor (ancla del ojo del sprite)
       const ey = Math.round(y + dy - (CHARS.kiru.oy - 38));
@@ -463,7 +466,7 @@ class Actor extends Entity {
     const x = this.x - cam.ox, y = this.y - cam.oy;
     if (x < -80 || x > W + 80) return;
     if (this.preDraw) this.preDraw(g, x, y);
-    drawChar(g, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant });
+    R2LIGHT_drawChar(g, this, this.charId, this.anim, this.animT, x, y, this.facing, { expr: this.expr, item: this.item, variant: this.variant }, this.fly ? { noCast: true, alpha: 0.6 } : null);
   }
   renderBubble(g, cam) { if (this.bubble) drawBubble(g, this.x - cam.ox, this.y - cam.oy - (this.bubbleH || 92), this.bubble.text, '#ffe14d', this.bubble.t); }
 }
