@@ -30,28 +30,29 @@
 /* ---------- preajustes por hora del día ---------- */
 const R2LIGHT_TOD = {
   day: {
-    grade: { shade: '#2a1c5a', shadeK: 0.07, vgrad: [0.02, -0.04] },
+    grade: { shade: '#2a1c5a', shadeK: 0.07, sat: 1.04, vgrad: [0.02, -0.04] },
     rim: { col: '#fbc371', k: 0.42, side: 0.75, terrain: 0.45 },
     cast: { col: '#8a4a5a', a: 0.4, len: 0.6, maxLen: 30, hMax: 34 },
     char: { rim: '#fff0c8', rimK: 0.5, shadowCol: '#2a1838', shadowA: 0.62, cast: 0.42, castA: 0.34 },
     glow: 1,
   },
   dusk: {
-    grade: { map: ['#1c0f3a', '#4a2462', '#8e4a78', '#d27a78', '#ffb27a', '#ffe0b0'], mapK: 0.42, shade: '#3a1d62', shadeK: 0.2, sat: 1.12, vgrad: [0.04, -0.10] },
+    // atardecer: oscuros hacia índigo, medios hacia terracota, luces hacia oro (sin malva: no sube el magenta)
+    grade: { map: ['#1a1040', '#38245e', '#6a4060', '#b86a52', '#f6a058', '#ffe2a8'], mapK: 0.24, shade: '#2c1a5c', shadeK: 0.18, lift: '#ffc070', liftK: 0.16, sat: 1.16, warmMag: 0.5, vgrad: [0.03, -0.07] },
     rim: { col: '#ffb070', k: 0.62, side: 1, terrain: 0.6 },
     cast: { col: '#4a2a7a', a: 0.5, len: 1.7, maxLen: 110, hMax: 64, lit: '#ffa860', litK: 0.22 },
     char: { mul: '#ffdccc', mulK: 0.3, shade: '#3a1d62', shadeK: 0.22, lift: '#ffc090', liftK: 0.22, rim: '#ffc27a', rimK: 0.8, shadowCol: '#2a1040', shadowA: 0.66, cast: 1.6, castA: 0.44 },
     glow: 1.3,
   },
   storm: {
-    grade: { shade: '#3a1a14', shadeK: 0.22, lift: '#ffd8a0', liftK: 0.14, vgrad: [0.04, -0.08] },
+    grade: { mul: '#ffe0c0', mulK: 0.12, shade: '#3a1a14', shadeK: 0.22, lift: '#ffd8a0', liftK: 0.14, sat: 1.06, vgrad: [0.04, -0.08] },
     rim: { col: '#ffa060', k: 0.4, side: 0.8, terrain: 0.4 },
     cast: null,
     char: { lift: '#ffd0a0', liftK: 0.12, rim: '#ffb070', rimK: 0.6, shadowCol: '#2a140c', shadowA: 0.62, cast: 0, castA: 0 },
     glow: 1.6,
   },
   interior: {
-    grade: { mul: '#e4ecff', mulK: 0.14, shade: '#121c48', shadeK: 0.3, lift: '#fff4dc', liftK: 0.06, vgrad: [0.0, -0.06] },
+    grade: { mul: '#e4ecff', mulK: 0.12, shade: '#121c48', shadeK: 0.22, lift: '#fff4dc', liftK: 0.06, sat: 1.12, vgrad: [0.0, -0.06] },
     rim: { col: '#c8e8ff', k: 0.3, side: 0.6, terrain: 0.3 },
     cast: { col: '#202a5a', a: 0.3, len: 0.22, maxLen: 30 },
     char: { shade: '#121c48', shadeK: 0.12, rim: '#d0f0ff', rimK: 0.5, shadowCol: '#0e1230', shadowA: 0.66, cast: 0.2, castA: 0.3 },
@@ -64,21 +65,21 @@ const R2LIGHT_CFG = {
   0: { tod: 'day' },
   1: { tod: 'day' },
   2: { tod: 'interior', env: 'tech',
-    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, col: '#fff0d0', a: 0.22, pool: { col: '#fff4dc', a: 0.62 } },
+    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, wTop: 0.5, wBot: 0.78, col: '#ffe0a0', a: 0.04, soft: 0.42, pool: { col: '#ffe8b8', a: 0.45 } },
     lampPools: { a: 0.34, wk: 5, reach: 150 } },
   3: { tod: 'dusk', env: 'dusk' },
   4: { tod: 'day', cast: { col: '#4a2a6a', a: 0.36, len: 0.3, maxLen: 40 } },
   5: { tod: 'day' },
   6: { tod: 'interior', env: 'tech',
-    shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.35, slant: 0.22, col: '#d8f4ff', a: 0.22, pool: { col: '#e0f6ff', a: 0.62 }, on: (sc) => !sc.state.blackout },
+    shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.35, slant: 0.22, wTop: 0.5, wBot: 0.8, col: '#a8e4ff', a: 0.1, soft: 0.9, pool: { col: '#b8ecff', a: 0.55 }, on: (sc) => !sc.state.blackout },
     lampPools: { a: 0.3, wk: 4.5, reach: 160 }, arcs: { top: 198, col: '#a6e6ff', a: 0.85 } },
-  7: { tod: 'dusk', env: 'dusk', grade: { map: ['#140f3a', '#36285e', '#6e4a82', '#c27488', '#ffae86', '#ffe2c0'], mapK: 0.38, shade: '#2a1e5e', shadeK: 0.2, sat: 1.08, vgrad: [0.04, -0.10] } },
+  7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0.2, shade: '#2a1e5e', shadeK: 0.16, lift: '#ffc080', liftK: 0.14, sat: 1.18, warmMag: 0.3, vgrad: [0.03, -0.07] } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk',
-    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, col: '#ffc890', a: 0.27, pool: { col: '#ffcf96', a: 0.78 }, moteCol: '#ffe8c0' },
-    lampPools: { a: 0.36, wk: 5, reach: 170 }, grade: { mul: '#ffe0d4', mulK: 0.2, shade: '#2a1a50', shadeK: 0.3, lift: '#ffc898', liftK: 0.16, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
+    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },
+    lampPools: { a: 0.36, wk: 5, reach: 170 }, grade: { mul: '#ffe0d4', mulK: 0.16, shade: '#2a1a50', shadeK: 0.22, lift: '#ffc898', liftK: 0.16, sat: 1.14, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
-  11: { tod: 'dusk', env: 'dusk', grade: { map: ['#1e1034', '#4e2a5a', '#9a5a6a', '#e09068', '#ffc470', '#ffecb8'], mapK: 0.36, shade: '#3a1e58', shadeK: 0.18, sat: 1.08, vgrad: [0.04, -0.08] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
+  11: { tod: 'dusk', env: 'dusk', grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.24, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc878', liftK: 0.14, sat: 1.14, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };
 
 const R2LIGHT = (() => {
@@ -102,7 +103,7 @@ const R2LIGHT = (() => {
     const mul = G.mul ? rgb(G.mul).map(v => v / 255) : null, mk = G.mulK || 0;
     const sh = G.shade ? rgb(G.shade) : null, sk = G.shadeK || 0;
     const li = G.lift ? rgb(G.lift) : null, lk = G.liftK || 0;
-    const sat = G.sat || 1;
+    const sat = G.sat || 1, wm = G.warmMag || 0, coral = [236, 120, 92];
     // mapa de degradado por luminancia (oscuros → violeta, medios → malva, luces → melocotón/oro)
     let lut = null; const qk = G.mapK || 0;
     if (G.map && qk) {
@@ -117,6 +118,11 @@ const R2LIGHT = (() => {
       if (sh && sk && L < 0.5) { const w = (0.5 - L) * 2 * sk; r += (sh[0] - r) * w; g += (sh[1] - g) * w; b += (sh[2] - b) * w; }
       if (li && lk && L > 0.55) { const w = (L - 0.55) / 0.45 * lk; r += (li[0] - r) * w; g += (li[1] - g) * w; b += (li[2] - b) * w; }
       if (sat !== 1) { const m = (r + g + b) / 3; r = m + (r - m) * sat; g = m + (g - m) * sat; b = m + (b - m) * sat; }
+      // malvas y rosas apagados → coral bajo la luz cálida (los emisivos de salmuera, claros y saturados, se conservan)
+      if (wm && b > g + 12 && r > g + 12) {
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), s = mx > 0 ? (mx - mn) / mx : 0;
+        if (!(mx >= 200 && s >= 0.5)) { const k = wm * Math.min(1, (Math.min(r, b) - g) / 60); r += (Math.max(r, coral[0] * mx / 255) - r) * k; g += (coral[1] * mx / 255 - g) * k * 0.5; b += (coral[2] * mx / 255 - b) * k; }
+      }
       if (yk) { const f = 1 + yk; r *= f; g *= f; b *= f; }
       out[0] = r; out[1] = g; out[2] = b; return out;
     };
@@ -556,8 +562,13 @@ const R2LIGHT = (() => {
     g.globalCompositeOperation = 'lighter';
     const list = S ? shaftList(sc) : null;
     if (list) {
-      g.globalAlpha = Math.min(1, (S.a ?? 0.16) * (0.9 + 0.1 * Math.sin(t * 0.37)));
-      for (const q of list) { const c = shaftSprite(q.w0, q.w1, q.h, q.s, S.col); g.drawImage(c, q.sx - c.x0 + (q.s < 0 ? 0 : 0), q.top); }
+      // volumen en luz suave (aclara y calienta sin lavar el color) + núcleo aditivo tenue
+      const pk = 0.9 + 0.1 * Math.sin(t * 0.37);
+      for (const q of list) {
+        const c = shaftSprite(q.w0, q.w1, q.h, q.s, S.col);
+        g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, (S.soft ?? 0.9) * pk); g.drawImage(c, q.sx - c.x0, q.top);
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (S.a ?? 0.16) * pk); g.drawImage(c, q.sx - c.x0, q.top);
+      }
       // motas de polvo en suspensión dentro de los haces (1 px, deriva lenta)
       if (S.motes !== false) {
         g.fillStyle = S.moteCol || '#fff8e8';
