@@ -307,8 +307,9 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
 /* ---------- Ojos del busto (48): plantillas a mano por forma; fila 0 = cy − 2 ---------- */
 const PEYE_MINI = {
   near: {
-    open: ['..KKK.', 'KKKKKK', '.whhDD', '.wDPPD', '.wDPPD', '.wMLLD', '..ss..'],
-    look: ['.KKKK.', 'KKKKKK', '.wwhhD', '.wwDPD', '.wwDPD', '.wwMLD', '..ss..'],
+    // r2-chars: pestaña gruesa en arco + brillo en L arriba-izquierda del iris (como el HUD de la referencia)
+    open: ['.KKKK.', 'KKKKKK', '.whhDD', '.whPPD', '.wDPPD', '.wMPLD', '.wMLLD', '..ss..'],
+    look: ['.KKKK.', 'KKKKKK', '.wwhhD', '.wwhPD', '.wwDPD', '.wwMPD', '.wwMLD', '..ss..'],
     half: ['......', 'KKKKKK', '.whDD.', '.wDPD.', '.wMMD.', '..LL..'],
     soft: ['......', '......', 'KKKKK.', '.wMMD.', '..ss..', '......'],
     tired: ['......', '......', '......', 'KKKKKK', '.wMMD.', '.ssss.'],
@@ -323,8 +324,8 @@ const PEYE_MINI = {
     blink: ['......', '......', '......', '......', 'KKKKKK', '..ss..'],
   },
   far: {
-    open: ['KKKK.', 'KKKKK', 'whhD.', 'wDPD.', 'wDPD.', 'wMLD.', '.ss..'],
-    look: ['KKKK.', 'KKKKK', 'wwhh.', 'wwDP.', 'wwDP.', 'wwML.', '.ss..'],
+    open: ['.KKK.', 'KKKKK', 'whhDw', 'whPD.', 'wDPD.', 'wMPD.', 'wMLD.', '.ss..'],
+    look: ['.KKK.', 'KKKKK', 'wwhh.', 'wwhP.', 'wwDP.', 'wwMP.', 'wwML.', '.ss..'],
     half: ['.....', 'KKKKK', 'whDD.', 'wDPD.', 'wMMD.', '.LL..'],
     soft: ['.....', '.....', 'KKKK.', 'wMMD.', '.ss..', '.....'],
     tired: ['.....', '.....', '.....', 'KKKKK', 'wMMD.', 'ssss.'],
@@ -369,7 +370,8 @@ const PMOUTH = {
     line: ['KK'], smile: ['K..K', '.KK.'], grinS: ['KKK', '.t.'], grin: ['KKKK', 'wtt.'], o: ['.K.', 'KmK', '.K.'], oSmall: ['KK'], frown: ['.KK.', 'K..K'],
     frownO: ['.KK.', 'KmmK'], wavy: ['K.K', '.K.'], wavyO: ['KmK', '.K.'], smirk: ['..K', 'KK.'], flat: ['KKK'], firm: ['KKK'], clench: ['KKK', 'www'], side: ['.KK'],
     talkS: ['KK', 'mt'], talkW: ['KKK', 'mtm'], open: ['KKK', 'mtm', '.K.'], grinT: ['KKKK', 'wttm', '.KK.'], oT: ['KK', 'mt', 'KK'], shout: ['KKK', 'mtm', 'www'],
-    smileT: ['K...K', '.Kww.', '..K..'], smileS: ['K..K', '.KK.'],
+    // r2-chars: sonrisa abierta del busto (comisuras arriba, dientes y labio inferior), no 'colmillo'
+    smileT: ['K....K', '.KwwK.', '..mm..'], smileS: ['K...K', '.KKK.'],
   },
 };
 function drawPMouth(pb, cx, cy, scale, kind, pal) {
@@ -415,6 +417,8 @@ function pkMixU(a, b, t) {
    sombra piel[3] a la izquierda/abajo, borde piel[2], brillos piel[5].
    ===================================================================== */
 const R2CHARS_TURN = 4.5;
+/** r2-chars: fila de la ceja del busto respecto al centro del ojo (antes −4: pegada a la pestaña) */
+const R2CHARS_BUST_BROW = -6;
 function phHead(def) {
   const HX = 60 + (def.dx || 0), HY = 42 + (def.dy || 0);
   const g = def.head || {};
@@ -535,7 +539,7 @@ PDEFS.amaya = () => {
   };
   return {
     // r2-chars: iris castaño legible (pupila oscura, iris que aclara hacia abajo con ámbar)
-    M, iris: { R: '#140402', D: '#3e160a', P: '#0e0301', M: '#6e2e12', L: '#a85e2a', l: '#e09a52' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
+    M, iris: { R: '#120302', D: '#32100a', P: '#0c0201', M: '#5e2610', L: '#985224', l: '#d88e4c' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
     lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff7a6a', blushAlways: 0.5, rimColor: '#ffc89a', rimK: 0.16,
     build(P, A) {
       // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
@@ -683,7 +687,7 @@ function stampHumanFace(base, scale, E, talk, blink) {
       }
     };
     const k = Math.min(1.3, bl > 1 ? 1.3 : bl);
-    if (sm) { cheek(enx - 0.5, eny + 4, 2.4, 1.2, k); cheek(efx + 1.5, efy + 4, 1.3, 1.1, k * 0.8); }
+    if (sm) { cheek(enx - 0.5, eny + 4.5, 2.9, 1.5, k * 1.15); cheek(efx + 1.5, efy + 4.5, 1.6, 1.2, k * 0.9); }
     else { cheek(enx - 2, eny + 9, 6 * (bl > 1 ? 1.15 : 1), 3, k); cheek(efx + 2, efy + 8.5, 3.2, 2.5, k * 0.85); if (bl > 1) for (const dx of [-3, 0, 3]) { const x = enx - 2 + dx, y = eny + 8; if (isFace(x, y)) pb.set(x, y + (dx === 0 ? 0 : 1), pkMixU(pb.get(x, y), bcU, 0.9)); } }
   }
   // ojos
@@ -695,8 +699,10 @@ function stampHumanFace(base, scale, E, talk, blink) {
   const canB = (x, y) => isFace(x, y) || (def.browOverHair && /^(bang|side)/.test(c.group(x, y) || ''));
   const bk = E.brow, bkF = bk === 'skeptical' ? 'skepticalHi' : bk;
   if (sm) {
-    drawPBrow(pb, enx - 3, enx + 2, eny - 4 + Math.round((def.browDY || 0) * 0.5), bk, bc, 1, canB);
-    drawPBrow(pb, efx + 2, efx - 1, efy - 4 + Math.round((def.browDY || 0) * 0.5), bkF, bc, 1, canB);
+    // r2-chars: ceja 1 fila de piel por encima de la pestaña (antes se fundía con ella en una banda de ceño)
+    const bdy = R2CHARS_BUST_BROW + Math.round((def.browDY || 0) * 0.5);
+    drawPBrow(pb, enx - 3, enx + 2, eny + bdy, bk, bc, 1, canB);
+    drawPBrow(pb, efx + 2, efx - 1, efy + bdy, bkF, bc, 1, canB);
   } else {
     const bth = def.browStyle === 'thin' ? 1 : def.browThick || 2;
     drawPBrow(pb, enx - 6, enx + 4, eny - 10 + (def.browDY || 0), bk, bc, bth, canB);
