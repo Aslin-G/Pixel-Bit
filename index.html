@@ -7449,12 +7449,19 @@ const R2CHARS_PEYE_BIG = {
     iris: ['.RRRR.', 'RDDDDR', 'RDDDDR', 'RDPPDR', 'RDPPPR', 'RDPPPR', 'RDPPPR', 'RMPPMR', 'RMPPMR', 'RMMMMR', 'RLMMLR', 'RLLLLR', '.RLLR.', '.RllR.'],
     irisS: ['.RRR.', 'RDDDR', 'RDPDR', 'RMPMR', 'RMMMR', 'RLLLR', '.RlR.'] },
 };
+/* r3-chars: ojo pequeño (adultos mayores, complexiones rudas): rompe la plantilla común de ojo grande */
+const R3CHARS_PEYE_SMALL = {
+  near: { W: 8, T: [-3, -4, -5, -5, -5, -5, -4, -3], B: [2, 3, 3, 4, 4, 3, 3, 2], ix: 0.5, iy: -4, hi: 1,
+    iris: ['.RRR.', 'RDDDR', 'RDPDR', 'RDPDR', 'RMPMR', 'RMMMR', 'RLLLR', '.RlR.'], irisS: ['.RRR.', 'RDPDR', 'RMMMR', '.RLR.'] },
+  far: { W: 6, T: [-3, -4, -5, -5, -4, -3], B: [2, 3, 4, 4, 3, 2], ix: 0.5, iy: -4, hi: 1,
+    iris: ['.RR.', 'RDDR', 'RDPR', 'RDPR', 'RMPR', 'RMMR', 'RLLR', '.Rl.'], irisS: ['.RR.', 'RDPR', 'RMMR', '.RL.'] },
+};
 /**
  * Ojo 96. side 'near' (rabillo exterior a la izquierda) | 'far' (exterior a la derecha);
  * kind = forma del párpado; look = [dx, dy] en pantalla; pal = tokens → color.
  */
 function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
-  const G = (opt.geom === 'big' ? R2CHARS_PEYE_BIG : PEYE)[side], Wd = G.W, lk = G.lk || 1;
+  const G = (opt.geom === 'big' ? R2CHARS_PEYE_BIG : opt.geom === 'small' ? R3CHARS_PEYE_SMALL : PEYE)[side], Wd = G.W, lk = G.lk || 1;
   const flip = side === 'far';
   const half = Wd >> 1;
   const SX = (u) => flip ? cx + (Wd - 1 - half) - u : cx - half + u;
@@ -7512,7 +7519,7 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
   const hi = (x, y) => { if (open.has(key(x, y))) pb.set(x, y, pal.h); };
   let firstOpen = Infinity; for (let u = 0; u < Wd; u++) firstOpen = Math.min(firstOpen, T[u] + 1);
   const hx = ix0 + 1, hy = Math.max(iy0 + 2, cy + firstOpen + 1);
-  hi(hx, hy); hi(hx + 1, hy); hi(hx, hy + 1); hi(hx + 1, hy + 1);
+  hi(hx, hy); hi(hx, hy + 1); if (G.hi !== 1) { hi(hx + 1, hy); hi(hx + 1, hy + 1); }
   if (G.hi === 3) { hi(hx + 2, hy); hi(hx + 2, hy + 1); hi(hx, hy + 2); hi(hx + 1, hy + 2); hi(ix0 + iw - 3, iy0 + ih - 4); }
   hi(ix0 + iw - 2, iy0 + ih - 3);
   // pestaña superior 2 px (1 px en el lagrimal) con remate hacia arriba en el rabillo
@@ -8589,6 +8596,38 @@ PDEFS.financia = phMake({
   lash: '#0e0806', brow: '#211e40', head: { jawDrop: 2.5, rx: 25, chinY: 35, chinX: 3 }, face: { mouthY: 24, eyeY: 7, eyeNX: -6, eyeFX: 15, noseY: 16 },
   eyeShape: 'almond', nose: 'long', lips: 'thin', cheekbones: true, browStyle: 'thin',
 });
+
+/* =====================================================================
+   r3-chars — geometría de cabeza propia por PNJ (los jueces: «plantilla de
+   cara compartida»). Además de pelo, sombrero y piel, cada retrato cambia
+   el ángulo 3/4 (turn), el ancho/alto del cráneo, la mandíbula (jawW,
+   jawDrop, mejillas), la altura y separación de los ojos y su tamaño
+   (geom 'small' para mayores y complexiones rudas). Se fusiona sobre la
+   definición de phMake sin alterar ropa ni colores.
+   ===================================================================== */
+const R3CHARS_PHEAD = {
+  naira: { turn: 5.5, head: { rx: 24.5, ry: 29.5, chinY: 35.5, cheek: 0.4 } },
+  dante: { turn: 2.5, geom: 'small', head: { rx: 28.5, ry: 27.5, jawW: 4.8, chinY: 32.5, chinX: 5, cheek: 1.8 }, face: { eyeY: 9.5, eyeNX: -8, eyeFX: 16.5, mouthY: 22.5 } },
+  eliana: { turn: 6.5, head: { rx: 24, ry: 30.5, chinY: 37, jawDrop: 2.2 }, face: { eyeY: 7, mouthY: 25, noseY: 16.5 } },
+  marea: { turn: 2, geom: 'small', head: { rx: 28.5, ry: 27, chinY: 31, jawW: 2.5, cheek: 2.8, jawDrop: 1.4 }, face: { eyeY: 9.5, eyeNX: -8, eyeFX: 17, mouthY: 22.5 } },
+  cobre: { turn: 3.5, geom: 'small', head: { rx: 29.5, ry: 27, jawW: 4.5, jawDrop: 2.4, cheek: 3, chinY: 32 }, face: { eyeY: 10, eyeNX: -7, eyeFX: 16 } },
+  nimbo: { turn: 7, geom: 'small', head: { rx: 24, ry: 29, chinY: 36.5, chinX: 7, jawDrop: 2.5 }, face: { eyeY: 8, noseY: 16 } },
+  consejal: { turn: 4, head: { rx: 25, ry: 29.5, chinY: 35, cheek: 0.6 } },
+  operador: { turn: 1.5, head: { rx: 27.5, ry: 28, jawW: 3.8, chinY: 33, chinX: 4 }, face: { eyeY: 9, eyeNX: -8.5, eyeFX: 16.5, mouthY: 22.5, noseY: 15.5 } },
+  pastora: { turn: 6.5, geom: 'small', head: { rx: 26.5, ry: 28, jawDrop: 1.4, cheek: 2 }, face: { eyeY: 9 } },
+  financia: { turn: 3, head: { rx: 24.5, ry: 30, chinY: 36.5, jawDrop: 2.5, chinX: 3 }, face: { eyeY: 7, eyeNX: -6, eyeFX: 15, mouthY: 24.5, noseY: 16 } },
+};
+for (const [id, v] of Object.entries(R3CHARS_PHEAD)) {
+  const f0 = PDEFS[id]; if (!f0) continue;
+  PDEFS[id] = () => {
+    const d = f0();
+    if (v.turn != null) d.turn = v.turn;
+    if (v.head) d.head = Object.assign({}, d.head || {}, v.head);
+    if (v.face) d.face = Object.assign({}, d.face || {}, v.face);
+    if (v.geom) d.eyeOpt = Object.assign({}, d.eyeOpt || {}, { geom: v.geom });
+    return d;
+  };
+}
 
 /* =====================================================================
    KIRU — retrato (fusión biblia + referencia, 02_personajes §3.2/§5.4).
