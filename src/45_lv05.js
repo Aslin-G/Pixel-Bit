@@ -45,6 +45,11 @@ LEVELS[5] = {
       { kind: 'clump', x: 3100, w: 140, h: 92, seed: 13, spikes: 5, leaves: 12 },
       { kind: 'clump', x: 3700, w: 130, h: 84, seed: 15, spikes: 4, leaves: 10 },
     ],
+    /** r2-biomes-a: la cara del acantilado deja de ser un muro uniforme (degradado de profundidad, cornisas con vegetación en diagonal, gaviotas y senderos en zigzag) */
+    decorateFace(pb, world) {
+      PFAWind.cliffDress(pb, world, { segs: [[0, 424], [624, 1304], [1564, 3000]], R: LV5_ROCK, seed: 5101, skip: [[396, 650], [1280, 1590]],
+        paths: [[[1186, 10], [1060, 52], [1120, 92], [1040, 126]], [[2690, 8], [2560, 50], [2640, 92], [2560, 128]], [[392, 8], [300, 44], [356, 84]]] });
+    },
     fauna: { eagle: { x0: 400, x1: 2600, y: 60 }, gulls: [{ x: 520, y: 150, n: 4 }, { x: 1420, y: 140, n: 5 }, { x: 2480, y: 110, n: 4 }] },
   },
   /** Etiquetas científicas en el mundo */
@@ -141,7 +146,16 @@ LEVELS[5] = {
     for (const [x0, x1] of [[424, 624], [1304, 1564]]) {
       const sx = x0 - cam.x, sw = x1 - x0;
       if (sx > W || sx + sw < 0) continue;
-      for (let i = 0; i < 4; i++) { g.globalAlpha = MA[i]; frect(g, sx, 372 - i * 22 - cam.y + Math.round(Math.sin(t * 0.5 + i) * 3), sw, 22, MIST[i]); }
+      // (r2-biomes-a) niebla de la garganta: degradado vertical continuo horneado una vez (antes 4 bandas de bordes duros)
+      this._mist = this._mist || {};
+      let M = this._mist[sw];
+      if (!M) {
+        const mh = 112, pb = new PixelBuffer(sw, mh), C = MIST.map(hx => [parseInt(hx.slice(1, 3), 16), parseInt(hx.slice(3, 5), 16), parseInt(hx.slice(5, 7), 16)]);
+        for (let y = 0; y < mh; y++) { const v = y / (mh - 1), f = (1 - v) * 3, i0 = clamp(Math.floor(f), 0, 2), q = f - i0, ca = C[i0], cb = C[i0 + 1], a = clamp(v * v * 0.42 + v * 0.06, 0, 0.5);
+          const u = PFK.pack(lerp(ca[0], cb[0], q), lerp(ca[1], cb[1], q), lerp(ca[2], cb[2], q), Math.round(a * 255)); for (let x = 0; x < sw; x++) pb.data[y * sw + x] = u; }
+        M = this._mist[sw] = pb.toCanvas();
+      }
+      g.drawImage(M, sx, 394 - 112 - cam.y + Math.round(Math.sin(t * 0.5) * 3));
       // corriente ascendente: estelas que suben a 20–40 px/s y motas de polvo con vaivén lateral
       for (let i = 0; i < 16; i++) { const sp = 20 + hash1(i, x0) * 20, ph = ((t * sp + hash1(i, x0 + 1) * 160) % 160) / 160; g.globalAlpha = 0.5 * Math.sin(ph * Math.PI); frect(g, sx + 6 + Math.floor(hash1(i, x0 + 2) * (sw - 12)), Math.round(392 - ph * 160 - cam.y), 1, 5 + (i % 3) * 2, '#ffffff'); }
       for (let i = 0; i < 14; i++) { const sp = 22 + hash1(i, x0 + 3) * 16, ph = ((t * sp + hash1(i, x0 + 4) * 170) % 170) / 170; g.globalAlpha = 0.75 * Math.sin(ph * Math.PI); fpx(g, Math.round(sx + 8 + hash1(i, x0 + 5) * (sw - 16) + Math.sin(t * 1.7 + i) * 3), Math.round(388 - ph * 170 - cam.y), i % 3 ? '#e8d8c0' : '#ffffff'); }
