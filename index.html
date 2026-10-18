@@ -23141,23 +23141,44 @@ const PFBE = (() => {
   }
   /** Armario BESS de interior a escala de personaje (≈100 px): 7 filas de módulos con asa y ranura de LED,
       cabecera BMS con pantalla, prensaestopas y cables a la bandeja. Devuelve {leds:[[x,y]], soc:[x,y,w], screen, top} */
+  /* r2-biomes-b: variantes de bastidor (o.variant): 0 módulos azul marino (clásico) · 1 armario marfil con franja
+     turquesa · 2 grafito con cantos naranja (serie antigua) · 3 puerta abierta en mantenimiento (hoja abatida,
+     mazos de cables y módulo extraído). o.state: 'ok' | 'service' | 'fault' | 'cold' → barra de estado de color
+     arriba (out.status = [x, y, col]). Altura libre ≥ 98: lo que sobra es rejilla de ventilación al pie. */
+  const R2BB_RACKV = [
+    { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'] },
+    { frame: ['#2a2622', '#4a443c', '#7a7266', '#a49a8a', '#c8bfae', '#e2dacb', '#f2ece0', '#fffbf2'], mod: ['#0a2a2e', '#0f4448', '#16605e', '#20807a', '#34a49a', '#5cc8bc', '#9ae6da', '#d4fbf2'], stripe: '#20b8a8' },
+    { frame: ['#0c0c10', '#18181e', '#26262e', '#363640', '#4a4a56', '#62626e', '#80808c', '#a8a8b2'], mod: ['#141418', '#202026', '#2e2e36', '#40404a', '#565662', '#72727e', '#9a9aa6', '#cacad2'], stripe: '#ff8a2a' },
+    { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'], open: true },
+  ];
+  const R2BB_STATE = { ok: '#3fe08a', service: '#ffb02a', fault: '#ff4e5d', cold: '#48b8ff' };
   function bessRack(pb, x, yb, w = 64, h = 100, d = 14, o = {}) {
-    const N = P(NAVY), Mo = P(o.module || ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2']), out = { leds: [] };
+    const VAR = R2BB_RACKV[o.variant | 0] || R2BB_RACKV[0];
+    const N = P(o.frame || VAR.frame), Mo = P(o.module || VAR.mod), out = { leds: [] };
     I.box3q(pb, x - 2, yb, w + 4, 4, d + 2, { ramp: PFTerrain.CONC });
-    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14;
+    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14, rEnd = r0 + rows * rh;
+    const open = !!(o.open ?? VAR.open);
     I.box3q(pb, x, by, w, h, d, {
-      ramp: NAVY,
+      ramp: o.frame || VAR.frame,
       front: (xx, yy, u, v) => {
         const lx = xx - x, ly = yy - top;
         if (lx < 3 || lx > w - 4) return N[lx < 1 ? 6 : lx < 3 ? 4 : lx > w - 2 ? 0 : 2];
         if (ly < 13) return N[ly < 1 ? 7 : ly === 12 ? 1 : 3];
+        if (yy >= rEnd) { const g = yy - rEnd; if (g === 0) return N[0]; return (g % 3 === 1 && lx > 6 && lx < w - 7) ? N[1] : N[clamp(3 - Math.round(v), 0, 7)]; } // rejilla al pie
         const ry = yy - r0, ri = Math.floor(ry / rh), rr = ry - ri * rh;
-        if (ri >= rows) return N[clamp(2 - Math.round(v), 0, 7)];
+        if (open && lx > 3 && lx < w - 4) { // interior: módulos sin tapa, mazos de cables a la izquierda
+          if (lx >= 6 && lx < 10) return U(['#ecc030', '#c8384a', '#2a2a32', '#4a90e8'][(lx - 6)] );
+          if (open && ri === 3 && lx > 12) return U(rr < 2 ? '#06080e' : '#0a0e18'); // módulo extraído: hueco oscuro
+          if (rr >= 10) return U('#05070e');
+          let k = 3 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : 0) + ((lx - 12) % 9 === 0 ? -2 : 0);
+          return Mo[clamp(k, 0, 7)];
+        }
         if (rr >= 10) return N[0];
         if (lx >= 5 && lx < 14 && rr >= 2 && rr < 6) return U('#060a14');
         if (lx > w - 14 && lx < w - 7 && rr === 4) return Mo[7];
         if (lx > w - 14 && lx < w - 7 && rr === 5) return Mo[2];
         if (lx >= 18 && lx < 34 && rr === 7) return Mo[6];
+        if (VAR.stripe && rr === 9 && lx > 3 && lx < w - 4) return U(VAR.stripe);
         let k = 4 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : rr === 1 ? 1 : 0) + Math.round((K.cl(xx, yy, 2, 31) - 0.5) * 0.6);
         return Mo[clamp(k, 0, 7)];
       },
@@ -23168,9 +23189,27 @@ const PFBE = (() => {
     B.rect(pb, x + 5, top + 3, w - 10, 7, U('#021018'));
     out.screen = [x + 6, top + 4, w - 12, 5];
     out.soc = [x + 8, top - 14, w - 16];
-    // prensaestopas y cables que suben a la bandeja
-    if (o.cablesTo != null) for (const [cx, col] of [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']]) for (let yy = o.cablesTo; yy < top - d; yy++) { K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col)); }
-    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 9, screws: false });
+    if (open) {
+      // hoja abatida hacia el pasillo (paralelogramo en 3/4) con cerradura y rejilla
+      const lw = 9;
+      for (let k = 0; k < lw; k++) for (let yy = top + 2 + Math.round(k * 0.5); yy < by - 1 + Math.round(k * 0.2); yy++) K.put(pb, x + w + 1 + k, yy, N[k === 0 ? 1 : k === lw - 1 ? 6 : ((yy - top) % 14 < 2 ? 2 : 4)]);
+      for (let yy = top + 40; yy < top + 48; yy++) K.put(pb, x + w + 6, yy, U('#d4daee'));
+      // módulo extraído apoyado en el suelo delante del bastidor, con etiqueta de servicio
+      I.box3q(pb, x + 14, yb + 1, 24, 9, 6, { ramp: o.module || VAR.mod });
+      B.rect(pb, x + 18, yb - 6, 8, 3, U('#ffb02a'));
+      // mazo de cables que cuelga suelto en lazo
+      for (let k = 0; k < 18; k++) { const cx = x + 8 + Math.round(Math.sin(k / 17 * Math.PI) * 6), cy = r0 + 30 + k * 2; K.put(pb, cx, cy, U('#ecc030')); K.put(pb, cx + 1, cy, U('#c8384a')); }
+    }
+    // barra de estado de color sobre la cabecera
+    const st = o.state || (open ? 'service' : null);
+    if (st && R2BB_STATE[st]) { const c = R2BB_STATE[st]; B.rect(pb, x + 4, top + 1, w - 8, 1, U(c)); B.rect(pb, x + w - 12, top + 3, 6, 7, U('#06080e')); B.rect(pb, x + w - 11, top + 4, 4, 5, U(c)); out.status = [x + w - 9, top + 6, c]; }
+    // prensaestopas y cables que suben a la bandeja (mazos más gruesos en las variantes)
+    if (o.cablesTo != null) {
+      const C3 = [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']];
+      if (o.variant) C3.push([x + 12, '#2a2a32'], [x + w - 14, '#3fe08a']);
+      for (const [cx, col] of C3) for (let yy = o.cablesTo; yy < top - d; yy++) K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col));
+    }
+    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: o.variant === 1 ? '#0a3a3a' : o.variant === 2 ? '#3a1e0a' : '#0e2848', border: o.variant === 1 ? '#5cc8bc' : o.variant === 2 ? '#ff9a4a' : '#78b0e2', col: '#f4fbff', h: 9, screws: false });
     B.castR(pb, x, x + w + Math.round(d * 0.45), yb - 1, 14, { amt: -0.22, yMin: yb - 18 });
     out.top = top;
     return out;
@@ -31370,6 +31409,19 @@ BIOMES.vault = function (L) {
     for (const yy of [24, 34]) { const T1 = V.cableTray(pb, 0, w - 1, yy, { k, hang: 24, cols: yy === 24 ? ['#c8861a', '#e8a838', '#3a3a4a'] : ['#2c63c0', '#56e5ff', '#3a3a4a'] }); hallFx.flows.push([T1.flow, yy === 24 ? '#ffd27a' : '#a8f4ff']); }
     // lámparas de techo (campanas) sobre los pasillos
     for (let lx = 40; lx < w; lx += 110) { V.rect(pb, lx - 4, 40, 9, 3, U('#3a4060')); V.rect(pb, lx - 3, 43, 7, 1, U('#fff2d0')); for (let yy = 26; yy < 40; yy++) V.put(pb, lx, yy, U('#2a3048')); hallFx.lamps.push([lx, 44]); }
+    // r2-biomes-b: entreplanta (pasarela de rejilla con barandilla amarilla, montantes, escaleras de tramo
+    // y apliques cálidos de sodio bajo el forjado): otra capa de profundidad sobre las filas
+    {
+      const DY = 66, GR = V.P32(['#10131e', '#1a1e2e', '#262c40', '#343c56', '#46506e', '#5e6a8a']), YL = V.P32(['#5a3a0a', '#9a6a10', '#d8a020', '#f8d040']);
+      for (let xx = 0; xx < w; xx++) {
+        for (let k = 0; k < 5; k++) V.put(pb, xx, DY + k, GR[k === 0 ? 5 : k === 1 ? 3 : k === 4 ? 0 : ((xx + k) % 3 ? 2 : 1)]);
+        V.put(pb, xx, DY - 12, YL[3]); V.put(pb, xx, DY - 11, YL[1]); V.put(pb, xx, DY - 6, YL[2]);
+        if (xx % 26 === 0) for (let yy = DY - 12; yy < DY; yy++) V.put(pb, xx, yy, YL[yy === DY - 12 ? 3 : 1]);
+      }
+      for (let xx = 18; xx < w; xx += 130) { for (let yy = DY + 5; yy < base; yy++) { V.put(pb, xx, yy, GR[3]); V.put(pb, xx + 1, yy, GR[1]); } }
+      for (let xx = 90; xx < w; xx += 390) for (let q = 0; q < 34; q++) { const sx = xx + q, sy = DY + 5 + Math.round(q * 1.5); V.put(pb, sx, sy, GR[4]); V.put(pb, sx, sy + 1, GR[1]); if (q % 3 === 0) V.put(pb, sx + 1, sy - 1, YL[2]); }
+      for (let lx = 70; lx < w; lx += 150) { V.rect(pb, lx - 3, DY + 5, 7, 2, U('#2a2420')); V.rect(pb, lx - 2, DY + 7, 5, 1, U('#ffd890')); hallFx.warm = hallFx.warm || []; hallFx.warm.push([lx, DY + 8]); }
+    }
     // filas de bastidores con huecos para la sala de control y la climatización
     let x = 10;
     while (x < w - 40) {
@@ -31393,6 +31445,7 @@ BIOMES.vault = function (L) {
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx < -40 || sx > W + 40) continue; g.drawImage(cone, Math.round(sx - 35), Math.round(y + oy)); }
         g.globalCompositeOperation = 'source-over';
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx > -10 && sx < W + 10) V.drawGlow(g, sx, y + oy, 5, '#fff2d0', 0.6); }
+        for (const [x, y] of hallFx.warm || []) { const sx = x + ox; if (sx > -14 && sx < W + 14) V.drawGlow(g, sx, y + oy, 9, '#ffb460', 0.5); }
         // LED de estado: verde (SOC sano), rojo (bajo), parpadeo de actividad
         const col = S.soc < 0.3 ? '#ff6b6b' : '#b6f05a';
         g.fillStyle = col;
@@ -40981,7 +41034,8 @@ LEVELS[6] = {
     for (const [xa, xb] of [[140, 150], [210, 220], [280, 290]]) { const ya = yb(xa) - 1, yb2 = yb(xb) - 1; PFK.lineFn(pb, xa, ya - 30, xb, yb2 - 30, () => U('#b0b8d6')); PFK.lineFn(pb, xa, ya - 15, xb, yb2 - 15, () => U('#6e769a')); }
     H2.extinguisher(pb, 270, yb(270) - 1);
     /* ===== 2. PRIMER BANCO (340–880): bastidores BESS a escala de personaje ===== */
-    for (const x of VAULT_RACKS.slice(0, 6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    for (const x of VAULT_RACKS.slice(0, 6)) R2BB_L6rack(pb, E, D, x, yb, off); // r2-biomes-b: bastidores variados (tamaño, serie, estado, puerta abierta)
+    R2BB_workLamp(pb, D, 592, yb(592), -1, gy(592)); R2BB_workLamp(pb, D, 1172, yb(1172), -1, gy(1172));
     const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan);
     D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
     /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
@@ -41002,7 +41056,8 @@ LEVELS[6] = {
     for (const [x, y, col] of ar.leds) D.leds.push({ x, y, col, hz: 0.4, ph: x });
     D.glows.push({ x: ar.lock[0], y: ar.lock[1], r: 8, col: '#e05aa0', a: 0.3, mode: 'pulse', hz: 0.6 });
     /* ===== 5. SEGUNDO BANCO (1760–2140) ===== */
-    for (const x of VAULT_RACKS.slice(6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    for (const x of VAULT_RACKS.slice(6)) R2BB_L6rack(pb, E, D, x, yb, off);
+    R2BB_workLamp(pb, D, 2112, yb(2112), -1, gy(2112));
     const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan);
     /* ===== 6. BARRA PRINCIPAL (2140–2405): celdas de interruptores ===== */
     const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL' });
@@ -41030,7 +41085,7 @@ LEVELS[6] = {
     const gy = (x) => w.groundAt(x) - oy;
     const soc = S.blackout ? 0 : (S.soc ?? 0.28);
     // conos de luz de las luminarias (apagados en el apagón)
-    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#dcf4ff', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
+    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h, col, a] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, col || '#dcf4ff', a || 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
     // LED de módulos y barra de SOC en cada bastidor
     for (const R of D.racks) {
       const sx = R.x - ox; if (sx < -80 || sx > W + 10) continue;
@@ -41046,7 +41101,8 @@ LEVELS[6] = {
       hz.on = !S.blackout && ph < 0.8;
       const sx = a.x - ox, top = 198 - oy, bot = gy(a.x);
       frect(g, sx + 4, top, 3, 4, '#c8861a'); frect(g, sx + a.w - 7, bot - 4, 3, 4, '#c8861a');
-      if (hz.on) { let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } VISTA.veil(g, sx - 6, top, a.w + 12, bot - top, '#56e5ff', 0.12); }
+      // r2-biomes-b: halo radial suave (anillos en bandas, en caché) + charco de luz en el suelo + resplandor de los electrodos
+      if (hz.on) { const fl = 0.75 + 0.25 * Math.sin(t * 37 + i * 2.1); R2BB_arcLight(g, sx + a.w / 2, top, bot, fl); let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } }
       else if (ph > 1.8) for (let k = 0; k < 3; k++) fpx(g, sx + 6 + Math.random() * 10, top + 6 + Math.random() * 10, '#a6e6ff');
     }
     // interruptores de la barra principal (arranque en negro por pasos)
@@ -41061,7 +41117,10 @@ LEVELS[6] = {
   },
   renderGrade(g, sc) {
     const S = sc.state;
-    g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.blackout ? 0.8 : 0.25; frect(g, 0, 0, W, H, S.blackout ? '#2a2050' : '#4a5ab0'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    // r2-biomes-b: sin el multiplicar azul marino a pantalla completa en marcha normal (con r2-light la gradación de interior ya está
+    // horneada en las capas): la bóveda deja de ser monocroma; en el apagón se mantiene la oscuridad
+    const r2l = typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc);
+    if (S.blackout || !r2l) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.blackout ? 0.8 : 0.25; frect(g, 0, 0, W, H, S.blackout ? '#2a2050' : '#4a5ab0'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.blackout) { const p = sc.player; const x = p.x - sc.cam.ox, y = p.y - sc.cam.oy - 30; g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.35; fdisc(g, x, y, 60, '#203060'); fdisc(g, x, y, 34, '#304080'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   },
   lens(g, sc, cam, k) {
@@ -41133,6 +41192,47 @@ LEVELS[6] = {
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
 const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [] };
+/* r2-biomes-b: bastidores variados — misma x, tamaño y serie distintos, estados de color y dos en mantenimiento */
+const R2BB_L6RACK = [
+  { v: 0, w: 64, h: 100, st: 'ok' }, { v: 1, w: 60, h: 108, st: 'ok' }, { v: 3, w: 62, h: 100 }, { v: 0, w: 62, h: 98, st: 'ok' }, { v: 2, w: 62, h: 112, st: 'cold' }, { v: 1, w: 58, h: 104, st: 'ok' },
+  { v: 2, w: 62, h: 110, st: 'ok' }, { v: 0, w: 64, h: 100, st: 'fault' }, { v: 1, w: 60, h: 106, st: 'ok' }, { v: 3, w: 62, h: 102 },
+];
+function R2BB_L6rack(pb, E, D, x, yb, off) {
+  const i = VAULT_RACKS.indexOf(x), c = R2BB_L6RACK[i] || {};
+  const R = E.bessRack(pb, x, yb(x), c.w || 64, c.h || 100, 14, { cablesTo: 154, label: 'RACK ' + String(i + 1).padStart(2, '0'), variant: c.v | 0, state: c.st });
+  D.racks.push(Object.assign({ x }, R));
+  D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off });
+  if (R.status) { const [sx, sy, col] = R.status, warn = col !== '#3fe08a'; D.glows.push({ x: sx, y: sy, r: warn ? 6 : 4, col, a: warn ? 0.85 : 0.55, mode: warn ? 'blink' : 'steady', hz: col === '#ff4e5d' ? 1.6 : 0.8, ph: x, on: off, core: '#ffffff' }); }
+}
+/** Foco de trabajo en trípode (luz cálida halógena) con cono y halo; dir = hacia dónde mira */
+function R2BB_workLamp(pb, D, x, yb, dir, gyx) {
+  const K = PFK, hy = yb - 52;
+  for (const [dx, k] of [[-8, 0], [8, 1], [2, 2]]) K.lineFn(pb, x, hy + 8, x + dx, yb, () => U(k === 2 ? '#26262e' : '#4a4a56'));
+  for (let yy = hy; yy < hy + 10; yy++) K.put(pb, x, yy, U('#6a6a76'));
+  // cabezal: carcasa naranja con rejilla y cara encendida
+  for (let yy = -4; yy <= 4; yy++) for (let k = -5; k <= 5; k++) { const e = Math.abs(yy) === 4 || Math.abs(k) === 5; K.put(pb, x + k, hy - 2 + yy, U(e ? '#3a1a08' : (k * dir > 2 ? '#fff4c8' : yy < -1 ? '#ff9a2a' : '#c8601a'))); }
+  K.put(pb, x - 5 * dir, hy + 3, U('#ffd060'));
+  D.glows.push({ x: x + 4 * dir, y: hy - 2, r: 22, col: '#ffb860', a: 0.5, mode: 'flicker', ph: x });
+  D.cones.push([x + 8 * dir, hy + 2, 6, 64, Math.max(20, gyx - hy - 4), '#ffc878', 0.24]);
+}
+/* r2-biomes-b: luz de los arcos eléctricos — halo radial en anillos (sin rectángulo duro), charco elíptico en el suelo
+   y destellos en los electrodos; lienzos en caché, 3 drawImage por arco encendido */
+const R2BB_ARC = { pool: null };
+function R2BB_arcPool() {
+  if (R2BB_ARC.pool) return R2BB_ARC.pool;
+  const w = 96, h = 18, pb = new PixelBuffer(w, h), col = U('#9ae6ff') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const d = Math.hypot((x - w / 2 + 0.5) / (w / 2), (y - h / 2 + 0.5) / (h / 2)); if (d >= 1) continue;
+    const a = d < 0.35 ? 0.5 : d < 0.62 ? 0.3 : 0.14; pb.data[y * w + x] = ((Math.round(a * 255) << 24) | col) >>> 0;
+  }
+  return (R2BB_ARC.pool = pb.toCanvas());
+}
+function R2BB_arcLight(g, cx, top, bot, k) {
+  const mid = (top + bot) / 2;
+  VISTA.drawGlow(g, cx, mid, 44, '#56c8ff', 0.3 * k);
+  VISTA.drawGlow(g, cx, mid, 18, '#c8f4ff', 0.4 * k);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * k; g.drawImage(R2BB_arcPool(), Math.round(cx - 48), Math.round(bot - 9)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
 
 /* ---------------- piezas del guion del nivel 06 ---------------- */
 async function gridFlow(sc, st) {
