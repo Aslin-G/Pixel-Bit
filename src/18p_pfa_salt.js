@@ -589,12 +589,16 @@ const PFASalt = (() => {
           else c = yy === 0 ? U('#ffd8b0') : yy === 1 ? Rk[8] : yy === R3S_GH - 1 ? Rk[0] : Rk[clamp(6 - yy + Math.round((PFK.cl(x, y, 3, 659) - 0.5) * 1.4), 1, 7)];
         } else if (y < e2) {                                                                                       // terraza vista desde arriba
           const q = y - top, span = e2 - top, v = q / Math.max(1, span), ao = q < 2 ? (q === 0 ? -2 : -1) : 0;
-          if (z.kind === 'pans' || z.kind === 'dikes') c = Sl[clamp(5 + Math.round((PFK.cl(x, y, 3, 661) - 0.5) * 1.6 + (PFK.vn(x * 0.05, y * 0.1, 663) - 0.5) * 1.2) + ao + (v > 0.8 ? 1 : 0), 2, 8)];
+          if (z.kind === 'pans' || z.kind === 'dikes') c = Sl[clamp(6 + Math.round((PFK.cl(x, y, 3, 661) - 0.5) * 1.6 + (PFK.vn(x * 0.05, y * 0.1, 663) - 0.5) * 1.2) + ao + (v > 0.8 ? 1 : 0), 2, 8)];
           else if (z.kind === 'marsh') { const MG = P32(['#16200e', '#24341a', '#364a22', '#4e6630', '#6e8a44', '#8eaa52', '#b4c86a']); c = MG[clamp(3 + Math.round((PFK.cl(x, y, 2, 665) - 0.5) * 2 + (PFK.vn(x * 0.06, y * 0.12, 667) - 0.5) * 1.6) + ao + (v > 0.8 ? 1 : 0), 0, 6)]; }
           else {
             c = Rk[clamp(5 + Math.round((PFK.cl(x, y, 3, 669) - 0.5) * 1.6 + (PFK.vn(x * 0.04, y * 0.08, 671) - 0.5) * 1.6) + ao + (v > 0.75 ? 1 : 0) - (hash2(x, y, 673) < 0.03 ? 2 : 0), 1, 8)];
-            const ef = PFK.vn(x * 0.07, y * 0.16, 695);                                                         // eflorescencias de sal en manchas
-            if (ef > 0.6) c = Sl[clamp(7 + Math.round((ef - 0.6) * 6) + (PFK.cl(x, y, 2, 697) < 0.25 ? -1 : 0) + (ef < 0.63 ? -2 : 0) + ao, 4, 8)];
+            // eflorescencias: placas de costra blanca (poligonales, con canto iluminado arriba y sombra abajo)
+            const efA = PFK.vn(x * 0.11, y * 0.24, 695), efU = PFK.vn(x * 0.11, (y - 1) * 0.24, 695), efD = PFK.vn(x * 0.11, (y + 1) * 0.24, 695), th = 0.55;
+            if (efA > th) {
+              const crack = PFK.cl(x, y, 4, 697) < 0.06;
+              c = crack ? Rk[3] : efU <= th ? Sl[8] : efD <= th ? Sl[3] : Sl[clamp(7 + Math.round((efA - th) * 5) + (PFK.cl(x, y, 2, 699) < 0.2 ? -1 : 0), 6, 8)];
+            } else if (efD > th) c = K.mixU(c, R3S_SH, 0.35);
           }
         } else {                                                                                                   // corte frontal
           const c0 = y - e2;
@@ -656,9 +660,34 @@ const PFASalt = (() => {
           else if (k < 0.86) add(y, () => saltScrub(pb, px, y, 10 + rr.int(0, 6), px));
           else add(y, () => halite(pb, px, y, 1 + rr.int(0, 1), px));
         }
-        if (z.pipe) add(z.pipeQ ? qy(z.x0, z.pipeQ) : 1, () => { const pts = z.pipe.map(([px, q]) => [px, qy(px, q)]); I.pipe(pb, pts, 3, 'brine', { flange: 24, supports: 34, supportTo: (x) => qy(x, z.pipe[0][1]) + 6 }); FA.brinePipe = pts; });
+        if (z.pipe) add(z.pipeQ ? qy(z.x0, z.pipeQ) : 1, () => {
+          // tubería grafito-índigo escalonada que sigue la repisa (tramos ortogonales)
+          const [[xa, q], [xb]] = z.pipe, pts = []; let cy = qy(xa, q); pts.push([xa, cy]);
+          for (let x = xa + 30; x < xb; x += 30) { const ny = qy(x, q); if (Math.abs(ny - cy) >= 4) { pts.push([x, cy]); pts.push([x, ny]); cy = ny; } }
+          pts.push([xb, cy]);
+          I.pipe(pb, pts, 3, 'brine', { flange: 24, supports: 34, supportTo: (x) => qy(x, q) + 7 }); FA.brinePipe = pts;
+        });
+        // grupos de halófitas cada ~30 px a lo largo de la repisa (salicornia, matorral salino, cojines verdes)
+        for (let x = z.x0 + 8; x < z.x1 - 8; x += 22 + rr.int(0, 14)) {
+          const hx = x, y = qy(x, 0.04 + rr() * 0.92), k = rr();
+          add(y, () => {
+            if (k < 0.4) { salicornia(pb, hx, y, 12 + rr.int(0, 8), hx); salicornia(pb, hx + 5, y + 1, 8, hx + 1); }
+            else if (k < 0.65) saltScrub(pb, hx, y, 10 + rr.int(0, 6), hx);
+            else PFFlora.cluster(pb, hx, y - 3, 5, 3, ['#16240e', '#26401a', '#3a5c22', '#52782a', '#6e9634', '#94b448', '#c4d670'], hx, { leaf: [2, 3], density: 0.85 });
+            r3sShadow(pb, hx + 2, y + 1, 5, 2, 0.3);
+          });
+        }
         // cuevas de cristales en el corte frontal
         for (const [cx, rw, rh] of (z.caves || [])) { const A2 = at(cx), cy = Math.round(A2.e2 + (H_ - A2.e2) * 0.45); const cv = r3sCave(pb, cx, cy, rw, rh, cx); FA.cry.push(...cv.cry); FA.seeps.push(cv.seep); }
+        // rezumes de salmuera en el corte: regueros húmedos violeta oscuro con costra blanca y gota luminosa; raíces arriba
+        for (let x = z.x0 + rr.int(10, 30); x < z.x1 - 10; x += rr.int(26, 46)) {
+          const A2 = at(x); if ((z.caves || []).some(([cx, rw]) => Math.abs(x - cx) < rw * 1.6)) continue;
+          const y0 = A2.e2 + 3, L = 10 + rr.int(0, Math.max(4, H_ - A2.e2 - 18));
+          for (let k = 0; k < L; k++) { const xx = x + Math.round(Math.sin(k * 0.3 + x) * 0.8); const c0 = get(pb, xx, y0 + k); put(pb, xx, y0 + k, K.mixU(c0, U('#2a1040'), 0.55)); const c1 = get(pb, xx + 1, y0 + k); put(pb, xx + 1, y0 + k, K.mixU(c1, U('#2a1040'), 0.3)); if (k % 6 === 0) put(pb, xx - 1, y0 + k, Sl[8]); }
+          put(pb, x, y0 + L, U('#c4fbff')); put(pb, x, y0 + L + 1, U('#7ee8f0'));
+          FA.drips = FA.drips || []; FA.drips.push([x, y0 + L, 6]);
+          PFASolar.roots(pb, x + 9, A2.e2 + 2, 6 + rr.int(0, 12), x);
+        }
       } else if (z.kind === 'marsh') {
         // canal mareal serpenteante, manglar, salicornia y garzas
         const mq = (x) => 0.5 + (PFK.vn(x * 0.012, 3, 691) - 0.5) * 0.7 + Math.sin(x * 0.021) * 0.08;

@@ -67,7 +67,7 @@ LEVELS[3] = {
     /** r3-desert: zonas del diorama inferior */
     r3szones: [
       { x0: 0, x1: 600, kind: 'pans', stage0: 0, houses: [[98, 0.22, 'BOMBA'], [452, 0.5, null]], seed: 31 },
-      { x0: 600, x1: 1110, kind: 'ledge', caves: [[668, 22, 12], [846, 30, 15], [1012, 24, 12]], pipe: [[604, 0.16], [1108, 0.16]], seed: 32 },
+      { x0: 600, x1: 1110, kind: 'ledge', caves: [[668, 22, 12], [760, 16, 9], [846, 30, 15], [934, 18, 10], [1012, 24, 12]], pipe: [[604, 0.16], [1108, 0.16]], seed: 32 },
       { x0: 1110, x1: 1530, kind: 'dikes', stage0: 2, houses: [[1300, 0.5, 'BOMBA 2']], seed: 33, pw: [38, 60] },
       { x0: 1530, x1: 1840, kind: 'marsh', birds: [[1590, 0.36, 1], [1668, 0.72, -1], [1760, 0.4, 1], [1804, 0.8, -1]], seed: 34 },
       { x0: 1840, x1: 2660, kind: 'bay', wl: 314, bed: 374, pipeX: 2292, diff: [2372], caves: [[1902, 14, 7], [2580, 16, 7]], fish: [{ x0: 1870, x1: 2360, y: 346, n: 4 }, { x0: 1990, x1: 2640, y: 372, n: 5 }], seed: 35 },
@@ -709,6 +709,8 @@ function R3DESERT_l3front(g, sc, cam) {
   // cristales y rezumes
   for (const [x, y, col] of D.cry) { if (!vis(x)) continue; const a = 0.22 + 0.2 * Math.sin(t * 1.7 + x * 0.31); PFK.drawGlow(g, x - ox, y - oy, 5, col, a); if (Math.sin(t * 2.3 + x) > 0.93) fpx(g, x - ox, y - oy - 1, '#ffffff'); }
   for (const s of D.seeps) { if (!s || !vis(s[0])) continue; const [x, y, w] = s, k = (t * 7 + x) % Math.max(4, w - 2); g.globalAlpha = 0.85; frect(g, Math.round(x + k - ox), y - oy, 2, 1, '#ffffff'); g.globalAlpha = 1; if (Math.floor(t * 1.3 + x) % 4 === 0) { const ph = (t * 1.3 + x) % 1; fpx(g, Math.round(x + w / 2 - ox), Math.round(y - 6 + ph * 6 - oy), '#c4fbff'); } }
+  // gotas de salmuera que caen de los rezumes del corte
+  if (D.drips) for (const [x, y, L] of D.drips) { if (!vis(x, 4)) continue; const ph = (t * 0.9 + x * 0.013) % 1; if (ph < 0.6) { fpx(g, x - ox, Math.round(y + 2 + ph * ph * L * 2.4 - oy), '#c4fbff'); } else if (ph < 0.7) { fpx(g, x - 1 - ox, y + 2 + Math.round(L * 0.86) - oy, '#7ee8f0'); fpx(g, x + 1 - ox, y + 2 + Math.round(L * 0.86) - oy, '#7ee8f0'); } }
   // salinas: destellos y aves
   g.fillStyle = '#ffffff';
   for (const P of D.pans) { if (!vis(P.x0, 80)) continue; const k = (t * 9 + P.x0 * 3) % Math.max(6, P.x1 - P.x0 - 8), y = Math.round(P.y0 + (P.y1 - P.y0) * 0.6); g.globalAlpha = 0.7; g.fillRect(Math.round(P.x0 + 4 + k + (P.y1 - y) * P.sk - ox), y - oy, 3, 1); }

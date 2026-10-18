@@ -80,7 +80,7 @@ BIOMES.canyon = function (L) {
       yBase: h - 1, nv: 48, dvy: 0.32, seed: 103, hMax: 120, H: V.r2baMesaH(list, { seed: 103, gully: 0.16 }),
       ramp: ROCK, contrast: 2.3, t0: 0.46, facet: 0.34, cav: 0.08, hgtK: 0.1, spanDark: 0.007, flatK: 0.2,
       strata: { L: [5, 11], hard: 0.05, soft: 0.06, lip: 0.16, under: 0.13, warp: 4, salt: { every: 5, col: '#ffe4dc', k: 0.28 } }, shadeHue: '#2a1a64', shadeK: 0.35,
-      haze: { col: '#8e78b0', k0: 0.18, k: 0.12 }, mist: { col: '#d89aa4', h: 30, k: 0.6 }, rim: '#ffd0a0', rimK: 0.7, tex: 0.04,
+      haze: { col: '#8e78b0', k0: 0.18, k: 0.12 }, mist: { col: '#d89aa4', h: 30, k: 0.6 }, rim: '#ffe6c4', rimK: 0.95, tex: 0.04,
       veg: { ramp: V.hz(VEG, 0.2, '#8e78b0'), density: 0.06, maxSlope: 0.25, minY: 30, size: 1.6 },
     });
     // mástil y aerogeneradores pequeños en el borde de las mesetas más altas
@@ -154,7 +154,7 @@ BIOMES.canyon = function (L) {
     const info = V.r2baRelief(pb, {
       yBase: base, nv: 22, dvy: 0.3, seed: 123, hMax: 112, H: V.r2baMesaH(list, { seed: 123, gully: 0.18 }),
       ramp: ROCK, contrast: 2.4, t0: 0.46, facet: 0.34, cav: 0.08, flatK: 0.2,
-      strata: { L: [5, 10], hard: 0.06, soft: 0.06, lip: 0.18, under: 0.14, warp: 3, salt: { every: 6, col: '#ffe4dc', k: 0.3 } }, shadeHue: '#2a1a64', shadeK: 0.35, haze: { col: '#9a7ab0', k0: 0.04, k: 0.04 }, rim: '#ffd8a8', rimK: 0.75, tex: 0.05,
+      strata: { L: [5, 10], hard: 0.06, soft: 0.06, lip: 0.18, under: 0.14, warp: 3, salt: { every: 6, col: '#fff4ec', k: 0.42 } }, shadeHue: '#2a1a64', shadeK: 0.35, haze: { col: '#9a7ab0', k0: 0.04, k: 0.04 }, rim: '#ffd8a8', rimK: 0.75, tex: 0.05,
       veg: { ramp: VEG, density: 0.08, maxSlope: 0.3, minY: 20, size: 1.8 },
     });
     // chimeneas de hadas en grupos de 2–4 delante de los farallones
@@ -181,7 +181,7 @@ BIOMES.canyon = function (L) {
     for (let x = 0; x < w + 60; x += r.int(90, 170)) list.push({ x, v: r.int(2, 8), w: r.int(26, 50), d: 6, h: r.int(6, 16), step: 4, p: 2.2, tal: 0.6 });
     const info = V.r2baRelief(pb, {
       yBase: h - 1, nv: 26, dvy: 0.5, seed: 133, flatK: 0.1, strata: { L: [3, 6], hard: 0.04, soft: 0.04, lip: 0.1, under: 0.1 }, hMax: 20, H: (u, v) => 4 + 2.5 * fbm(u * 0.03, v * 0.15, 2, 9) + V.r2baMesaH(list, { seed: 133 })(u, v),
-      ramp: ROCK, contrast: 1.6, t0: 0.44, facet: 0.3, rim: '#ffd8a8', tex: 0.06,
+      ramp: ROCK, contrast: 1.6, t0: 0.44, facet: 0.3, rim: '#ffecd0', rimK: 0.95, tex: 0.06,
     });
     const CR = V.P32(['#6e5a7e', '#9a86a4', '#c4b2c6', '#e2d6e2', '#f6eef4']);
     const LG = V.P32(['#1c2a6a', '#2a4a9a', '#4a7ac0', '#9ac8e8', '#fff0e0']);
