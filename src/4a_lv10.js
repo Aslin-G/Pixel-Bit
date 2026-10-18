@@ -516,11 +516,11 @@ LEVELS[10] = {
     ],
     fg: [
       { kind: 'clump', x: -24, w: 140, h: 90, seed: 101, spikes: 4, leaves: 11 },
-      { kind: 'r2bbWires', x: 330, y: 0, top: true, w: 340, h: 44, seed: 103, n: 3 },
+      { kind: 'r2bbWires', x: 330, y: -24, top: true, w: 340, h: 54, seed: 103, n: 3 },
       { kind: 'rail', x: 980, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
       { kind: 'reeds', x: 1660, w: 130, h: 86, seed: 105, ramp: ['#0a0604', '#140c08', '#22160c', '#302010', '#402c16', '#56401e'] },
       { kind: 'clump', x: 2380, w: 120, h: 76, seed: 107, spikes: 5, leaves: 9 },
-      { kind: 'r2bbWires', x: 2700, y: 0, top: true, w: 320, h: 40, seed: 109, n: 2 },
+      { kind: 'r2bbWires', x: 2700, y: -24, top: true, w: 320, h: 50, seed: 109, n: 2 },
       { kind: 'dark', x: 3260, w: 120, h: 70, seed: 111, leaves: 9 },
       { kind: 'rail', x: 3700, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
       { kind: 'clump', x: 4280, w: 150, h: 92, seed: 113, spikes: 6, leaves: 12 },
