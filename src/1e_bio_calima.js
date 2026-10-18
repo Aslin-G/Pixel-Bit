@@ -39,7 +39,9 @@ function buildCalima(L) {
   B.calima = null;
   B.r2storm = R2S; B.r2sf = SF;
   B.sky = R2S.c;
-  B.skyClear = V.timed('skyClear', () => V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas());
+  // cielo despejado: se hornea la primera vez que se pide (al despejar, en el clímax): −30 ms de prerender
+  let skyClearC = null;
+  Object.defineProperty(B, 'skyClear', { configurable: true, get: () => skyClearC || (skyClearC = V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas()) });
   // coloso vivo: halo del sol tras su hombro, ojos y fauces de brasa que respiran, grietas del pecho (se apagan con MOSAICO)
   B.vdyn(SF, (g, cam) => {
     const S = st(), t = T(), ox = -Math.round(cam.x * SF), a = clamp(1 - S.clear * 1.2, 0, 1);
@@ -139,6 +141,14 @@ function buildCalima(L) {
       for (const [x, y, rr] of synFx.glows) V.drawGlow(g, x + ox, y + oy, rr, '#4cd48e', 0.3 + 0.15 * Math.sin(t * 2 + x));
     },
   });
+  /* ---------------- r2-biomes-b: haces crepusculares a través del polvo, delante del plano medio (sprite parcial) ---------------- */
+  const R2FAN = V.timed('r2fan', () => R2BB_rayFan(R2S));
+  B.vdyn(SF, (g, cam) => {
+    const S = st(), a = clamp(1 - S.clear * 1.4, 0, 1) * (0.5 + 0.12 * Math.sin(Game.time * 0.45) + 0.1 * (S.gust || 0)); if (a <= 0.02) return;
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, a);
+    g.drawImage(R2FAN.c, Math.round(S0.x - cam.x * SF - R2FAN.ox), Math.round(S0.y - cam.y * 0.05 - R2FAN.oy));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }, { tag: 'r2rays' });
   /* ---------------- pueblo con persianas cerradas (0,32) ---------------- */
   const townFx = { lights: [], beacons: [], crests: [], lit: [] };
   B.vplane(0.32, at(0.32, 132), 156, (pb, w, h) => {

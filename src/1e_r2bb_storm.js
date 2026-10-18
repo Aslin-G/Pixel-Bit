@@ -52,6 +52,7 @@ function R2BB_stormSky(w, h, o = {}) {
   const SUN = o.sun || { x: 352, y: 54, r: 11 };
   const HX = o.hx || 470, HY = o.hy || 60; // cabeza del coloso
   const P = [];
+  const PROF = [nowMs()];
   /* ---- cúmulos de polvo colgando arriba (mat 2), con hueco sobre el sol ---- */
   for (let x = -30; x < w + 40; x += r.int(22, 40)) {
     const gap = Math.abs(x - SUN.x + 10) < 70 ? 1 : 0;
@@ -96,16 +97,22 @@ function R2BB_stormSky(w, h, o = {}) {
     [HX - 17, HY + 12, 11, z0 + 26, 0], [HX + 17, HY + 11, 11, z0 + 26, 0], [HX - 9, HY + 27, 12, z0 + 24, 0], [HX + 9, HY + 27, 12, z0 + 24, 0], [HX, HY + 31, 12, z0 + 22, 0]);
   // bultos de superficie (coliflor) sobre hombros, joroba y antebrazos
   for (let q = 0; q < 56; q++) { const a = r.range(-Math.PI * 1.05, 0.05), side = q % 3, sx = side === 0 ? HX - 58 : side === 1 ? HX + 62 : HX + 4, sy = side === 2 ? HY - 6 : HY; const rr = side === 2 ? 22 : 30; P.push([sx + Math.cos(a) * rr, sy + Math.sin(a) * rr * 0.92, r.range(4, 9), z0 + 24, 0]); }
+  PROF.push(nowMs());
   /* ---- raster ---- */
   const ID = new Int16Array(N).fill(-1), Z = new Float32Array(N).fill(-1e9), NX = new Float32Array(N), NY = new Float32Array(N);
   R2BB_puffRaster(w, h, P, ID, Z, NX, NY);
   const MAT = new Int8Array(N).fill(-1); for (let i = 0; i < N; i++) if (ID[i] >= 0) MAT[i] = P[ID[i]][4];
+  PROF.push(nowMs());
   /* ---- oclusión angular desde el sol: OCC[a] = distancia al primer bulto ---- */
-  const NA = 1440, OCC = new Float32Array(NA).fill(1e9);
+  const NA = 1440, OCC = new Float32Array(NA).fill(1e9), OCC0 = new Float32Array(NA).fill(1e9);
   for (let a = 0; a < NA; a++) {
     const an = a / NA * TAU, ca = Math.cos(an), sa = Math.sin(an);
-    for (let d = SUN.r + 2; d < 900; d += 1) { const x = Math.round(SUN.x + ca * d), y = Math.round(SUN.y + sa * d); if (x < 0 || y < 0 || x >= w || y >= h) break; if (MAT[y * w + x] >= 0) { OCC[a] = d; break; } }
+    for (let d = SUN.r + 2; d < 900; d += 1) {
+      const x = Math.round(SUN.x + ca * d), y = Math.round(SUN.y + sa * d); if (x < 0 || y < 0 || x >= w || y >= h) break;
+      const m = MAT[y * w + x]; if (m >= 0 && OCC[a] > 1e8) OCC[a] = d; if (m === 0) { OCC0[a] = d; break; }
+    }
   }
+  PROF.push(nowMs());
   // variación de los haces: ruido angular suave (huecos entre bultos = haces brillantes)
   const RAY = new Float32Array(NA); for (let a = 0; a < NA; a++) RAY[a] = fbm1(a / NA * 46, 3, 77);
   const sky = V.P32(R2BB_SKYR), body = V.P32(R2BB_BODYR), wall = V.P32(R2BB_WALLR), cloud = V.P32(R2BB_CLOUDR), rimR = V.P32(R2BB_RIMR);
@@ -119,17 +126,18 @@ function R2BB_stormSky(w, h, o = {}) {
     if (d > occ + 1) return -Math.min(1, (d - occ) / 40) * clamp(1.2 - (d - occ) / 520, 0.25, 1);  // sombra crepuscular
     const v = RAY[a]; return v > 0.55 ? (v - 0.55) * 2.4 * clamp(1 - d / 380, 0, 1) : 0;          // haz brillante
   };
+  const WT = new Float32Array(w); for (let x = 0; x < w; x++) WT[x] = wallTop(x) + 26;
+  const VYP = new Float32Array(h); for (let y = 0; y < h; y++) VYP[y] = 0.1 + 0.36 * Math.pow(clamp(y / HZ, 0, 1), 0.85);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x, m = MAT[i];
     if (m < 0) {
-      const wt = wallTop(x) + 26;
+      const wt = WT[x];
       if (y > wt) { // banco de polvo bajo el muro: opaco, más claro hacia abajo (polvo iluminado)
         const t = 0.3 + clamp((y - wt) / 120, 0, 1) * 0.42 + (fbm(x * 0.05, y * 0.12, 2, 5) - 0.5) * 0.14;
         pb.data[i] = wall[V.band(clamp(t, 0, 0.999), wall.length, x, y, 0.04, 17)];
         continue;
       }
-      const vy = clamp(y / HZ, 0, 1);
-      let t = 0.1 + 0.36 * Math.pow(vy, 0.85) + glowAt(x, y) * 0.66;
+      let t = VYP[y] + glowAt(x, y) * 0.66;
       const ry = rayAt(x, y); t += ry > 0 ? ry * 0.09 : ry * 0.12;
       pb.data[i] = sky[V.band(clamp(t, 0, 0.999), sky.length, x, y, 0.012, 11)];
       continue;
@@ -152,9 +160,11 @@ function R2BB_stormSky(w, h, o = {}) {
     } else if (m === 1) { t = 0.26 + 0.3 * top + 0.55 * back + 0.06 * rayAt(x, y) + clamp((y - 150) / 160, 0, 0.25) + tex; R = wall; }
     else { t = 0.2 + 0.26 * top + 0.75 * back + glowAt(x, y) * 0.45 + tex; R = cloud; }
     // pliegue: bulto delante → línea interior más oscura
-    for (const j of [i + 1, i - w, i - 1]) { if (j < 0 || j >= N) continue; const q = ID[j]; if (q >= 0 && q !== ID[i] && Z[j] > Z[i] + 1.8) { t -= 0.12; break; } }
+    { const id = ID[i], zz = Z[i] + 1.8; let q;
+      if ((x < w - 1 && (q = ID[i + 1]) >= 0 && q !== id && Z[i + 1] > zz) || (y > 0 && (q = ID[i - w]) >= 0 && q !== id && Z[i - w] > zz) || (x > 0 && (q = ID[i - 1]) >= 0 && q !== id && Z[i - 1] > zz)) t -= 0.12; }
     pb.data[i] = R[V.band(clamp(t, 0, 0.999), R.length, x, y, 0.04, 13 + m)];
   }
+  PROF.push(nowMs());
   /* ---- jirones de polvo que el viento arranca del coloso hacia la izquierda (hebras + motas sueltas) ---- */
   const wispU = U('#64303a'), speckU = U('#8a4636');
   for (let y = 0; y < h; y++) {
@@ -170,6 +180,7 @@ function R2BB_stormSky(w, h, o = {}) {
       if (d < 40 && hash2(x, y, 13) < 0.018 * (1 - d / 40)) pb.data[i] = speckU;
     }
   }
+  PROF.push(nowMs());
   /* ---- luz de borde contra el cielo, del lado del sol (1–3 px, más fuerte cerca del sol) ---- */
   const rimList = [];
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
@@ -183,6 +194,7 @@ function R2BB_stormSky(w, h, o = {}) {
     if (k >= 1) rimList.push(i, clamp(k, 0, rimR.length - 1));
   }
   for (let q = 0; q < rimList.length; q += 2) pb.data[rimList[q]] = rimR[rimList[q + 1]];
+  PROF.push(nowMs());
   /* ---- sol velado detrás del coloso (solo sobre cielo) ---- */
   const SR = SUN.r;
   for (let y = SUN.y - SR - 3; y <= SUN.y + SR + 3; y++) for (let x = SUN.x - SR - 3; x <= SUN.x + SR + 3; x++) {
@@ -190,6 +202,7 @@ function R2BB_stormSky(w, h, o = {}) {
     const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.8;
     if (d <= SR - 3) pb.data[i] = U('#fffbe6'); else if (d <= SR - 1) pb.data[i] = U('#fff2c0'); else if (d <= SR + 1) pb.data[i] = U('#ffe49a');
   }
+  PROF.push(nowMs());
   /* ---- cara: cuencas bajo el arco ciliar, ojos de brasa rasgados y fauces como boca de horno ---- */
   const put = (x, y, c) => V.put(pb, x, y, typeof c === 'number' ? c : U(c));
   const shadeAt = (x, y, k) => { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= w || y >= h) return; const i = y * w + x; pb.data[i] = V.mixU(pb.data[i], U('#08030a'), k); };
@@ -229,7 +242,8 @@ function R2BB_stormSky(w, h, o = {}) {
   // grietas de brasa en el pecho (el corazón de la tormenta)
   const cracks = [];
   for (let q = 0; q < 3; q++) { let x = HX + r.range(-12, 12), y = HY + 66 + q * 14; for (let k = 0; k < 14; k++) { const nx2 = x + r.range(-2.2, 2.2), ny2 = y + r.range(0.6, 1.8); put(Math.round(nx2), Math.round(ny2), k % 4 === 0 ? '#ffb040' : '#c8401a'); if (k % 5 === 0) cracks.push([Math.round(nx2), Math.round(ny2)]); x = nx2; y = ny2; } }
-  return { c: pb.toCanvas(), sun: SUN, eyes, maw, head: [HX, HY], cracks, wallTop };
+  PROF.push(nowMs()); R2BB_stormSky.prof = PROF.slice(1).map((v, i) => Math.round(v - PROF[i]));
+  return { c: pb.toCanvas(), sun: SUN, eyes, maw, head: [HX, HY], cracks, wallTop, occ0: OCC0, ray: RAY, NA };
 }
 
 /* ---------------- r2-biomes-b · oclusor frontal: tendido eléctrico en contraluz (sin viga recta) ----------------
@@ -255,6 +269,114 @@ PFStage.FG.r2bbWires = function (o) {
   for (const f of [0.3, 0.72]) {
     const fx = Math.round(w * f), y = curves[0](fx);
     for (let k = 0; k < 10; k++) { const len = k < 3 ? 3 : k < 6 ? 2 : 1; for (let q = 0; q < len; q++) PFK.put(pb, fx - k, y + 2 + Math.round(k * 0.3) + q, q === 0 ? U(k < 2 ? '#ffb070' : '#b0502a') : U('#4a1c12')); }
+  }
+  return pb;
+};
+
+/* ---------------- r2-biomes-b · haces crepusculares sobre el plano medio ----------------
+   Abanico desde el sol (al costado del hombro del coloso) hacia abajo-izquierda: mismos huecos angulares
+   que los haces del cielo (RAY), cortados donde el coloso tapa el sol (occ0). Alfa en 4 bandas con borde en
+   clusters 3×2 (sin tramado); se dibuja con 'lighter' como sprite parcial (≈ 0,45 pantallas), no a pantalla completa.
+     R2BB_rayFan(S) → { c, ox, oy }  (ox, oy: posición del sol dentro del sprite) */
+function R2BB_rayFan(S, o = {}) {
+  const w = o.w || 400, h = o.h || 270, ox = o.ox || 372, oy = o.oy || 0, pb = new PixelBuffer(w, h);
+  const NA = S.NA, RAY = S.ray, OCC0 = S.occ0, col = U(o.col || '#ffcc84') & 0xffffff, nb = 5;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy); if (d < 14) continue;
+    let a = Math.round((Math.atan2(dy, dx) / TAU) * NA); a = ((a % NA) + NA) % NA;
+    const deg = a / NA * 360; if (deg < 96 || deg > 186) continue;
+    if (d > OCC0[a] - 2) continue;                       // a la sombra del coloso
+    const v = RAY[a], beam = v > 0.5 ? Math.min(1, (v - 0.5) * 2.6) : 0;
+    const edge = clamp((deg - 96) / 14, 0, 1) * clamp((186 - deg) / 30, 0, 1);
+    const fall = Math.exp(-d / 230) * clamp(d / 40, 0, 1);
+    let f = (beam * 0.85 + 0.12) * fall * edge;
+    f += (hash2((x / 3) | 0, (y / 2) | 0, 57) - 0.5) / nb * 0.8;
+    const lv = clamp(Math.round(f * nb), 0, nb); if (!lv) continue;
+    pb.data[y * w + x] = ((Math.round(lv / nb * 255) << 24) | col) >>> 0;
+  }
+  return { c: pb.toCanvas(), ox, oy };
+}
+
+/* ---------------- r2-biomes-b · siluetas cercanas a contraluz (oclusor frontal f≈1,3, anclado abajo) ----------------
+   o.what: 'palm' (palmera doblada por el viento, hojas a la izquierda) · 'agave' · 'lamp' (farola torcida con
+   bombilla encendida y halo horneado en bandas) · 'fence' (cerca de arena medio enterrada con lona rota).
+   Negro cálido con borde encendido de 1–2 px del lado del sol (arriba y hacia o.sunDx) — alto contraste. */
+const R2BB_SILR = ['#0a0405', '#120806', '#1c0d09', '#28140c'];
+PFStage.FG.r2bbSil = function (o) {
+  const w = o.w || 120, h = o.h || 130, pb = new PixelBuffer(w, h), r = RNG(o.seed || 9), K = PFK;
+  const C = R2BB_SILR.map(c => U(c)), MASK = new Uint8Array(w * h);
+  const dot = (x, y, k = 1) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= w || y >= h) return; MASK[y * w + x] = Math.max(MASK[y * w + x], k); };
+  const disc = (cx, cy, rr, k = 1) => { for (let y = Math.floor(cy - rr); y <= cy + rr; y++) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= rr * rr) dot(x, y, k); };
+  const stroke = (pts, r0, r1, k = 1) => { for (let i = 0; i < pts.length - 1; i++) { const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay)); for (let j = 0; j <= n; j++) { const t = j / Math.max(1, n), u = (i + t) / (pts.length - 1); disc(lerp(ax, bx, t), lerp(ay, by, t), lerp(r0, r1, u), k); } } };
+  const bez = (a, b, c, n = 16) => Array.from({ length: n + 1 }, (_, i) => { const t = i / n; return [(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * b[0] + t * t * c[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * b[1] + t * t * c[1]]; });
+  const glows = [];
+  if (o.what === 'palm') {
+    const bx = w * 0.66, top = [w * 0.56, h * 0.3];
+    const trunk = bez([bx, h + 2], [bx + 12, h * 0.6], top, 26);
+    stroke(trunk, 5.2, 2.8, 2);
+    for (let i = 2; i < trunk.length - 1; i += 2) { const [x, y] = trunk[i]; dot(x - 4, y, 3); dot(x + 4, y, 3); dot(x - 3, y + 1, 3); }
+    // fronda peinada por el viento hacia la izquierda: raquis curvo + folíolos densos que cuelgan hacia atrás
+    const nf = 8;
+    for (let f = 0; f < nf; f++) {
+      const u = f / (nf - 1), a = lerp(-2.95, -0.2, u) + r.range(-0.1, 0.1);
+      const L = r.range(48, 62) * (u > 0.75 ? 0.66 : u < 0.2 ? 1.08 : 0.92), wind = -16 - r.range(0, 12) - (1 - u) * 6;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const mid = [top[0] + ca * L * 0.6 + wind * 0.3, top[1] + sa * L * 0.6 - 2];
+      const tip = [top[0] + ca * L * 0.85 + wind, top[1] + sa * L * 0.85 + L * 0.36];
+      const P = bez(top, mid, tip, 26); stroke(P, 1.8, 0.7, 1);
+      for (let i = 3; i < P.length - 1; i += 2) {
+        const [x, y] = P[i], [nx, ny] = P[i + 1], tl = Math.hypot(nx - x, ny - y) || 1, tx = (nx - x) / tl, ty = (ny - y) / tl, t = i / (P.length - 1);
+        const ll = (3 + 6 * Math.sin(Math.min(1, t * 1.25) * Math.PI)) * (0.85 + hash2(f, i, 3) * 0.3);
+        for (const sd of [-1, 1]) {
+          // folíolo en espiga: tangente girada ±45° hacia la punta, con caída por gravedad
+          const an = sd * 0.8, c = Math.cos(an), sn = Math.sin(an);
+          let dx = tx * c - ty * sn, dy = tx * sn + ty * c + 0.55; const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
+          for (let k = 1; k <= ll; k++) dot(x + dx * k, y + dy * k, 1);
+        }
+      }
+    }
+    disc(top[0], top[1] + 2, 4.2, 2); disc(top[0] + 3, top[1] + 5, 2.4, 3);
+    for (let k = 0; k < 5; k++) disc(top[0] - 2 + k * 1.5, top[1] + 6 + (k % 2) * 2, 1.6, 3); // dátiles
+  } else if (o.what === 'agave') {
+    const cx = w * 0.5, by = h - 1;
+    for (let i = 0; i < 13; i++) {
+      const a = lerp(-Math.PI + 0.25, -0.25, i / 12) + r.range(-0.08, 0.08), L = r.range(0.55, 1) * h * (Math.abs(i - 6) < 3 ? 0.95 : 0.7);
+      const tip = [cx + Math.cos(a) * L * 0.9, by + Math.sin(a) * L], mid = [cx + Math.cos(a) * L * 0.42, by + Math.sin(a) * L * 0.62];
+      stroke(bez([cx + Math.cos(a) * 4, by], mid, tip, 16), 4.2, 0.5, i % 2 ? 1 : 2);
+    }
+    // vara floral seca
+    if (o.stalk !== false) { const sx = cx + 6; stroke([[sx, by - 10], [sx + 2, by - h * 1.4]], 1.4, 0.8, 2); for (let k = 0; k < 4; k++) { const yy = by - h * (0.95 + k * 0.12); stroke([[sx + 1, yy], [sx - 7, yy - 4]], 0.8, 0.6, 1); stroke([[sx + 1, yy], [sx + 8, yy - 3]], 0.8, 0.6, 1); disc(sx - 7, yy - 4, 1.6, 2); disc(sx + 8, yy - 3, 1.6, 2); } }
+  } else if (o.what === 'lamp') {
+    const bx = w * 0.5, lean = o.lean ?? -0.08;
+    const top = [bx + lean * h, 10];
+    stroke([[bx, h + 2], [bx + lean * h * 0.5, h * 0.5], top], 3.2, 1.8, 2);
+    disc(bx, h - 3, 4, 2);
+    stroke([top, [top[0] - 14, top[1] + 3]], 1.4, 1.2, 2);
+    const lx = top[0] - 16, ly = top[1] + 5; stroke([[lx - 5, ly], [lx + 5, ly]], 2.2, 2.2, 3);
+    glows.push([lx, ly + 3]);
+  } else { // fence
+    const by = h - 1;
+    for (let x = 4; x < w - 4; x += 7) { const lean = r.range(-0.25, 0.1), hh = r.range(0.45, 1) * h * 0.8; stroke([[x, by + 2], [x + lean * hh, by - hh]], 1.6, 1.1, (x / 7) % 2 ? 1 : 2); }
+    stroke([[0, by - h * 0.34], [w, by - h * 0.42]], 1, 1, 2);
+    stroke([[0, by - h * 0.62], [w * 0.6, by - h * 0.68]], 0.9, 0.9, 2);
+    for (let x = w * 0.25; x < w * 0.55; x++) for (let k = 0; k < 6 - Math.abs(x - w * 0.4) / 5; k++) dot(x - k * 0.8, by - h * 0.62 + k, 1); // lona rota que flamea a la izquierda
+    for (let x = 0; x < w; x++) { const sh = Math.round(4 + 3 * Math.sin(x * 0.07)); for (let y = by - sh; y <= by; y++) dot(x, y, 3); } // arena acumulada
+  }
+  // color: masa negra cálida + borde encendido del lado del sol (arriba y hacia sunDx)
+  const sdx = o.sunDx ?? 1, rim1 = U(o.rim || '#f09048'), rim2 = U('#ffc878'), rimD = U('#7a3418');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, k = MASK[i]; if (!k) continue;
+    const up = y === 0 || !MASK[i - w], side = (x + sdx < 0 || x + sdx >= w) ? false : !MASK[i + sdx], up2 = y > 1 && !MASK[i - 2 * w] && !up;
+    let u = C[k === 3 ? 0 : k === 2 ? 1 : 2];
+    if (up && side) u = rim2; else if (up) u = (y < h * 0.5 ? rim1 : rimD); else if (side) u = y < h * 0.6 ? rimD : u; else if (up2 && y < h * 0.4) u = rimD;
+    if (y > h * 0.8) u = K.mixU(u, C[0], clamp((y - h * 0.8) / (h * 0.2), 0, 0.8));
+    pb.data[i] = u;
+  }
+  // halo horneado de la farola (bandas de alfa) + bombilla
+  for (const [gx, gy] of glows) {
+    const R = 16, col = U('#ffc070') & 0xffffff;
+    for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) { const d = Math.hypot(x, y * 1.2) / R; if (d >= 1) continue; const xx = Math.round(gx + x), yy = Math.round(gy + y); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (MASK[i]) continue; const a = d < 0.3 ? 0.42 : d < 0.6 ? 0.24 : 0.1; pb.data[i] = ((Math.round(a * 255) << 24) | col) >>> 0; }
+    for (let x = -3; x <= 3; x++) { K.put(pb, Math.round(gx + x), Math.round(gy + 2), U(Math.abs(x) < 2 ? '#fff4c8' : '#ffc060')); }
   }
   return pb;
 };

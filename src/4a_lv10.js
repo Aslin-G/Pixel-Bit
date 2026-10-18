@@ -511,7 +511,8 @@ LEVELS[10] = {
       { x0: 1600, x1: 2160, surf: 'sand', face: 'sandstone', depth: 18, strata: true },
       { x0: 2160, x1: 2500, surf: 'metal', face: 'gallery', depth: 18, pipes: [[13, 3, 'h2'], [23, 2, 'power'], [32, 3, 'h2']], bay: 60 },
       { x0: 2500, x1: 2860, surf: 'path', face: 'terrace', depth: 18, falls: [2560, 2760], roots: [2600, 2700], tiers: [{ wall: 16, top: 10, channel: true, crop: 'lettuce' }, { wall: 14, top: 9, crop: 'bean' }] },
-      { x0: 2860, x1: 3400, surf: 'tile', face: 'steps', depth: 18, steps: 4, stepH: 7, ramp: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8'], refl: [{ x: 3080, w: 26, col: '#56e5ff', k: 0.2 }] },
+      // r2-biomes-b: muro de plaza esculpido (pilastras, arcos, hornacinas, desagües) en lugar de la escalinata en ladrillo
+      { x0: 2860, x1: 3400, surf: 'tile', face: 'curb', depth: 18, dust: '#d8a060', seed: 31, steps: 4, stepH: 7, ramp: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8'], refl: [{ x: 3080, w: 26, col: '#56e5ff', k: 0.2 }] },
     ],
     fg: [
       { kind: 'clump', x: -24, w: 140, h: 90, seed: 101, spikes: 4, leaves: 11 },
@@ -523,6 +524,13 @@ LEVELS[10] = {
       { kind: 'dark', x: 3260, w: 120, h: 70, seed: 111, leaves: 9 },
       { kind: 'rail', x: 3700, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
       { kind: 'clump', x: 4280, w: 150, h: 92, seed: 113, spikes: 6, leaves: 12 },
+      // r2-biomes-b: siluetas cercanas a contraluz con borde encendido (palmeras peinadas por el viento, farola, cerca, agaves)
+      { kind: 'r2bbSil', what: 'agave', x: 560, w: 84, h: 62, seed: 121, sunDx: 1 },
+      { kind: 'r2bbSil', what: 'fence', x: 1380, w: 90, h: 44, seed: 123, sunDx: 1 },
+      { kind: 'r2bbSil', what: 'lamp', x: 2190, w: 50, h: 140, seed: 125, sunDx: -1, lean: 0.06 },
+      { kind: 'r2bbSil', what: 'agave', x: 2620, w: 70, h: 54, seed: 127, sunDx: -1 },
+      { kind: 'r2bbSil', what: 'fence', x: 3380, w: 110, h: 50, seed: 129, sunDx: -1 },
+      { kind: 'r2bbSil', what: 'agave', x: 3940, w: 64, h: 46, seed: 131, sunDx: -1, stalk: false },
     ],
   },
   /** Etiquetas científicas en el mundo */
