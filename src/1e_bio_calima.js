@@ -45,11 +45,11 @@ function buildCalima(L) {
     const S = st(), t = T(), ox = -Math.round(cam.x * SF), a = clamp(1 - S.clear * 1.2, 0, 1);
     if (S.clear > 0.02) V.sunBloom(g, { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 }, t, { a: 0.4 * S.clear, r: 60, col: '#ffe8b0' });
     if (a <= 0.02) return;
-    V.sunBloom(g, { x: S0.x + ox, y: S0.y, r: S0.r, halo: 24 }, t, { a: (0.34 + 0.08 * Math.sin(t * 0.7)) * a, r: 66, col: '#ffc070' });
+    V.sunBloom(g, { x: S0.x + ox, y: S0.y, r: S0.r, halo: 24 }, t, { a: (0.26 + 0.06 * Math.sin(t * 0.7)) * a, r: 56, col: '#ffc070' });
     if (S.transformed) return;
     const p = (0.62 + 0.22 * Math.sin(t * 1.9) + 0.12 * Math.sin(t * 5.3)) * a;
-    for (const [ex, ey] of R2S.eyes) { V.drawGlow(g, ex + ox, ey - 1, 8, '#ff6a1a', p * 0.8); V.drawGlow(g, ex + ox, ey - 1, 3, '#ffe6a0', p); }
-    const m = R2S.maw[11]; V.drawGlow(g, m[0] + ox, m[1], 13, '#ff4a14', (0.32 + 0.22 * Math.sin(t * 1.3)) * a);
+    for (const [ex, ey] of R2S.eyes) { V.drawGlow(g, ex + ox, ey, 5, '#ff6a1a', p * 0.55); V.drawGlow(g, ex + ox, ey - 1, 2, '#ffe6a0', p * 0.8); }
+    const m = R2S.maw[R2S.maw.length >> 1]; V.drawGlow(g, m[0] + ox, m[1] + 1, 12, '#ff5a1a', (0.26 + 0.18 * Math.sin(t * 1.3)) * a);
     for (let i = 0; i < R2S.cracks.length; i++) { const [x, y] = R2S.cracks[i]; V.drawGlow(g, x + ox, y, 4, '#ff8a30', (0.28 + 0.24 * Math.sin(t * 2.2 + i)) * a); }
   }, { tag: 'r2colossus' });
   // cúmulos blancos al despejar (solo aparecen con el cielo azul)
