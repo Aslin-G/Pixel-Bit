@@ -328,68 +328,182 @@ const PFASolar = (() => {
     if (t > 0.86 || t < 0.08) return S[clamp(7 + Math.round((PFK.cl(x, y, 3, 143) - 0.5) * 2), 4, 9)];
     return G_[clamp(k, 2, 8)];
   }
-  /** Ladera de duna esculpida (luz arriba-izquierda, sombras cálidas, violeta solo en las hondonadas)
-      con la zanja de cables CC en corte (s.trench = [x0, x1]); el pie se oscurece hacia el primer plano */
+  /** Ladera de duna esculpida (r2-biomes-a): campo de crestas en perspectiva (el espaciado crece hacia el primer
+      plano), barlovento iluminado que sube hasta una cresta brillante y sotavento en sombra cálida granate (violeta
+      solo en las hondonadas profundas); las crestas serpentean y se bifurcan con ruido suave, rizos de viento en
+      parches. La zanja de cables CC (s.trench = [x0, x1]) solo se ve en catas de excavación (s.trenchWin) con
+      tablestacas; entre catas la duna la cubre. */
   const VIOD = ['#2a1c46', '#3e2a5e', '#583e78', '#74568e'];
+  const LEE = ['#3c1630', '#5a2236', '#7a3238', '#98483a', '#b2603e', '#c67a46'];
+  function duneU(x, v, sd) { return v + PFK.vn(x * 0.0062, v * 0.18, sd) * 2.4 + PFK.vn(x * 0.019, v * 0.34, sd + 7) * 0.6 + Math.sin(x * 0.013 + v * 1.1 + sd) * 0.3; }
+  function trenchWinAt(s, x) {
+    if (!s.trench || x < s.trench[0] || x >= s.trench[1]) return null;
+    const W_ = s.trenchWin; if (!W_) return [s.trench[0], s.trench[1]];
+    for (const w of W_) if (x >= w[0] && x < w[1]) return w;
+    return null;
+  }
   function sandCut(s, x, y, gy, world) {
-    const d = y - gy, S = P32(SAND), sd = 170 + ((s.seed | 0) % 40);
+    const d = y - gy, S = P32(SAND), sd = 170 + ((s.seed | 0) % 40), sdF = 177;                       // sdF: campo común a todos los tramos (sin costuras)
     if (d === 0) return S[9];
     if (d === 1) return S[8];
-    // zanja de cables CC: relleno claro, cinta de aviso, tubo corrugado con ventanas que muestran los cables, cama de arena fina
-    if (s.trench && x >= s.trench[0] && x < s.trench[1]) {
-      const top = 26 + Math.round((PFK.vn(x * 0.05, 1, sd) - 0.5) * 3), bot = 58;
+    // cata de la zanja de cables CC: borde de excavación irregular, tablestacas, cinta de aviso, tubo corrugado con ventanas que muestran los cables
+    const tw = trenchWinAt(s, x);
+    if (tw) {
+      const L = tw[1] - tw[0], tx = (x - tw[0]) / L, sh = Math.sqrt(Math.max(0, Math.sin(Math.PI * tx)));
+      const top = 22 + Math.round((PFK.vn(x * 0.09, 1, sd) - 0.5) * 5 + (1 - sh) * 14), bot = 28 + Math.round(sh * 36 + (PFK.vn(x * 0.07, 2, sd) - 0.5) * 4);
       if (d >= top && d < bot) {
-        const q = d - top, wall = Math.min(x - s.trench[0], s.trench[1] - x);
-        if (wall < 3 || q === 0) return S[3];
-        if (q === bot - top - 1) return S[2];
-        if (q === 9) return ((x >> 2) & 1) ? U('#f0bc2c') : U('#1c1c24');
-        if (q >= 16 && q < 25) {
-          const r = q - 16, win = (x % 120) > 70 && (x % 120) < 104;
+        const q = d - 22, e = d - top;
+        if (e < 2) return e ? S[3] : S[2];                                                          // canto de la cata en sombra
+        if (bot - d <= 2) return bot - d === 1 ? S[7] : S[5];                                         // labio delantero al sol
+        if (q === 9) return ((x >> 2) & 1) ? U('#f0bc2c') : U('#1c1c24');                            // cinta de aviso
+        if (q >= 16 && q < 25) {                                                                     // tubo corrugado con ventanas a los cables
+          const r = q - 16, win = (x % 46) > 14 && (x % 46) < 36;
           if (r === 0) return U('#5a2a10'); if (r === 8) return U('#2a1004');
           if (win && r > 1 && r < 7) { const c = (x >> 1) % 6; return U(r < 4 ? (c < 3 ? '#c8402a' : '#e86a4a') : (c < 3 ? '#1c1c24' : '#4a4a54')); }
           return U(((x + r) % 3 === 0) ? '#b4561a' : r < 3 ? '#f08a3a' : r < 6 ? '#d06a24' : '#9a4614');
         }
-        return S[clamp(8 - Math.round(q / 14) + (PFK.cl(x, y, 2, sd + 9) < 0.18 ? -1 : 0), 4, 9)];
+        // pared del corte: estratos de arena (relleno claro sobre el tubo, cama oscura debajo), sombra hacia los lados
+        const lay = (q + Math.round(PFK.vn(x * 0.05, q * 0.3, sd + 11) * 2)) % 5 === 0 ? -1 : 0;
+        const side = Math.min(tx, 1 - tx) < 0.12 ? -1 : 0;
+        return S[clamp((q < 9 ? 4 : q < 16 ? 6 : 3) + lay + side + (PFK.cl(x, y, 2, sd + 9) < 0.15 ? -1 : 0), 2, 8)];
       }
+      if (d < top && d >= top - Math.round(sh * 5)) return S[clamp(8 - (top - d), 6, 9)];            // arena removida (caballón) junto a la cata
     }
-    const hgt = (xx, yy) => PFK.vn(xx * 0.012, yy * 0.024, sd) * 22 + PFK.vn(xx * 0.045, yy * 0.07, sd + 1) * 5;
-    const hx = hgt(x + 1, y) - hgt(x - 1, y), hy = hgt(x, y + 1) - hgt(x, y - 1);
-    // exposición contenida (STYLE ≤ 25 % de píxeles muy claros): la ladera vive en los tonos medios de la rampa,
-    // las crestas barridas por el viento suben un escalón y los rizos dejan sombras ocre-violeta con tono propio
-    let lam = 0.56 - hx * 0.17 - hy * 0.13 - d * 0.0036 - Math.max(0, d - 70) * 0.0042;
-    const rip = (y * 0.85 + Math.sin(x * 0.035 + y * 0.02) * 5 + hgt(x, y) * 0.5) % 7;
-    const crest = hy < -0.35 && hx < 0.2;
-    if (crest && rip >= 1 && rip < 2) return S[7];                                       // cresta barrida al sol
-    if (rip < 1) lam -= 0.12; else if (rip < 2) lam += 0.05;
-    lam += (PFK.vn(x * 0.25, y * 0.25, sd + 3) - 0.5) * 0.05;
+    // campo de crestas: v crece con la profundidad (perspectiva) y u = v + deriva lateral
+    const v = Math.log(1 + d / 18) * 2.45, u = duneU(x, v, sdF), du = (duneU(x + 3, v, sdF) - duneU(x - 3, v, sdF)) / 6;
+    const ridge = Math.floor(u), f = u - ridge, px1 = 2.45 / (18 + d);                               // px1 ≈ cuánto avanza u en 1 px
+    const deep = Math.max(0, d - 70) / 100, amp = clamp((PFK.vn(x * 0.0055, v * 0.22, sdF + 21) - 0.28) * 2.2, 0, 1);   // altura de la cresta: aparece y se desvanece
+    const a = (0.2 + 0.09 * Math.sin(x * 0.023 + ridge * 2.3) + 0.05 * PFK.vn(x * 0.05, ridge, sdF + 3) + deep * 0.1) * (0.25 + 0.75 * amp);
+    if (f < a && amp > 0.12) {                                                                       // sotavento en sombra
+      const q = f / a;
+      if (q < px1 / a * 1.2) return P32(LEE)[amp > 0.5 ? 0 : 1];                                       // filo bajo la cresta
+      let k = 1.3 + q * 2.6 - du * 22 - deep * 1.6 + (PFK.cl(x, y, 3, sd + 5) - 0.5) * 0.6;
+      if (k < 0.6 && deep > 0.3) return P32(VIOD)[clamp(Math.round(k + 2.2), 0, 3)];
+      return P32(LEE)[clamp(Math.round(k), 0, 5)];
+    }
+    const q = (f - a) / (1 - a);
+    if (amp > 0.12 && f > 1 - px1 * 1.1) return S[amp > 0.5 ? 9 : 8];                               // cresta al sol
+    if (amp > 0.4 && f > 1 - px1 * 2.3) return S[8];
+    let lam = 0.36 + 0.5 * Math.pow(q, 1.25) + du * 5;
+    lam = 0.56 + (lam - 0.56) * (0.3 + 0.7 * amp) - deep * 0.18;
+    // rizos de viento en parches, paralelos a la cresta
+    const rp = (u * 6.5 + PFK.vn(x * 0.04, v, sdF + 2) * 0.8) % 1;
+    if (PFK.vn(x * 0.02, v * 0.6, sdF + 4) > 0.56 && q > 0.12 && q < 0.85) { if (rp < 0.16) lam -= 0.11; else if (rp < 0.3) lam += 0.04; }
+    lam += (PFK.cl(x, y, 2, sd + 6) - 0.5) * 0.05;
     // piedras semienterradas
     const hh = hash2(x >> 2, y >> 2, sd + 4);
-    if (hh < 0.01 && d > 12) { const u = PFTerrain.boulderPix(x, y, sd + 5, 7, 5, P32(RAMP.rockWarmR)); if (u !== -1) return u; }
-    if (lam < 0.14) return P32(VIOD)[clamp(Math.round((lam + 0.3) * 7), 0, 3)];
-    const idx = clamp(Math.round(0.6 + lam * 8.4), 1, 7);
-    if (rip < 1) return K.mixU(S[idx], U(lam < 0.34 ? '#7a4a6a' : '#a8604a'), 0.3);        // sombra del rizo: violeta en la umbría, ocre al sol
-    return S[idx];
+    if (hh < 0.006 && d > 14) { const u2 = PFTerrain.boulderPix(x, y, sd + 5, 7, 5, P32(RAMP.rockWarmR)); if (u2 !== -1) return u2; }
+    if (hash2(x, y, sd + 8) < 0.012) return S[clamp(Math.round(1 + lam * 8.4) - 2, 1, 9)];          // granos oscuros
+    return S[clamp(Math.round(0.9 + lam * 7.8), 3, 9)];
   }
-  /** Retoque de la ladera: matas secas, chumberas pequeñas y huellas de lagartija */
+  /** Afloramiento de arenisca esculpido en 3/4 (r2-biomes-a): techo plano al sol, estratos con labio claro y
+      socavón oscuro, cara izquierda iluminada, derecha en sombra granate, grietas verticales, pie enterrado por
+      la arena con rampa de barlovento, sombra arrojada a la derecha y matas en las repisas. */
+  const OSH = U('#3a1430');
+  function outcrop(pb, cx, yb, w, h, seed = 1) {
+    const r = RNG(seed), RW = P32(RAMP.rockWarmR), S = P32(SAND), hw = w / 2, L0 = r.int(4, 6), tops = new Array(w).fill(0);
+    // silueta de 2–3 lomos redondeados con escalones de erosión (sin cajas)
+    const lumps = [], nl = w > 56 ? 3 : 2;
+    for (let i = 0; i < nl; i++) lumps.push({ c: w * (0.22 + 0.56 * i / Math.max(1, nl - 1)) + r.range(-4, 4), hw: w * r.range(0.24, 0.36), h: h * (i === 1 || nl === 2 && i === 0 ? 1 : r.range(0.55, 0.8)) });
+    for (let i = 0; i < w; i++) {
+      let t = 0;
+      for (const L of lumps) { const q = (i - L.c) / L.hw; if (Math.abs(q) < 1) t = Math.max(t, L.h * Math.pow(1 - q * q, 0.45)); }
+      t -= Math.floor(PFK.vn(i * 0.11, 3, seed) * 2.4) * 2;
+      tops[i] = Math.max(0, Math.round(t));
+    }
+    // sombra arrojada sobre la arena: elipse baja hacia la derecha (sin tramado)
+    for (let yy = Math.round(yb - h * 0.2); yy < yb + 4; yy++) for (let xx = Math.round(cx - hw * 0.3); xx < Math.round(cx + hw * 1.5); xx++) {
+      const nx = (xx - (cx + hw * 0.45)) / (hw * 1.05), ny = (yy - (yb + 1)) / Math.max(3, h * 0.24);
+      if (nx * nx + ny * ny > 1) continue; const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, OSH, 0.34));
+    }
+    // grietas: pocas, quebradas, que bajan desde el techo una parte de la altura
+    const cracks = [];
+    for (let k = 0; k < Math.max(1, Math.round(w / 30)); k++) { const i0 = Math.round(r.range(0.15, 0.85) * w), len = r.range(0.35, 0.8); const pts = []; let xi = i0; for (let q = 0; q < h; q++) { if (r() < 0.3) xi += r() < 0.5 ? -1 : 1; pts.push(xi); } cracks.push({ pts, len }); }
+    for (let i = 0; i < w; i++) {
+      const x = Math.round(cx - hw + i), th = tops[i], top = yb - th, nx = (i - hw) / hw;
+      if (th <= 0) continue;
+      const slope = (tops[Math.min(w - 1, i + 2)] - tops[Math.max(0, i - 2)]) / 4;              // pendiente del perfil: cara que mira a la izquierda (sube) se ilumina
+      for (let y = top; y < yb; y++) {
+        const dy = y - top, ly = yb - y, wv = Math.round((PFK.vn(x * 0.07, ly * 0.05, seed) - 0.5) * 4), lay = (ly + wv + 400) % L0, li = Math.floor((ly + wv + 400) / L0);
+        let k;
+        if (dy === 0) k = 8;
+        else if (dy < 3 && Math.abs(slope) < 0.6) k = dy === 1 ? 7 : 6;                              // techo plano al sol
+        else {
+          k = 5 + (slope > 0.25 ? 1 : 0) - (slope < -0.25 ? 1 : 0) - (nx > 0.35 ? 1 : 0);
+          if (lay === L0 - 1) k += 1; else if (lay === 0) k -= 2;                                    // labio y socavón de cada estrato
+          if ((li + seed) % 3 === 0) k -= 1;
+          k += Math.round((PFK.cl(x, y, 3, seed) - 0.5) * 1.2);
+          k -= Math.round(Math.max(0, dy - th * 0.75) / Math.max(4, th) * 3);                        // pie en penumbra
+        }
+        for (const C of cracks) { const ci = C.pts[Math.min(C.pts.length - 1, dy)]; if (dy > 1 && dy < th * C.len) { if (i === ci) k = 1; else if (i === ci - 1) k = Math.max(k, 6); } }
+        let c = RW[clamp(k, 1, 8)];
+        if ((nx > 0.25 || slope < -0.25) && dy > 1) c = K.mixU(c, OSH, clamp((nx - 0.2) * 0.8 + (slope < -0.25 ? 0.12 : 0), 0, 0.45));
+        put(pb, x, y, c);
+      }
+    }
+    // pie enterrado: arena que sube por el barlovento (izquierda) y labio bajo
+    for (let i = -6; i < w + 6; i++) {
+      const x = Math.round(cx - hw + i), nx = (i - hw) / hw, sb = Math.round(2 + Math.max(0, -nx) * h * 0.3 + PFK.vn(x * 0.1, 2, seed) * 3);
+      for (let k = 0; k < sb; k++) { const y = yb + 1 - k; if (!(get(pb, x, y) >>> 24)) continue; put(pb, x, y, k === sb - 1 ? S[8] : S[clamp(7 - Math.round(k * 0.5) + (nx > 0.3 ? -2 : 0), 3, 8)]); }
+    }
+    // matas en las repisas y al pie
+    const li0 = Math.round(lumps[0].c); PFFlora.tuft(pb, Math.round(cx - hw + li0), yb - tops[clamp(li0, 0, w - 1)] + 1, 7, 6, seed, PFFlora.DRY);
+    if (w > 40) dryBush(pb, Math.round(cx + hw * 0.8), yb + 2, 16, 10, seed + 2);
+    return { top: (x) => yb - (tops[clamp(Math.round(x - (cx - hw)), 0, w - 1)] || 0) };
+  }
+  /** Grupo de vegetación del desierto (2–4 piezas ordenadas por profundidad) */
+  function desertCluster(pb, x, y, sc, seed) {
+    const r = RNG(seed), k = r();
+    stones(pb, x - Math.round(8 * sc), y + 1, Math.round(10 * sc), seed + 1);
+    if (k < 0.3) { cactus(pb, x + Math.round(4 * sc), y - 1, Math.round((20 + r.int(0, 16)) * sc), seed); dryBush(pb, x - Math.round(10 * sc), y + 2, Math.round(16 * sc), Math.round(9 * sc), seed + 3); }
+    else if (k < 0.55) { opuntia(pb, x, y, 0.55 + r() * 0.35 * sc, seed); PFFlora.tuft(pb, x + Math.round(12 * sc), y + 2, Math.round(8 * sc), Math.round(6 * sc), seed + 4, PFFlora.DRY); }
+    else if (k < 0.75) { PFFlora.agave(pb, x, y, Math.max(6, 9 * sc), seed); dryBush(pb, x + Math.round(12 * sc), y + 2, Math.round(14 * sc), Math.round(8 * sc), seed + 5); }
+    else { dryBush(pb, x, y, Math.round((16 + r.int(0, 10)) * sc), Math.round((9 + r.int(0, 6)) * sc), seed); PFFlora.tuft(pb, x - Math.round(12 * sc), y + 2, Math.round(8 * sc), Math.round(6 * sc), seed + 6, PFFlora.DRY); }
+  }
+  /** Rodadas de un vehículo de mantenimiento que bajan en diagonal por la ladera (rompen las bandas) */
+  function tireTracks(pb, pts, seed = 1) {
+    const S = P32(SAND);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [xa, ya] = pts[i], [xb, yb2] = pts[i + 1], n = Math.max(Math.abs(xb - xa), Math.abs(yb2 - ya));
+      for (let q = 0; q <= n; q++) {
+        const t = q / n, x = Math.round(lerp(xa, xb, t)), y = Math.round(lerp(ya, yb2, t)), gap = Math.round(5 + (y - pts[0][1]) * 0.05);
+        for (const o of [0, gap]) for (const dd of [0, 1]) { const c = get(pb, x + o + dd, y); if (!(c >>> 24)) continue; put(pb, x + o + dd, y, (q + o) % 3 === 0 ? S[3] : K.shU(c, -0.16, 22)); }
+        if (hash2(x, y, seed) < 0.08) put(pb, x + 2, y - 1, S[8]);
+      }
+    }
+  }
+  /** Retoque de la ladera: afloramientos de arenisca, grupos de vegetación cada ~30 px, hitos de la zanja y rodadas */
   function decorateDunes(pb, world, segs, seed = 1) {
-    const r = RNG(seed);
+    const r = RNG(seed), G = (x) => world.ground[clamp(Math.round(x), 0, world.w)];
+    const avoid = (world.def.pf && world.def.pf.faceAvoid) || [];
+    const free = (x, y) => !avoid.some(a => x > a[0] && x < a[1] && y > a[2] && y < a[3]);
     for (const s of segs) {
       if (s.face !== 'sandcut' && s.face !== 'dune') continue;
-      // afloramientos rocosos grandes medio enterrados
-      for (let x = s.x0 + r.int(40, 120); x < s.x1 - 40; x += r.int(160, 300)) {
-        const gy = world.ground[Math.min(world.w, x)], y = gy + r.int(70, 118), w = r.int(30, 56), h = r.int(12, 22);
-        for (let yy = y - h; yy < y + 4; yy++) for (let xx = x - w / 2; xx < x + w / 2; xx++) { const nx = (xx - x) / (w / 2), ny = (yy - y) / h; if (nx * nx + ny * ny > 1 + PFK.vn(xx * 0.2, yy * 0.2, 7) * 0.4) continue; const u = PFTerrain.boulderPix(Math.round(xx), yy, 900 + x, 9, 6, P32(RAMP.rockWarmR), { dark: (yy - y + h) / h }); if (u !== -1) put(pb, Math.round(xx), yy, K.shU(u, -0.12 - Math.max(0, yy - gy - 60) * 0.004, 18)); }
-        dryBush(pb, x - w / 2 + 4, y - h + 6, 18, 12, x); PFFlora.tuft(pb, x + w / 2 - 6, y - 2, 9, 7, x + 3, PFFlora.DRY);
+      // rodadas en diagonal (de la pista hacia abajo-izquierda)
+      if (s.x1 - s.x0 > 500) { const x = s.x0 + Math.round((s.x1 - s.x0) * 0.62), g = G(x); tireTracks(pb, [[x, g + 4], [x - 40, g + 40], [x - 70, g + 74], [x - 130, g + 120], [x - 170, g + 170]], seed + s.x0); }
+      // afloramientos de arenisca
+      for (let x = s.x0 + r.int(60, 140); x < s.x1 - 50; x += r.int(190, 300)) {
+        const g = G(x), w = r.int(44, 90), h = r.int(22, 40), yb = g + r.int(88, 132);
+        if (!free(x, yb - h)) continue;
+        if (s.trench && x > s.trench[0] - 40 && x < s.trench[1] + 40 && yb - h < g + 64) continue;
+        outcrop(pb, x, yb, w, h, 900 + x);
       }
-      for (let x = s.x0 + r.int(6, 20); x < s.x1 - 10; x += r.int(16, 34)) {
-        const gy = world.ground[Math.min(world.w, x)], inT = s.trench && x >= s.trench[0] && x < s.trench[1], y = gy + (inT ? r.int(64, 124) : r.int(12, 124));
-        const k = r(), sc = 0.8 + (y - gy) / 120 * 0.7;
-        if (k < 0.38) dryBush(pb, x, y, Math.round((14 + r.int(0, 14)) * sc), Math.round((8 + r.int(0, 8)) * sc), x);
-        else if (k < 0.52) stones(pb, x, y, Math.round((10 + r.int(0, 12)) * sc), x);
-        else if (k < 0.62) opuntia(pb, x, y, (0.6 + r() * 0.4) * sc, x);
-        else if (k < 0.67) cactus(pb, x, y, Math.round((18 + r.int(0, 14)) * sc), x);
-        else if (k < 0.74) { for (let i = 0; i < 9; i++) { put(pb, x + i * 3, y - (i % 2), U('#8e5a2a')); put(pb, x + i * 3 + 1, y - 2 + (i % 2), U('#8e5a2a')); } }
+      // grupos de vegetación (escala con la profundidad: más grandes hacia el primer plano)
+      for (let x = s.x0 + r.int(6, 20); x < s.x1 - 10; x += r.int(22, 38)) {
+        const g = G(x), inT = s.trench && x >= s.trench[0] && x < s.trench[1], y = g + (inT ? r.int(68, 150) : r.int(10, 150));
+        if (!free(x, y)) continue;
+        const sc = 0.75 + (y - g) / 150 * 0.75, k = r();
+        if (k < 0.55) desertCluster(pb, x, y, sc, x * 7 + 3);
+        else if (k < 0.75) dryBush(pb, x, y, Math.round((12 + r.int(0, 10)) * sc), Math.round((7 + r.int(0, 6)) * sc), x);
+        else if (k < 0.85) stones(pb, x, y, Math.round((8 + r.int(0, 10)) * sc), x);
+        else if (k < 0.9) { for (let i = 0; i < 9; i++) { put(pb, x + i * 3, y - (i % 2), U('#8e5a2a')); put(pb, x + i * 3 + 1, y - 2 + (i % 2), U('#8e5a2a')); } }
         else PFFlora.tuft(pb, x, y, Math.round(8 * sc), Math.round(6 * sc), x, PFFlora.DRY);
+      }
+      // hitos de señalización de la zanja (entre catas)
+      if (s.trench) for (let x = s.trench[0] + 30; x < s.trench[1] - 10; x += 58) {
+        if (s.trenchWin && trenchWinAt(s, x) !== null) continue;
+        const y = G(x) + 20; for (let k = 0; k < 7; k++) { put(pb, x, y - k, k < 3 ? U('#f0bc2c') : U('#e8e4dc')); put(pb, x + 1, y - k, k < 3 ? U('#a87a10') : U('#9a968e')); }
+        put(pb, x, y - 7, U('#e2404a')); put(pb, x + 1, y - 7, U('#a8202a')); put(pb, x + 2, y, U('#8a5a2a'));
       }
     }
   }
@@ -421,5 +535,5 @@ const PFASolar = (() => {
   PFTerrain.register('track', { surf: trackSurf, depth: 16, flat: false });
   PFTerrain.register('sandcut', { face: sandCut, prep: PFTerrain.EXT.prep.dune });
 
-  return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, CELL, ALU, STUC, CACT, DRYB, GRAV };
+  return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV };
 })();

@@ -36,7 +36,7 @@ LEVELS[4] = {
   pf: {
     terrain: [
       { x0: 0, x1: 340, surf: 'dune', face: 'sandcut', depth: 16, seed: 3 },
-      { x0: 340, x1: 1160, surf: 'track', face: 'sandcut', depth: 18, trench: [352, 1150], seed: 5 },
+      { x0: 340, x1: 1160, surf: 'track', face: 'sandcut', depth: 18, trench: [352, 1150], trenchWin: [[400, 486], [636, 772], [906, 984], [1066, 1142]], seed: 5 },
       { x0: 1160, x1: 1520, surf: 'paving', face: 'cliff', depth: 16, seed: 7, ledges: false, ledgePlants: false },
       { x0: 1520, x1: 2800, surf: 'dune', face: 'sandcut', depth: 16, seed: 9 },
     ],
