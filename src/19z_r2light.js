@@ -245,10 +245,11 @@ const R2LIGHT = (() => {
   }
   /* ---------- franjas recortadas al contenido (≤ 2 pasadas a pantalla completa) ---------- */
   const SW = 64;
-  function spans(A, w, h) {
-    const out = [];
-    for (let x0 = 0; x0 < w; x0 += SW) {
-      const x1 = Math.min(w, x0 + SW), rows = new Uint8Array(h);
+  /** Franjas de sw px de ancho; en cada una, tramos verticales de filas con contenido (se unen huecos ≤ gap) */
+  function spans(A, w, h, sw = SW, gapMax = 24) {
+    const out = []; out.sw = sw;
+    for (let x0 = 0; x0 < w; x0 += sw) {
+      const x1 = Math.min(w, x0 + sw), rows = new Uint8Array(h);
       for (let y = 0; y < h; y++) { const o = y * w; for (let x = x0; x < x1; x++) if (A[o + x]) { rows[y] = 1; break; } }
       const list = [];
       let y = 0;
@@ -256,7 +257,7 @@ const R2LIGHT = (() => {
         while (y < h && !rows[y]) y++;
         if (y >= h) break;
         let ya = y, gap = 0, yb = y;
-        while (y < h) { if (rows[y]) { yb = y; gap = 0; } else if (++gap > 24) break; y++; }
+        while (y < h) { if (rows[y]) { yb = y; gap = 0; } else if (++gap > gapMax) break; y++; }
         list.push([ya, yb + 1]);
       }
       out.push(list);
@@ -265,9 +266,9 @@ const R2LIGHT = (() => {
   }
   function blitSpans(g, c, S, ox, oy, op) {
     ox = Math.round(ox); oy = Math.round(oy);
-    const i0 = Math.max(0, Math.floor(ox / SW)), i1 = Math.min(S.length - 1, Math.floor((ox + W - 1) / SW));
+    const sw = S.sw || SW, i0 = Math.max(0, Math.floor(ox / sw)), i1 = Math.min(S.length - 1, Math.floor((ox + W - 1) / sw));
     for (let i = i0; i <= i1; i++) {
-      const sx0 = Math.max(ox, i * SW), sx1 = Math.min(ox + W, i * SW + SW, c.width);
+      const sx0 = Math.max(ox, i * sw), sx1 = Math.min(ox + W, i * sw + sw, c.width);
       if (sx1 <= sx0) continue;
       for (const [ya, yb] of S[i]) {
         const y0 = Math.max(ya, oy), y1 = Math.min(yb, oy + H);
@@ -619,10 +620,16 @@ const R2LIGHT = (() => {
     const w = img.width, h = img.height, c = document.createElement('canvas'); c.width = w; c.height = h;
     const gg = c.getContext('2d', { willReadFrequently: true }); gg.drawImage(img, 0, 0);
     const d = gg.getImageData(0, 0, w, h).data, A = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) if (d[i * 4 + 3] > 2) A[i] = 1;
-    const S = spans(A, w, h); let area = 0;
-    for (let i = 0; i < S.length; i++) for (const [a, b] of S[i]) area += (b - a) * Math.min(SW, w - i * SW);
-    r = area / (w * h) < 0.8 ? S : null; BK.set(img, r); return r;
+    for (let i = 0; i < w * h; i++) if (d[i * 4 + 3] > 0) A[i] = 1;
+    // franjas de 64 px; si el contenido no baja del 80 %, se prueba con franjas más finas (32, 16 px y
+    // huecos ≤ 4 filas): las capas aditivas de haces inclinados quedan por debajo del 80 % a 16–32 px
+    r = null;
+    for (const [sw, gp] of [[64, 24], [32, 4], [16, 4]]) {
+      const S = spans(A, w, h, sw, gp); let area = 0;
+      for (let i = 0; i < S.length; i++) for (const [a, b] of S[i]) area += (b - a) * Math.min(sw, w - i * sw);
+      if (area / (w * h) < 0.8) { r = S; break; }
+    }
+    BK.set(img, r); return r;
   }
   let BKdi = null;
   function backDraw(img, x, y) {
