@@ -232,8 +232,9 @@ function renderHumanoid(id, D, anim, t, opts) {
    pestaña (lado de la oreja); iris hacia delante; brillo blanco arriba; iris que aclara abajo. */
 const EYE_AM = {
   // r2-chars: ojo grande de la referencia (6 filas: pestaña gruesa con remate, brillo, iris que aclara abajo)
-  open: { oy: -3, rows: ['.KKKK', 'KKKKK', '.whDD', '.wDDD', '.wMLL', '..ss.'] },
-  look: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wwhD', '.wwDD', '.wwML', '..ss.'] },
+  // r3: brillo dentro del iris oscuro (antes blanco+brillo bajo la pestaña: hueco claro que achicaba el ojo)
+  open: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wDhD', '.wDDD', '.wMDL', '..ss.'] },
+  look: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wwDh', '.wwDD', '.wwML', '..ss.'] },
   half: { oy: -1, rows: ['.KKKK', 'KKKKK', '.wDLM', '..ss.'] },
   soft: { oy: 0, rows: ['.KKKK', 'K.DLM', '..ss.'] },
   determined: { oy: -2, rows: ['KKKKK', '.KhDD', '.wDDD', '.wMLL', '..ss.'] },
@@ -264,7 +265,9 @@ function R2CHARS_pony(R, o, H, tie, pose) {
   // base > 0 → cae más (despegue, aterrizaje); hp.up rota el abanico hacia arriba (flotar al caer)
   const b = clamp(hp.base, -1, 1);
   // b > 0: el abanico gira hacia abajo-atrás y se endereza (estela bajo la nuca, no una melena vertical)
-  const sp = b < 0 ? 1 + b * 0.75 : 1 - b * 0.25, cf = b < 0 ? 1 + b * 0.7 : 1 - b * 0.55;
+  // r3: en carrera la melena conserva volumen (abanico menos cerrado, la referencia corre con una masa
+  // ondulada, no con una cuchilla plana) y las puntas se abren alternas arriba/abajo
+  const sp = b < 0 ? 1 + b * 0.42 : 1 - b * 0.25, cf = b < 0 ? 1 + b * 0.5 : 1 - b * 0.55, flow = b < 0 ? -b : 0;
   const off = (hp.up || 0) - (b > 0 ? b * 0.8 : 0);
   const segs = 6, lines = [];
   // reposo (|base| pequeño): la cresta sube por encima de la coronilla (coleta alta en fuente) y las
@@ -277,18 +280,18 @@ function R2CHARS_pony(R, o, H, tie, pose) {
     for (let j = 1; j <= segs; j++) {
       // la gravedad pesa más hacia la punta: arranque casi recto hacia atrás y caída al final
       // en reposo el arranque va más recto hacia atrás (alcance de la referencia) y el vaivén se concentra en las puntas
-      a += curl * cf * (0.35 - rest * 0.2 + 1.3 * j / segs) * (1 + rest * 0.12) + hp.amp * (1 - rest * 0.45) * Math.sin(hp.P - j * hp.lag - i * 0.7) * 0.45 * (j / segs + 0.4);
+      a += curl * cf * (0.35 - rest * 0.2 + 1.3 * j / segs) * (1 + rest * 0.12) + hp.amp * (1 - rest * 0.45 - flow * 0.3) * Math.sin(hp.P - j * hp.lag - i * (0.7 + flow * 0.6)) * 0.45 * (j / segs + 0.4);
       // la punta se abre hacia fuera (atrás) en reposo
-      if (j === segs) a -= curl * cf * rest * 1.9;
+      if (j === segs) a -= curl * cf * (rest * 1.9 + flow * (i % 2 ? -0.7 : 1.5) * (1 + 0.35 * Math.sin(hp.P - i)));
       x += Math.cos(a) * sl; y += Math.sin(a) * sl;
       pts.push([x, y]);
     }
     lines.push(pts);
-    R.strand(pts, r0 * (b < 0 ? 1 - b * 0.12 : 1), 0.3, { mat: H, base: dk ? 3 : 4, z: 45 + (dk ? -0.4 : 0) + i * 0.01, group: 'pony' + (i % 3), lineIdx: 1, taper: 1.3, rim: true, bevel: Math.max(1, r0 * 0.55) });
+    R.strand(pts, r0 * (b < 0 ? 1 - b * 0.12 : 1), 0.3, { mat: H, base: i >= 6 ? 2 : dk || i >= 4 ? 3 : 4, z: 45 + (dk ? -0.4 : 0) + i * 0.01, group: 'pony' + (i % 3), lineIdx: 1, taper: 1.3, rim: true, bevel: Math.max(1, r0 * 0.55) });
   });
   // volumen en la raíz: la coleta nace gruesa y se abre en abanico
   const ma = Math.PI + 0.3 * sp + off - 0.15 * cf + rest * 0.25;
-  R.ellipse(rx0 + Math.cos(ma) * 6, ry0 + Math.sin(ma) * 5 + 0.5, 7, 5.2, { mat: H, base: 3, z: 44.5, group: 'ponyM', bevel: 2.6, shiny: true }, ma - Math.PI);
+  R.ellipse(rx0 + Math.cos(ma) * 6, ry0 + Math.sin(ma) * 5 + 0.5 - flow * 0.6, 7 + flow * 0.8, 5.2 + flow * 1.4, { mat: H, base: 3, z: 44.5, group: 'ponyM', bevel: 2.6, shiny: true }, ma - Math.PI);
   // lazo amarillo
   R.ellipse(rx0, ry0 + 0.4, 1.7, 2.3, { mat: tie, base: 4, z: 56, group: 'tie', bevel: 0.9, shiny: true }, 0.5);
   o.ponyRoot = [rx0, ry0];
@@ -321,7 +324,7 @@ const AMAYA_D = {
   headRX: 10.5, headRY: 11.5, upperArm: 10, foreArm: 9.5, armW: 2.5, legW: 3.1, handR: 2.2, neckR: 2.5,
   // cara amable/decidida como la referencia: ojo grande con brillo e iris castaño claro, sin ojo lejano
   // (perfil casi lateral), boca suave y rubor; sonrisa leve por defecto
-  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#6a3418', '#b06a34'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
+  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#62301a', '#a05a2c'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
   defaultExpr: 'smile', earDX: -3.4, earDY: 2.5, noseSize: 0.55, runLean: 0.36,
   shortSleeve: 0.55, fingerless: true, wristBand: true, sole: '#1a0a06', laces: '#e48a4a', bootTall: 4, earZ: 56,
   energetic: 1.15, shadowR: 12,
@@ -332,7 +335,7 @@ const AMAYA_D = {
     this.foreMat = M.skinAm;
     this.sock = M.sockAm;
     this.accessories = [
-      { kind: 'pack2', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, pocket: M.packAm2, roll: M.rollAm, w: 7.4, h: 10 },
+      { kind: 'pack2', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, pocket: M.packAm2, roll: M.rollAm, w: 8.2, h: 10.6, flapBase: 3 },
       { kind: 'goggles', frame: M.gogFrame, strap: M.gogStrap, big: true },
     ];
   },

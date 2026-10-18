@@ -490,8 +490,9 @@ const EXPR = {
    Las filas empiezan en y + oy (y = fila superior del iris).
    ===================================================================== */
 const EYE2 = {
-  open: { oy: -2, rows: ['....K', 'KKKKK', 'whDD.', 'wDDD.', 'wMMD.', '.MLM.'] },
-  look: { oy: -2, rows: ['....K', 'KKKKK', 'wwhD.', 'wwDD.', 'wwMD.', '..ML.'] },
+  // r2-chars r3: brillo dentro del iris (no pegado al blanco bajo la pestaña): ojo más grande y despierto
+  open: { oy: -2, rows: ['....K', 'KKKKK', 'wDhD.', 'wDDD.', 'wMMD.', '.MLM.'] },
+  look: { oy: -2, rows: ['....K', 'KKKKK', 'wwDh.', 'wwDD.', 'wwMD.', '..ML.'] },
   half: { oy: -1, rows: ['.....', 'KKKKK', 'wDDD.', 'wMMD.', '.ML..'] },
   soft: { oy: 0, rows: ['KKKK.', 'sDD..', '.ML..'] },
   tired: { oy: 0, rows: ['.....', 'KKKK.', 'sMM..', '.ss..'] },
@@ -620,7 +621,7 @@ const R2CHARS_IDLE = {
   crossed(p) { p.shF = 0.15; p.elF = 1.65; p.handF = 'fist'; p.shB = 0.1; p.elB = 1.75; p.handB = 'fist'; },
   behind(p) { p.shF = -0.35; p.elF = 0.5; p.shB = -0.45; p.elB = 0.45; },
   hips(p) { p.shF = -0.45; p.elF = 2.0; p.handF = 'fist'; },
-  stretch(p, t) { const f = Math.floor(t * 6 + 1e-6); if (f === 2 || f === 3) { p.shF = 2.9; p.elF = 0.3; p.shB = 2.7; p.elB = 0.3; p.handF = 'fist'; p.handB = 'fist'; p.headTilt = -0.08; p.blink = true; } },
+  stretch(p, t) { const f = Math.floor(t * 6 + 1e-6); if (f === 2 || f === 3) { p.shF = 2.9; p.elF = 0.3; p.shB = 2.7; p.elB = 0.3; p.handF = 'fist'; p.handB = 'fist'; p.headTilt = -0.08; p.blink = f === 3; } },
 };
 
 function poseFor(anim, t, ch) {
@@ -645,7 +646,8 @@ function poseFor(anim, t, ch) {
       p.elF = 0.32 + S(P) * 0.03; p.elB = 0.3;
       p.headTilt = S(P) * 0.02;
       p.hipF = 0.1; p.hipB = -0.07; p.kneeF = -0.04; p.kneeB = 0.02;
-      p.blink = (t > 0.66 && t < 0.84);
+      // r3: solo el cuadro 4 (antes también el 5: ojos cerrados 1/6 del reposo además del parpadeo)
+      p.blink = (t > 0.66 && t < 0.75);
       p.hair = { base: 0.05 + S(P - 0.9) * 0.06, amp: 0.16, P, lag: 0.55 }; p.pack = Math.round(S(P - 1.2) * 0.5 + 0.5);
       if (ch.idleStyle && R2CHARS_IDLE[ch.idleStyle]) R2CHARS_IDLE[ch.idleStyle](p, t, P, ch);
       break;
@@ -1098,13 +1100,15 @@ const ACCESSORY = {
     const TR = (dx, dy) => { const [x, y] = T(dx, dy); return [Math.round(x), Math.round(y)]; };
     // esterilla enrollada bajo la mochila (detrás del cuerpo)
     { const [ax, ay] = T(-w * 0.95, h + 0.6), [bx, by] = T(w * 0.55, h + 0.6); R.capsule(ax, ay, bx, by, 2.5, 2.5, { mat: roll, base: 3, z: 18.5, group: 'roll', bevel: 1.6 }); }
-    // cuerpo
-    R.box(px, py, w, h, 3.6, { mat: body, base: 3, z: 20, group: 'pack', bevel: 2.6, cast: { on: ['torso', 'top', 'jacket'], dx: 1, dy: 1 } }, rot);
-    // bolsillo exterior (cara trasera, abajo)
-    { const [qx, qy] = T(-w * 0.38, h * 0.38); R.box(qx, qy, w * 0.62, h * 0.48, 2.2, { mat: pocket, base: 3, z: 20.6, group: 'packPkt', bevel: 1.4, cast: { on: ['pack'], dx: 1, dy: 1 } }, rot); }
-    // solapa de cuero que cubre el tercio superior, con borde inferior redondeado
-    { const P2 = [[-w - 0.6, -h * 0.35], [-w + 0.4, -h - 0.4], [w - 1.2, -h - 0.9], [w + 0.6, -h * 0.55], [w * 0.2, -h * 0.12], [-w * 0.55, -h * 0.08]].map(([u, v]) => T(u, v));
-      R.poly(P2, { mat: flap, base: 4, z: 21, group: 'flap', bevel: 1.6, shiny: true, cast: { on: ['pack', 'packPkt'], dx: -1, dy: 2 } }); }
+    // cuerpo (r3): saco redondeado que abomba atrás-abajo como el de la referencia, no una caja
+    { const [ex, ey] = T(-w * 0.3, h * 0.36), m = Math.max(w, h) * 2;
+      R.custom(SDF.smoothUnion(2.2, SDF.box(px, py, w, h, 4.6, rot), SDF.ellipse(ex, ey, w * 0.9, h * 0.62, rot)), [px - m, py - m, px + m, py + m],
+        { mat: body, base: 3, z: 20, group: 'pack', bevel: 3, cast: { on: ['torso', 'top', 'jacket'], dx: 1, dy: 1 } }); }
+    // bolsillo exterior de cuero (cara trasera, abajo), abombado
+    { const [qx, qy] = T(-w * 0.5, h * 0.44); R.box(qx, qy, w * 0.58, h * 0.44, 2.8, { mat: cfg.pocketLeather ? flap : pocket, base: 3, z: 20.6, group: 'packPkt', bevel: 1.8, shiny: true, cast: { on: ['pack'], dx: 1, dy: 1 } }, rot); }
+    // solapa de cuero en cúpula sobre el tercio superior, con el borde inferior curvo
+    { const P2 = [[-w - 0.5, -h * 0.42], [-w + 0.3, -h * 0.86], [-w * 0.45, -h - 0.9], [w * 0.3, -h - 1.1], [w - 0.6, -h - 0.6], [w + 0.5, -h * 0.62], [w * 0.45, -h * 0.26], [-w * 0.05, -h * 0.12], [-w * 0.6, -h * 0.2]].map(([u, v]) => T(u, v));
+      R.poly(P2, { mat: flap, base: cfg.flapBase ?? 4, z: 21, group: 'flap', bevel: 1.8, shiny: true, cast: { on: ['pack', 'packPkt'], dx: -1, dy: 2 } }); }
     // asa superior
     { const [ax, ay] = T(-w * 0.4, -h - 1.2), [bx, by] = T(w * 0.15, -h - 1.6); R.capsule(ax, ay, bx, by, 0.9, 0.9, { mat: strap, base: 3, z: 19.5, group: 'handle', bevel: 0.6 }); }
     // tirantes: el lejano asoma sobre el hombro; el cercano cruza el pecho hasta la cintura
@@ -1119,9 +1123,14 @@ const ACCESSORY = {
       // costura de la solapa (puntos claros) y brillo del borde
       for (let k = -2; k <= 2; k++) { const [qx, qy] = TR(k * w * 0.32, -h * 0.82); pb.set(qx, qy, flap.ramp[6] || flap.ramp[5]); }
       // solapa del bolsillo + LED cian con reflejo + parche
-      for (let k = -2; k <= 2; k++) { const [qx, qy] = TR(-w * 0.38 + k * w * 0.22, h * 0.02); pb.set(qx, qy, pocket.ramp[1]); }
-      [bx, by] = TR(-w * 0.55, h * 0.3); pb.rect(bx, by, 2, 2, cfg.led || '#56e5ff'); pb.set(bx, by, '#e6fdff'); pb.set(bx + 2, by + 1, '#1f86b8');
-      [bx, by] = TR(-w * 0.1, h * 0.55); pb.set(bx, by, '#ffd84a'); pb.set(bx + 1, by, '#e6b422');
+      const pk = cfg.pocketLeather ? flap : pocket;
+      for (let k = -2; k <= 2; k++) { const [qx, qy] = TR(-w * 0.5 + k * w * 0.2, h * 0.12); pb.set(qx, qy, pk.ramp[1]); }
+      [bx, by] = TR(-w * 0.62, h * 0.36); pb.rect(bx, by, 2, 2, cfg.led || '#56e5ff'); pb.set(bx, by, '#e6fdff'); pb.set(bx + 2, by + 1, '#1f86b8');
+      [bx, by] = TR(-w * 0.2, h * 0.62); pb.set(bx, by, '#ffd84a'); pb.set(bx + 1, by, '#e6b422');
+      // parche cian de la solapa (placa solar de la referencia) con reflejo
+      [bx, by] = TR(w * 0.22, -h * 0.66); pb.rect(bx, by, 3, 2, '#2fb8e8'); pb.set(bx, by, '#bff6ff'); pb.set(bx + 2, by + 1, '#1a6aa8');
+      // costura vertical del cuerpo (fuelle lateral junto a la espalda)
+      for (let v = -0.1; v <= 0.8; v += 0.18) { const [qx, qy] = TR(w * 0.62, h * v); pb.set(qx, qy, body.ramp[1]); }
       // cintas de la esterilla
       for (const u of [-0.6, 0.2]) { const [qx, qy] = TR(w * u, h + 0.6); pb.vline(qx, qy - 2, qy + 2, strap.ramp[1]); }
       // remaches del tirante y hebilla de la cinta de pecho
