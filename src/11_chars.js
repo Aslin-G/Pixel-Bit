@@ -334,7 +334,7 @@ const AMAYA_D = {
     this.foreMat = M.skinAm;
     this.sock = M.sockAm;
     this.accessories = [
-      { kind: 'pack2', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, pocket: M.packAm2, roll: M.rollAm, w: 7.4, h: 10 },
+      { kind: 'pack2', body: M.packAm, flap: M.flapAm, strap: M.leatherAm, pocket: M.packAm2, roll: M.rollAm, w: 8.2, h: 10.6, flapBase: 3 },
       { kind: 'goggles', frame: M.gogFrame, strap: M.gogStrap, big: true },
     ];
   },
