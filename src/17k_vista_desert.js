@@ -98,6 +98,69 @@
     }
     return { rows };
   };
+  /**
+   * Terrazas FV en ladera (r2-biomes-a): colina de arena esculpida (ladera izquierda al sol, derecha en sombra
+   * violeta) cortada en bancales que suben en diagonal (abajo-izquierda → arriba-derecha); cada bancal tiene muro
+   * de mampostería con canto iluminado, plataforma de grava en 3/4 y una fila de módulos inclinados con rejilla,
+   * reflejo de cielo y sombra; pasillos cada 22–34 px, camino de servicio en zigzag y cajas de string.
+   * o: {x0, x1, yBase, steps, stepH, depth, runL, runR, seed, k} → {rows:[{x0,x1,y}], glints:[...], top(x)}
+   */
+  V.r2baPVTerraces = function (pb, o) {
+    const k = o.k || 0, r = RNG(o.seed || 3), n = o.steps || 5, sH = o.stepH || 9, dep = o.depth || 4;
+    const D = ramp(V.RAMPS.dune, k), nD = D.length, P = ramp(PV, k), nP = P.length;
+    const WALL = ramp(['#3a1e2e', '#5a2e34', '#7e4a3e', '#a46a4a', '#c88e5e', '#e6b47e'], k);
+    const FR = U(V.hzc('#eef2f8', k)), GR = U(V.hzc('#8ea2cc', k)), SH = U(V.hzc('#4a2a50', k)), RD = U(V.hzc('#e8cc96', k)), RD2 = U(V.hzc('#c4a070', k));
+    const yB = o.yBase, x0 = o.x0, x1 = o.x1, runL = o.runL ?? 18, runR = o.runR ?? 6, rows = [], glints = [];
+    const stepX = (i) => [x0 + i * runL + Math.round((hash1(i, o.seed || 3) - 0.5) * 6), x1 - i * runR + Math.round((hash1(i, (o.seed || 3) + 1) - 0.5) * 6)];
+    // colina: silueta que sube hacia la derecha; ladera izquierda iluminada, derecha en sombra
+    const peak = x1 - n * runR - 10, H = n * sH + 6, top = new Int16Array(pb.w).fill(32767);
+    for (let x = x0 - 40; x < x1 + 50; x++) {
+      if (x < 0 || x >= pb.w) continue;
+      const u = x < peak ? (x - (x0 - 40)) / (peak - (x0 - 40)) : 1 - (x - peak) / (x1 + 50 - peak);
+      const hh = Math.round(H * Math.pow(clamp(u, 0, 1), x < peak ? 1.1 : 0.7) + (fbm1(x * 0.05, 2, 77) - 0.5) * 3);
+      if (hh <= 0) continue;
+      const ty = yB - hh; top[x] = ty;
+      const lit = x < peak ? 0.62 : 0.3;
+      for (let y = ty; y <= yB; y++) { const t = lit - (y - ty) * 0.004 + (y - ty < 2 ? 0.18 : 0) + (vnoise(x * 0.08, y * 0.2, 79) - 0.5) * 0.1 + (((y + Math.round(Math.sin(x * 0.06) * 2)) % 5 === 0) ? -0.06 : 0); V.put(pb, x, y, D[V.band(clamp(t, 0, 0.999), nD, x, y, 0.05, 81)]); }
+    }
+    // bancales de atrás (arriba) hacia delante (abajo)
+    for (let i = n - 1; i >= 0; i--) {
+      const [xa, xb] = stepX(i), yT = yB - 3 - i * sH;
+      if (xb - xa < 20) continue;
+      // plataforma de grava (cara superior en 3/4)
+      for (let q = 0; q < dep; q++) for (let x = xa + q; x < xb + q; x++) V.put(pb, x, yT - q, D[clamp(6 + (q === dep - 1 ? 1 : 0) - (hash2(x >> 1, q, 83) < 0.2 ? 1 : 0), 0, nD - 1)]);
+      // fila de módulos inclinados sobre la plataforma, con pasillos
+      const ph = 4, sk = 2;
+      for (let x = xa + 3; x < xb - 4;) {
+        const len = r.int(20, 32), e = Math.min(xb - 4, x + len);
+        for (let xx = x; xx < e; xx++) {
+          for (let yy = 0; yy < ph; yy++) {
+            const px = xx + Math.round(sk * yy / ph), py = yT - 1 - yy;
+            let c;
+            if (yy === ph - 1) c = FR; else if ((xx - x) % 4 === 0) c = GR;
+            else c = P[V.band(clamp(0.2 + yy / ph * 0.45 + ((xx * 0.37 + i * 13) % 23 < 2 ? 0.3 : 0), 0, 0.999), nP - 1, px, py, 0.05, 85)];
+            V.put(pb, px, py, c);
+          }
+          V.put(pb, xx + 1, yT, SH);
+        }
+        glints.push({ x, y: yT - 3, len: e - x, ph: r.range(0, 1.6), sp: 0.1, w: 2 });
+        rows.push({ x0: x, x1: e, y: yT });
+        if (r.chance(0.35)) { V.put(pb, e + 1, yT - 2, FR); V.put(pb, e + 1, yT - 1, U(V.hzc('#2a7a6a', k))); }   // caja de string
+        x = e + r.int(3, 6);
+      }
+      // muro de contención: mampuestos con junta, canto superior al sol, cara en sombra hacia abajo
+      for (let x = xa; x < xb; x++) for (let q = 1; q <= sH - dep; q++) {
+        const y = yT + q; if (y > yB) break;
+        const course = Math.floor(q / 3), joint = (q % 3 === 0) || ((x + course * 4) % 9 === 0);
+        let kk = q === 1 ? 5 : joint ? 1 : 3 - (q > sH - dep - 2 ? 1 : 0) + (hash2(x >> 2, course + i * 7, 87) < 0.3 ? 1 : 0);
+        if (x < xa + 2) kk += 1; else if (x > xb - 3) kk -= 1;
+        V.put(pb, x, y, WALL[clamp(kk, 0, 5)]);
+      }
+    }
+    // camino de servicio en zigzag que sube los bancales por la izquierda
+    for (let i = 0; i < n - 1; i++) { const [xa] = stepX(i), [xa2] = stepX(i + 1), ya = yB - 3 - i * sH, yb2 = yB - 3 - (i + 1) * sH; for (let q = 0; q <= sH; q++) { const x = Math.round(lerp(xa - 4, xa2 - 2, q / sH)), y = Math.round(lerp(ya, yb2, q / sH)); V.put(pb, x, y, RD); V.put(pb, x + 1, y, RD); V.put(pb, x, y + 1, RD2); } }
+    return { rows, glints, top: (x) => top[clamp(Math.round(x), 0, pb.w - 1)] };
+  };
   /** Mesa FV grande en 3/4 (seguidor): marco claro, celdas con reflejo de cielo, brazo y poste */
   V.tracker = function (pb, x, y, w, o = {}) {
     const k = o.k || 0, P = ramp(PV, k), n = P.length, FR = U(V.hzc('#f0f2f8', k)), FD = U(V.hzc('#9aa4c0', k)), GR = U(V.hzc('#7e92c0', k));
