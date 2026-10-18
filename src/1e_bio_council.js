@@ -48,7 +48,7 @@ BIOMES.council = function (L) {
     });
   }, { tag: 'far' });
   /* ---------------- colina de ARIDIA encendida (0,08) ---------------- */
-  const cityFx = { falls: [], lights: [], glints: [], turb: [] };
+  const cityFx = { falls: [], lights: [], glints: [], turb: [], fauna: [{ kind: 'gull', x: 120, y: 40, r: 200, sp: 5 }, { kind: 'gull', x: 150, y: 52, r: 180, sp: 6 }, { kind: 'gull', x: 420, y: 34, r: 240, sp: 4.5 }, { kind: 'gull', x: 600, y: 46, r: 220, sp: 5.5 }, { kind: 'gull', x: 700, y: 28, r: 160, sp: 6.5 }] }; // r3-int-a: gaviotas al atardecer
   B.vplane(0.08, at(0.08, 48), 180, (pb, w, h) => {
     const k = 0.1, r = RNG(961), cx = 250;
     const info = V.relief(pb, {
@@ -73,6 +73,7 @@ BIOMES.council = function (L) {
       for (const tb of cityFx.turb) V.drawRotor(g, tb.rot, tb.x + ox, tb.y + oy, t * tb.sp + tb.ph);
       for (const [x, y] of cityFx.glints) V.drawGlow(g, x + ox, y + oy, 4, '#ffe8c0', 0.35 + 0.3 * Math.sin(t * 1.3 + x));
       V.drawLights(g, cityFx.lights, ox, oy, t, { blink: -0.3 });
+      V.drawFauna(g, cityFx.fauna, ox, oy, t);
     },
   });
   /* ---------------- tejados de la ciudad (0,13) ---------------- */

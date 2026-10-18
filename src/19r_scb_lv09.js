@@ -142,7 +142,7 @@ const SCBL9 = (() => {
         R3INTA_L9banners() · R3INTA_L9mid(g, sc, cam) · R3INTA_L9front(g, sc, cam)
         R3INTA_citrus(pb, x, yb, s, seed) · R3INTA_bougain(pb, x, y, len, seed, o)
    ===================================================================== */
-const R3INTA_L9 = { spouts: [], pads: [], banners: [], fans: [], rillY: 318 };
+const R3INTA_L9 = { spouts: [], pads: [], banners: [], fans: [], birds: [], rillY: 318 };
 const R3INTA_ZEL = ['#f4e6c8', '#1aa59a', '#c8582c', '#1c3596', '#e0a83a', '#2f9e4c'];
 const R3INTA_BOUG = ['#4a0a3a', '#7a1458', '#b0207a', '#d83a98', '#f070b8', '#ffb0dc'];
 /** Naranjo en maceta de terracota: copa de hojas brillantes con naranjas y azahar */
@@ -242,6 +242,7 @@ function R3INTA_L9banners() {
   const bcols = ['#1aa59a', '#e08a1a', '#3a8adc', '#2f9e4c', '#d4505a', '#9a52d4'];
   for (let k = 0; k < 12; k++) { const tmp = new PixelBuffer(40, 82); PFBM.banner(tmp, 3, 4, bcols[k % 6], k % 6, 64); L.push({ c: tmp.toCanvas(), x: 96 + k * 200 - 3, y: 4, ph: k * 1.7 }); }
   R3INTA_L9.fans = [[413, 0], [1013, 0], [1813, 0]];
+  R3INTA_L9.birds = [{ kind: 'gull', x: 500, y: 112, r: 520, sp: 14 }, { kind: 'gull', x: 1400, y: 96, r: 600, sp: 17 }, { kind: 'gull', x: 2000, y: 120, r: 480, sp: 12 }];
 }
 /** Detrás de los personajes: estandartes que se mecen y ventiladores de techo girando */
 function R3INTA_L9mid(g, sc, cam) {
@@ -250,13 +251,15 @@ function R3INTA_L9mid(g, sc, cam) {
     const sx = Math.round(b.x - ox), sy = Math.round(b.y - oy); if (sx > W + 8 || sx + 40 < -8) continue;
     for (let y = 0; y < 82; y += 3) { const k = Math.pow(y / 82, 1.15), dx = Math.round((Math.sin(t * 1.3 + b.ph - y * 0.045) * 3 + Math.sin(t * 3.1 + b.ph * 2 - y * 0.12) * 0.9) * k); g.drawImage(b.c, 0, y, 40, Math.min(3, 82 - y), sx + dx, sy + y, 40, Math.min(3, 82 - y)); }
   }
+  // palomas que cruzan bajo el artesonado (vuelo en bucle, aleteo de 2 cuadros)
+  if (VISTA.drawFauna) VISTA.drawFauna(g, R3INTA_L9.birds, -ox, -oy, t);
   for (const [x] of R3INTA_L9.fans) {
     const sx = Math.round(x - ox), sy = -oy; if (sx < -30 || sx > W + 30) continue;
     g.fillStyle = '#5a3a0e'; g.fillRect(sx, sy, 1, 22); g.fillStyle = '#e0a83a'; g.fillRect(sx + 1, sy, 1, 22);
     for (let i = 0; i < 4; i++) {
-      const a = t * 4.2 + i * Math.PI / 2, c = Math.cos(a), s = Math.sin(a), L = 21;
+      const a = t * 4.2 + i * Math.PI / 2, c = Math.cos(a), s = Math.sin(a), L = 26;
       g.fillStyle = s > 0 ? '#5a3016' : '#ba7c3e';
-      for (let k = 4; k <= L; k += 2) g.fillRect(Math.round(sx + c * k), Math.round(sy + 25 + s * k * 0.18), 2, 1 + (k > 7 && k < 18 ? 1 : 0));
+      for (let k = 4; k <= L; k += 2) g.fillRect(Math.round(sx + c * k), Math.round(sy + 25 + s * k * 0.18), 2, 1 + (k > 7 && k < 22 ? 1 : 0));
     }
     g.fillStyle = '#b07a1c'; g.fillRect(sx - 3, sy + 21, 8, 5); g.fillStyle = '#ffe08a'; g.fillRect(sx - 2, sy + 21, 5, 1); g.fillStyle = '#fff4c8'; g.fillRect(sx - 1, sy + 26, 3, 1);
   }
