@@ -178,7 +178,8 @@ const GameplayScene = {
     if (def.renderSky) def.renderSky(g, this, camI); else if (B.sky) g.drawImage(B.sky, 0, Math.round(-oy * 0.05));
     if (def.skyFx) def.skyFx(g, this, camI);
     B.drawClouds(g, camI, 1 + (B.weather.wind || 0));
-    B.render(g, camI, 'back');
+    // r2-light: planos de paralaje dispersos por franjas recortadas (≤ 2 pasadas a pantalla completa)
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(this)) R2LIGHT.backdrop(g, this, camI, 'back'); else B.render(g, camI, 'back');
     if (this.pf) PFStage.renderBack(g, this);
     if (def.renderBack) def.renderBack(g, this, camI);
     // accesorios estáticos de fondo (mundo; con kit PF incluyen las caras superiores del suelo)
@@ -192,6 +193,8 @@ const GameplayScene = {
     if (R2L) R2LIGHT.blit(g, this, 'terrainC'); else g.drawImage(this.terrainC, ox, oy, W, H, 0, 0, W, H);
     for (const p of this.world.platforms) if (!p.baked) drawPlatform(g, p, ox, oy);
     for (const l of this.world.ladders) drawLadder(g, l, ox, oy);
+    // charcos de luz (ventanales, lámparas) sobre el suelo, bajo los personajes
+    if (R2L) R2LIGHT.floorLights(g, this);
     // entidades: estaciones, actores, kiru, jugadora
     const ents = this.world.entities.slice().sort((a, b) => (a.z || 0) - (b.z || 0) || ((a instanceof Station) ? -1 : 0) - ((b instanceof Station) ? -1 : 0));
     for (const e of ents) if (!(e instanceof Player) && !(e instanceof Kiru)) e.render(g, cam);
@@ -203,7 +206,9 @@ const GameplayScene = {
     if (def.renderFront) def.renderFront(g, this, camI);
     if (this.propsFrontC) { if (R2L) R2LIGHT.blit(g, this, 'propsFrontC'); else g.drawImage(this.propsFrontC, ox, oy, W, H, 0, 0, W, H); }
     this.world.ps.render(g, ox, oy);
-    B.render(g, camI, 'front');
+    // haces volumétricos de los ventanales y halos de arcos (delante de los personajes)
+    if (R2L) R2LIGHT.airLights(g, this);
+    if (R2L) R2LIGHT.backdrop(g, this, camI, 'front'); else B.render(g, camI, 'front');
     // planos frontales (f > 1): oclusores de encuadre
     if (this.pf) PFStage.renderFrontPlane(g, this);
     // gradación de luz / clima
