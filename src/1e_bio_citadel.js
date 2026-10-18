@@ -48,8 +48,8 @@ function buildCitadel(L) {
   // resplandor del sol poniente
   B.vdyn(0, (g) => { V.sunBloom(g, SUN, T(), { a: 0.42, r: 80, col: '#ffb07a' }); }, { tag: 'sun' });
   /* ---------------- nubes rosadas ---------------- */
-  B.cloudDeck({ kind: 'cirrus', n: 7, seed: 71, f: [0.01, 0.03], y: [10, 70], w: [80, 170], speed: [0.8, 1.6], pal: ['#6a5c9c', '#b48cb4', '#f0b4b0', '#ffe4cc'] });
-  B.cloudDeck({ n: 6, seed: 73, f: [0.03, 0.06], y: [20, 86], w: [60, 130], bias: 0.7, speed: [1.2, 2.4], sunX: SUN.x, pal: ['#26285a', '#38386c', '#544a80', '#7c5890', '#a86a94', '#d48496', '#f4a898', '#ffd2ac'] });
+  B.cloudDeck({ kind: 'cirrus', n: 7, seed: 71, f: [0.01, 0.03], y: [10, 70], w: [80, 170], speed: [2.2, 3.6], pal: ['#6a5c9c', '#b48cb4', '#f0b4b0', '#ffe4cc'] });
+  B.cloudDeck({ n: 6, seed: 73, f: [0.03, 0.06], y: [20, 86], w: [60, 130], bias: 0.7, speed: [3.4, 5.6], sunX: SUN.x, pal: ['#26285a', '#38386c', '#544a80', '#7c5890', '#a86a94', '#d48496', '#f4a898', '#ffd2ac'] });
   /* ---------------- cordillera violeta con borde de ocaso (0,05) ---------------- */
   B.vplane(0.05, at(0.05, HZ - 52), 54, (pb, w, h) => {
     const r = RNG(751), peaks = [];

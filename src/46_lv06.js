@@ -93,10 +93,10 @@ LEVELS[6] = {
     /* ===== 2. PRIMER BANCO (340–880): bastidores BESS a escala de personaje ===== */
     for (const x of VAULT_RACKS.slice(0, 6)) R2BB_L6rack(pb, E, D, x, yb, off); // r2-biomes-b: bastidores variados (tamaño, serie, estado, puerta abierta)
     R2BB_workLamp(pb, D, 592, yb(592), -1, gy(592)); R2BB_workLamp(pb, D, 1172, yb(1172), -1, gy(1172));
-    const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan);
+    const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan); D.steam.push([848, yb(834) - 34]); R3INTB_dial(pb, D, 840, yb(834) - 23, 3);
     D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
     /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
-    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#121a30', '#1c2842', '#283a5a', '#344c74', '#44608e', '#587aa8', '#7898c2', '#a0bcdc', '#cadcf0', '#eef6ff'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); }
+    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#121a30', '#1c2842', '#283a5a', '#344c74', '#44608e', '#587aa8', '#7898c2', '#a0bcdc', '#cadcf0', '#eef6ff'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); R3INTB_dial(pb, D, x + 8, yb(x) - 20, 3); }
     E.busbar(pb, 900, 1300, 186, { gap: 50, hangTo: 153 });
     for (const a of ARCS) E.arcGap(pb, a.x, a.w, 198, gy(a.x));
     D.flows.push({ pts: [[900, 189], [1300, 189]], kind: 'power', rate: (sc) => sc.state.blackout ? 0 : (sc.state.elyOn ? 1.4 : 0.6) });
@@ -115,7 +115,7 @@ LEVELS[6] = {
     /* ===== 5. SEGUNDO BANCO (1760–2140) ===== */
     for (const x of VAULT_RACKS.slice(6)) R2BB_L6rack(pb, E, D, x, yb, off);
     R2BB_workLamp(pb, D, 2112, yb(2112), -1, gy(2112));
-    const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan);
+    const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan); D.steam.push([1774, yb(1764) - 30]);
     /* ===== 6. BARRA PRINCIPAL (2140–2405): celdas de interruptores ===== */
     const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL', ramp: ['#121a34', '#1c284a', '#283a62', '#364c7c', '#486296', '#5e7cb0', '#7e9cca', '#a8c0e2', '#d6e4f6'] });
     D.breakers.push(...sw.breakers);
@@ -125,7 +125,7 @@ LEVELS[6] = {
     const el = V.elevator(pb, 2420, yb(2460), 84, 132, 'ASCENSOR · CIUDADELA H2');
     D.lift.push(el.ind);
     D.glows.push({ x: el.call[0], y: el.call[1], r: 4, col: '#48dcf4', a: 0.7, mode: 'blink', hz: 0.8, on: off });
-    const hv3 = V.hvacUnit(pb, 2526, yb(2540), 40, 30); D.fans.push(hv3.fan);
+    const hv3 = V.hvacUnit(pb, 2526, yb(2540), 40, 30); D.fans.push(hv3.fan); D.steam.push([2540, yb(2540) - 34]); R3INTB_dial(pb, D, 2532, yb(2540) - 23, 3);
     // balizas de emergencia (las únicas que quedan en el apagón)
     for (const x of [140, 870, 1310, 1760, 2140, 2404]) D.glows.push({ x, y: 120, r: 5, col: '#ff4e5d', a: 0.75, mode: 'blink', hz: 0.7, ph: x, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
     R3INTB_L6floor(pb, world, gy, back, D); // r3-int-b: marcas viales, charcos con reflejo, carros de mantenimiento
@@ -170,6 +170,10 @@ LEVELS[6] = {
     // ascensor: indicador de planta
     for (const [ix, iy, iw] of D.lift) { const x = ix - ox; if (x < -30 || x > W + 10) continue; g.fillStyle = S.blackout ? '#5a1a20' : '#48dcf4'; const up = Math.floor(t * 2) % 2; for (let k = 0; k < 3; k++) g.fillRect(Math.round(x + iw / 2 - k), Math.round(iy - oy + 1 + k + up), 1 + k * 2, 1); drawText(g, '-2', x + 2, iy - oy, { font: 'tiny', color: S.blackout ? '#ff6b6b' : '#c4f8ff' }); }
     PFBV.drawFanFront(g, sc, D.fans, !S.blackout);
+    // r3-int-b: vaho de las unidades de climatización y agujas de los manómetros
+    if (!S.blackout) for (const [x, y] of D.steam) { const sx = x - ox; if (sx > -20 && sx < W + 20) VISTA.drawSteam(g, sx, y - oy, t * 1.2 + x, { n: 9, h: 40, col: '#e4ecff' }); }
+    R3INTB_L7gauges(g, sc, cam, D);
+    if (!S.blackout) VISTA.drawFauna(g, R3INTB_L6DRONES, -Math.round(ox), -Math.round(oy), t); // drones de inspección que patrullan los bastidores
     PFInfra.drawLeds(g, sc, S.blackout ? [] : D.leds);
     PFB.screens(g, sc, D.screens);
     PFB.glows(g, sc, D.glows);
@@ -250,7 +254,7 @@ LEVELS[6] = {
 };
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
-const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [], puddles: [] };
+const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [], puddles: [], steam: [], gauges: [] };
 /* r2-biomes-b: bastidores variados — misma x, tamaño y serie distintos, estados de color y dos en mantenimiento */
 const R2BB_L6RACK = [
   { v: 0, w: 64, h: 100, st: 'ok' }, { v: 1, w: 60, h: 108, st: 'ok' }, { v: 3, w: 62, h: 100 }, { v: 0, w: 62, h: 98, st: 'ok' }, { v: 2, w: 62, h: 112, st: 'cold' }, { v: 1, w: 58, h: 104, st: 'ok' },
@@ -344,6 +348,13 @@ function R3INTB_L6floor(pb, world, gy, back, D) {
   H2.cone(pb, 958, wy(958)); H2.cone(pb, 1246, wy(1246));
 }
 /** Canto bajo la línea de paso: cables de colores en catenaria entre pilares, cajas de registro y placas */
+const R3INTB_L6DRONES = [{ kind: 'drone', x: 600, y: 132, r: 150 }, { kind: 'drone', x: 1080, y: 168, r: 60 }, { kind: 'drone', x: 1960, y: 128, r: 140 }, { kind: 'drone', x: 2300, y: 150, r: 70 }];
+/** Esfera de manómetro horneada (aro claro arriba-izquierda, cara marfil, sector rojo) y registro de su aguja */
+function R3INTB_dial(pb, D, x, y, rr) {
+  PFK.ellipseFn(pb, x + 0.5, y + 0.5, rr + 1.2, rr + 1.2, (nx, ny, d) => d > 0.7 ? U(nx + ny < 0 ? '#d4daee' : '#2a3048') : U(ny > 0.35 && nx > 0.2 ? '#ff6a50' : '#f2f0e6'));
+  PFK.put(pb, x - rr + 1, y, U('#383e5a')); PFK.put(pb, x + rr - 1, y, U('#383e5a')); PFK.put(pb, x, y - rr + 1, U('#383e5a'));
+  D.gauges.push([x, y, rr, x * 0.013]);
+}
 function R3INTB_L6face(pb, world) {
   const K = PFK, cols = [U('#ff8a2a'), U('#3fe08a'), U('#2c8cff'), U('#e8384a')];
   for (let x0 = 300; x0 < 2380; x0 += 80) {

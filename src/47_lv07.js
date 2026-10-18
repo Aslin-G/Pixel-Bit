@@ -129,7 +129,7 @@ LEVELS[7] = {
     const segs = PFBGround.surface(pb, world);
     const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
     const H2 = PFBH2, B = PFB, I = PFInfra, F = PFFlora, D = LV7;
-    D.flows.length = 0; D.glows.length = 0; D.leds.length = 0; D.screens.length = 0; D.stacks.length = 0; D.fans.length = 0; D.cones.length = 0; D.puddles.length = 0; D.gauges.length = 0;
+    D.flows.length = 0; D.glows.length = 0; D.leds.length = 0; D.screens.length = 0; D.stacks.length = 0; D.fans.length = 0; D.cones.length = 0; D.puddles.length = 0; D.gauges.length = 0; D.flags.length = 0; D.plumes.length = 0;
     const yb = back(400) + 2; // pie de los equipos (borde trasero del suelo)
     const on = (sc) => sc.state.stacks > 0 && !sc.state.leak;
     const lampG = (x, y, r = 8, a = 0.34) => D.glows.push({ x, y, r, col: '#fff0d0', a, mode: 'flicker', ph: x });
@@ -260,6 +260,11 @@ LEVELS[7] = {
     for (const [x, y] of cr.lamps) D.cones.push([x, y, 12, 44, 212 - y]);
     for (const [x, y] of cg.lights) D.cones.push([x, y, 6, 30, yb + 10 - y]);
     R3INTB_L7floor(pb, world, gy, back, D); // r3-int-b: charcos con reflejo del ocaso y matas en las juntas
+    // r3-int-b: mástiles con banderolas (verde H₂, cian agua ultrapura) en la nave y la caseta; penachos de vapor
+    for (const [mx, my0, my1, col] of [[762, 156, 98, '#3fe0a0'], [1234, 156, 98, '#11bedd'], [30, yb - 106, yb - 150, '#3fe0a0'], [2460, yb - 150, yb - 196, '#11bedd']]) { for (let yy = my1; yy < my0; yy++) { PFK.put(pb, mx, yy, U('#d4daee')); PFK.put(pb, mx + 1, yy, U('#525a7a')); } PFK.put(pb, mx, my1 - 1, U('#ffd860')); D.flags.push({ x: mx, y: my1, col }); }
+    R3INTB_L7ROOFFANS.length = 0;
+    for (const fx of [812, 896, 1100, 1184]) { const fy = 100; for (let q = -6; q <= 6; q++) for (let k = 0; k < 4; k++) PFK.put(pb, fx + q, fy - 2 + k, U(k === 0 ? '#d4daee' : Math.abs(q) > 5 ? '#383e5a' : k === 3 ? '#24283e' : '#0e1424')); R3INTB_L7ROOFFANS.push([fx, fy]); }
+    D.plumes.push([1250, 94, 1.0], [2384, vm.top != null ? vm.top - 2 : yb - 164, 1.3], [1310, yb - 44, 0.6], [1382, yb - 44, 0.6]);
     { const all = LV7.flows.splice(0); for (const r of all) LV7.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[7]._propsMs = Math.round(nowMs() - t0);
   },
@@ -280,6 +285,11 @@ LEVELS[7] = {
     g.globalCompositeOperation = 'source-over';
     PFInfra.drawFlows(g, sc, D.flows);
     R3INTB_L6puddles(g, sc, cam, D); R3INTB_L7gauges(g, sc, cam, D);
+    VISTA.drawFlags(g, D.flags, -Math.round(ox), -Math.round(oy), t); R3INTB_plumes(g, D.plumes, ox, oy, t);
+    VISTA.drawFauna(g, R3INTB_L7DRONES, -Math.round(ox), -Math.round(oy), t); // drones de inspección (cámara térmica) sobre la nave y las esferas
+    // extractores de cubierta de la nave: aspas que giran
+    g.fillStyle = '#c8d0e8';
+    for (const [fx, fy] of R3INTB_L7ROOFFANS) { const sx = fx - ox; if (sx < -10 || sx > W + 10) continue; const a0 = t * 7 + fx; for (let b2 = 0; b2 < 3; b2++) { const an = a0 + b2 * 2.094; for (let q = 1; q < 5; q++) g.fillRect(Math.round(sx + Math.cos(an) * q), Math.round(fy - oy + Math.sin(an) * q * 0.45), 1, 1); } }
     // stacks: burbujas en las mirillas de los separadores y torre de señales
     D.stacks.forEach((st, k) => {
       const x = st.cells[0] - ox; if (x < -170 || x > W + 30) return;
@@ -374,7 +384,7 @@ LEVELS[7] = {
 };
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
-const LV7 = { flows: [], glows: [], leds: [], screens: [], stacks: [], fans: [], cones: [], upwScreen: null, puddles: [], gauges: [] };
+const LV7 = { flows: [], glows: [], leds: [], screens: [], stacks: [], fans: [], cones: [], upwScreen: null, puddles: [], gauges: [], flags: [], plumes: [] };
 /* ---------------- r3-int-b: canto del suelo con tramos variados ----------------
    Cada vano del canto (zanja o galería) recibe una variante distinta: volante de válvula, manómetros
    (agujas animadas en renderMid), nicho iluminado con maceta, placa de señal, tapa de rejilla con LED o
@@ -463,6 +473,23 @@ function R3INTB_L7floor(pb, world, gy, back, D) {
   }
   const G = [U('#1e3a1c'), U('#2e5424'), U('#46702c'), U('#6a9038')];
   for (let x = 4; x < world.w - 4; x += 3) { if (hash2(x, 1, 7151) > 0.18) continue; const y = back(x) + 1; const h = 1 + Math.floor(hash2(x, 2, 7152) * 3); for (let q = 0; q < h; q++) K.put(pb, x + (q === h - 1 && hash2(x, 3, 7153) < 0.5 ? 1 : 0), y - q, G[clamp(q + 1, 0, 3)]); }
+}
+const R3INTB_L7DRONES = [{ kind: 'drone', x: 1000, y: 104, r: 160 }, { kind: 'drone', x: 1590, y: 120, r: 110 }, { kind: 'drone', x: 300, y: 128, r: 90 }, { kind: 'drone', x: 2250, y: 112, r: 120 }];
+const R3INTB_L7ROOFFANS = [];
+/** Penachos de vapor (venteo de O₂, mástil de venteo, compresores): bocanadas que suben, crecen y se desvanecen */
+function R3INTB_plumes(g, list, ox, oy, t) {
+  for (let j = 0; j < list.length; j++) {
+    const [x, y, k] = list[j], sx = x - ox; if (sx < -40 || sx > W + 40) continue;
+    const n = Math.round(7 * k);
+    for (let i = 0; i < n; i++) {
+      const u = (t * 0.22 * (1.2 - k * 0.3) + i / n + j * 0.13) % 1, s = Math.round(1 + u * 6 * k);
+      const px = Math.round(sx + Math.sin(u * 5 + i * 1.7) * 2 * u + u * 10 * k), py = Math.round(y - oy - u * 34 * k);
+      g.globalAlpha = 0.42 * (1 - u) * (u < 0.08 ? u / 0.08 : 1);
+      g.fillStyle = u < 0.5 ? '#f4e8f0' : '#d8c4dc'; g.fillRect(px - (s >> 1), py - (s >> 1), s, s);
+      g.fillStyle = '#ffd0b0'; g.fillRect(px - (s >> 1), py - (s >> 1), Math.max(1, s >> 1), 1);
+    }
+  }
+  g.globalAlpha = 1;
 }
 /** Agujas de los manómetros del canto (oscilan con la presión de los stacks) */
 function R3INTB_L7gauges(g, sc, cam, D) {

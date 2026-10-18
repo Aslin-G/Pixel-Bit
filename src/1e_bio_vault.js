@@ -48,7 +48,7 @@ BIOMES.vault = function (L) {
   });
   B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, 40, '#fff0c0', 0.22, T()), { tag: 'bloom' });
   B.cloudDeck({ kind: 'cirrus', n: 5, seed: 603, f: [0.01, 0.03], y: [12, 60], w: [70, 150], speed: [1, 2] });
-  B.cloudDeck({ n: 5, seed: 605, f: [0.03, 0.08], y: [24, 96], w: [40, 96], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
+  B.cloudDeck({ n: 5, seed: 605, f: [0.03, 0.08], y: [24, 96], w: [40, 96], bias: 0.6, speed: [4, 6.5], sunX: SUN.x });
   /* ---------------- cordillera ocre con sombras violeta (0,12) ---------------- */
   P(0.12, HZ - 76, 78, (pb, w, h) => {
     const r = RNG(607), peaks = [];
@@ -129,7 +129,7 @@ BIOMES.vault = function (L) {
     },
   });
   /* ---------------- muro de sillería con ventanales en arco (0,55) ---------------- */
-  const wallFx = { strips: [], lamps: [], bugs: [], sills: [] };
+  const wallFx = { strips: [], lamps: [], bugs: [], sills: [], fans: [] };
   const WN = R3INTB_VWIN;
   P(0.55, 0, 300, (pb, w, h) => {
     const r = RNG(641);
@@ -176,6 +176,14 @@ BIOMES.vault = function (L) {
     for (let i = 0; WN.x0 + i * WN.step < w + WN.step; i++) {
       const pc = Math.round(pierC(i) - WN.step / 2 + WN.step / 2);
       if (pc < 0 || pc >= w) continue;
+      if (i % 2) {
+        // ventilador de techo: tija y motor (las aspas giran en el dinámico)
+        for (let y = 22; y < 40; y++) { V.put(pb, pc, y, GR[3]); V.put(pb, pc + 1, y, GR[1]); }
+        for (let q = -3; q <= 4; q++) for (let y = 40; y < 44; y++) V.put(pb, pc + q, y, GR[y === 40 ? 6 : q < -1 ? 5 : q > 2 ? 1 : 3]);
+        V.put(pb, pc, 45, U('#ffe8b0')); V.put(pb, pc + 1, 45, U('#ffd890'));
+        wallFx.fans.push([pc, 42, i]);
+        continue;
+      }
       for (let y = 22; y < 34; y++) V.put(pb, pc, y, GR[2]);
       for (let q = -4; q <= 4; q++) { V.put(pb, pc + q, 34, GR[5]); V.put(pb, pc + q, 35, GR[3]); }
       for (let q = -3; q <= 3; q++) V.put(pb, pc + q, 36, U('#ffe8b0'));
@@ -263,6 +271,12 @@ BIOMES.vault = function (L) {
       else {
         V.drawStrips(g, wallFx.strips, ox, oy, t, { col: '#fff8e0', speed: 70 });
         for (let i = 0; i < wallFx.lamps.length; i++) { const [x, y] = wallFx.lamps[i]; if (x + ox < -30 || x + ox > W + 30) continue; const fl = 0.9 + 0.1 * Math.sin(t * 13 + i * 2.1) * (i % 3 === 1 ? 1 : 0.2); V.drawGlow(g, x + ox, y + oy, 16, '#ffb860', 0.34 * fl); V.drawGlow(g, x + ox, y + oy, 5, '#fff2d0', 0.7 * fl); }
+      }
+      // ventiladores de techo: 4 aspas vistas de canto (escorzo), giro lento
+      for (const [x, y, i] of wallFx.fans) {
+        const sx = x + ox; if (sx < -24 || sx > W + 24) continue;
+        const a0 = t * (S.blackout ? 0.3 : 2.6) + i;
+        for (let b = 0; b < 4; b++) { const a = a0 + b * Math.PI / 2, ex = Math.cos(a) * 17, ey = Math.sin(a) * 2.2, front = Math.sin(a) > 0; g.fillStyle = front ? '#4a3c50' : '#2a2034'; for (let q = 3; q <= 17; q++) g.fillRect(Math.round(sx + ex * q / 17), Math.round(y + oy + ey * q / 17), q > 15 ? 1 : 2, 1); if (front) { g.fillStyle = '#c89a72'; g.fillRect(Math.round(sx + ex * 0.6), Math.round(y + oy + ey * 0.6) - 1, 3, 1); } }
       }
       // mariposas e insectos sobre las jardineras (1–2 px)
       for (const [x, y, i] of wallFx.bugs) {
