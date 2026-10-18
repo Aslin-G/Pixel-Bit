@@ -205,6 +205,9 @@
       const i = y * MW + X;
       if (KIND[i] === 1 && KIND[i + MW] === 2 && KIND[i - MW] !== 0 && hash2(X, y, 21) < 0.7) pb.data[i] = V.mixU(pb.data[i], RIM, 0.4);
     }
+    // perspectiva atmosférica: la parte norte (lejana) de la isla se aclara y enfría hacia la bruma lila
+    const HZU = U('#b8b4dc');
+    for (let y = 0; y < 200; y++) { const k = Math.pow(1 - y / 200, 1.6) * 0.22; if (k < 0.01) continue; for (let X = 0; X < MW; X++) { const i = y * MW + X; if (KIND[i]) pb.data[i] = V.mixU(pb.data[i], HZU, k); } }
     /* ---------------- mar: bandas por distancia a la costa ---------------- */
     const DS = new Int16Array(MW * MH).fill(9999), q = new Int32Array(MW * MH); let qh = 0, qt = 0;
     for (let i = 0; i < MW * MH; i++) if (KIND[i]) { DS[i] = 0; q[qt++] = i; }
@@ -276,10 +279,13 @@
       const i = z * MW + P(x); if (LD[i] >= -0.012 || WATER[i]) continue;
       if (KIND[cy * MW + P(x)] !== 1) continue;
       const bn = BIO[BI[i]];
-      const dens = { sand: 0.34, dune: 0.05, rock: 0.2, grass: 0.95, crop: 0.3, salt: 0.0, city: 0.2 }[bn];
+      // fondos de vaguada (más bajos que su entorno): más verdes y más densos
+      const xw = P(x), hc = Hh[i], hv = (Hh[z * MW + Math.max(0, xw - 5)] + Hh[z * MW + Math.min(MW - 1, xw + 5)] + Hh[Math.max(0, z - 4) * MW + xw] + Hh[Math.min(WR - 1, z + 4) * MW + xw]) * 0.25;
+      const vale = hv - hc > 0.9 && bn !== 'salt' && bn !== 'city';
+      const dens = vale ? 0.9 : { sand: 0.34, dune: 0.05, rock: 0.2, grass: 0.95, crop: 0.3, salt: 0.0, city: 0.2 }[bn];
       if (r() > dens || nearNode(x, cy, 9)) continue;
-      const big = bn === 'grass' ? r.chance(0.45) : r.chance(0.2);
-      const pal = bn === 'sand' || bn === 'rock' ? (r.chance(0.6) ? SHRUBR : FOLR) : FOLR;
+      const big = bn === 'grass' || vale ? r.chance(0.5) : r.chance(0.2);
+      const pal = (bn === 'sand' || bn === 'rock') && !vale ? (r.chance(0.6) ? SHRUBR : FOLR) : FOLR;
       add(x, cy, (X, Y) => V.shrub(pb, X, Y + 1, big ? 2 : 1, X * 7 + Y, { ramp: pal }), 0);
     }
     /* ---------------- parcelas de cultivo en el altiplano (mosaico de huertas) ---------------- */
