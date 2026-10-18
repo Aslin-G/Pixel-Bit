@@ -70,8 +70,8 @@ const R2LIGHT_CFG = {
     grade: { mul: '#c4bce8', mulK: 0.3, shade: '#14205a', shadeK: 0.24, lift: '#ffd890', liftK: 0.12, sat: 1.3, vgrad: [0.0, -0.05] },
     rim: { col: '#fbc371', k: 0.45, side: 0.7, terrain: 0.35 },
     char: { shade: '#1a1c50', shadeK: 0.1, lift: '#ffd8a0', liftK: 0.08, rim: '#ffd8a0', rimK: 0.6, shadowCol: '#1a0e30', shadowA: 0.66, cast: 0.25, castA: 0.3 },
-    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, wTop: 0.5, wBot: 0.78, col: '#ffd58a', a: 0, soft: 0, pool: { col: '#ffc870', a: 0.5, wk: 1.25 }, moteCol: '#fff0c8' }, // volumen: VISTA.r3iaDrawBeams (42_lv02 renderFront)
-    lampPools: { a: 0.46, wk: 5, reach: 220 } },
+    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, wTop: 0.5, wBot: 0.78, col: '#ffd58a', a: 0, soft: 0, pool: { col: '#ffc870', a: 0.44, wk: 1.05 }, moteCol: '#fff0c8' }, // volumen: VISTA.r3iaDrawBeams (42_lv02 renderFront)
+    lampPools: { a: 0.4, wk: 4.2, reach: 220 } },
   3: { tod: 'dusk', env: 'dusk' },
   4: { tod: 'day', cast: { col: '#4a2a6a', a: 0.36, len: 0.3, maxLen: 40 } },
   5: { tod: 'day' },
