@@ -649,11 +649,15 @@ LEVELS[10] = {
   },
   /* ---------------- dinámico ---------------- */
   /* ---------------- cielo: publica el estado de la tormenta para el panorama ---------------- */
+  /* r2-biomes-b: cielo de tormenta con el coloso (paralaje 0,02, una pasada); al despejar, fundido al cielo azul */
+  renderSky(g, sc, cam) {
+    const S = sc.state, B = sc.backdrop, clear = clamp(S.clearK || 0, 0, 1);
+    if (clear < 0.995) g.drawImage(B.sky, -Math.round(cam.x * (B.r2sf || 0)), Math.round(-cam.y * 0.05));
+    if (clear > 0.005 && B.skyClear) { g.globalAlpha = clear; g.drawImage(B.skyClear, 0, 0); g.globalAlpha = 1; }
+  },
   skyFx(g, sc, cam) {
     const S = sc.state, B = sc.backdrop, clear = clamp(S.clearK || 0, 0, 1);
     B.calima = { storm: 1 - clear, gust: S.gust || 0, clear, transformed: !!S.transformed };
-    // al despejar vuelve el cielo azul (fundido sobre el cielo de polvo)
-    if (clear > 0.01 && B.skyClear) { g.globalAlpha = clear; g.drawImage(B.skyClear, 0, 0); g.globalAlpha = 1; }
   },
   renderBack(g, sc, cam) {
     // relámpagos secos azul eléctrico dentro de la tormenta de polvo
@@ -741,21 +745,25 @@ LEVELS[10] = {
   renderFront(g, sc, cam) {
     const S = sc.state, t = Game.time, storm = 1 - (S.clearK || 0);
     if (storm <= 0.02) return;
-    // bandas de polvo que barren la escena
-    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.4 + 0.3 * S.gust) * storm); }
-    // arena en vuelo: tres planos de estrías inclinadas por el viento (lejos → cerca), ráfagas aceleran
+    // r2-biomes-b: el viento sopla desde la tormenta (derecha → izquierda, «ráfagas de frente»)
+    // bandas de polvo que barren la escena (3 tiras parciales)
+    for (let i = 0; i < 3; i++) { const y = 70 + i * 84 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 24) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, x + cam.x * 0.2, (0.3 + 0.25 * S.gust) * storm); }
+    // arena en vuelo: estrías en 3 planos como sprites pequeños (≈130 drawImage, 0 pasadas completas)
     FIXLB_STORM.t += Game.dt * (0.55 + 0.9 * (S.gust || 0));
-    for (let i = 0; i < 3; i++) { const sp = [150, 250, 400][i], pf = [0.5, 0.85, 1.25][i], d = FIXLB_STORM.t * sp - cam.x * pf; FIXLB_drawTile(g, FIXLB_streaks(i), d, d * [0.1, 0.14, 0.18][i], [0.6, 0.75, 0.9][i] * storm * (0.75 + 0.25 * (S.gust || 0))); }
+    R2BB_drawSand(g, FIXLB_STORM.t, cam, storm * (0.75 + 0.25 * (S.gust || 0)));
     // arena rasante: cinta de saltación pegada al suelo
-    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, FIXLB_groundDrift(), d, null, 0.85 * storm, gy); }
-    // visibilidad reducida (≈200 m): velo en bandas con claro estrecho alrededor de Amaya y KIRU
+    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = -FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, R2BB_groundDrift(), d, null, 0.8 * storm, gy); }
+    // visibilidad reducida (≈200 m): viñeta de polvo con claro amplio alrededor de Amaya y KIRU; el cielo
+    // (el coloso) queda casi libre y los bordes bajos se hunden en granate
     const P = sc.player; if (!P) return;
     const cx = Math.round(P.x - cam.x), cy = Math.round(P.y - cam.y - 30);
-    calVeil(g, cx, cy, (0.45 + 0.3 * S.gust) * storm);
+    R2BB_veil(g, cx, cy, (0.55 + 0.45 * S.gust) * storm);
   },
   renderGrade(g, sc) {
     const S = sc.state, storm = 1 - (S.clearK || 0);
-    if (storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.42 * storm; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    // r2-biomes-b: sin multiplicar naranja a pantalla completa (lo volvía monocromo): la tormenta la ponen el cielo,
+    // la viñeta y la gradación horneada en las capas estáticas (R2LIGHT_CFG[10]); con r2-light apagado, gradación ligera
+    if (storm > 0 && !(typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc))) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.25 * storm; frect(g, 0, 0, W, H, '#d07a40'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.clearK > 0) { g.globalCompositeOperation = 'screen'; g.globalAlpha = 0.12 * S.clearK; frect(g, 0, 0, W, H, '#c2f58e'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.flash > 0) { g.globalAlpha = S.flash; frect(g, 0, 0, W, H, '#ffffff'); g.globalAlpha = 1; }
   },
@@ -782,6 +790,8 @@ LEVELS[10] = {
   /* ---------------- guion ---------------- */
   setup(sc, p) {
     const S = sc.state;
+    // r2-biomes-b: lienzos del frente de tormenta preparados al entrar (sin tirón en el primer cuadro)
+    R2BB_veilMask(); R2BB_sandAtlas(); R2BB_groundDrift(); for (let i = 0; i < 3; i++) calWisp(i);
     Object.assign(S, { cards: {}, fourth: 0, pol: calDefaultPolicy(), ntu: 40, tank: 840, soc: 0.65, socTrend: 0, pond: 0, tideBad: true, gust: 0, rotor: 0, clearK: 0, flash: 0, dataFlow: 0, falseDone: false, phase7: false, phase8: false, phase9: false, transformed: false, coreOpen: false });
     for (const tr of LEVELS[10].triggers) tr.done = false;
     sc.actor('naira', 'naira', 150, { facing: 1 });
@@ -922,6 +932,84 @@ function FIXLB_drawTile(g, c, dx, dy, a, y0) {
   if (y0 != null) { g.drawImage(c, Math.round(x), y0); g.drawImage(c, Math.round(x) + c.width, y0); }
   else { const y = (((dy % c.height) + c.height) % c.height) - c.height; for (const ox of [0, c.width]) for (const oy of [0, c.height]) g.drawImage(c, Math.round(x) + ox, Math.round(y) + oy); }
   g.globalAlpha = 1;
+}
+/* ---------------- r2-biomes-b: arena en vuelo, cinta rasante y viñeta de visibilidad ----------------
+   Las 12 capas de estrías a pantalla completa (FIXLB) pasan a ≈130 sprites pequeños sin estado: cada
+   estría tiene posición inicial y velocidad propias y su posición es función del tiempo acumulado y
+   de la cámara (paralaje por plano). El viento va de derecha a izquierda (desde la tormenta). */
+const R2BB_SAND = { atlas: null, list: null, drift: null, veil: null };
+const R2BB_SANDCFG = [
+  { n: 64, l0: 4, l1: 10, th: 1, slope: 0.1, sp: 150, pf: 0.5, a: 0.55, cols: ['#f0c88a', '#e8b474', '#fad8a0'] },
+  { n: 46, l0: 9, l1: 19, th: 1, slope: 0.14, sp: 250, pf: 0.85, a: 0.72, cols: ['#fde2ae', '#f6d294', '#e8b06a'] },
+  { n: 22, l0: 18, l1: 36, th: 2, slope: 0.18, sp: 400, pf: 1.25, a: 0.9, cols: ['#fff0cc', '#fde4ae', '#f2c27c'] },
+];
+function R2BB_sandAtlas() {
+  if (R2BB_SAND.atlas) return R2BB_SAND.atlas;
+  const CW = 40, CH = 10, NV = 8, pb = new PixelBuffer(CW * NV, CH * 3), r = RNG(7311), spr = [];
+  for (let i = 0; i < 3; i++) for (let v = 0; v < NV; v++) {
+    const c = R2BB_SANDCFG[i], L = Math.round(lerp(c.l0, c.l1, v / (NV - 1))), col = U(r.pick(c.cols)) & 0xffffff;
+    const ox = v * CW, oy = i * CH, hy = CH - 1 - c.th;
+    // cabeza a la izquierda (avanza hacia la izquierda), cola hacia la derecha y arriba en 3 bandas de alfa
+    for (let k = 0; k < L; k++) {
+      const a = k < L * 0.34 ? 235 : k < L * 0.67 ? 150 : 70, x = ox + k, y = oy + hy - Math.round(k * c.slope);
+      for (let q = 0; q < c.th; q++) pb.data[(y + q) * pb.w + x] = ((a << 24) | col) >>> 0;
+    }
+    spr.push([ox, oy, L, CH]);
+  }
+  R2BB_SAND.spr = spr;
+  return (R2BB_SAND.atlas = pb.toCanvas());
+}
+function R2BB_drawSand(g, T, cam, a) {
+  if (a <= 0.02) return;
+  const atlas = R2BB_sandAtlas(), spr = R2BB_SAND.spr, WW = W + 48, HH = H + 12;
+  if (!R2BB_SAND.list) { const r = RNG(7321); R2BB_SAND.list = R2BB_SANDCFG.map((c, i) => Array.from({ length: c.n }, () => [r.range(0, WW), r.range(0, HH), r.range(0.8, 1.2), i * 8 + r.int(0, 7)])); }
+  for (let i = 0; i < 3; i++) {
+    const c = R2BB_SANDCFG[i]; g.globalAlpha = Math.min(1, c.a * a);
+    for (const [x0, y0, k, v] of R2BB_SAND.list[i]) {
+      const d = T * c.sp * k + cam.x * c.pf, x = ((((x0 - d) % WW) + WW) % WW) - 40, y = ((((y0 + d * c.slope) % HH) + HH) % HH) - 10;
+      const s = spr[v]; g.drawImage(atlas, s[0], s[1], s[2], s[3], Math.round(x), Math.round(y), s[2], s[3]);
+    }
+  }
+  g.globalAlpha = 1;
+}
+/** Cinta de arena rasante (26 px, periódica en x): lámina en bandas más densa abajo y estrías con la cabeza a la izquierda */
+function R2BB_groundDrift() {
+  if (R2BB_SAND.drift) return R2BB_SAND.drift;
+  const h = 26, pb = new PixelBuffer(W, h), r = RNG(7400), sheet = U('#eab474') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < W; x++) {
+    const v = y / (h - 1), wave = Math.sin(x / W * TAU * 5 + Math.sin(x / W * TAU * 2) * 1.5) * 3;
+    const f = clamp((v * h - 8 - wave) / (h - 8), 0, 1) * 0.62 + (hash2((x / 3) | 0, (y / 2) | 0, 91) - 0.5) * 0.1;
+    const lv = clamp(Math.round(f * 5), 0, 5); if (lv) pb.data[y * W + x] = ((Math.round(lv / 5 * 255) << 24) | sheet) >>> 0;
+  }
+  for (let s = 0; s < 120; s++) {
+    const x0 = r.int(0, W - 1), y0 = r.int(6, h - 2), L = r.int(6, 22), col = U(r.pick(['#fde0a4', '#f4c886', '#e8b070'])) & 0xffffff;
+    for (let k = 0; k < L; k++) { const x = (x0 + k) % W, y = y0 - Math.round(k * 0.03); if (y < 0) break; const a = k < L * 0.34 ? 240 : k < L * 0.67 ? 160 : 80; const idx = y * W + x; if ((pb.data[idx] >>> 24) < a) pb.data[idx] = ((a << 24) | col) >>> 0; }
+  }
+  return (R2BB_SAND.drift = pb.toCanvas());
+}
+/** Viñeta de visibilidad (2W×2H): claro elíptico amplio; arriba (cielo y coloso) apenas velo de polvo ocre,
+    a los lados polvo y abajo en las esquinas granate oscuro. Alfa en 6 bandas con borde en clusters 3×2. */
+function R2BB_veilMask() {
+  if (R2BB_SAND.veil) return R2BB_SAND.veil;
+  const w = W * 2, h = H * 2, hw = w >> 1, hh = h >> 1, pb = new PixelBuffer(w, h), nb = 6;
+  const cTop = U('#b05a28') & 0xffffff, cSide = U('#7a3418') & 0xffffff, cLow = U('#2a0c10') & 0xffffff;
+  for (let y = 0; y < h; y++) {
+    const dy = y - hh, up = dy < 0, dyk = up ? dy * 0.55 : dy * 1.5;
+    for (let x = 0; x < hw; x++) {
+      const dx = hw - x, dd = Math.hypot(dx, dyk);
+      let f = clamp((dd - 150) / 260, 0, 1); f += (hash2((x / 3) | 0, (y / 2) | 0, 41) - 0.5) * (1 / nb) * 0.9;
+      const lv = clamp(Math.round(f * nb), 0, nb); if (!lv) continue;
+      const low = clamp(dy / 120, 0, 1), dens = up ? 0.34 : lerp(0.5, 0.72, low);
+      const col = up ? cTop : low > 0.5 ? cLow : cSide;
+      const v = ((Math.round(lv / nb * dens * 255) << 24) | col) >>> 0;
+      pb.data[y * w + x] = v; pb.data[y * w + (w - 1 - x)] = v;
+    }
+  }
+  return (R2BB_SAND.veil = pb.toCanvas());
+}
+function R2BB_veil(g, cx, cy, k) {
+  if (k < 0.05) return;
+  g.globalAlpha = Math.min(1, k); g.drawImage(R2BB_veilMask(), Math.round(cx - W), Math.round(cy - H)); g.globalAlpha = 1;
 }
 /* jirones de polvo que barren la escena (velo en bandas, sin tramado) */
 const CAL_WISP = [];
