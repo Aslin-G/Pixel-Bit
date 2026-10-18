@@ -263,7 +263,7 @@ LEVELS[7] = {
     // r3-int-b: mástiles con banderolas (verde H₂, cian agua ultrapura) en la nave y la caseta; penachos de vapor
     for (const [mx, my0, my1, col] of [[762, 156, 98, '#3fe0a0'], [1234, 156, 98, '#11bedd'], [30, yb - 106, yb - 150, '#3fe0a0'], [2460, yb - 150, yb - 196, '#11bedd']]) { for (let yy = my1; yy < my0; yy++) { PFK.put(pb, mx, yy, U('#d4daee')); PFK.put(pb, mx + 1, yy, U('#525a7a')); } PFK.put(pb, mx, my1 - 1, U('#ffd860')); D.flags.push({ x: mx, y: my1, col }); }
     // r3-int-b: cubiertas verdes (sedum, matas en flor y palmitos) sobre la nave, la sala de control y la caseta; hiedra en los pilares de la nave
-    R3INTB_greenRoof(pb, 758, 1238, 102, 7201); R3INTB_greenRoof(pb, 1962, 2178, 105, 7203); R3INTB_greenRoof(pb, 18, 86, yb - 108, 7205);
+    R3INTB_greenRoof(pb, 758, 1238, 102, 7201); R3INTB_greenRoof(pb, 1962, 2178, 102, 7203); R3INTB_greenRoof(pb, 18, 86, yb - 108, 7205);
     for (const cx of [760, 917, 1067, 1217]) { R3INTB_ivy(pb, cx + 1, yb - 1, 70 + (cx % 3) * 14, 7210 + cx, ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'], -1); R3INTB_ivy(pb, cx + 7, yb - 1, 40 + (cx % 5) * 8, 7220 + cx, ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'], -1); }
     R3INTB_L7ROOFFANS.length = 0;
     for (const fx of [812, 896, 1100, 1184]) { const fy = 100; for (let q = -6; q <= 6; q++) for (let k = 0; k < 4; k++) PFK.put(pb, fx + q, fy - 2 + k, U(k === 0 ? '#d4daee' : Math.abs(q) > 5 ? '#383e5a' : k === 3 ? '#24283e' : '#0e1424')); R3INTB_L7ROOFFANS.push([fx, fy]); }
