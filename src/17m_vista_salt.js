@@ -260,6 +260,8 @@
            chimenea con sombrero de roca dura, estrangulamientos por estrato,
            sombreado cilíndrico (luz arriba-izquierda), sombra arrojada a la derecha
        VISTA.r2baPans(pb, {x0, x1, y0, rows, seed, k, surf}) → {glints, ponds}
+       VISTA.r2baHueGuard(pb, {lo, hi, redH, keepS, keepV}) · r2baHueGuardCanvas(c, o) · r2baHueGuardU(u, o)
+         guarda de tono: malvas/rosas → violeta o granate (magenta < 3 %), emisivos intactos
            salinas irregulares en terrazas (turquesa → verde → ámbar → coral → costra)
        VISTA.r2baTufts(pb, surf, x0, x1, seed, {k, gap, ramp})   matas oscuras cada ~gap px
      Las rampas evitan el magenta (tono 295–345°) salvo en emisivos de salmuera.

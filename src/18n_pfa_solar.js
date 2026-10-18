@@ -19,6 +19,10 @@
      sandFence(pb,x0,x1,gy,{seed,bury}) · cactus(pb,x,yb,h,seed) · opuntia(pb,x,yb,s,seed)
      dryBush(pb,x,yb,w,h,seed) · stones(pb,x,yb,w,seed) · fence(pb,x0,x1,gy) (malla perimetral)
      robot(pb,x,yb) (robot de limpieza aparcado) · waterTank(pb,x,yb)
+     outcrop(pb,cx,yb,w,h,seed) (arenisca en lomos con estratos) · desertCluster(pb,x,y,sc,seed) · tireTracks(pb,pts,seed)
+     inverter(...,{style:'central'|'string'|'tall', tint:'white'|'grey'|'sand', brand, wear})  (r2-biomes-a)
+   Cara 'sandcut' (r2-biomes-a): campo de crestas de duna en perspectiva común a todos los tramos; la zanja CC
+   solo se ve en catas (s.trenchWin = [[x0,x1]…]).
    Oclusores frontales registrados en PFStage.FG: 'aDesert' (matas secas, chumberas y agaves oscuros).
    Sin tramado.
    ===================================================================== */

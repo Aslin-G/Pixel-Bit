@@ -18,6 +18,8 @@
      birdHide(pb,x,yb) → {}
      gorge(pb,x0,x1,yTop,yBot,{seed,stacks:[[x,yTop,w]]}) → {seaY}
      windBush(pb,x,yb,w,h,seed) (aulaga florida inclinada por el viento) · thrift(pb,x,yb,seed) (armeria rosada)
+     cliffDress(pb,world,{segs,R,seed,skip,paths}) (r2-biomes-a: degradado de profundidad, cornisas con vegetación
+       en cadenas diagonales, gaviotas, senderos en zigzag) · ledgeMat(pb,x,y,w,R,seed) · perchedGull(pb,x,y,seed) · cliffPath(pb,pts,seed)
    Sin tramado.
    ===================================================================== */
 const PFAWind = (() => {

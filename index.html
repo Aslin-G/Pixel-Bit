@@ -12707,6 +12707,8 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
            chimenea con sombrero de roca dura, estrangulamientos por estrato,
            sombreado cilíndrico (luz arriba-izquierda), sombra arrojada a la derecha
        VISTA.r2baPans(pb, {x0, x1, y0, rows, seed, k, surf}) → {glints, ponds}
+       VISTA.r2baHueGuard(pb, {lo, hi, redH, keepS, keepV}) · r2baHueGuardCanvas(c, o) · r2baHueGuardU(u, o)
+         guarda de tono: malvas/rosas → violeta o granate (magenta < 3 %), emisivos intactos
            salinas irregulares en terrazas (turquesa → verde → ámbar → coral → costra)
        VISTA.r2baTufts(pb, surf, x0, x1, seed, {k, gap, ramp})   matas oscuras cada ~gap px
      Las rampas evitan el magenta (tono 295–345°) salvo en emisivos de salmuera.
@@ -19504,6 +19506,10 @@ const PFAPlant = (() => {
      sandFence(pb,x0,x1,gy,{seed,bury}) · cactus(pb,x,yb,h,seed) · opuntia(pb,x,yb,s,seed)
      dryBush(pb,x,yb,w,h,seed) · stones(pb,x,yb,w,seed) · fence(pb,x0,x1,gy) (malla perimetral)
      robot(pb,x,yb) (robot de limpieza aparcado) · waterTank(pb,x,yb)
+     outcrop(pb,cx,yb,w,h,seed) (arenisca en lomos con estratos) · desertCluster(pb,x,y,sc,seed) · tireTracks(pb,pts,seed)
+     inverter(...,{style:'central'|'string'|'tall', tint:'white'|'grey'|'sand', brand, wear})  (r2-biomes-a)
+   Cara 'sandcut' (r2-biomes-a): campo de crestas de duna en perspectiva común a todos los tramos; la zanja CC
+   solo se ve en catas (s.trenchWin = [[x0,x1]…]).
    Oclusores frontales registrados en PFStage.FG: 'aDesert' (matas secas, chumberas y agaves oscuros).
    Sin tramado.
    ===================================================================== */
@@ -20093,6 +20099,8 @@ const PFASolar = (() => {
      birdHide(pb,x,yb) → {}
      gorge(pb,x0,x1,yTop,yBot,{seed,stacks:[[x,yTop,w]]}) → {seaY}
      windBush(pb,x,yb,w,h,seed) (aulaga florida inclinada por el viento) · thrift(pb,x,yb,seed) (armeria rosada)
+     cliffDress(pb,world,{segs,R,seed,skip,paths}) (r2-biomes-a: degradado de profundidad, cornisas con vegetación
+       en cadenas diagonales, gaviotas, senderos en zigzag) · ledgeMat(pb,x,y,w,R,seed) · perchedGull(pb,x,y,seed) · cliffPath(pb,pts,seed)
    Sin tramado.
    ===================================================================== */
 const PFAWind = (() => {
