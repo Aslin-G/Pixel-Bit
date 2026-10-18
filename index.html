@@ -31494,7 +31494,12 @@ BIOME_LABELS.vault = BIOME_LABELS.vault || [];
    bulto: coste ∝ área de los bultos), luz de borde desde el sol que tiene
    detrás y haces/sombras crepusculares por oclusión angular desde el sol.
    Sin tramado: bandas con borde en clusters 3×2 (VISTA.band).
-     R2BB_stormSky(w, h, o) → { c, sun, eyes, maw, head, cracks, wallTop }
+     R2BB_stormSky(w, h, o) → { c, sun, eyes, maw, head, cracks, wallTop, occ0, ray, NA }
+       (coloso: mole encorvada de polvo color ciruela, sin cuernos; ojos de brasa rasgados, fauces de horno;
+        R2BB_stormSky.prof = ms por etapa del último horneado)
+     R2BB_rayFan(S, o) → { c, ox, oy }  haces crepusculares (sprite parcial 'lighter')
+     PFStage.FG.r2bbWires(o)  tendido en contraluz (catenarias, sin viga recta)
+     PFStage.FG.r2bbSil(o)    siluetas cercanas: o.what 'palm'|'agave'|'lamp'|'fence', o.sunDx
      R2BB_puffRaster(w, h, puffs, ID, Z, NX, NY)   raster de bultos
      R2BB_chain(out, rng, a, b, ra, rb, mat, zo, n, fest)  cadena de bultos
    ===================================================================== */
