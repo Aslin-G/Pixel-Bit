@@ -10,7 +10,7 @@ const tdsToEC = (gL) => gL * 1000 / 0.55;
 /* ---------- arte del plano jugable (kit PF + PFAPlant), anclas para lo dinámico ---------- */
 const LV2_ANCH = { leds: [], lamps: [], screens: [] };
 /** Colectores en la galería de servicio bajo el forjado (corte que muestra lo invisible) */
-const LV2_GAL = { brine: 322, perm: 334, feed: 346 };
+const LV2_GAL = { brine: 317, perm: 326, feed: 335, floor: 354 }; // r3-int-a: rack de colectores alto y suelo visible sobre el HUD
 const LV2_FLOWS = [];
 const LV2_GALFLOWS = [];
 /** r3-int-a: repinta por luminancia un rectángulo ya pintado con otra rampa (hormigón gris → hormigón cálido);
@@ -47,7 +47,7 @@ LEVELS[2] = {
   /* Cámara: el mundo crece 40 px hacia abajo (forjado en corte con la galería de colectores) */
   cam: { look: 50, vy: 0.6 },
   pf: {
-    terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 12, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
+    terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 46, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
     /** Oclusores de interior en el primer plano (f 1,3): pilares en I, haces de tubos y cadenas de polipasto */
     fg: [
       { kind: 'aRail', x: 120, w: 220, h: 56, seed: 1 },
@@ -173,7 +173,7 @@ LEVELS[2] = {
     const tk = P.tankV(pb, 1320, fb + 2, 17, 72, { glass: true, ladder: true, rail: true, plate: 'PERMEADO', band: ['#06303e', '#0a5a72', '#119ab8', '#22c8e4', '#6de1f1', '#d0f4f8'], bands: [{ y: 12, h: 3 }, { y: 58, h: 2 }] });
     LV2_ANCH.tank = tk.glass;
     I.pipe(pb, [[1338, fb - 12], [1360, fb - 12]], 2, 'product', { flange: 0 });
-    const cal = P.tankV(pb, 1374, fb + 2, 11, 50, { ramp: ['#3a3026', '#5a4c3e', '#7c6c5a', '#a08e78', '#c2b29a', '#dcceb6', '#ece2ce', '#f8f2e4', '#ffffff'], band: ['#3a2a10', '#6a5020', '#a07a34', '#c8a04a', '#e6c46a', '#f6e0a0'], plate: 'CaCO₃', plateCol: '#6a5020', legs: 4 });
+    const cal = P.tankV(pb, 1374, fb + 2, 11, 50, { ramp: ['#3a2410', '#5c3a1a', '#7e5428', '#a07038', '#c08c4a', '#d8a862', '#ecc684', '#f8e0aa', '#fff4d8'], band: ['#3a2a10', '#6a5020', '#a07a34', '#c8a04a', '#e6c46a', '#f6e0a0'], plate: 'CaCO₃', plateCol: '#6a5020', legs: 4 });
     I.pipe(pb, [[1386, cal.top + 6], [1398, cal.top + 6], [1398, G - 2]], 2, 'product', { flange: 0 });
     flow([[1386, cal.top + 6], [1398, cal.top + 6], [1398, G - 2]], 'product', 0.8);
     /* ===== 8. SALA DE CONTROL ELEVADA Y CCM BAJO ELLA (1420–1650) ===== */
@@ -249,15 +249,19 @@ LEVELS[2] = {
     if (typeof R2BB_L2front === 'function') R2BB_L2front(pb, flow); // r2-biomes-b: jardineras, potos, macetas, conducto eléctrico
     LEVELS[2]._ms = Math.round(nowMs() - t0);
   },
-  /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno) */
+  /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno).
+      r3-int-a: galería iluminada y llena (≈ 1 objeto cada 33 px): muro alicatado turquesa y enlucido cálido bajo
+      lámparas de sodio, rack de colectores con código de color, bombas de refuerzo, estaciones de válvulas,
+      caudalímetros, cajas de conexión, charcos con reflejo, musgo y helechos, material de mantenimiento. */
   gallery(pb, world) {
-    const I = PFInfra, Y = LV2_GAL, G = 290;
+    const I = PFInfra, Y = LV2_GAL, G = 290, FY = LV2_GAL.floor;
     LV2_GALFLOWS.length = 0;
     const run = (pts, r, kind, rate) => { I.pipe(pb, pts, r, kind, { flange: 32 }); LV2_GALFLOWS.push({ pts, kind, rate }); };
+    if (typeof R3INTA_L2galleryBack === 'function') R3INTA_L2galleryBack(pb, Y, FY);
     // soportes de los colectores colgados del forjado
-    for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < Y.feed + 6; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 5, Y.perm + 4, Y.feed + 5]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U('#26324c')); }
+    for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < FY; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 4, Y.perm + 4, Y.feed + 4]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U(k === -4 ? '#4a5c80' : '#26324c')); PFK.put(pb, x - 2, FY - 1, U('#26324c')); PFK.put(pb, x + 3, FY - 1, U('#26324c')); }
     // alimentación AP: bajante del colector de bombas → trenes
-    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'r2bbFeed', 1.1);
+    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 3, 'r2bbFeed', 1.1);
     for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'r2bbFeed', { flange: 0 });
     // permeado (cian luminoso): trenes → tanque; producto remineralizado → bombas de producto
     run([[840, G + 4], [840, Y.perm], [1290, Y.perm], [1290, G + 4]], 3, 'product', 0.9);
@@ -265,15 +269,15 @@ LEVELS[2] = {
     I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'r2bbFeed', { flange: 0 }); // tren B: permeado aislado (sin brillo)
     run([[1398, G + 4], [1398, Y.perm], [1938, Y.perm], [1938, G + 4]], 3, 'product', 0.9);
     // salmuera de baja presión: ERD + trenes del nivel bajo → salida a los canales
-    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'r2bbConc', 1);
+    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 3, 'r2bbConc', 1);
     for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'r2bbConc', { flange: 0 });
-    // bandeja de cables y luces de emergencia en la galería
-    for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 24, U('#354564')); PFK.put(pb, x, G + 25, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 23, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
-    for (let x = 150; x < 2600; x += 320) { for (let k = 0; k < 6; k++) for (let q = 0; q < 3; q++) PFK.put(pb, x + k, G + 30 + q, U(q === 0 ? '#72c69a' : '#1f8a52')); PFK.put(pb, x + 2, G + 31, U('#ffffff')); }
+    // bandeja de cables pegada al forjado
+    for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 20, U('#4a5c80')); PFK.put(pb, x, G + 21, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 19, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
     for (const x of [760, 1360, 2040]) I.valve(pb, x, Y.perm);
     // rótulos estarcidos en el muro de la galería
-    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
+    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#c8b8f0', Y.brine - 10], [1460, 'PERMEADO', '#6de1f1', Y.perm - 9], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 6], [2200, 'SALMUERA → CANALES', '#c8b8f0', Y.brine - 10]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
     if (typeof R2BB_L2gallery === 'function') R2BB_L2gallery(pb, LV2_GALFLOWS); // r2-biomes-b: sodio, musgo, conducto eléctrico, bandas
+    if (typeof R3INTA_L2galleryFront === 'function') R3INTA_L2galleryFront(pb, Y, FY);
     // r3-int-a: canto de hormigón de la losa y pilares de la galería en hormigón cálido (no gris)
     const isGrey = (x, y, u) => { const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx > 60 && (mx - mn) / mx < 0.3; };
     R3INTA_recolor(pb, 0, G + 5, 2600, G + 16, R3INTA_CONC, isGrey);
@@ -348,9 +352,10 @@ LEVELS[2] = {
   /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
   renderFront(g, sc, cam) {
     // r3-int-a: haces nítidos de los ventanales (3 escalones de alfa, bordes sólidos) que iluminan piernas y equipos
-    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffc878', a: 0.5, soft: 0.6 });
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffb050', a: 0.18, lum: 0.3 });
     if (cam.y + H < 300) return;
     PFDyn.flowsImg(g, sc, LV2_GALFLOWS, 14);
+    if (typeof R3INTA_L2galleryAnim === 'function') R3INTA_L2galleryAnim(g, sc, cam);
     const t = Game.time; for (const x of [700, 1280, 1860, 2440]) { const sx = x - cam.x; if (sx > -30 && sx < W + 30) PFK.drawGlow(g, sx, 307 - cam.y, 10, '#fff0c8', 0.18 + 0.03 * Math.sin(t + x)); }
   },
   renderGrade(g, sc) { },

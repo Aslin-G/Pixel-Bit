@@ -207,12 +207,14 @@
     }
     return out;
   };
-  /** Haces nítidos: luz suave cálida (soft-light) + núcleo aditivo; o = {col, a, soft, steps, cut} */
+  /** Haces nítidos: aclarado (luminosity) + luz suave cálida (soft-light) + núcleo aditivo; o = {col, a, soft, lum, steps, cut} */
   V.r3iaDrawBeams = function (g, list, t, o = {}) {
     const col = o.col || '#ffd58a', pk = 0.92 + 0.08 * Math.sin(t * 0.37);
     for (const q of list) {
       const hh = o.cut ? Math.max(8, Math.min(q.h, o.cut - q.top)) : q.h;
       const c = V.r3iaBeamSprite(q.w0, q.w1, q.h, q.s, col, o.steps);
+      // aclarado que conserva tono y saturación (luminosity) y después el tinte cálido aditivo
+      if (o.lum) { g.globalCompositeOperation = 'luminosity'; g.globalAlpha = Math.min(1, o.lum * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
       if (o.soft) { g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, o.soft * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
       g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (o.a ?? 0.2) * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh);
     }

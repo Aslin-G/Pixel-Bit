@@ -352,7 +352,7 @@ const PFAPlant = (() => {
       const ly = yy - ceil - 8;
       const winTop = 12, winBot = 52, bay = 46, lx = (xx - x - 6 + 4600) % bay;
       const inWin = ly >= winTop && ly < winBot && lx > 2 && lx < bay - 2 && xx > x + 6 && xx < x + w - 6;
-      if (inWin) { const k = (ly - winTop) / (winBot - winTop); K.blend(pb, xx, yy, U(k < 0.15 ? '#cfefff' : '#8ad0f0'), 0.22 + (lx < 8 && ly - winTop < 14 - lx ? 0.25 : 0)); continue; }
+      if (inWin) { const k = (ly - winTop) / (winBot - winTop); K.blend(pb, xx, yy, U(k < 0.15 ? '#9ad8f8' : '#5ab8e8'), 0.18 + (lx < 8 && ly - winTop < 14 - lx ? 0.22 : 0)); continue; }
       let k = 5 - (ly > winBot + 2 ? 1 : 0) - ((xx - x) % 23 === 0 ? 2 : 0) + (ly === winTop - 1 || ly === winBot ? 2 : 0);
       if (lx <= 2 && ly >= winTop - 1 && ly <= winBot) k = lx === 1 ? 2 : 4;
       if (ly < 3) k = 3;

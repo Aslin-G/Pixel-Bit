@@ -45,7 +45,7 @@ BIOMES.plant = function (L) {
   const PERM = R3INTA_PERM, FEED = R3INTA_FEED, BRP = R3INTA_BRINE;
   /* ---------------- cielo exterior ---------------- */
   B.sky = V.timed('sky', () => {
-    const pb = V.sky(W, H, { horizonY: HZ, sun: SUN, curve: 1.2 });
+    const pb = V.sky(W, H, { horizonY: HZ, sun: SUN, curve: 1.2, stops: ['#0e5ed8', '#166ae0', '#1e78ea', '#2886f2', '#3494f6', '#44a2f8', '#5ab0f8', '#74bef6', '#8ec8f2', '#a6d0ee'], haze: ['#b0c0ee', '#c0b8e2', '#d6b6cc', '#e8bcae'] });
     V.rays(pb, SUN.x, SUN.y, { n: 5, len: 200, col: '#fff6dc', a: 0.07, spread: 1.4, ang: Math.PI / 2 - 0.2, w: 0.04, seed: 6, yMax: HZ });
     return pb.toCanvas();
   });
@@ -141,7 +141,7 @@ BIOMES.plant = function (L) {
     // ventanales entre pilastras (se ve la costa), marcos azul cobalto, alféizar soleado con macetas
     for (let x = 18; x < w; x += BAY) {
       for (let y = WIN_Y; y < WIN_Y + WIN_H; y++) for (let xx = x; xx < x + BAY_W; xx++) V.put(pb, xx, y, 0);
-      V.glazing(pb, x, WIN_Y, BAY_W, WIN_H, { k, cols: 5, rows: 3, a: 0.08, seed: x, frame: R3INTA_COBALT, tint: '#d8f0ff' });
+      V.glazing(pb, x, WIN_Y, BAY_W, WIN_H, { k, cols: 5, rows: 3, a: 0.04, seed: x, frame: R3INTA_COBALT, tint: '#bfe8ff' });
       // jamba iluminada por el sol (borde cálido 1 px en el lado de la luz) y sombra del dintel
       for (let y = WIN_Y - 3; y < WIN_Y + WIN_H + 3; y++) V.put(pb, x + BAY_W + 3, y, U('#fbc371'));
       for (let xx = x - 3; xx < x + BAY_W + 3; xx++) { V.put(pb, xx, WIN_Y - 6, PL[2]); V.put(pb, xx, WIN_Y - 5, PL[3]); }
