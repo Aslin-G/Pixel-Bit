@@ -82,8 +82,8 @@ const R2LIGHT_CFG = {
   7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.28, sat: 1.16, warmMag: 0.3, vgrad: [0.03, -0.07] } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk', glowKinds: [],
-    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },
-    lampPools: { a: 0.36, wk: 5, reach: 210 }, grade: { mul: '#ffe0d4', mulK: 0.16, shade: '#2a1a50', shadeK: 0.22, lift: '#ffc898', liftK: 0.16, sat: 1.14, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
+    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0, soft: 0, motes: false, pool: { col: '#ffb060', a: 0.62, wk: 1.15, band: 12, refl: 10 } }, // r3-int-a: volumen nítido en LEVELS[9].renderFront (VISTA.r3iaDrawBeams)
+    lampPools: { a: 0.36, wk: 5, reach: 210 }, grade: { mul: '#e8d4e4', mulK: 0.2, shade: '#2a1a50', shadeK: 0.24, lift: '#ffc898', liftK: 0.05, sat: 1.18, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
   11: { tod: 'dusk', env: 'dusk', glowKinds: [2], grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.14, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc070', liftK: 0.26, sat: 1.12, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };

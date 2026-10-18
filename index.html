@@ -29874,6 +29874,152 @@ const SCBL9 = (() => {
   return { finish, reflect, runner, stanchions, vitrine, lectern, kiosk };
 })();
 
+/* =====================================================================
+   r3-int-a · NIVEL 9: patio de agua, mosaico, naturaleza y vida del salón
+   · Banda inferior (bajo la línea de paso): suelo de zellige en 3/4 cuyas
+     filas crecen hacia el espectador, acequia de agua turquesa con
+     nenúfares y surtidores, bancos y jardineras con cítricos, agaves y
+     buganvillas en el primer término (siempre por debajo de los pies).
+   · Plantas del plano jugable: naranjos y palmeras en maceta, buganvilla
+     que cae por la balaustrada.
+   · Vida: estandartes que se mecen (tiras de 3 px desplazadas), dos
+     ventiladores de techo, destellos y ondas de la acequia, surtidores.
+   API: R3INTA_L9ground(pb, world, segs) · R3INTA_L9plants(pb, world, back, gy)
+        R3INTA_L9banners() · R3INTA_L9mid(g, sc, cam) · R3INTA_L9front(g, sc, cam)
+        R3INTA_citrus(pb, x, yb, s, seed) · R3INTA_bougain(pb, x, y, len, seed, o)
+   ===================================================================== */
+const R3INTA_L9 = { spouts: [], pads: [], banners: [], fans: [], rillY: 318 };
+const R3INTA_ZEL = ['#f4e6c8', '#1aa59a', '#c8582c', '#1c3596', '#e0a83a', '#2f9e4c'];
+const R3INTA_BOUG = ['#4a0a3a', '#7a1458', '#b0207a', '#d83a98', '#f070b8', '#ffb0dc'];
+/** Naranjo en maceta de terracota: copa de hojas brillantes con naranjas y azahar */
+function R3INTA_citrus(pb, x, yb, s = 1, seed = 1) {
+  const K = PFK, r = RNG(seed), T = K.P32(R3INTA_TERRA), ph = Math.round(12 * s), pw = Math.round(11 * s);
+  for (let yy = 0; yy < ph; yy++) { const hw = Math.round(pw - yy * 0.18); for (let xx = -hw; xx <= hw; xx++) { const f = (xx + hw) / (2 * hw); K.put(pb, x + xx, yb - yy, T[yy === ph - 1 ? 6 : yy === ph - 2 ? 4 : f < 0.15 ? 5 : f > 0.8 ? 1 : (yy === 3 ? 2 : 3)]); } }
+  const top = yb - ph;
+  for (let yy = 0; yy < Math.round(8 * s); yy++) { K.put(pb, x, top - yy, U('#5a3416')); K.put(pb, x + 1, top - yy, U('#3a200c')); }
+  const cy = top - Math.round(16 * s), rr = Math.round(11 * s);
+  PFFlora.cluster(pb, x, cy, rr + 2, rr, PFFlora.GLOSSY, seed, { density: 0.75, leaf: [3, 5] });
+  for (let i = 0; i < Math.round(9 * s); i++) { const a = r() * TAU, d = r() * rr * 0.85, fx = Math.round(x + Math.cos(a) * d), fy = Math.round(cy + Math.sin(a) * d * 0.8); K.put(pb, fx, fy, U('#ff9a1c')); K.put(pb, fx + 1, fy, U('#e06a10')); K.put(pb, fx, fy - 1, U('#ffd060')); }
+  for (let i = 0; i < Math.round(5 * s); i++) K.put(pb, Math.round(x + (r() - 0.5) * rr * 1.6), Math.round(cy + (r() - 0.6) * rr), U('#fffaf0'));
+}
+/** Buganvilla que cae: tallo leñoso con racimos magenta y hojas (len px hacia abajo) */
+function R3INTA_bougain(pb, x, y, len, seed = 1, o = {}) {
+  const K = PFK, r = RNG(seed), B = K.P32(o.ramp || R3INTA_BOUG), L = K.P32(R3INTA_LEAF);
+  let px = x;
+  for (let k = 0; k < len; k++) {
+    px = x + Math.round(Math.sin(k * 0.21 + seed) * (o.sway ?? 2) + (o.lean || 0) * k);
+    K.put(pb, px, y + k, L[2]);
+    if (k % 3 === 0) {
+      const n = 3 + r.int(0, 3);
+      for (let q = 0; q < n; q++) { const fx = px + r.int(-3, 3), fy = y + k + r.int(-1, 2), c = r.int(1, 5); K.put(pb, fx, fy, B[c]); if (c > 2) K.put(pb, fx + 1, fy, B[c - 1]); }
+      if (r.chance(0.6)) { K.put(pb, px + (k % 2 ? 2 : -2), y + k + 1, L[4]); K.put(pb, px + (k % 2 ? 3 : -3), y + k + 1, L[5]); }
+    }
+  }
+  for (let q = 0; q < 5; q++) K.put(pb, px + r.int(-2, 2), y + len + r.int(0, 2), B[r.int(2, 5)]);
+}
+/** Banda inferior del salón: zellige en 3/4, acequia y primer término de patio (decorateFace) */
+function R3INTA_L9ground(pb, world, segs) {
+  const K = PFK, gy = (x) => world.groundAt(x), RY = R3INTA_L9.rillY, H_ = 360, w = pb.w;
+  const Z = R3INTA_ZEL.map(c => [U(shade(c, -0.45)), U(shade(c, -0.22)), U(c), U(shade(c, 0.22))]);
+  const GROUT = U('#3a2418'), ST = K.P32(PFBM.MARB);
+  const isSteps = (x) => x >= 600 && x < 1100;
+  R3INTA_L9.spouts.length = 0; R3INTA_L9.pads.length = 0;
+  // filas del zellige (alto creciente hacia el espectador)
+  const rows = []; { let y = 0, h = 4; while (y < 80) { rows.push([y, h]); y += h; h = Math.min(12, h + 1); } }
+  const tile = (x, y, y0, i0) => {
+    const dy = y - y0; let ri = 0; while (ri + 1 < rows.length && rows[ri + 1][0] <= dy) ri++;
+    const [ry, rh] = rows[ri], tw = Math.round(rh * 1.8), off = (ri % 2) * (tw >> 1), col = Math.floor((x + off + 9000) / tw), tx = (x + off + 9000) % tw, ty = dy - ry;
+    if (tx === 0 || ty === 0) return GROUT;
+    const motif = (col + ri * 2 + i0) % 6, base = [0, 1, 0, 2, 0, 3][motif], Zb = Z[base];
+    const cx = tw / 2, cy = rh / 2, d = Math.abs(tx - cx) / cx + Math.abs(ty - cy) / cy;
+    let u = d < 0.55 ? Z[(base + 4) % 6 === 0 ? 4 : base === 0 ? 1 : 4][2] : Zb[2];
+    if (d < 0.25) u = Z[0][3];
+    if (ty === 1 || tx === 1) u = d < 0.55 ? u : Zb[3];
+    else if (ty === rh - 1 || tx === tw - 1) u = Zb[1];
+    // a la sombra hacia el espectador (más frío y oscuro)
+    if (dy > 26) u = K.mixU(u, U('#1a1440'), Math.min(0.42, (dy - 26) * 0.012));
+    return u;
+  };
+  for (let x = 0; x < w; x++) {
+    const g = gy(x), y0 = isSteps(x) ? g + 25 : g + 7;
+    // franja de zellige entre el labio dorado y la acequia
+    for (let y = y0; y < RY - 2; y++) K.put(pb, x, y, tile(x, y, y0, 1));
+    // acequia: labio de mármol, agua turquesa en 3 tonos con brillo, labio inferior en sombra
+    K.put(pb, x, RY - 2, ST[8]); K.put(pb, x, RY - 1, ST[5]);
+    for (let q = 0; q < 6; q++) K.put(pb, x, RY + q, U(q === 0 ? '#9af0e4' : q < 2 ? '#3ad0c0' : q < 4 ? '#1aa59a' : '#0d6e6a'));
+    if ((x * 7) % 23 === 0) K.put(pb, x, RY + 1, U('#e8fffa'));
+    K.put(pb, x, RY + 6, ST[2]); K.put(pb, x, RY + 7, ST[6]); K.put(pb, x, RY + 8, ST[4]);
+    // suelo de zellige del primer término (filas grandes)
+    for (let y = RY + 9; y < H_; y++) K.put(pb, x, y, tile(x, y, RY + 9, 0));
+  }
+  // nenúfares y surtidores en la acequia
+  const r = RNG(9090);
+  for (let x = 40; x < w - 20; x += 50 + r.int(0, 50)) {
+    K.ellipseFn(pb, x, RY + 3, 4, 1.4, (nx, ny) => U(ny < 0 ? '#86e36f' : '#2f9e4c')); K.put(pb, x + 2, RY + 3, U('#1aa59a'));
+    if (r.chance(0.6)) { K.put(pb, x - 1, RY + 1, U('#ffb0dc')); K.put(pb, x, RY + 1, U('#ff70b8')); K.put(pb, x, RY, U('#fff0f8')); }
+    R3INTA_L9.pads.push([x, RY + 3]);
+  }
+  for (let x = 140; x < w - 40; x += 300) {
+    // surtidor: boquilla de bronce en el labio y cuenco
+    for (let q = 0; q < 4; q++) { K.put(pb, x, RY - 3 - q, U(q === 3 ? '#ffe08a' : '#a8761c')); K.put(pb, x + 1, RY - 3 - q, U('#6a4610')); }
+    R3INTA_L9.spouts.push([x, RY - 7]);
+  }
+  // primer término del patio: jardineras con naranjos/agaves/buganvilla y bancos (bajo los pies: tope ≤ suelo + 6)
+  for (let x = 70, i = 0; x < w - 40; x += 120 + r.int(0, 40), i++) {
+    const yb = 352;
+    if (i % 3 === 1) { PFB.bench(pb, x - 22, yb, 46, { ramp: PFBM.WOODH }); continue; }
+    PFInfra.box3q(pb, x - 18, yb, 36, 13, 7, { ramp: R3INTA_TERRA, skew: 0.6 });
+    for (let xx = x - 16; xx < x + 16; xx += 4) PFK.put(pb, xx, yb - 7, U(R3INTA_ZEL[(xx >> 2) % 6]));
+    if (i % 3 === 0) { PFFlora.cluster(pb, x, yb - 22, 15, 9, PFFlora.GLOSSY, 9300 + x, { density: 0.75, leaf: [3, 5] }); for (let q = 0; q < 8; q++) { const fx = x + r.int(-12, 12), fy = yb - 22 + r.int(-6, 5); PFK.put(pb, fx, fy, U('#ff9a1c')); PFK.put(pb, fx, fy - 1, U('#ffd060')); } }
+    else { PFFlora.agave(pb, x - 6, yb - 13, 9, 9400 + x); PFFlora.agave(pb, x + 8, yb - 13, 7, 9500 + x); }
+    for (let q = 0; q < 3; q++) R3INTA_bougain(pb, x - 14 + q * 13, yb - 14, 8 + r.int(0, 8), 9600 + x + q, { sway: 1.2 });
+  }
+}
+/** Plantas del plano jugable: naranjos y palmeras en maceta y buganvilla en la balaustrada (props) */
+function R3INTA_L9plants(pb, world, back, gy) {
+  const yb = (x) => back(x) + 2;
+  for (const [x, s] of [[22, 0.9], [590, 0.8], [1090, 0.85], [1295, 0.75], [1690, 0.8], [2072, 0.85], [2318, 0.8]]) R3INTA_citrus(pb, x, yb(x) + 1, s, 8800 + x);
+  for (const x of [470, 1960]) { PFFlora.palm(pb, x, yb(x) - 14, 46, 3, 8900 + x); const T = PFK.P32(R3INTA_TERRA); for (let yy = 0; yy < 14; yy++) for (let xx = -8; xx <= 8; xx++) PFK.put(pb, x + xx, yb(x) - yy, T[yy === 13 ? 6 : xx < -5 ? 5 : xx > 5 ? 1 : 3]); }
+  for (let x = 2100; x < 2296; x += 14) R3INTA_bougain(pb, x, yb(x) - 30, 14 + ((x * 7) % 12), 8700 + x, { sway: 1.6 });
+}
+/** Estandartes como sprites sueltos (se dibujan con vaivén por tiras en R3INTA_L9mid) */
+function R3INTA_L9banners() {
+  const L = R3INTA_L9.banners; L.length = 0;
+  const bcols = ['#1aa59a', '#e08a1a', '#3a8adc', '#2f9e4c', '#d4505a', '#9a52d4'];
+  for (let k = 0; k < 12; k++) { const tmp = new PixelBuffer(40, 82); PFBM.banner(tmp, 3, 4, bcols[k % 6], k % 6, 64); L.push({ c: tmp.toCanvas(), x: 96 + k * 200 - 3, y: 4, ph: k * 1.7 }); }
+  R3INTA_L9.fans = [[413, 0], [1013, 0], [1813, 0]];
+}
+/** Detrás de los personajes: estandartes que se mecen y ventiladores de techo girando */
+function R3INTA_L9mid(g, sc, cam) {
+  const t = Game.time, ox = cam.x, oy = cam.y;
+  for (const b of R3INTA_L9.banners) {
+    const sx = Math.round(b.x - ox), sy = Math.round(b.y - oy); if (sx > W + 8 || sx + 40 < -8) continue;
+    for (let y = 0; y < 82; y += 3) { const k = Math.pow(y / 82, 1.3), dx = Math.round(Math.sin(t * 1.3 + b.ph - y * 0.045) * 2.4 * k); g.drawImage(b.c, 0, y, 40, Math.min(3, 82 - y), sx + dx, sy + y, 40, Math.min(3, 82 - y)); }
+  }
+  for (const [x] of R3INTA_L9.fans) {
+    const sx = Math.round(x - ox), sy = -oy; if (sx < -30 || sx > W + 30) continue;
+    g.fillStyle = '#5a3a0e'; g.fillRect(sx, sy, 1, 22); g.fillStyle = '#e0a83a'; g.fillRect(sx + 1, sy, 1, 22);
+    for (let i = 0; i < 4; i++) {
+      const a = t * 4.2 + i * Math.PI / 2, c = Math.cos(a), s = Math.sin(a), L = 21;
+      g.fillStyle = s > 0 ? '#5a3016' : '#ba7c3e';
+      for (let k = 4; k <= L; k += 2) g.fillRect(Math.round(sx + c * k), Math.round(sy + 25 + s * k * 0.18), 2, 1 + (k > 7 && k < 18 ? 1 : 0));
+    }
+    g.fillStyle = '#b07a1c'; g.fillRect(sx - 3, sy + 21, 8, 5); g.fillStyle = '#ffe08a'; g.fillRect(sx - 2, sy + 21, 5, 1); g.fillStyle = '#fff4c8'; g.fillRect(sx - 1, sy + 26, 3, 1);
+  }
+}
+/** Delante (bajo la línea de paso): destellos que corren por la acequia, ondas en los nenúfares y surtidores */
+function R3INTA_L9front(g, sc, cam) {
+  const t = Game.time, ox = cam.x, oy = cam.y, RY = R3INTA_L9.rillY - oy;
+  g.fillStyle = '#e8fffa';
+  for (let i = 0; i < 26; i++) { const x = ((i * 97 + t * 18) % (W + 40)) - 20, y = RY + 1 + (i % 3); g.globalAlpha = 0.5 + 0.5 * Math.sin(t * 3 + i); g.fillRect(Math.round(x), Math.round(y), 2 + (i % 2), 1); }
+  g.globalAlpha = 1;
+  for (const [x, y] of R3INTA_L9.spouts) {
+    const sx = x - ox; if (sx < -20 || sx > W + 20) continue;
+    for (let k = 0; k < 7; k++) { const ph = (t * 1.6 + k / 7) % 1, px = sx + 1 + ph * 9, py = y - oy - Math.sin(ph * Math.PI) * 6 + ph * 8; g.fillStyle = k % 2 ? '#bff8f0' : '#ffffff'; g.fillRect(Math.round(px), Math.round(py), 1, 2); }
+    const rp = (t * 1.6) % 1; g.globalAlpha = 1 - rp; g.fillStyle = '#e8fffa'; g.fillRect(Math.round(sx + 10 - rp * 4), RY + 1, Math.round(2 + rp * 8), 1); g.globalAlpha = 1;
+  }
+}
+
 /* ===== 19w_r2map_a_core.js ===== */
 /* =====================================================================
    19w_r2map_a_core.js — Núcleo del rollout R2MAP (mapa del mundo,
@@ -31157,8 +31303,8 @@ const R2LIGHT_CFG = {
   7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.28, sat: 1.16, warmMag: 0.3, vgrad: [0.03, -0.07] } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk', glowKinds: [],
-    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },
-    lampPools: { a: 0.36, wk: 5, reach: 210 }, grade: { mul: '#ffe0d4', mulK: 0.16, shade: '#2a1a50', shadeK: 0.22, lift: '#ffc898', liftK: 0.16, sat: 1.14, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
+    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0, soft: 0, motes: false, pool: { col: '#ffb060', a: 0.62, wk: 1.15, band: 12, refl: 10 } }, // r3-int-a: volumen nítido en LEVELS[9].renderFront (VISTA.r3iaDrawBeams)
+    lampPools: { a: 0.36, wk: 5, reach: 210 }, grade: { mul: '#e8d4e4', mulK: 0.2, shade: '#2a1a50', shadeK: 0.24, lift: '#ffc898', liftK: 0.05, sat: 1.18, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
   11: { tod: 'dusk', env: 'dusk', glowKinds: [2], grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.14, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc070', liftK: 0.26, sat: 1.12, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };
@@ -33943,6 +34089,8 @@ BIOME_LABELS.citadel = BIOME_LABELS.citadel || [];
    arcada cercana con faroles, bancos y macetas, y suelo pulido.
    Planos: cielo (0) · nubes · mar y cordillera (0,04) · colina de ARIDIA
    (0,08) · tejados (0,13) · muro con ventanales (0,2) · haces · arcada (0,34)
+   con buganvilla y enredaderas (r3-int-a) · logia interior con pérgola,
+   columnas con jazmín, palmeras y naranjos en maceta (0,7, r3-int-a)
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
 
@@ -34070,12 +34218,50 @@ BIOMES.council = function (L) {
       nearFx.lanterns.push([lx, 66]);
       // bancos y macetas
       V.bench3q(pb, x + 60, 276, 40, { k }); if (r.chance(0.7)) V.planter(pb, x + 180, 276, { k, seed: x });
+      // r3-int-a: buganvilla que cae del arco y enredadera que trepa por la pilastra
+      if (typeof R3INTA_bougain === 'function') { for (let q = 0; q < 7; q++) R3INTA_bougain(pb, x + 30 + q * 9 + r.int(-2, 2), 30 + Math.round(Math.sin((q * 9 + 8) / 218 * Math.PI) * 18) + 2, 16 + r.int(0, 26), 20000 + x + q, { sway: 1.6, ramp: V.hz(R3INTA_BOUG, k) }); for (let q = 0; q < 4; q++) R3INTA_bougain(pb, x + 200 - q * 8, 44 - q * 3, 12 + r.int(0, 18), 20100 + x + q, { sway: 1.4, ramp: V.hz(R3INTA_BOUG, k) }); }
+      if (typeof R2BB_vine === 'function') for (let q = 0; q < 3; q++) R2BB_vine(pb, x + 3 + q * 7, 40 + q * 30, 60 + r.int(0, 80), 20200 + x + q, { sway: 2.6, ramp: V.hz(['#0a1a0c', '#13301a', '#1f4a22', '#2f6626', '#46842c', '#68a43a', '#94c64c', '#c8e470'], k) });
     }
   }, {
     tag: 'near', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
       for (const [x, y] of nearFx.lanterns) { const sx = x + ox; if (sx < -40 || sx > W + 40) continue; V.drawGlow(g, sx, y + oy, 10, '#ffd070', 0.55); V.drawSoftGlow(g, sx, y + oy + 10, 46, '#ff9a50', 0.25); }
       V.drawMotes(g, 16, t, 41, { y0: 80, y1: 280, col: '#ffe0a0' });
+    },
+  });
+  /* ---------------- r3-int-a: logia interior (0,7) con pérgola, columnas con jazmín, palmeras y naranjos en maceta,
+     buganvilla en cascada; bruma cálida de atardecer (más lejos que el plano jugable, más cerca que la arcada) ---------------- */
+  const logFx = { lamps: [] };
+  B.vplane(0.7, at(0.7, 0), 296, (pb, w, h) => {
+    const k = 0.22, HZC = '#e8a890', r = RNG(995);
+    const WD = V.P32(V.hz(['#200e06', '#3a1c0c', '#5a3016', '#7a4620', '#9a5e2c', '#ba7c3e', '#d49c58', '#ecc080'], k, HZC));
+    const MB = V.P32(V.hz(['#3a2a3a', '#5a4450', '#7e6468', '#a08680', '#c0a898', '#dccab4', '#f2e4d0'], k, HZC));
+    const TR = V.P32(V.hz(R3INTA_TERRA, k, HZC)), LF = V.hz(R3INTA_LEAF, k, HZC), BG = V.hz(R3INTA_BOUG, k * 0.8, HZC);
+    // pérgola de madera bajo el artesonado
+    for (let x = 0; x < w; x++) for (let y = 30; y < 38; y++) V.put(pb, x, y, WD[y === 30 ? 7 : y === 31 ? 5 : y === 37 ? 0 : (x % 40 === 0 ? 1 : 3)]);
+    for (let x = 12; x < w; x += 40) for (let q = 0; q < 6; q++) { V.put(pb, x, 38 + q, WD[4]); V.put(pb, x + 1, 38 + q, WD[2]); }
+    for (let x = 0; x < w; x += 16 + r.int(0, 30)) R3INTA_bougain(pb, x, 38, 10 + r.int(0, 40), 21000 + x, { sway: 1.8, ramp: BG });
+    for (let x = 20; x < w; x += 90 + r.int(0, 60)) R2BB_vine(pb, x, 38, 20 + r.int(0, 60), 21100 + x, { sway: 2, ramp: LF });
+    // columnas esbeltas de mármol con jazmín y macetas al pie
+    for (let x = 150; x < w; x += 310) {
+      for (let y = 38; y < 282; y++) for (let i = 0; i < 10; i++) V.put(pb, x + i, y, MB[i < 2 ? 6 : i < 4 ? 5 : i > 7 ? 1 : 3]);
+      for (let i = -3; i < 13; i++) { V.put(pb, x + i, 38, MB[6]); V.put(pb, x + i, 39, MB[4]); V.put(pb, x + i, 281, MB[5]); V.put(pb, x + i, 282, MB[2]); }
+      for (let y = 60; y < 270; y += 3) { const sx = x + 5 + Math.round(Math.sin(y * 0.08) * 6); PFFlora.leaf(pb, sx, y, y % 2 ? -0.6 : 3.7, 4, 3, V.P32(LF), 4); if (y % 9 === 0) { V.put(pb, sx + 2, y - 1, U('#fffaf0')); V.put(pb, sx + 3, y - 1, U('#ffe8f0')); } }
+      // maceta grande con palmera (izquierda) y naranjo (derecha)
+      for (const [px, kind] of [[x - 34, 'palm'], [x + 46, 'citrus']]) {
+        for (let yy = 0; yy < 18; yy++) { const hw = 11 - Math.round(yy * 0.15); for (let xx = -hw; xx <= hw; xx++) V.put(pb, px + xx, 282 - yy, TR[yy === 17 ? 6 : xx < -8 ? 5 : xx > 8 ? 1 : 3]); }
+        if (kind === 'palm') PFFlora.palm(pb, px, 264, 70, -4 + r.int(0, 8), 21200 + px, { ramp: LF });
+        else { PFFlora.cluster(pb, px, 238, 18, 16, LF, 21300 + px, { density: 0.75, leaf: [3, 5] }); for (let q = 0; q < 12; q++) { const fx = px + r.int(-14, 14), fy = 238 + r.int(-12, 12); V.put(pb, fx, fy, U(V.hzc('#ff9a1c', k, HZC))); V.put(pb, fx, fy - 1, U(V.hzc('#ffd060', k, HZC))); } for (let y = 254; y < 264; y++) V.put(pb, px, y, WD[2]); }
+      }
+      // farolillo colgado de la pérgola
+      const lx = x + 160; for (let y = 38; y < 70; y++) V.put(pb, lx, y, WD[3]);
+      V.rect(pb, lx - 3, 70, 7, 8, WD[5]); V.rect(pb, lx - 2, 71, 5, 6, U('#ffe8a0'));
+      logFx.lamps.push([lx, 74]);
+    }
+  }, {
+    tag: 'loggia', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      for (const [x, y] of logFx.lamps) { const sx = x + ox; if (sx < -30 || sx > W + 30) continue; V.drawGlow(g, sx, y + oy, 8, '#ffd070', 0.45 + 0.08 * Math.sin(t * 6 + x)); }
     },
   });
   B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
@@ -46772,6 +46958,8 @@ LEVELS[9] = {
       { kind: 'rail', x: 2640, w: 240, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
       { kind: 'pillar', x: 3060, w: 26, h: 360, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'], lit: true, capital: true, fluted: true },
     ],
+    /** r3-int-a: bajo la línea de paso, patio de zellige con acequia, nenúfares, surtidores, jardineras y bancos */
+    decorateFace(pb, world, segs) { if (typeof R3INTA_L9ground === 'function') R3INTA_L9ground(pb, world, segs); },
   },
   /** Etiquetas científicas en el mundo */
   labels: [
@@ -46793,7 +46981,8 @@ LEVELS[9] = {
     const warm = (x, y, r = 10, a = 0.3) => D.glows.push({ x, y, r, col: '#ffd890', a, mode: 'flicker', ph: x });
     /* ===== techo: estandartes y lámparas colgantes ===== */
     const bcols = ['#1aa59a', '#e08a1a', '#3a8adc', '#2f9e4c', '#d4505a', '#9a52d4'];
-    for (let k = 0; k < 12; k++) M.banner(pb, 96 + k * 200, 8, bcols[k % 6], k % 6, 64);
+    // r3-int-a: los estandartes se dibujan por cuadro con vaivén (R3INTA_L9mid); sin ellos, horneados como antes
+    if (typeof R3INTA_L9banners === 'function') R3INTA_L9banners(); else for (let k = 0; k < 12; k++) M.banner(pb, 96 + k * 200, 8, bcols[k % 6], k % 6, 64);
     for (const x of [300, 760, 940, 1260, 1620, 2200]) { const L = M.chandelier(pb, x, 0, 108); warm(L[0], L[1], 12, 0.34); D.cones.push([L[0], L[1] + 6, 12, 60, gy(x) - L[1] - 10]); }
     /* ===== 1. VESTÍBULO (0–600): paneles de historia, bancos, macetas ===== */
     const hcols = ['#20a0c8', '#e0a020', '#3ab070', '#d0584a'];
@@ -46820,6 +47009,7 @@ LEVELS[9] = {
     M.grandDoor(pb, 2354, yb(2354), 58, 104, 'NÚCLEO SYNARA');
     D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
     /* ===== acabado (19r_scb_lv09.js): vitrinas, cordones, atril, quiosco, alfombra y reflejos en el mármol ===== */
+    if (typeof R3INTA_L9plants === 'function') R3INTA_L9plants(pb, world, back, gy); // r3-int-a: naranjos, palmeras, buganvilla
     SCBL9.finish(pb, world, back, gy, D);
     // placa del gemelo colgada delante de los postes de latón (bajo el cordón): se lee entera
     B.plaque(pb, 1440, yb(1440) - 12, 'GEMELO DIGITAL', { center: true, bg: '#06203a', border: '#56e5ff', col: '#f4fbff', h: 9, screws: false });
@@ -46827,6 +47017,7 @@ LEVELS[9] = {
   },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV9;
+    if (typeof R3INTA_L9mid === 'function') R3INTA_L9mid(g, sc, cam); // r3-int-a: estandartes con vaivén y ventiladores
     // conos de luz de las lámparas colgantes
     g.globalCompositeOperation = 'lighter';
     for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#ffe0a8', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
@@ -46843,6 +47034,12 @@ LEVELS[9] = {
     PFB.glows(g, sc, D.glows);
     // cielo de calima que avanza al final
     if (S.calimaK > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.calimaK * 0.5; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+  },
+  /** r3-int-a: haces de sol poniente nítidos (3 escalones de alfa, bordes sólidos) que bajan de los ventanales en arco
+      hasta los charcos de luz del suelo y encienden las piernas de los personajes; motas de polvo en suspensión */
+  renderFront(g, sc, cam) {
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[9].shafts), Game.time, { col: '#ffb468', a: 0.34, lum: 0.36, motes: 16, moteCol: '#ffe8c0' });
+    if (typeof R3INTA_L9front === 'function') R3INTA_L9front(g, sc, cam);
   },
   lens(g, sc, cam, k) {
     const ox = cam.x, oy = cam.y;
@@ -46885,6 +47082,8 @@ LEVELS[9] = {
     sc.station({ id: 'exit', x: 2360, kind: 'clue', label: 'Ir al núcleo (Gran Calima)', glow: '#ff9f43', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel9(sc2) });
     sc.setObjective('Habla con la Consejera Ruth en la mesa', ['¿Quién se sienta en la mesa y quién no?', 'La mesa está en el centro del salón.']);
     Codex.unlock('gobernanza');
+    // r3-int-a: los consejeros conversan en su sitio (solo animación de reposo; el guion no cambia)
+    for (const [a, an] of [[celia, 'talk'], [marea, 'think'], [ruth, 'talk'], [ivan, 'observe']]) { a.anim = an; a.restAnim = an; a.animT = Math.random() * 3; }
     if (p.checkpoint === 'lab') { Object.assign(S, { council: true, chainDone: true }); GS.flag('communityDataRestored', true); sc.world.find('moSim').hidden = false; sc.setObjective('Usa el tablero del gemelo', []); }
   },
   update(sc, dt) { const S = sc.state; if (S.calima) S.calimaK = Math.min(1, S.calimaK + dt * 0.2); if (S.calima) ambientParticles(sc.world.ps, 'dust', sc.cam, 1.2, 2); },
