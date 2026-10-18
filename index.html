@@ -5298,8 +5298,9 @@ function renderHumanoid(id, D, anim, t, opts) {
    pestaña (lado de la oreja); iris hacia delante; brillo blanco arriba; iris que aclara abajo. */
 const EYE_AM = {
   // r2-chars: ojo grande de la referencia (6 filas: pestaña gruesa con remate, brillo, iris que aclara abajo)
-  open: { oy: -3, rows: ['.KKKK', 'KKKKK', '.whDD', '.wDDD', '.wMLL', '..ss.'] },
-  look: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wwhD', '.wwDD', '.wwML', '..ss.'] },
+  // r3: brillo dentro del iris oscuro (antes blanco+brillo bajo la pestaña: hueco claro que achicaba el ojo)
+  open: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wDhD', '.wDDD', '.wMDL', '..ss.'] },
+  look: { oy: -3, rows: ['.KKKK', 'KKKKK', '.wwDh', '.wwDD', '.wwML', '..ss.'] },
   half: { oy: -1, rows: ['.KKKK', 'KKKKK', '.wDLM', '..ss.'] },
   soft: { oy: 0, rows: ['.KKKK', 'K.DLM', '..ss.'] },
   determined: { oy: -2, rows: ['KKKKK', '.KhDD', '.wDDD', '.wMLL', '..ss.'] },
@@ -5352,7 +5353,7 @@ function R2CHARS_pony(R, o, H, tie, pose) {
       pts.push([x, y]);
     }
     lines.push(pts);
-    R.strand(pts, r0 * (b < 0 ? 1 - b * 0.12 : 1), 0.3, { mat: H, base: dk ? 3 : 4, z: 45 + (dk ? -0.4 : 0) + i * 0.01, group: 'pony' + (i % 3), lineIdx: 1, taper: 1.3, rim: true, bevel: Math.max(1, r0 * 0.55) });
+    R.strand(pts, r0 * (b < 0 ? 1 - b * 0.12 : 1), 0.3, { mat: H, base: i >= 6 ? 2 : dk || i >= 4 ? 3 : 4, z: 45 + (dk ? -0.4 : 0) + i * 0.01, group: 'pony' + (i % 3), lineIdx: 1, taper: 1.3, rim: true, bevel: Math.max(1, r0 * 0.55) });
   });
   // volumen en la raíz: la coleta nace gruesa y se abre en abanico
   const ma = Math.PI + 0.3 * sp + off - 0.15 * cf + rest * 0.25;
@@ -5389,7 +5390,7 @@ const AMAYA_D = {
   headRX: 10.5, headRY: 11.5, upperArm: 10, foreArm: 9.5, armW: 2.5, legW: 3.1, handR: 2.2, neckR: 2.5,
   // cara amable/decidida como la referencia: ojo grande con brillo e iris castaño claro, sin ojo lejano
   // (perfil casi lateral), boca suave y rubor; sonrisa leve por defecto
-  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#6a3418', '#b06a34'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
+  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#62301a', '#a05a2c'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
   defaultExpr: 'smile', earDX: -3.4, earDY: 2.5, noseSize: 0.55, runLean: 0.36,
   shortSleeve: 0.55, fingerless: true, wristBand: true, sole: '#1a0a06', laces: '#e48a4a', bootTall: 4, earZ: 56,
   energetic: 1.15, shadowR: 12,
