@@ -27740,7 +27740,8 @@ const R2LIGHT_TOD = {
 
 /* ---------- datos por nivel (sobrescriben el preajuste) ---------- */
 const R2LIGHT_CFG = {
-  0: { tod: 'day' },
+  // toldos turquesa y banderines rosas de la plaza no son emisivos: solo LED verdes
+  0: { tod: 'day', glowKinds: [2] },
   1: { tod: 'day' },
   2: { tod: 'interior', env: 'tech',
     shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, wTop: 0.5, wBot: 0.78, col: '#ffe0a0', a: 0.04, soft: 0.42, pool: { col: '#ffe8b8', a: 0.45 } },
@@ -27749,15 +27750,16 @@ const R2LIGHT_CFG = {
   4: { tod: 'day', cast: { col: '#4a2a6a', a: 0.36, len: 0.3, maxLen: 40 } },
   5: { tod: 'day' },
   6: { tod: 'interior', env: 'tech',
-    shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.35, slant: 0.22, wTop: 0.5, wBot: 0.8, col: '#a8e4ff', a: 0.1, soft: 0.9, pool: { col: '#b8ecff', a: 0.55 }, on: (sc) => !sc.state.blackout },
+    // la luz entra por la boca del túnel (plano 'far', PORTAL cx 360 ± 105): solo los arcos que la dejan ver
+    shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.3, slant: 0.22, wTop: 0.5, wBot: 0.8, col: '#a8e4ff', a: 0.12, soft: 1, pool: { col: '#b8ecff', a: 0.6 }, src: { layer: 'far', x0: 255, x1: 465, gain: 1.6 }, on: (sc) => !sc.state.blackout },
     lampPools: { a: 0.3, wk: 4.5, reach: 160 }, arcs: { top: 198, col: '#a6e6ff', a: 0.85 } },
   7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.28, sat: 1.16, warmMag: 0.3, vgrad: [0.03, -0.07] } },
   8: { tod: 'day' },
-  9: { tod: 'interior', env: 'dusk',
+  9: { tod: 'interior', env: 'dusk', glowKinds: [],
     shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },
     lampPools: { a: 0.36, wk: 5, reach: 170 }, grade: { mul: '#ffe0d4', mulK: 0.16, shade: '#2a1a50', shadeK: 0.22, lift: '#ffc898', liftK: 0.16, sat: 1.14, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
-  11: { tod: 'dusk', env: 'dusk', grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.14, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc070', liftK: 0.26, sat: 1.12, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
+  11: { tod: 'dusk', env: 'dusk', glowKinds: [2], grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.14, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc070', liftK: 0.26, sat: 1.12, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };
 
 const R2LIGHT = (() => {
@@ -27967,7 +27969,8 @@ const R2LIGHT = (() => {
     if (hu >= 292 && hu <= 336) return 3;            // salmuera magenta
     return 0;
   }
-  function buildGlow(layers, w, h, k) {
+  function buildGlow(layers, w, h, k, kinds) {
+    const ok = [false, true, true, true]; if (kinds) { ok[1] = ok[2] = ok[3] = false; for (const q of kinds) ok[q] = true; }
     const acc = new Float32Array(w * h * 3), R = 4;
     const ker = []; for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const d = Math.hypot(dx, dy); if (d <= R + 0.3) ker.push([dx, dy, d < 1.6 ? 0.30 : d < 2.8 ? 0.17 : 0.08]); }
     let n = 0;
@@ -27977,7 +27980,7 @@ const R2LIGHT = (() => {
       for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
         const i = y * w + x, u = D[i]; if (!(u >>> 24)) continue;
         const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255;
-        const e = emissiveOf(r, g, b); if (!e) continue;
+        const e = emissiveOf(r, g, b); if (!e || !ok[e]) continue;
         n++;
         for (const [dx, dy, kk] of ker) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const j = (yy * w + xx) * 3; acc[j] += r * kk; acc[j + 1] += g * kk; acc[j + 2] += b * kk; }
       }
@@ -28167,10 +28170,11 @@ const R2LIGHT = (() => {
     c = makeCanvas(cw, h); const img = c.g.createImageData(cw, h), D = new Uint32Array(img.data.buffer);
     for (let y = 0; y < h; y++) {
       const v = y / Math.max(1, h - 1), bw = w0 + (w1 - w0) * v, cx = x0 + s * v + (Math.max(w0, w1) - bw) / 2;
-      const fall = v < 0.25 ? 1 : v < 0.55 ? 0.8 : v < 0.8 ? 0.62 : 0.48;
+      // entra desde el vano (2 bandas de fundido arriba) y se apaga al bajar
+      const fall = v < 0.04 ? 0.3 : v < 0.09 ? 0.62 : v < 0.25 ? 1 : v < 0.55 ? 0.8 : v < 0.8 ? 0.62 : 0.48;
       for (let x = 0; x < cw; x++) {
         const d = (x - cx) / bw; if (d < 0 || d > 1) continue;
-        const e = Math.min(d, 1 - d) * 2, lv = e < 0.18 ? 0.35 : e < 0.45 ? 0.7 : 1;
+        const e = Math.min(d, 1 - d) * 2, lv = e < 0.1 ? 0.18 : e < 0.24 ? 0.42 : e < 0.5 ? 0.72 : 1;
         // listón más claro en el centro de cada haz (vidriera): rayos legibles sin tramado
         const core = Math.abs(d - 0.5) < 0.08 ? 1.25 : 1;
         D[y * cw + x] = ((Math.round(Math.min(1, lv * fall * core) * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0;
@@ -28200,8 +28204,14 @@ const R2LIGHT = (() => {
     if (!L) return null;
     const [ox, oy] = B.vofs(L, sc.cam), out = [];
     const cam = sc.cam, W_ = sc.world;
+    // fuente de luz tras los vanos (p. ej. la boca del túnel en un plano lejano): solo los vanos que la
+    // dejan ver emiten haz, con intensidad proporcional a la parte del vano que ocupa
+    let src = null;
+    if (S.src) for (const l of B.layers) if (l.tag === S.src.layer) { const so = B.vofs(l, sc.cam)[0]; src = [S.src.x0 + so, S.src.x1 + so]; break; }
     for (let x = S.x0; x < (L.c ? L.c.width : W_.w) + S.step; x += S.step) {
       const sx = x + ox; if (sx > W + 140 || sx + S.w < -140) continue;
+      let k = 1;
+      if (src) { const ov = Math.min(sx + S.w, src[1]) - Math.max(sx, src[0]); k = Math.min(1, Math.max(0, ov / S.w) * (S.src.gain ?? 1.4)); if (k < 0.08) continue; }
       const top = Math.round(S.y0 + (S.y1 - S.y0) * (S.from ?? 0.35) + oy);
       const w0 = Math.round(S.w * (S.wTop ?? 0.62)), w1 = Math.round(S.w * (S.wBot ?? 0.92));
       // suelo bajo el centro del pie del haz (se itera una vez: el suelo de interiores es casi plano)
@@ -28211,9 +28221,18 @@ const R2LIGHT = (() => {
       const h = Math.max(20, (fy - top + 3) & ~3), s = Math.round(sl * h);
       bx = sx + (S.w - w0) / 2 + s + w1 / 2 - (Math.max(w0, w1) - w1) / 2;
       fy = Math.round(W_.groundAt(clamp(Math.round(bx + cam.ox), 0, W_.w)) - cam.oy);
-      out.push({ sx: Math.round(sx + (S.w - Math.max(w0, w1)) / 2), top, w0, w1, h, s, bx: Math.round(bx), fy });
+      out.push({ sx: Math.round(sx + (S.w - Math.max(w0, w1)) / 2), top, w0, w1, h, s, bx: Math.round(bx), fy, k });
     }
     return out;
+  }
+  /** Volumen del haz: luz suave (aclara y calienta sin lavar el color) + núcleo aditivo tenue */
+  function drawShafts(g, S, list, t) {
+    const pk = 0.9 + 0.1 * Math.sin(t * 0.37);
+    for (const q of list) {
+      const c = shaftSprite(q.w0, q.w1, q.h, q.s, S.col);
+      g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, (S.soft ?? 0.9) * pk * q.k); g.drawImage(c, q.sx - c.x0, q.top);
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (S.a ?? 0.16) * pk * q.k); g.drawImage(c, q.sx - c.x0, q.top);
+    }
   }
   /** Antes de los personajes: charcos de luz de ventanales y lámparas sobre el suelo */
   function floorLights(g, sc) {
@@ -28223,8 +28242,11 @@ const R2LIGHT = (() => {
     const list = S ? shaftList(sc) : null;
     if (list) {
       const P = S.pool || {}, col = P.col || S.col;
-      g.globalAlpha = Math.min(1, (P.a ?? 0.5) * (0.92 + 0.08 * Math.sin(t * 0.5)));
-      for (const q of list) { const pw = Math.round(q.w1 * (P.wk ?? 1.25)), c = poolSprite(pw, P.band ?? 10, P.refl ?? 8, col); g.drawImage(c, q.bx - (pw >> 1), q.fy - c.band); }
+      const a0 = Math.min(1, (P.a ?? 0.5) * (0.92 + 0.08 * Math.sin(t * 0.5)));
+      for (const q of list) { const pw = Math.round(q.w1 * (P.wk ?? 1.25)), c = poolSprite(pw, P.band ?? 10, P.refl ?? 8, col); g.globalAlpha = a0 * q.k; g.drawImage(c, q.bx - (pw >> 1), q.fy - c.band); }
+      // el volumen del haz va detrás de los personajes (no vela caras ni bocadillos); las motas, delante
+      if (S.behind !== false) drawShafts(g, S, list, t);
+      g.globalCompositeOperation = 'lighter';
     }
     if (st.cfg.lampPools) {
       const W_ = sc.world, LP = st.cfg.lampPools;
@@ -28241,13 +28263,8 @@ const R2LIGHT = (() => {
     g.globalCompositeOperation = 'lighter';
     const list = S ? shaftList(sc) : null;
     if (list) {
-      // volumen en luz suave (aclara y calienta sin lavar el color) + núcleo aditivo tenue
-      const pk = 0.9 + 0.1 * Math.sin(t * 0.37);
-      for (const q of list) {
-        const c = shaftSprite(q.w0, q.w1, q.h, q.s, S.col);
-        g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, (S.soft ?? 0.9) * pk); g.drawImage(c, q.sx - c.x0, q.top);
-        g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (S.a ?? 0.16) * pk); g.drawImage(c, q.sx - c.x0, q.top);
-      }
+      if (S.behind === false) drawShafts(g, S, list, t);
+      g.globalCompositeOperation = 'lighter';
       // motas de polvo en suspensión dentro de los haces (1 px, deriva lenta)
       if (S.motes !== false) {
         g.fillStyle = S.moteCol || '#fff8e8';
@@ -28256,7 +28273,7 @@ const R2LIGHT = (() => {
           for (let k = 0; k < 7; k++) {
             const ph = (t * (0.05 + k * 0.011) + k * 0.137 + i * 0.31) % 1, v = ph, bw = q.w0 + (q.w1 - q.w0) * v;
             const x = q.sx + q.s * v + (Math.max(q.w0, q.w1) - bw) / 2 + bw * ((k * 0.383 + i * 0.17 + Math.sin(t * 0.7 + k) * 0.05) % 1);
-            g.globalAlpha = 0.5 * Math.sin(ph * Math.PI);
+            g.globalAlpha = 0.5 * Math.sin(ph * Math.PI) * q.k;
             g.fillRect(Math.round(x), Math.round(q.top + q.h * v), 1, 1);
           }
         }
@@ -28275,6 +28292,11 @@ const R2LIGHT = (() => {
         g.drawImage(p, 0, 0, p.width, 1, sx + (hz.w >> 1) - p.R, top, p.width, bot - top);
         g.drawImage(p, 0, 0, p.width, 1, sx + (hz.w >> 1) - p.R - 4, top + 6, p.width + 8, bot - top - 6);
         const pw = 54, c = poolSprite(pw, 9, 6, A.col); g.globalAlpha = Math.min(1, 0.8 * fl); g.drawImage(c, sx + (hz.w >> 1) - (pw >> 1), bot - c.band);
+        // destello en los dos electrodos (halo en anillos cacheado) y luz reflejada en los armarios vecinos
+        const sp = PFK.glow(10, '#e8fbff', 4, 0.6), wide = PFK.glow(26, A.col, 4, 0.35);
+        g.globalAlpha = Math.min(1, 0.9 * fl);
+        g.drawImage(sp, sx + 5 - 10, top + 2 - 10); g.drawImage(sp, sx + hz.w - 6 - 10, bot - 3 - 10);
+        g.globalAlpha = Math.min(1, 0.55 * fl); g.drawImage(wide, sx + (hz.w >> 1) - 26, Math.round((top + bot) / 2) - 26);
       }
     }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
@@ -28349,7 +28371,7 @@ const R2LIGHT = (() => {
     for (const key in L) { const X = L[key]; X.g.putImageData(X.img, 0, 0); st.layers[key] = { c: sc[key], S: spans(X.A, X.w, X.h) }; }
     // halo de emisivos estáticos
     const ref = L.propsC || L.terrainC;
-    if (ref && C.glow) st.glow = buildGlow([L.propsC, L.propsFrontC], ref.w, ref.h, Math.min(1, 0.55 * C.glow));
+    if (ref && C.glow && !(C.glowKinds && !C.glowKinds.length)) st.glow = buildGlow([L.propsC, L.propsFrontC], ref.w, ref.h, Math.min(1, 0.55 * C.glow), C.glowKinds);
     stats.prepMs = Math.round(nowMs() - t0);
   }
   function release(sc) {
