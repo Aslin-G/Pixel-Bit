@@ -4154,8 +4154,9 @@ const EXPR = {
    Las filas empiezan en y + oy (y = fila superior del iris).
    ===================================================================== */
 const EYE2 = {
-  open: { oy: -2, rows: ['....K', 'KKKKK', 'whDD.', 'wDDD.', 'wMMD.', '.MLM.'] },
-  look: { oy: -2, rows: ['....K', 'KKKKK', 'wwhD.', 'wwDD.', 'wwMD.', '..ML.'] },
+  // r2-chars r3: brillo dentro del iris (no pegado al blanco bajo la pestaña): ojo más grande y despierto
+  open: { oy: -2, rows: ['....K', 'KKKKK', 'wDhD.', 'wDDD.', 'wMMD.', '.MLM.'] },
+  look: { oy: -2, rows: ['....K', 'KKKKK', 'wwDh.', 'wwDD.', 'wwMD.', '..ML.'] },
   half: { oy: -1, rows: ['.....', 'KKKKK', 'wDDD.', 'wMMD.', '.ML..'] },
   soft: { oy: 0, rows: ['KKKK.', 'sDD..', '.ML..'] },
   tired: { oy: 0, rows: ['.....', 'KKKK.', 'sMM..', '.ss..'] },
@@ -4284,7 +4285,7 @@ const R2CHARS_IDLE = {
   crossed(p) { p.shF = 0.15; p.elF = 1.65; p.handF = 'fist'; p.shB = 0.1; p.elB = 1.75; p.handB = 'fist'; },
   behind(p) { p.shF = -0.35; p.elF = 0.5; p.shB = -0.45; p.elB = 0.45; },
   hips(p) { p.shF = -0.45; p.elF = 2.0; p.handF = 'fist'; },
-  stretch(p, t) { const f = Math.floor(t * 6 + 1e-6); if (f === 2 || f === 3) { p.shF = 2.9; p.elF = 0.3; p.shB = 2.7; p.elB = 0.3; p.handF = 'fist'; p.handB = 'fist'; p.headTilt = -0.08; p.blink = true; } },
+  stretch(p, t) { const f = Math.floor(t * 6 + 1e-6); if (f === 2 || f === 3) { p.shF = 2.9; p.elF = 0.3; p.shB = 2.7; p.elB = 0.3; p.handF = 'fist'; p.handB = 'fist'; p.headTilt = -0.08; p.blink = f === 3; } },
 };
 
 function poseFor(anim, t, ch) {
@@ -4309,7 +4310,8 @@ function poseFor(anim, t, ch) {
       p.elF = 0.32 + S(P) * 0.03; p.elB = 0.3;
       p.headTilt = S(P) * 0.02;
       p.hipF = 0.1; p.hipB = -0.07; p.kneeF = -0.04; p.kneeB = 0.02;
-      p.blink = (t > 0.66 && t < 0.84);
+      // r3: solo el cuadro 4 (antes también el 5: ojos cerrados 1/6 del reposo además del parpadeo)
+      p.blink = (t > 0.66 && t < 0.75);
       p.hair = { base: 0.05 + S(P - 0.9) * 0.06, amp: 0.16, P, lag: 0.55 }; p.pack = Math.round(S(P - 1.2) * 0.5 + 0.5);
       if (ch.idleStyle && R2CHARS_IDLE[ch.idleStyle]) R2CHARS_IDLE[ch.idleStyle](p, t, P, ch);
       break;
