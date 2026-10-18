@@ -53,13 +53,13 @@ LEVELS[4] = {
     /** Primer plano oscuro del desierto: chumberas y matas secas en el borde inferior */
     fg: [
       // r3-desert: f = 1,3; en las posiciones de juego cada pieza cae en un borde del encuadre (1,3·cámara − 75 / + 560)
-      { kind: 'aDesert', x: -75, w: 150, h: 84, seed: 1, side: -1 },
-      { kind: 'aDesert', x: 520, w: 130, h: 72, seed: 2, side: 1 },
-      { kind: 'aDesert', x: 1119, w: 130, h: 76, seed: 7, side: 1 },
-      { kind: 'aDesert', x: 1264, w: 150, h: 86, seed: 3, side: -1 },
-      { kind: 'aDesert', x: 1905, w: 140, h: 80, seed: 4, side: 1 },
-      { kind: 'aDesert', x: 2556, w: 150, h: 84, seed: 5, side: -1 },
-      { kind: 'aDesert', x: 3199, w: 150, h: 84, seed: 6, side: 1 },
+      { kind: 'aDesert', x: -40, w: 150, h: 94, seed: 1, side: -1 },
+      { kind: 'aDesert', x: 520, w: 130, h: 90, seed: 2, side: 1 },
+      { kind: 'aDesert', x: 1119, w: 130, h: 92, seed: 7, side: 1 },
+      { kind: 'aDesert', x: 1300, w: 150, h: 94, seed: 3, side: -1 },
+      { kind: 'aDesert', x: 1905, w: 140, h: 92, seed: 4, side: 1 },
+      { kind: 'aDesert', x: 2600, w: 150, h: 94, seed: 5, side: -1 },
+      { kind: 'aDesert', x: 3199, w: 150, h: 92, seed: 6, side: 1 },
     ],
     decorateFace(pb, world) { LEVELS[4].r3face(pb, world); },
     fauna: { eagle: { x0: 300, x1: 2500, y: 70 }, drones: [{ x: 760, y: 150, r: 60 }, { x: 2040, y: 130, r: 40 }] },

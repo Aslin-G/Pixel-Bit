@@ -408,8 +408,14 @@ const PFASolar = (() => {
     // chumbera oscura
     const pad = (cx, cy, rx, ry) => K.ellipseFn(pb, cx, cy, rx, ry, (nx, ny, d) => GK[clamp(Math.round(3.4 - nx * 1.6 - ny * 1.4 - (d > 0.85 ? 1.6 : 0)), 0, 6)]);
     const px = Math.round(w * (o.side > 0 ? 0.7 : 0.3));
-    pad(px, h - 12, 13, 14); pad(px - 14, h - 30, 10, 12); pad(px + 12, h - 34, 10, 12); pad(px - 2, h - 50, 8, 10);
-    for (let k = 0; k < 18; k++) put(pb, px + r.int(-20, 20), h - r.int(8, 56), GK[6]);
+    // r3-desert: la masa sube (las palas superiores asoman por encima del HUD inferior) y un agave oscuro de hojas largas
+    const up = h >= 88 ? 22 : 0;
+    // agave: hojas en abanico desde la base, puntas finas
+    const ax = Math.round(w * (o.side > 0 ? 0.42 : 0.58));
+    if (up) for (let i = 0; i < 9; i++) { const a = -Math.PI / 2 + (i / 8 - 0.5) * 2.3, L = h * (0.55 + (1 - Math.abs(i / 8 - 0.5) * 2) * 0.4); for (let k = 0; k < L; k++) { const t = k / L, xx = Math.round(ax + Math.cos(a) * k * 0.55), yy = Math.round(h - 2 + Math.sin(a) * k - Math.sin(t * Math.PI) * 2), wd = Math.max(1, Math.round((1 - t) * 3)); for (let q = 0; q < wd; q++) put(pb, xx + q, yy, GK[clamp(Math.round(4 - t * 2 + (q === 0 ? 1 : -1)), 0, 6)]); } }
+    pad(px, h - 12 - up, 13, 14); pad(px - 14, h - 30 - up, 10, 12); pad(px + 12, h - 34 - up, 10, 12); pad(px - 2, h - 50 - up, 8, 10);
+    if (up) { pad(px + 2, h - 10, 12, 10); pad(px - 16, h - 14, 9, 9); }
+    for (let k = 0; k < 18; k++) put(pb, px + r.int(-20, 20), h - r.int(8, 56 + up), GK[6]);
     // matas secas alrededor
     for (let i = 0; i < Math.round(w / 3); i++) {
       const bx = r() * w, a = -Math.PI / 2 + (r() - 0.5) * 2.2, L = h * (0.25 + r() * 0.4);
