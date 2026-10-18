@@ -96,7 +96,7 @@ LEVELS[6] = {
     const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan); D.steam.push([848, yb(834) - 34]); R3INTB_dial(pb, D, 840, yb(834) - 23, 3);
     D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
     /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
-    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#121a30', '#1c2842', '#283a5a', '#344c74', '#44608e', '#587aa8', '#7898c2', '#a0bcdc', '#cadcf0', '#eef6ff'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); R3INTB_dial(pb, D, x + 8, yb(x) - 20, 3); }
+    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#121a30', '#1c2842', '#283a5a', '#344c74', '#44608e', '#587aa8', '#7898c2', '#a0bcdc', '#cadcf0', '#eef6ff'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); R3INTB_dial(pb, D, x + 8, yb(x) - 20, 3); R3INTB_pcsDetail(pb, x, yb(x), 50, 72, x); }
     E.busbar(pb, 900, 1300, 186, { gap: 50, hangTo: 153 });
     for (const a of ARCS) E.arcGap(pb, a.x, a.w, 198, gy(a.x));
     D.flows.push({ pts: [[900, 189], [1300, 189]], kind: 'power', rate: (sc) => sc.state.blackout ? 0 : (sc.state.elyOn ? 1.4 : 0.6) });
@@ -349,6 +349,21 @@ function R3INTB_L6floor(pb, world, gy, back, D) {
 }
 /** Canto bajo la línea de paso: cables de colores en catenaria entre pilares, cajas de registro y placas */
 const R3INTB_L6DRONES = [{ kind: 'drone', x: 600, y: 132, r: 150 }, { kind: 'drone', x: 1080, y: 168, r: 60 }, { kind: 'drone', x: 1960, y: 128, r: 140 }, { kind: 'drone', x: 2300, y: 150, r: 70 }];
+/** Detalle de los convertidores PCS: franja de acento, junta de puerta con manetas, placa, adhesivo de aviso,
+    rejilla lateral y prensaestopas con cables de colores al pie */
+function R3INTB_pcsDetail(pb, x, yb, w, h, seed) {
+  const K = PFK, top = yb - h;
+  for (let xx = x + 1; xx < x + w - 1; xx++) { K.put(pb, xx, top + 16, U('#1c6aa0')); K.put(pb, xx, top + 17, U('#48b6ec')); K.put(pb, xx, top + 18, U('#0e2a48')); }
+  const mx = x + Math.round(w / 2);
+  for (let yy = top + 20; yy < yb - 4; yy++) { K.put(pb, mx, yy, U('#283a5a')); K.put(pb, mx + 1, yy, U('#eef6ff')); }
+  for (const hx of [mx - 3, mx + 3]) for (let yy = top + 30; yy < top + 37; yy++) K.put(pb, hx, yy, U(yy === top + 30 ? '#ffffff' : '#344c74'));
+  for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 12; xx++) K.put(pb, x + w - 16 + xx, top + 22 + yy, U(yy === 0 || xx === 0 ? '#cadcf0' : yy === 5 || xx === 11 ? '#283a5a' : '#587aa8'));
+  K.text(pb, 'PCS', x + w - 15, top + 23, U('#eef6ff'), { font: 'tiny' });
+  for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 7; xx++) if (Math.abs(xx - 3) <= yy * 0.6 + 0.4) K.put(pb, x + 6 + xx, top + 24 + yy, U(yy === 5 ? '#7a5208' : '#ffd030'));
+  K.put(pb, x + 9, top + 26, U('#1a1a1a')); K.put(pb, x + 9, top + 28, U('#1a1a1a'));
+  const cols = ['#ff8a2a', '#2c8cff', '#3fe08a', '#e8384a'];
+  for (let i = 0; i < 4; i++) { const gx = x + 14 + i * 6; K.put(pb, gx, yb - 3, U('#0e1424')); K.put(pb, gx + 1, yb - 3, U('#8e96b8')); for (let yy = yb - 2; yy < yb + 2; yy++) K.put(pb, gx, yy, U(cols[(i + seed) % 4])); }
+}
 /** Esfera de manómetro horneada (aro claro arriba-izquierda, cara marfil, sector rojo) y registro de su aguja */
 function R3INTB_dial(pb, D, x, y, rr) {
   PFK.ellipseFn(pb, x + 0.5, y + 0.5, rr + 1.2, rr + 1.2, (nx, ny, d) => d > 0.7 ? U(nx + ny < 0 ? '#d4daee' : '#2a3048') : U(ny > 0.35 && nx > 0.2 ? '#ff6a50' : '#f2f0e6'));

@@ -262,6 +262,9 @@ LEVELS[7] = {
     R3INTB_L7floor(pb, world, gy, back, D); // r3-int-b: charcos con reflejo del ocaso y matas en las juntas
     // r3-int-b: mástiles con banderolas (verde H₂, cian agua ultrapura) en la nave y la caseta; penachos de vapor
     for (const [mx, my0, my1, col] of [[762, 156, 98, '#3fe0a0'], [1234, 156, 98, '#11bedd'], [30, yb - 106, yb - 150, '#3fe0a0'], [2460, yb - 150, yb - 196, '#11bedd']]) { for (let yy = my1; yy < my0; yy++) { PFK.put(pb, mx, yy, U('#d4daee')); PFK.put(pb, mx + 1, yy, U('#525a7a')); } PFK.put(pb, mx, my1 - 1, U('#ffd860')); D.flags.push({ x: mx, y: my1, col }); }
+    // r3-int-b: cubiertas verdes (sedum, matas en flor y palmitos) sobre la nave, la sala de control y la caseta; hiedra en los pilares de la nave
+    R3INTB_greenRoof(pb, 758, 1238, 102, 7201); R3INTB_greenRoof(pb, 1962, 2178, 105, 7203); R3INTB_greenRoof(pb, 18, 86, yb - 108, 7205);
+    for (const cx of [760, 917, 1067, 1217]) { R3INTB_ivy(pb, cx + 1, yb - 1, 70 + (cx % 3) * 14, 7210 + cx, ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'], -1); R3INTB_ivy(pb, cx + 7, yb - 1, 40 + (cx % 5) * 8, 7220 + cx, ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'], -1); }
     R3INTB_L7ROOFFANS.length = 0;
     for (const fx of [812, 896, 1100, 1184]) { const fy = 100; for (let q = -6; q <= 6; q++) for (let k = 0; k < 4; k++) PFK.put(pb, fx + q, fy - 2 + k, U(k === 0 ? '#d4daee' : Math.abs(q) > 5 ? '#383e5a' : k === 3 ? '#24283e' : '#0e1424')); R3INTB_L7ROOFFANS.push([fx, fy]); }
     D.plumes.push([1250, 94, 1.0], [2384, vm.top != null ? vm.top - 2 : yb - 164, 1.3], [1310, yb - 44, 0.6], [1382, yb - 44, 0.6]);
@@ -476,6 +479,18 @@ function R3INTB_L7floor(pb, world, gy, back, D) {
 }
 const R3INTB_L7DRONES = [{ kind: 'drone', x: 1000, y: 104, r: 160 }, { kind: 'drone', x: 1590, y: 120, r: 110 }, { kind: 'drone', x: 300, y: 128, r: 90 }, { kind: 'drone', x: 2250, y: 112, r: 120 }];
 const R3INTB_L7ROOFFANS = [];
+/** Cubierta verde sobre la línea y (techo): sustrato, sedum en 3 tonos con puntas lima, matas redondas con flores y palmitos */
+function R3INTB_greenRoof(pb, x0, x1, y, seed) {
+  const K = PFK, r = RNG(seed), SED = ['#16301a', '#1e4220', '#2a5626', '#3a6c2c', '#4e8234', '#6c9a3c', '#94b84a'].map(U), FL = ['#ff6a9a', '#ffe14d', '#ffffff', '#ff9a3a', '#b49cff'].map(U);
+  for (let x = x0; x < x1; x++) {
+    K.put(pb, x, y, U('#2a2016')); K.put(pb, x, y + 1, U('#1a140e'));
+    const hh = 2 + Math.round(K.vn(x * 0.21, 0, seed) * 2.4);
+    for (let q = 1; q <= hh; q++) K.put(pb, x, y - q, SED[clamp(1 + q + (hash2(x, q, seed) < 0.3 ? 1 : 0) - (q === hh && hash2(x, 7, seed) < 0.4 ? 0 : 0), 0, 6)]);
+    if (hash2(x, 9, seed) < 0.08) K.put(pb, x, y - hh - 1, FL[(x >> 1) % 5]);
+  }
+  for (let x = x0 + r.int(4, 14); x < x1 - 8; x += r.int(16, 34)) { PFFlora.bush(pb, x, y - 1, r.int(10, 16), r.int(6, 9), RAMP.foliageR, seed + x); for (let k = 0; k < 4; k++) K.put(pb, x + r.int(1, 10), y - 3 - r.int(1, 6), FL[r.int(0, 4)]); }
+  for (let x = x0 + r.int(30, 60); x < x1 - 20; x += r.int(120, 200)) PFFlora.palm(pb, x, y - 1, r.int(18, 26), r.range(-4, 4), seed + x * 3);
+}
 /** Penachos de vapor (venteo de O₂, mástil de venteo, compresores): bocanadas que suben, crecen y se desvanecen */
 function R3INTB_plumes(g, list, ox, oy, t) {
   for (let j = 0; j < list.length; j++) {
