@@ -39170,6 +39170,15 @@ LEVELS[4] = {
     for (const x of [360, 610, 890, 1140]) PFASolar.stones(pb, x, gy(x) + 4, 10, x);
   },
   /* ---------------- dinámico ---------------- */
+  /** Detrás de los accesorios: reverbero del horizonte (dos trazos claros que ondulan) — no cruza el taller ni las mesas */
+  renderBack(g, sc, cam) {
+    const t = Game.time, hz = (sc.backdrop.horizon || 170) - Math.round(cam.y * 0.08);
+    for (let r = 0; r < 2; r++) {
+      g.globalAlpha = 0.16 - r * 0.05;
+      for (let x = -((t * 6 + r * 7) % 16); x < W; x += 16) frect(g, Math.round(x + Math.sin(t * 2.6 + x * 0.09 + r) * 2), hz - 4 + r * 5 + Math.round(Math.sin(t * 3.1 + x * 0.05) * 1), 9, 1, r ? '#fff4d8' : '#ffffff');
+    }
+    g.globalAlpha = 1;
+  },
   /** Capas dinámicas de cada string (polvo, costras y lona) según el estado actual */
   overlay(s, st) {
     const key = s.id + '|' + Math.round(st.soil * 20) + '|' + (st.crust > 0 ? 1 : 0) + '|' + (st.shade > 0 ? 1 : 0);
@@ -39238,13 +39247,8 @@ LEVELS[4] = {
   },
   /** Ambiente del desierto: reverbero sobre el horizonte, arena que corre con el viento por las dunas y lagartijas */
   ambient(g, sc, cam) {
-    const t = Game.time, ox = cam.x, oy = cam.y, w = sc.world, hz = (sc.backdrop.horizon || 170) - Math.round(oy * 0.08);
-    // reverbero: dos líneas claras finas que ondulan (sin tramado; trazos translúcidos)
-    for (let r = 0; r < 2; r++) {
-      g.globalAlpha = 0.16 - r * 0.05;
-      for (let x = -((t * 6 + r * 7) % 16); x < W; x += 16) frect(g, Math.round(x + Math.sin(t * 2.6 + x * 0.09 + r) * 2), hz - 4 + r * 5 + Math.round(Math.sin(t * 3.1 + x * 0.05) * 1), 9, 1, r ? '#fff4d8' : '#ffffff');
-    }
-    g.globalAlpha = 1;
+    const t = Game.time, ox = cam.x, oy = cam.y, w = sc.world;
+    // (r2-biomes-a) el reverbero del horizonte se dibuja en renderBack, detrás de los accesorios: ya no cruza fachadas
     // arena a la deriva sobre las dunas (granos que corren pegados al suelo hacia el este)
     const dune = (x) => (x >= 0 && x < 340) || (x >= 1520 && x < 2800);
     for (let i = 0; i < 34; i++) {
