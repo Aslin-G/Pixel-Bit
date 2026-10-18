@@ -1344,32 +1344,24 @@ PDEFS.kiru = () => {
     orange: PK.mat(R.kiruOrange, '#070813', R.kiruOrange[0]), joint: PK.mat(['#04060e', '#0a0c16', '#161c2c', '#242c40', '#343e56', '#4a566e'], '#070813', '#0a0c16'),
     pod: PK.mat(['#000616', '#000c2a', '#061b4d', '#0e2f66', '#1a4a86', '#3a6aa6', '#6a94c8'], '#070813', '#000616'),
   };
-  const hx = 50, hy = 55, vx = 61.9, vy = 58.7;
+  const hx = 54, hy = 55, vx = 65.9, vy = 58.7; // r3-chars: +4 a la derecha para que quepan las aletas
   const pose = (mode) => (['down', 'guilty', 'crying'].includes(mode) ? 'droop' : mode === 'big' ? 'back' : 'up');
-  const ear = (P, bx, by, ang, len, w, z, dark, grp) => {
-    const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
-    const pt = (u, v) => [bx + dx * u * len + px * v * w, by + dy * u * len + py * v * w];
-    const pts = [pt(0, 0.42), pt(0.2, 0.6), pt(0.5, 0.58), pt(0.78, 0.36), pt(1, 0), pt(0.8, -0.3), pt(0.5, -0.48), pt(0.2, -0.5), pt(0, -0.4)];
-    const ER = R.kiruEarInner, ks = 1.9;
-    P.poly(pts, { mat: M.earO, z, group: grp, base: 3, line: true, tex: (x, y, idx, p, d) => {
-      const dep = -d, u = ((x - bx) * dx + (y - by) * dy) / len, v = ((x - bx) * px + (y - by) * py) / w;
-      if (dep < 0.9 * ks) return dark ? '#2a2f3e' : (v > 0 && u < 0.6 ? '#556275' : '#363c4d');
-      if (v < 0.05) {
-        if (dep < 2.6 * ks) return dark ? '#a8600e' : (u > 0.6 ? '#fa8c01' : u > 0.25 ? '#dc8a1f' : '#875b23');
-        if (dep < 3.6 * ks) return dark ? '#b09a30' : '#eed546';
-      } else if (dep < 1.8 * ks) return dark ? '#b09a30' : '#eed546';
-      const cu = Math.floor(u * len), cv = Math.floor(v * w * 1.2);
-      if (cu % 7 === 3 && dep > 3.4 * ks) return dark ? '#0a2a4a' : (dep > 4.6 * ks ? '#1478a8' : ER[0]);
-      if (Math.abs(v * w) < 0.6 && cu > 6 && cu < len - 6) return dark ? '#0a2a4a' : '#1478a8';
-      const lit = (1 - u) * 0.4 + (v > 0 ? 0.35 : 0) + (dep > 4.5 * ks ? 0.3 : 0) - (dark ? 0.55 : 0);
-      return lit > 0.75 ? ER[3] : lit > 0.3 ? ER[2] : ER[1];
+  // r3-chars: orejas-ALETA compartidas con el sprite (R3CHARS_finPts/finCol, 11_chars.js); ks = unidades del
+  // retrato por unidad de sprite (la concha del retrato es ×2,2 la del sprite)
+  const KS = 2.2;
+  const ear = (P, bx, by, ang, len, w, z, dark, grp, curv, S) => {
+    const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx, pxS = 1 / (S * KS);
+    P.poly(R3CHARS_finPts(bx, by, ang, len, w, curv), { mat: M.earO, z, group: grp, base: 3, line: true, tex: (x, y, idx, p, d) => {
+      const u = ((x - bx) * dx + (y - by) * dy) / len, v = ((x - bx) * px + (y - by) * py) / w - (curv || 0) * u * u;
+      return R3CHARS_finCol(u, v, -d / KS, w / KS, pxS, dark);
     } });
   };
   function build(scale, sc, variant) {
     const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
     const eb = variant === 'droop' ? 0.55 : variant === 'back' ? -0.3 : 0;
-    ear(P, hx - 24, hy - 15, -2.32 - eb, 34, 20, 2, 1, 'earB');
-    ear(P, hx - 12, hy - 26, -2.08 - eb * 0.8, 33, 19, 14, 0, 'earF');
+    // aletas algo más cortas que ×2,2 para que quepan enteras en el marco (se leen como aletas, no como picos cortados)
+    ear(P, hx - 26, hy - 7, -2.6 - eb, 35, 16.5, 2, 1, 'earB', -0.12, sc.S);
+    ear(P, hx - 12, hy - 22, -2.08 - eb * 0.8, 33, 15, 14, 0, 'earF', -0.1, sc.S);
     // cuerpo, placa dorsal turquesa, escotilla naranja (borde inferior)
     P.ellipse(hx - 5.5, hy + 33, 22, 14, { mat: M.shell, z: 4, group: 'body', base: 5, bevel: 6, shiny: true });
     P.ellipse(hx - 20, hy + 30, 8.4, 9.7, { mat: M.turq, z: 5, group: 'plate', base: 2, bevel: 3 }, -0.4);
@@ -1487,7 +1479,7 @@ PDEFS.kiru = () => {
     else pb.stampMap(mx - 2, my, ['ggggg', 'gbbbg', 'ggggg'], PAL);
   }
   return {
-    M, custom: build, faceAt: [62, 57],
+    M, custom: build, faceAt: [66, 57],
     faceFn(Pt, scale, name, E, talk, blink, raw) {
       const KE = typeof KIRU_EYES !== 'undefined' ? KIRU_EYES : {};
       const mode = KE[raw] || KE[name] || 'open';

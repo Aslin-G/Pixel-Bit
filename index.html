@@ -5177,6 +5177,9 @@ function charMats() {
     kOrange: Mat({ ramp: R2.kiruOrange, outline: '#070813', line: R2.kiruOrange[0] }),
     kPod: Mat({ ramp: ['#000616', '#000c2a', '#061b4d', '#0e2f66', '#1a4a86', '#3a6aa6', '#6a94c8'], outline: '#070813', line: '#000616' }),
     kJoint: Mat({ ramp: ['#04060e', '#0a0c16', '#161c2c', '#242c40', '#343e56', '#4a566e'], outline: '#070813', rim: false }),
+    // r3-chars: vainas gris-azuladas (cúpula clara, base navy) y anillo amarillo de la referencia
+    kPodBG: Mat({ ramp: ['#060c1c', '#122038', '#223654', '#34506e', '#4c6c8c', '#6e8eae', '#9ab8d2'], outline: '#070813', line: '#122038' }),
+    kRing: Mat({ ramp: ['#3a2404', '#7a4e08', '#b8820e', '#e8b018', '#ffd23a', '#ffe878', '#fff6c0'], outline: '#070813', line: '#7a4e08' }),
   };
   return _CM;
 }
@@ -5530,6 +5533,56 @@ const KIRU_EYE_TPL = {
    va en el ancla. Lienzo 60×72; pies del dibujo en y≈59; oy = 70 + KIRU_LIFT (altura de reposo).
    Kiru.render (30_world.js) lo baja hasta KIRU_LIFT_MOVE px al desplazarse. */
 const KIRU_LIFT = 48, KIRU_LIFT_MOVE = 32, R2CHARS_KIRU_PAD = 16;
+
+/* =====================================================================
+   r3-chars — orejas-ALETA de KIRU (referencia c_kiru): hoja ancha de punta
+   redondeada, marco gris oscuro de 1 px, banda exterior naranja → amarilla
+   y celda solar cian interior con brillo blanco de 1 px. Compartido por el
+   sprite (11_chars) y los retratos/bustos (14_portraits).
+   Coordenadas locales: u ∈ [0,1] de la raíz a la punta; v = desplazamiento
+   lateral / semiancho (v < 0 = borde exterior con banda, v > 0 = borde de
+   la celda). Unidades «de sprite» (el retrato pasa su escala).
+   ===================================================================== */
+/** Semiancho relativo de la aleta en u (raíz ancha oculta tras la cabeza, máximo a 0,42, punta elíptica) */
+function R3CHARS_finHW(u) { return u < 0.42 ? 0.74 + 0.26 * Math.sin(u / 0.42 * Math.PI / 2) : Math.sqrt(Math.max(0, 1 - Math.pow((u - 0.42) / 0.58, 2))); }
+const R3CHARS_FIN_OUT = 1.1, R3CHARS_FIN_IN = 0.88;
+/** Polígono de la aleta: raíz (bx,by), ángulo, largo y semiancho; curv dobla la punta hacia el borde exterior */
+function R3CHARS_finPts(bx, by, ang, len, w, curv = 0) {
+  const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx, N = 14, pts = [];
+  const P = (u, v) => { const c = curv * u * u; return [bx + dx * u * len + px * (v + c) * w, by + dy * u * len + py * (v + c) * w]; };
+  for (let i = 0; i <= N; i++) { const u = i / N; pts.push(P(u, -R3CHARS_finHW(u) * R3CHARS_FIN_OUT)); }
+  for (let i = N - 1; i >= 0; i--) { const u = i / N; pts.push(P(u, R3CHARS_finHW(u) * R3CHARS_FIN_IN)); }
+  return pts;
+}
+/** Paleta de la aleta (clara = oreja cercana; dark = oreja lejana, un paso más profunda) */
+const R3CHARS_FIN_PAL = {
+  lit: { frame: '#2c3140', frameHi: '#4a5468', rimIn: '#7c889c', or0: '#b4521a', or1: '#e8700e', or2: '#fa8c0a', ye0: '#e8b820', ye1: '#ffdf4a', seam: '#0c4a6e',
+    cell: ['#0a5a82', '#0d7fae', '#17a8d6', '#33cbea', '#7ae6f6', '#c4f8ff'], hi: '#f2feff' },
+  dark: { frame: '#232634', frameHi: '#363e50', rimIn: '#58647a', or0: '#8e3e14', or1: '#c25a0e', or2: '#dc6e0c', ye0: '#c0941a', ye1: '#e2bc32', seam: '#0a3654',
+    cell: ['#083e60', '#0a5e86', '#0f82b0', '#1ca6d0', '#4cc8e6', '#94e8f6'], hi: '#c8f6ff' },
+};
+/**
+ * Color de un punto de la aleta. u, v (locales), dep = distancia al borde (unidades de sprite),
+ * w = semiancho (unidades de sprite), pxS = unidades de sprite por píxel de salida, dark.
+ */
+function R3CHARS_finCol(u, v, dep, w, pxS = 1, dark = 0) {
+  const C = dark ? R3CHARS_FIN_PAL.dark : R3CHARS_FIN_PAL.lit, hw = R3CHARS_finHW(clamp(u, 0, 1));
+  const fr = Math.max(pxS, 0.8);
+  if (dep < fr) return u > 0.2 && v > 0 ? C.frameHi : C.frame;
+  const dOut = (v + hw * R3CHARS_FIN_OUT) * w, dIn = (hw * R3CHARS_FIN_IN - v) * w;
+  // banda exterior: naranja (más oscura en la raíz) → amarilla
+  if (dOut < fr + 2.8) return u > 0.55 ? C.or2 : u > 0.22 ? C.or1 : C.or0;
+  if (dOut < fr + 4.3) return u > 0.48 ? C.ye1 : C.ye0;
+  if (dOut < fr + 4.3 + pxS) return C.seam;
+  // aro gris interior en el borde de la celda
+  if (dIn < fr + pxS * 0.9) return C.rimIn;
+  // brillo blanco de 1 px paralelo al borde de la celda, en la mitad alta
+  if (u > 0.3 && u < 0.86 && Math.abs(dIn - (fr + pxS * 1.6)) < pxS * 0.5) return C.hi;
+  // celda solar: degradado de la raíz (profunda) a la punta (clara) y del borde exterior al interior
+  const k = clamp(0.1 + u * 0.75 + clamp(1 - dIn / (w * 0.9), 0, 1) * 0.35 - (dOut < fr + 5 ? 0.15 : 0), 0, 0.999);
+  return C.cell[Math.floor(k * C.cell.length)];
+}
+
 function renderKiru(anim, t, opts) {
   const M = charMats();
   // r2-chars: lienzo ensanchado 16 px por detrás para que quepa la estela del propulsor
@@ -5559,32 +5612,20 @@ function renderKiru(anim, t, opts) {
   if (eyeMode === 'down' || eyeMode === 'guilty' || eyeMode === 'crying') earA = Math.max(earA, 0.6);
   if (eyeMode === 'big') earA = Math.min(earA, -0.15) + 0.35;
   const hx = 31 + R2CHARS_KIRU_PAD + lean * 0.5 + sway, hy = 38 + bob + hop + Math.max(0, lean) * 0.5;
-  // ---- orejas de zorro en aleta: marco gris, banda naranja→amarilla, panel solar cian con celdas
-  const ear = (bx, by, ang, len, w, z, dark, grp) => {
+  // ---- r3-chars: orejas-ALETA anchas de punta redondeada (marco gris, banda naranja→amarilla, celda cian + brillo)
+  const ear = (bx, by, ang, len, w, z, dark, grp, curv) => {
     const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
-    const pt = (u, v) => [bx + dx * u * len + px * v * w, by + dy * u * len + py * v * w];
-    const pts = [pt(0, 0.42), pt(0.2, 0.6), pt(0.5, 0.58), pt(0.78, 0.36), pt(1, 0), pt(0.8, -0.3), pt(0.5, -0.48), pt(0.2, -0.5), pt(0, -0.4)];
-    R.poly(pts, { mat: M.kEarO, base: 3, z, group: grp, dark, bevel: 1.2, rim: true,
+    R.poly(R3CHARS_finPts(bx, by, ang, len, w, curv), { mat: M.kEarO, base: 3, z, group: grp, bevel: 1.2, rim: true,
       texture: (x, y, idx, ramp, col, d) => {
-        const dep = -d, u = ((x + 0.5 - bx) * dx + (y + 0.5 - by) * dy) / len, v = ((x + 0.5 - bx) * px + (y + 0.5 - by) * py) / w;
-        if (dep < 0.9) return dark ? '#2a2f3e' : (v > 0 && u < 0.6 ? '#556275' : '#363c4d');
-        if (v < 0.05) {
-          if (dep < 2.6) return dark ? '#a8600e' : (u > 0.6 ? '#fa8c01' : u > 0.25 ? '#dc8a1f' : '#875b23');
-          if (dep < 3.6) return dark ? '#b09a30' : '#eed546';
-        } else if (dep < 1.8) return dark ? '#b09a30' : '#eed546';
-        const ER = RAMP.kiruEarInner;
-        // celdas solares: líneas cada 3 px a lo largo y una diagonal
-        const cu = Math.round(u * len), cv = Math.round(v * w * 1.2);
-        if (cu % 6 === 3 && dep > 3.4) return dark ? '#0a2a4a' : (dep > 4.6 ? '#1478a8' : ER[0]);
-        if (cv === 0 && cu > 4 && cu < len - 4) return dark ? '#0a2a4a' : '#1478a8';
-        const lit = (1 - u) * 0.4 + (v > 0 ? 0.35 : 0) + (dep > 4.5 ? 0.3 : 0) - (dark ? 0.55 : 0);
-        return lit > 0.75 ? ER[3] : lit > 0.3 ? ER[2] : ER[1];
+        const u = ((x + 0.5 - bx) * dx + (y + 0.5 - by) * dy) / len, c = (curv || 0) * u * u;
+        const v = ((x + 0.5 - bx) * px + (y + 0.5 - by) * py) / w - c;
+        return R3CHARS_finCol(u, v, -d, w, 1, dark);
       } });
   };
   const eb = earA + earTw * 0.08;
-  // orejas largas y separadas (la trasera inclinada atrás, la delantera casi erguida), como en la referencia
-  ear(hx - 12, hy - 8, -2.24 - eb, 22, 9, 2, 1, 'earB');
-  ear(hx - 3.5, hy - 12, -1.96 - eb * 0.8 + earTw * 0.06, 23, 9, 14, 0, 'earF');
+  // la trasera tendida hacia atrás-arriba (la más visible, como en la referencia); la delantera casi erguida
+  ear(hx - 12.5, hy - 4, -2.46 - eb, 24, 7.2, 2, 1, 'earB', -0.12);
+  ear(hx - 2.5, hy - 10.5, -1.92 - eb * 0.8 + earTw * 0.06, 22, 6.4, 14, 0, 'earF', -0.1);
   // ---- cola de lagartija corta con microturbina naranja
   const tb = [hx - 12, hy + 15];
   const tp = [[tb[0], tb[1]], [tb[0] - 4.5, tb[1] + 0.5 + tailA * 3], [tb[0] - 8, tb[1] - 2 + tailA * 5], [tb[0] - 9.5 + S(P) * 0.6, tb[1] - 6 + tailA * 6 + C(P) * 0.6]];
@@ -5592,32 +5633,47 @@ function renderKiru(anim, t, opts) {
     texture: (x, y, idx, ramp) => { const u = Math.hypot(x - tb[0], y - tb[1]); return (Math.floor(u / 3) % 2 === 1 && idx >= 4) ? RAMP.kiruTurq[idx >= 6 ? 3 : 2] : null; } });
   const turb = tp[3];
   R.circle(turb[0], turb[1] - 2, 1.8, { mat: M.kOrange, base: 2, z: 1.5, group: 'hub', bevel: 0.8, shiny: true });
-  // ---- patas magnéticas: cápsulas navy con anillo amarillo y emisor cian (par lejano oscuro)
-  const pod = (x, y, z, dark, grp) => {
-    R.box(x, y, 3.4, 4.5, 3, { mat: M.kPod, base: 3, z, group: grp, dark, bevel: 1.6, shiny: true }, -0.22 - podTrail * 0.08);
+  // ---- r3-chars: torso blanco pequeño bajo la cabeza y DOS vainas de levitación gris-azuladas bien
+  // separadas (anillo amarillo, emisor cian con resplandor y 2–3 px de hueco por debajo), como en c_kiru
+  const podTilt = -0.12 - podTrail * 0.07;
+  const pod = (x, y, z, grp, far) => {
+    R.box(x, y, 4.9, 4.9, 3.5, { mat: M.kPodBG, base: far ? 3 : 4, z, group: grp, bevel: 2.2, shiny: true }, podTilt);
+    // anillo amarillo (banda de 2 px algo más ancha que la vaina)
+    R.box(x - 0.2, y + 1.1, 5.4, 1.2, 0.9, { mat: M.kRing, base: far ? 3 : 4, z: z + 0.1, group: grp + 'r', bevel: 0.9, shiny: true }, podTilt);
     R.stamp(pb => {
       const X = Math.round(x), Y = Math.round(y);
-      pb.hline(X - 3, X + 3, Y, dark ? '#9a6a16' : '#dc8a1f'); pb.hline(X - 3, X + 3, Y - 1, dark ? '#b09a30' : '#eed546');
-      if (!dark) pb.set(X + 2, Y - 1, '#fff6b0');
-      pb.hline(X - 1, X + 1, Y + 4, dark ? '#2a8aa0' : '#5ee1ef'); if (!dark) { pb.set(X, Y + 4, '#e6fdff'); pb.set(X - 2, Y - 3, '#3a6aa6'); }
+      // casquillo inferior navy con el emisor cian (3 px + núcleo blanco)
+      pb.hline(X - 2, X + 2, Y + 4, '#0a1630'); pb.hline(X - 1, X + 1, Y + 5, far ? '#2a9ec0' : '#17f3f7'); if (!far) pb.set(X, Y + 5, '#e6fdff');
+      pb.set(X - 2, Y + 5, '#0a1630'); pb.set(X + 2, Y + 5, '#0a1630');
+      // reflejo frío en la cúpula de la vaina
+      if (!far) { pb.set(X - 2, Y - 3, '#b8d4ea'); pb.set(X - 1, Y - 4, '#8eb2d0'); }
     }, 20 + z * 0.01);
-    // resplandor del emisor bajo la pata (hueco de levitación, sin contorno)
-    if (!dark) R.glow(pb => { const X = Math.round(x), Y = Math.round(y); pb.set(X, Y + 6, '#17f3f7'); pb.set(X - 1 + (bob & 1) * 2, Y + 7, '#2aa9e3'); pb.set(X, Y + 8 + (bob & 1), '#0e6a8a'); }, 30);
+    // resplandor del emisor bajo la vaina: cono translúcido de 2–3 px (hueco de levitación), sin contorno
+    R.glow(pb => {
+      const X = Math.round(x), Y = Math.round(y) + 6, fl = (bob & 1);
+      const A = (al, c) => { const [r, g2, b] = hexToRgb(c); return ((al << 24) | (b << 16) | (g2 << 8) | r) >>> 0; };
+      const put = (xx, yy, c) => { if (xx < 0 || yy < 0 || xx >= pb.w || yy >= pb.h) return; const i = yy * pb.w + xx; if (!(pb.data[i] >>> 24)) pb.data[i] = c; };
+      const c1 = A(far ? 150 : 220, '#17f3f7'), c2 = A(far ? 90 : 140, '#2aa9e3'), c3 = A(70, '#2aa9e3');
+      for (let k = -1; k <= 1; k++) put(X + k, Y, c1);
+      put(X - 2, Y, c3); put(X + 2, Y, c3);
+      for (let k = -1; k <= 1; k++) put(X + k, Y + 1, k === 0 ? c1 : c2);
+      put(X, Y + 2 + fl, c2);
+    }, 30);
   };
-  const py = hy + 19.5;
-  pod(hx + 7.5, py - 2.2, 3, 1, 'podFB'); pod(hx - 4.5 - podTrail, py - 2.6, 3.5, 1, 'podBB');
-  // patas (puntales) y cuerpo pequeño
-  R.capsule(hx + 2, hy + 14, hx + 4.5 - podTrail * 0.3, py - 3, 1.5, 1.3, { mat: M.kJoint, base: 3, z: 8, group: 'legs', bevel: 0.8 });
-  R.capsule(hx - 6, hy + 14, hx - 8 - podTrail, py - 3, 1.5, 1.3, { mat: M.kJoint, base: 3, z: 8, group: 'legs', bevel: 0.8 });
-  R.ellipse(hx - 2.5, hy + 14.5, 9.5, 6.2, { mat: M.kShell, base: 5, z: 10, group: 'body', bevel: 3, shiny: true, cast: { on: ['legs'], dx: 0, dy: 1 } });
+  const py = hy + 22.5;
+  // puntales oscuros torso → vainas
+  R.capsule(hx + 1, hy + 15, hx + 4.5 - podTrail * 0.4, py - 4, 1.4, 1.2, { mat: M.kJoint, base: 3, z: 8, group: 'legs', bevel: 0.8 });
+  R.capsule(hx - 7, hy + 15, hx - 9 - podTrail, py - 4.5, 1.4, 1.2, { mat: M.kJoint, base: 3, z: 8, group: 'legs', bevel: 0.8 });
+  // torso blanco perla (asoma bajo la nuca y entre las vainas)
+  R.ellipse(hx - 4, hy + 14.2, 8.6, 6.4, { mat: M.kShell, base: 5, z: 10, group: 'body', bevel: 3, shiny: true, cast: { on: ['legs'], dx: 0, dy: 1 } }, -0.12);
   // placa dorsal turquesa
-  R.ellipse(hx - 9, hy + 13, 3.8, 4.4, { mat: M.kTurq, base: 2, z: 11, group: 'plate', bevel: 1.4 }, -0.4);
+  R.ellipse(hx - 10.5, hy + 12.5, 3.2, 3.9, { mat: M.kTurq, base: 2, z: 11, group: 'plate', bevel: 1.4 }, -0.4);
   // escotilla de muestras (borde naranja, ventanilla cian; la tapa se levanta en 'sample')
   const lid = a === 'sample' ? 1 : 0;
-  R.box(hx + 1, hy + 17 - lid, 3.4, 2.3, 0.8, { mat: M.kOrange, base: 2, z: 12, group: 'hatch', bevel: 0.8 });
-  pod(hx + 4.5 - podTrail * 0.5, py, 13, 0, 'podF'); pod(hx - 8 - podTrail, py - 0.6, 13.5, 0, 'podB');
+  R.box(hx + 0.5, hy + 16.5 - lid, 3.2, 2.2, 0.8, { mat: M.kOrange, base: 2, z: 12, group: 'hatch', bevel: 0.8 });
+  pod(hx + 5.2 - podTrail * 0.5, py + 0.8, 13, 'podF', 0); pod(hx - 9.2 - podTrail, py - 0.4, 12.5, 'podB', 1);
   // junta oscura cuello-cuerpo
-  R.ellipse(hx - 1, hy + 11, 7, 2.2, { mat: M.kJoint, base: 3, z: 15, group: 'joint', bevel: 0.8 });
+  R.ellipse(hx - 1.5, hy + 11, 7, 2.2, { mat: M.kJoint, base: 3, z: 15, group: 'joint', bevel: 0.8 });
   // ---- cabeza: concha blanca perla redondeada
   R.add(SDF.smoothUnion(4, SDF.box(hx, hy, 15.5, 13, 10), SDF.ellipse(hx - 1.5, hy - 1.5, 15, 13.5)), [hx - 18, hy - 16, hx + 18, hy + 15], { mat: M.kShell, base: 5, z: 20, group: 'head', bevel: 4.8, shiny: true, cast: { on: ['joint', 'body'], dx: -1, dy: 2 } });
   // cresta dorsal (3 escamas turquesa) en la nuca
@@ -5651,8 +5707,8 @@ function renderKiru(anim, t, opts) {
     // motas cian en la concha (calcomanías)
     [[-9, -6, '#40e8e7'], [-11, -2, '#378aa9'], [-7, -9, '#378aa9'], [-12, 3, '#40e8e7'], [-4, -11, '#9ff6f8'], [-8, 5, '#378aa9']].forEach(([dx, dy, c]) => pb.set(Math.round(hx + dx), Math.round(hy + dy), c));
     // ventanilla de la escotilla
-    pb.rect(Math.round(hx + 0.5), Math.round(hy + 17 - lid), 2, 2, '#56e5ff'); pb.set(Math.round(hx + 0.5), Math.round(hy + 17 - lid), '#e6fdff');
-    if (lid) pb.hline(Math.round(hx - 1), Math.round(hx + 4), Math.round(hy + 19), '#2a1a10');
+    pb.rect(Math.round(hx + 0.5), Math.round(hy + 16 - lid), 2, 2, '#56e5ff'); pb.set(Math.round(hx + 0.5), Math.round(hy + 16 - lid), '#e6fdff');
+    if (lid) pb.hline(Math.round(hx - 1), Math.round(hx + 4), Math.round(hy + 18), '#2a1a10');
     // microturbina: 3 aspas naranjas (simetría de 120° → bucle continuo)
     const rx2 = Math.round(turb[0]), ry2 = Math.round(turb[1] - 2);
     const spin = (a === 'run' ? 2 : a === 'walk' ? 1.5 : 1) * (t * TAU / 3) + (a === 'run' ? t * TAU * 2 : 0);
@@ -8380,32 +8436,24 @@ PDEFS.kiru = () => {
     orange: PK.mat(R.kiruOrange, '#070813', R.kiruOrange[0]), joint: PK.mat(['#04060e', '#0a0c16', '#161c2c', '#242c40', '#343e56', '#4a566e'], '#070813', '#0a0c16'),
     pod: PK.mat(['#000616', '#000c2a', '#061b4d', '#0e2f66', '#1a4a86', '#3a6aa6', '#6a94c8'], '#070813', '#000616'),
   };
-  const hx = 50, hy = 55, vx = 61.9, vy = 58.7;
+  const hx = 54, hy = 55, vx = 65.9, vy = 58.7; // r3-chars: +4 a la derecha para que quepan las aletas
   const pose = (mode) => (['down', 'guilty', 'crying'].includes(mode) ? 'droop' : mode === 'big' ? 'back' : 'up');
-  const ear = (P, bx, by, ang, len, w, z, dark, grp) => {
-    const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
-    const pt = (u, v) => [bx + dx * u * len + px * v * w, by + dy * u * len + py * v * w];
-    const pts = [pt(0, 0.42), pt(0.2, 0.6), pt(0.5, 0.58), pt(0.78, 0.36), pt(1, 0), pt(0.8, -0.3), pt(0.5, -0.48), pt(0.2, -0.5), pt(0, -0.4)];
-    const ER = R.kiruEarInner, ks = 1.9;
-    P.poly(pts, { mat: M.earO, z, group: grp, base: 3, line: true, tex: (x, y, idx, p, d) => {
-      const dep = -d, u = ((x - bx) * dx + (y - by) * dy) / len, v = ((x - bx) * px + (y - by) * py) / w;
-      if (dep < 0.9 * ks) return dark ? '#2a2f3e' : (v > 0 && u < 0.6 ? '#556275' : '#363c4d');
-      if (v < 0.05) {
-        if (dep < 2.6 * ks) return dark ? '#a8600e' : (u > 0.6 ? '#fa8c01' : u > 0.25 ? '#dc8a1f' : '#875b23');
-        if (dep < 3.6 * ks) return dark ? '#b09a30' : '#eed546';
-      } else if (dep < 1.8 * ks) return dark ? '#b09a30' : '#eed546';
-      const cu = Math.floor(u * len), cv = Math.floor(v * w * 1.2);
-      if (cu % 7 === 3 && dep > 3.4 * ks) return dark ? '#0a2a4a' : (dep > 4.6 * ks ? '#1478a8' : ER[0]);
-      if (Math.abs(v * w) < 0.6 && cu > 6 && cu < len - 6) return dark ? '#0a2a4a' : '#1478a8';
-      const lit = (1 - u) * 0.4 + (v > 0 ? 0.35 : 0) + (dep > 4.5 * ks ? 0.3 : 0) - (dark ? 0.55 : 0);
-      return lit > 0.75 ? ER[3] : lit > 0.3 ? ER[2] : ER[1];
+  // r3-chars: orejas-ALETA compartidas con el sprite (R3CHARS_finPts/finCol, 11_chars.js); ks = unidades del
+  // retrato por unidad de sprite (la concha del retrato es ×2,2 la del sprite)
+  const KS = 2.2;
+  const ear = (P, bx, by, ang, len, w, z, dark, grp, curv, S) => {
+    const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx, pxS = 1 / (S * KS);
+    P.poly(R3CHARS_finPts(bx, by, ang, len, w, curv), { mat: M.earO, z, group: grp, base: 3, line: true, tex: (x, y, idx, p, d) => {
+      const u = ((x - bx) * dx + (y - by) * dy) / len, v = ((x - bx) * px + (y - by) * py) / w - (curv || 0) * u * u;
+      return R3CHARS_finCol(u, v, -d / KS, w / KS, pxS, dark);
     } });
   };
   function build(scale, sc, variant) {
     const P = new PPaint(sc.w, sc.h, sc.S, sc.ox, sc.oy);
     const eb = variant === 'droop' ? 0.55 : variant === 'back' ? -0.3 : 0;
-    ear(P, hx - 24, hy - 15, -2.32 - eb, 34, 20, 2, 1, 'earB');
-    ear(P, hx - 12, hy - 26, -2.08 - eb * 0.8, 33, 19, 14, 0, 'earF');
+    // aletas algo más cortas que ×2,2 para que quepan enteras en el marco (se leen como aletas, no como picos cortados)
+    ear(P, hx - 26, hy - 7, -2.6 - eb, 35, 16.5, 2, 1, 'earB', -0.12, sc.S);
+    ear(P, hx - 12, hy - 22, -2.08 - eb * 0.8, 33, 15, 14, 0, 'earF', -0.1, sc.S);
     // cuerpo, placa dorsal turquesa, escotilla naranja (borde inferior)
     P.ellipse(hx - 5.5, hy + 33, 22, 14, { mat: M.shell, z: 4, group: 'body', base: 5, bevel: 6, shiny: true });
     P.ellipse(hx - 20, hy + 30, 8.4, 9.7, { mat: M.turq, z: 5, group: 'plate', base: 2, bevel: 3 }, -0.4);
@@ -8523,7 +8571,7 @@ PDEFS.kiru = () => {
     else pb.stampMap(mx - 2, my, ['ggggg', 'gbbbg', 'ggggg'], PAL);
   }
   return {
-    M, custom: build, faceAt: [62, 57],
+    M, custom: build, faceAt: [66, 57],
     faceFn(Pt, scale, name, E, talk, blink, raw) {
       const KE = typeof KIRU_EYES !== 'undefined' ? KIRU_EYES : {};
       const mode = KE[raw] || KE[name] || 'open';
