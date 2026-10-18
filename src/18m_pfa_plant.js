@@ -34,14 +34,18 @@ const PFAPlant = (() => {
   const K = PFK, put = K.put, get = K.get, P32 = K.P32, A = PFArch, I = PFInfra;
   const STEEL = I.STEEL;
   const FRAME = ['#080c16', '#111827', '#1a2336', '#26324c', '#354564', '#485c80', '#6478a0', '#94a8c8'];
-  const FRP = ['#262c3a', '#3e4656', '#5c6474', '#7e8696', '#a2a8b6', '#c2c6d0', '#dcdee4', '#eef0f4', '#ffffff'];
+  /* r3-int-a: FRP de los tubos de presión en perla azulada (luz cálida arriba, rebote azul abajo) y
+     muros pintados en albaricoque soleado: la nave deja de ser gris */
+  const FRP = ['#141c44', '#1e3064', '#2a4a8c', '#3a64ac', '#5682c8', '#7aa2dc', '#a2c2ec', '#d0e2f8', '#fff8ec'];
+  const PAINTB = ['#0a1430', '#122250', '#1a3270', '#24468e', '#3460ac', '#4c7ec8', '#74a4e0', '#a8ccf4'];
+  const VINYL = ['#2a1008', '#4a1e10', '#6e3018', '#94461f', '#b85e28', '#d67e3c', '#eca262', '#fcc890'];
   const CAP = ['#06142c', '#0c2650', '#143a78', '#1e52a2', '#2c6cc6', '#4a8ee2', '#82b6f4'];
   const GREEN = ['#06221a', '#0c3a28', '#145438', '#1e6e4a', '#2a8a5e', '#42a676', '#72c69a', '#b0e8cc'];
   const BLUEP = ['#081432', '#0e2456', '#16367a', '#204ca0', '#3064c2', '#4c84da', '#80aeee', '#c0dafc'];
   const YEL = ['#3a2604', '#6e4c0c', '#a87414', '#d89a1c', '#f0bc2c', '#fcd856', '#fff2a8'];
   const RED = ['#2a0608', '#560c12', '#8a1620', '#bc2430', '#e2404a', '#f87a7a', '#ffc0b8'];
   const NAVY = ['#03060e', '#060c1a', '#0a1428', '#101e3a', '#18304e', '#244466', '#345e84'];
-  const WALLW = ['#4a5060', '#6a7080', '#8c92a0', '#aeb2bc', '#c8ccd2', '#dcdee2', '#eceef0', '#f8f8fa'];
+  const WALLW = ['#4a2a2e', '#74423a', '#a05e48', '#c47e56', '#dc9c66', '#ecbc84', '#f6d4a0', '#fde6c0'];
   const CONC = PFTerrain.CONC;
   const HDPE = ['#4a4a40', '#6e6c5e', '#96927e', '#bcb69c', '#dad4b8', '#eee8d2', '#fbf8ec'];
   const CARD = ['#3a2410', '#5c3a1a', '#7e5428', '#a07038', '#bc8c4c', '#d4aa6a', '#e8c890'];
@@ -367,8 +371,9 @@ const PFAPlant = (() => {
     // monitores murales a ambos lados del sinóptico
     for (const sx of [x + 14, x + w - 52]) { rect(pb, sx - 1, ceil + 64, 40, 26, F[1]); rect(pb, sx, ceil + 65, 38, 24, U('#06122a')); hline(pb, sx - 1, sx + 38, ceil + 64, F[5]); screens.push([sx + 2, ceil + 67, 34, 20]); }
     // techo: losa con canto, luminarias lineales y cara superior en 3/4 con climatizador
-    for (let xx = x - 4; xx < x + w + 4; xx++) for (let k = 0; k < 8; k++) put(pb, xx, ceil + k, k === 0 ? ST[6] : k < 3 ? ST[4] : k === 7 ? ST[0] : ST[2]);
-    for (let r = 0; r < 7; r++) { const off = Math.round(r * 0.7); for (let xx = x - 4 + off; xx < x + w + 4 + off; xx++) put(pb, xx, ceil - 1 - r, r === 0 ? ST[7] : ST[5 - (r > 4 ? 1 : 0)]); }
+    const PB_ = P32(PAINTB), VN = P32(VINYL);
+    for (let xx = x - 4; xx < x + w + 4; xx++) for (let k = 0; k < 8; k++) put(pb, xx, ceil + k, k === 0 ? PB_[7] : k < 3 ? PB_[5] : k === 7 ? PB_[0] : PB_[3]);
+    for (let r = 0; r < 7; r++) { const off = Math.round(r * 0.7); for (let xx = x - 4 + off; xx < x + w + 4 + off; xx++) put(pb, xx, ceil - 1 - r, r === 0 ? PB_[7] : ((xx + r * 5) % 18 === 0 ? PB_[3] : PB_[5 - (r > 4 ? 1 : 0)])); }
     I.box3q(pb, x + w - 70, ceil - 4, 30, 12, 6, { ramp: STEEL, skew: 0.7 });
     for (let k = 0; k < 4; k++) K.ellipseFn(pb, x + w - 62 + k * 7, ceil - 12, 2.5, 1.5, () => F[1]);
     vline(pb, x + 30, ceil - 40, ceil - 2, ST[2]); hline(pb, x + 26, x + 34, ceil - 34, ST[4]); put(pb, x + 30, ceil - 41, U('#ff4e5d'));
@@ -376,7 +381,7 @@ const PFAPlant = (() => {
     // muro lateral izquierdo en corte (pilastra)
     for (let yy = ceil; yy < yF; yy++) for (let k = 0; k < 6; k++) put(pb, x - 4 + k, yy, WL[[2, 6, 5, 4, 3, 1][k]]);
     // losa del suelo de la sala: cara superior en 3/4 (vinilo) y canto con franja
-    for (let r = 0; r < 8; r++) { const yy = yF - 1 - r, off = Math.round(r * 0.7); for (let xx = x - 4 + off; xx < x + w + 4 + off; xx++) put(pb, xx, yy, r === 0 ? ST[7] : ((xx + r * 3) % 14 === 0 ? P32(FRP)[4] : P32(FRP)[6 - (r > 5 ? 1 : 0)])); }
+    for (let r = 0; r < 8; r++) { const yy = yF - 1 - r, off = Math.round(r * 0.7); for (let xx = x - 4 + off; xx < x + w + 4 + off; xx++) put(pb, xx, yy, r === 0 ? VN[7] : ((xx + r * 3) % 14 === 0 ? VN[3] : VN[5 - (r > 5 ? 1 : 0)])); }
     for (let xx = x - 4; xx < x + w + 4; xx++) { put(pb, xx, yF, ST[6]); put(pb, xx, yF + 1, ((xx >> 2) & 1) ? P32(YEL)[4] : U('#1c1c24')); put(pb, xx, yF + 2, ((xx >> 2) & 1) ? P32(YEL)[2] : U('#101016')); for (let k = 3; k < 7; k++) put(pb, xx, yF + k, F[k === 3 ? 4 : k === 6 ? 0 : 2]); }
     shade(pb, x - 4, yF + 7, w + 8, 3, -0.25);
     return { screens, lamps, mimic: [mx, my, mw, mh] };
@@ -384,8 +389,8 @@ const PFAPlant = (() => {
 
   /* ---------- armarios eléctricos (CCM) ---------- */
   function cabinets(pb, x, yb, n, o = {}) {
-    const cw = o.w ?? 22, ch = o.h ?? 58, d = o.d ?? 8, R = o.ramp || ['#20283a', '#323c52', '#46526c', '#5c6a86', '#7686a2', '#98a8c0', '#c0cce0'];
-    const C = P32(R), leds = [], scr = [], r = RNG(o.seed || 9);
+    const cw = o.w ?? 22, ch = o.h ?? 58, d = o.d ?? 8, R = o.ramp || ['#141c40', '#1e2c5c', '#2a3e7a', '#3a5498', '#4e6eb4', '#6e90d0', '#a0bce8'];
+    const C = P32(R), leds = [], scr = [], r = RNG(o.seed || 9); // r3-int-a: chapa pintada azul pizarra
     A.castShadow(pb, x + 4, yb, n * cw, d + 6, -0.24);
     for (let i = 0; i < n; i++) {
       const cx = x + i * cw;
@@ -569,7 +574,7 @@ const PFAPlant = (() => {
   }
   /** Conducto de ventilación circular galvanizado con colgadores y difusores */
   function duct(pb, x0, x1, y, r = 7, o = {}) {
-    const G_ = P32(['#3a4250', '#56606e', '#76808e', '#98a2ae', '#b8c0ca', '#d4dae0', '#eef2f6']), n = G_.length;
+    const G_ = P32(o.ramp || ['#0a2a3a', '#104452', '#18646c', '#22827e', '#38a296', '#64c2b0', '#a8e4d2']), n = G_.length; // r3-int-a: conducto pintado turquesa
     for (let j = -r; j <= r; j++) { const k = ti((j + r) / (2 * r), n); for (let x = x0; x <= x1; x++) put(pb, x, y + j, ((x - x0) % 40 === 0) ? G_[Math.max(0, k - 2)] : ((x - x0) % 40 === 1 ? G_[Math.min(n - 1, k + 1)] : G_[k])); }
     for (let x = x0 + 20; x < x1; x += 80) { vline(pb, x, (o.top ?? y - 40), y - r - 1, P32(FRAME)[4]); hline(pb, x - 3, x + 3, y - r - 1, P32(FRAME)[2]); }
     for (let x = x0 + 60; x < x1 - 10; x += o.diff ?? 120) { rect(pb, x - 5, y + r, 11, 3, G_[2]); hline(pb, x - 4, x + 4, y + r + 3, G_[5]); for (let k = -4; k <= 4; k += 2) put(pb, x + k, y + r + 1, G_[0]); }

@@ -22,7 +22,7 @@ PFInfra.PIPES.r2bbFeed = { ramp: ['#04282a', '#08484a', '#0d7270', '#159e96', '#
 PFInfra.PIPES.r2bbConc = { ramp: ['#05061a', '#0a0d24', '#131736', '#20244a', '#323862', '#4e5484', '#7a80b4'], ink: '#020310', chev: '#a4a8ff', glow: null };
 PFInfra.PIPES.r2bbPower = { ramp: ['#2a1a04', '#573a08', '#8a620e', '#c4921a', '#f0bc2c', '#ffd862', '#fff4b8'], ink: '#170e02', chev: '#fff6c0', glow: '#ffcc33' };
 /** Suelo de epoxi arena (cálido) para la nave; sustituye a la rampa cian-gris */
-const R2BB_FLOOR = ['#140f0c', '#221a15', '#33281f', '#463829', '#5a4a37', '#6e5c46', '#857058', '#9c886c', '#b6a084', '#d0bc9e'];
+const R2BB_FLOOR = ['#1c0e0a', '#2e180e', '#462614', '#62381c', '#7e4c24', '#9a622e', '#b47a3a', '#cc944a', '#e2b062', '#f4cc84']; // r3-int-a: epoxi ocre saturado
 const R2BB_LEAF = ['#0a1a0c', '#13301a', '#1f4a22', '#2f6626', '#46842c', '#68a43a', '#94c64c', '#c8e470'];
 const R2BB_TERRA = ['#2a1008', '#4a1e10', '#6e3018', '#94461f', '#b85e28', '#d67e3c', '#eca262'];
 

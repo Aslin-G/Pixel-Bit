@@ -13,6 +13,19 @@ const LV2_ANCH = { leds: [], lamps: [], screens: [] };
 const LV2_GAL = { brine: 322, perm: 334, feed: 346 };
 const LV2_FLOWS = [];
 const LV2_GALFLOWS = [];
+/** r3-int-a: repinta por luminancia un rectángulo ya pintado con otra rampa (hormigón gris → hormigón cálido);
+    pred(x, y, u) decide qué píxeles se repintan */
+function R3INTA_recolor(pb, x0, y0, x1, y1, ramp, pred) {
+  const R = PFK.P32(ramp), n = R.length;
+  for (let y = Math.max(0, y0); y < Math.min(pb.h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+    const u = pb.data[y * pb.w + x]; if (!(u >>> 24)) continue;
+    if (pred && !pred(x, y, u)) continue;
+    const L = (0.299 * (u & 255) + 0.587 * ((u >>> 8) & 255) + 0.114 * ((u >>> 16) & 255)) / 255;
+    pb.data[y * pb.w + x] = R[clamp(Math.round(L * 1.15 * (n - 1)), 0, n - 1)];
+  }
+}
+/** Hormigón cálido de la losa y los pilares de la galería (luz de la nave, sin gris) */
+const R3INTA_CONC = ['#24101a', '#3e1c22', '#5e2e2c', '#804432', '#a05c3a', '#bc7a48', '#d49a5c', '#e8ba78', '#f6d69c'];
 
 LEVELS[2] = {
   id: 2, title: 'El Laberinto Osmótico', chapter: 'CAPÍTULO 02', biome: 'plant', music: 'plant', width: 2600, height: 400,
@@ -169,11 +182,11 @@ LEVELS[2] = {
     const cr = P.controlRoom(pb, 1420, 214, 230, { ceil: 102, floorY: fb + 4 });
     LV2_ANCH.cr = cr; for (const l of cr.lamps) N.lamps.push([l[0], l[1] + 2, '#fff8e0', 11]);
     // mobiliario de la sala: consola con monitores, silla, archivador, planta y reloj
-    I.box3q(pb, 1440, 210, 50, 30, 8, { ramp: ['#1a2236', '#28344e', '#3a4a6a', '#54688c', '#7a90b4', '#a8bcd8'], skew: 0.7 });
+    I.box3q(pb, 1440, 210, 50, 30, 8, { ramp: ['#0c1c3a', '#14305a', '#1e467e', '#2a5ea0', '#3c78bc', '#5a98d8'], skew: 0.7 });
     for (const mx of [1444, 1460, 1476]) { P.rect(pb, mx, 166, 13, 10, U_('#1a2236')); P.rect(pb, mx + 1, 167, 11, 8, U_('#06122a')); P.vline(pb, mx + 6, 176, 179, U_('#3a4a6a')); N.screens.push([mx + 2, 168, 9, 6, mx === 1460 ? '#ff9f43' : '#56e5ff']); }
     for (let k = 0; k < 9; k++) K.put(pb, 1452 + k * 3, 182, U_('#7a90b4'));
     I.box3q(pb, 1492, 210, 12, 4, 4, { ramp: ['#141418', '#26262e', '#3a3a46', '#56566a'] }); P.vline(pb, 1497, 196, 206, U_('#26262e')); I.box3q(pb, 1491, 196, 14, 12, 3, { ramp: ['#141418', '#26262e', '#3a3a46', '#56566a'] });
-    I.box3q(pb, 1562, 210, 18, 34, 6, { ramp: A.WHITE, skew: 0.7 }); for (const yy of [184, 194, 204]) P.hline(pb, 1566, 1575, yy, U_('#7e7686'));
+    I.box3q(pb, 1562, 210, 18, 34, 6, { ramp: P.GREEN, skew: 0.7 }); for (const yy of [184, 194, 204]) P.hline(pb, 1566, 1575, yy, U_('#7e7686'));
     A.planter(pb, 1626, 210, 16, { kind: 'agave', seed: 5 });
     K.ellipseFn(pb, 1600, 124, 4.5, 4.5, (nx, ny, d) => d > 0.6 ? U_('#26324c') : U_('#f4f6f2')); K.put(pb, 1600, 122, U_('#141418')); K.put(pb, 1601, 124, U_('#141418'));
     /* ===== 9. LIMPIEZA CIP Y ANTIINCRUSTANTE (1690–1930) ===== */
@@ -261,6 +274,10 @@ LEVELS[2] = {
     // rótulos estarcidos en el muro de la galería
     for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
     if (typeof R2BB_L2gallery === 'function') R2BB_L2gallery(pb, LV2_GALFLOWS); // r2-biomes-b: sodio, musgo, conducto eléctrico, bandas
+    // r3-int-a: canto de hormigón de la losa y pilares de la galería en hormigón cálido (no gris)
+    const isGrey = (x, y, u) => { const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx > 60 && (mx - mn) / mx < 0.3; };
+    R3INTA_recolor(pb, 0, G + 5, 2600, G + 16, R3INTA_CONC, isGrey);
+    R3INTA_recolor(pb, 0, G + 16, 2600, 400, R3INTA_CONC, (x, y, u) => ((x + 60 + 3000) % 160) < 14 && isGrey(x, y, u));
   },
   propsFront(pb, world) {
     const G = 290, K = PFK;
@@ -330,6 +347,8 @@ LEVELS[2] = {
   },
   /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
   renderFront(g, sc, cam) {
+    // r3-int-a: haces nítidos de los ventanales (3 escalones de alfa, bordes sólidos) que iluminan piernas y equipos
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffc878', a: 0.5, soft: 0.6 });
     if (cam.y + H < 300) return;
     PFDyn.flowsImg(g, sc, LV2_GALFLOWS, 14);
     const t = Game.time; for (const x of [700, 1280, 1860, 2440]) { const sx = x - cam.x; if (sx > -30 && sx < W + 30) PFK.drawGlow(g, sx, 307 - cam.y, 10, '#fff0c8', 0.18 + 0.03 * Math.sin(t + x)); }
