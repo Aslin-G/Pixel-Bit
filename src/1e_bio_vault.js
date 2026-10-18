@@ -40,15 +40,15 @@ BIOMES.vault = function (L) {
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, {
       horizonY: HZ, sun: SUN, curve: 1.15,
-      stops: ['#1262d4', '#1a70de', '#2480e8', '#3290ee', '#44a0f2', '#5eb0f2', '#84bfee', '#a8cae8', '#cad0e0', '#e6d2cc'],
-      haze: ['#f2d0b8', '#f8d4ac', '#fcdaa8', '#ffe2b4'],
+      stops: ['#1262d4', '#1a70de', '#2480e8', '#3290ee', '#44a0f2', '#58acf2', '#70b8f2', '#8cc4f0', '#a4c8ec', '#f0c8a0'],
+      haze: ['#f4c49a', '#f8c890', '#fcd090', '#ffd89a'],
     });
     V.rays(pb, SUN.x, SUN.y, { n: 6, len: 240, col: '#fff2d0', a: 0.08, spread: 1.6, ang: Math.PI / 2 + 0.3, w: 0.04, seed: 6, yMax: HZ });
     return pb.toCanvas();
   });
   B.vdyn(0, (g) => V.drawBloom(g, SUN.x, SUN.y, 40, '#fff0c0', 0.22, T()), { tag: 'bloom' });
   B.cloudDeck({ kind: 'cirrus', n: 5, seed: 603, f: [0.01, 0.03], y: [12, 60], w: [70, 150], speed: [1, 2] });
-  B.cloudDeck({ n: 8, seed: 605, f: [0.03, 0.08], y: [24, 104], w: [50, 124], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
+  B.cloudDeck({ n: 5, seed: 605, f: [0.03, 0.08], y: [24, 96], w: [40, 96], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
   /* ---------------- cordillera ocre con sombras violeta (0,12) ---------------- */
   P(0.12, HZ - 76, 78, (pb, w, h) => {
     const r = RNG(607), peaks = [];
@@ -277,7 +277,7 @@ BIOMES.vault = function (L) {
   /* ---------------- galería trasera de maquinaria (0,7) ---------------- */
   const galFx = { fans: [], leds: [], steam: [], lamps: [], flows: [], beacons: [], screens: [] };
   P(0.7, 96, 204, (pb, w, h) => {
-    const r = RNG(651), k = 0.24, HZC = '#8a88c8', base = 176;
+    const r = RNG(651), k = 0.22, HZC = '#7466d0', base = 176;
     const hzR = (R, kk = k) => V.hz(R, kk, HZC);
     const G = V.P32(hzR(I.GRAPH)), C = V.P32(hzR(I.CONCI));
     const CONT = hzR(['#10162a', '#18203a', '#222c4c', '#2e3a5e', '#3c4a72', '#4e5e88', '#64769e', '#8094b6', '#a4b4cc', '#d0dae6']);

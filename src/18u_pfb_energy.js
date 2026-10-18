@@ -112,7 +112,8 @@ const PFBE = (() => {
   const R2BB_RACKV = [
     { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'] },
     { frame: ['#2a2622', '#4a443c', '#7a7266', '#a49a8a', '#c8bfae', '#e2dacb', '#f2ece0', '#fffbf2'], mod: ['#0a2a2e', '#0f4448', '#16605e', '#20807a', '#34a49a', '#5cc8bc', '#9ae6da', '#d4fbf2'], stripe: '#20b8a8' },
-    { frame: ['#0c0c10', '#18181e', '#26262e', '#363640', '#4a4a56', '#62626e', '#80808c', '#a8a8b2'], mod: ['#141418', '#202026', '#2e2e36', '#40404a', '#565662', '#72727e', '#9a9aa6', '#cacad2'], stripe: '#ff8a2a' },
+    // r3-int-b: grafito con matiz petróleo (deja de ser gris neutro) y franja naranja
+    { frame: ['#0a0c12', '#121822', '#1a2432', '#243446', '#30465a', '#3e5a70', '#56788e', '#84a4b6'], mod: ['#0e1218', '#162028', '#1e2e3a', '#28404e', '#345464', '#466c7e', '#6290a0', '#a8d0da'], stripe: '#ff8a2a' },
     { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'], open: true },
   ];
   const R2BB_STATE = { ok: '#3fe08a', service: '#ffb02a', fault: '#ff4e5d', cold: '#48b8ff' };

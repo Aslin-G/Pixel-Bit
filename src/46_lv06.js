@@ -96,7 +96,7 @@ LEVELS[6] = {
     const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan);
     D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
     /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
-    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#141a2a', '#202838', '#2e384c', '#3e4a62', '#52607a', '#6a7894', '#8a98b2', '#b0bcd0', '#d8e0ec', '#f0f4fa'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); }
+    for (const x of [908, 1030, 1120, 1212]) { const inv = E.inverter(pb, x, yb(x), 50, 72, 14, { ramp: ['#121a30', '#1c2842', '#283a5a', '#344c74', '#44608e', '#587aa8', '#7898c2', '#a0bcdc', '#cadcf0', '#eef6ff'] }); D.screens.push({ x: inv.screen[0], y: inv.screen[1], w: inv.screen[2], h: inv.screen[3], kind: 'wave', col: '#8d6bff', col2: '#56e5ff', on: off }); D.leds.push({ x: inv.led[0], y: inv.led[1], col: '#3fe0a0', hz: 1.1, ph: x }); }
     E.busbar(pb, 900, 1300, 186, { gap: 50, hangTo: 153 });
     for (const a of ARCS) E.arcGap(pb, a.x, a.w, 198, gy(a.x));
     D.flows.push({ pts: [[900, 189], [1300, 189]], kind: 'power', rate: (sc) => sc.state.blackout ? 0 : (sc.state.elyOn ? 1.4 : 0.6) });
@@ -117,7 +117,7 @@ LEVELS[6] = {
     R2BB_workLamp(pb, D, 2112, yb(2112), -1, gy(2112));
     const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan);
     /* ===== 6. BARRA PRINCIPAL (2140–2405): celdas de interruptores ===== */
-    const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL' });
+    const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL', ramp: ['#121a34', '#1c284a', '#283a62', '#364c7c', '#486296', '#5e7cb0', '#7e9cca', '#a8c0e2', '#d6e4f6'] });
     D.breakers.push(...sw.breakers);
     for (let k = 0; k < 6; k++) D.glows.push({ x: 2160 + k * 22, y: sw.top - 2, r: 3, col: '#ff4e5d', a: 0.85, mode: 'blink', hz: 0.5, ph: k, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
     H2.aframe(pb, 2300 - 26, yb(2274) + 6, 'ARRANQUE EN NEGRO', { bd: '#ff6a50', col: '#ffd0c0' });

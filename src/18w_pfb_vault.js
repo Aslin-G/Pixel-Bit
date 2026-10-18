@@ -9,7 +9,7 @@
 const PFBV = (() => {
   const K = PFK, B = PFB, I = PFInfra, H2 = PFBH2;
   const P = (r) => K.P32(r);
-  const ST = ['#141626', '#24283e', '#383e5a', '#525a7a', '#6e769a', '#8e96b8', '#b0b8d6', '#d4daee', '#f2f4fc'];
+  const ST = ['#121630', '#1e2648', '#2c3866', '#3e4e86', '#5466a4', '#7084c0', '#94a6d8', '#c0ceee', '#eef2fe']; // r3-int-b: acero azulado (menos gris neutro)
   const CON = ['#14182a', '#1e2438', '#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac', '#a2aac2', '#c2c8da'];
   const MAG = ['#1a0820', '#2e0e38', '#4a1658', '#6a2078', '#8e2c96', '#b44ab0', '#e05aa0', '#f8a8d8'];
   /** Muro de hormigón con portal y puerta blindada abierta hacia el túnel de acceso */
