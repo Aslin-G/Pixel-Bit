@@ -50,12 +50,18 @@
       clouds(pb, [[8, 6, 70, 26, 3], [120, 12, 60, 22, 5]]);
       range(pb, 74, [{ x: 30, v: 20, h: 26, w: 50, d: 20 }, { x: 180, v: 24, h: 30, w: 60, d: 22 }], V.hz(FARM, 0.1), { rim: '#f4c8b0' });
       ground(pb, x => 78 - Math.sin(x * 0.02) * 6, SAND, { rim: '#fff0c0', depth: 60, t0: 0.7 });
-      V.domeCity(pb, 112, 80, { s: 0.62, k: 0.05, label: false, seed: 5 });
-      for (let i = 0; i < 9; i++) V.townHouse(pb, 4 + i * 23 + (i % 2) * 4, 104 - (i % 3) * 3, 16 + (i % 3) * 3, 14 + (i % 2) * 4, 30 + i, { k: 0, s: 1 });
-      V.bunting(pb, 0, 70, SW, 76, 6, { k: 0 });
-      V.palm(pb, 10, 122, 34, 4, 3, {}); V.palm(pb, 198, 122, 30, -4, 5, {});
-      for (let x = 0; x < SW; x++) for (let y = 110; y < SH; y++) pb.data[y * SW + x] = U(smoothBand(['#a24a1f', '#d07530', '#edaf5f', '#f6c880'], 1 - (y - 110) / 14 + (((x >> 3) + (y >> 2)) % 2 ? 0.08 : 0), x, y));
-      L.push({ id: 'amaya', anim: 'idle', x: 92, y: 120, k: 0.48 }, { id: 'kiru', anim: 'idle', x: 130, y: 110, k: 0.48 });
+      V.domeCity(pb, 112, 76, { s: 0.62, k: 0.05, label: false, seed: 5 });
+      // dos filas de casas encaladas y de colores, con tejados, ventanas y buganvillas
+      const PALS = ['white', 'ochre', 'rose', 'aqua', 'white', 'terra', 'sand'];
+      for (let i = 0; i < 6; i++) V.townHouse(pb, -6 + i * 38, 92 - (i % 2) * 3, 26, 20, 40 + i, { k: 0.04, s: 2, pal: PALS[i % 7], flowers: 0.7 });
+      for (let i = 0; i < 5; i++) if (i !== 2) V.townHouse(pb, 8 + i * 44, 108 - (i % 2) * 2, 30, 22, 60 + i, { k: 0, s: 2, pal: PALS[(i + 3) % 7], flowers: 0.8 });
+      V.bunting(pb, 0, 64, SW, 70, 6, { k: 0 });
+      V.palm(pb, 6, 122, 40, 4, 3, {}); V.palm(pb, 202, 122, 34, -4, 5, {});
+      // plaza enlosada con juntas
+      for (let x = 0; x < SW; x++) for (let y = 110; y < SH; y++) { const j = (x + (((y - 110) >> 2) & 1) * 4) % 8 === 0 || (y - 110) % 4 === 0; pb.data[y * SW + x] = U(j ? '#b8643a' : smoothBand(['#d07530', '#e49a50', '#f2bc70', '#fad8a0'], 1 - (y - 110) / 16, x, y)); }
+      const FL = ['#e94a64', '#f060b8', '#ffd84a'];
+      for (let k = 0; k < 14; k++) { const x = 20 + k * 13, y = 110; V.shrub(pb, x, y, 3, k + 7, {}); V.put(pb, x - 1, y - 3, U(FL[k % 3])); V.put(pb, x + 1, y - 2, U(FL[(k + 1) % 3])); }
+      L.push({ id: 'amaya', anim: 'idle', x: 88, y: 122, k: 0.6 }, { id: 'kiru', anim: 'idle', x: 128, y: 108, k: 0.6 });
     },
     // 1 · CAPTACIÓN: costa con acantilado, palmeras, olas con espuma y torre de toma sobre el espigón
     1(pb, L) {
