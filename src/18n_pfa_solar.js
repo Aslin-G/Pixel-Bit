@@ -74,6 +74,13 @@ const PFASolar = (() => {
         const gd = (u * 1.2 + v * 0.9 + (o.seed || 1) * 0.13) % 1.4;
         if (gd > 0.62 && gd < 0.68) k += 3; else if (gd > 0.58 && gd < 0.72) k += 1;
         let c = C[clamp(k, 0, 8)];
+        // r3-desert: reflejo del cielo en el vidrio (azul claro arriba, cian en la franja media) y de un cúmulo
+        if (o.sky !== false) {
+          const sv = clamp((v - 0.35) / 0.65, 0, 1), cloudR = Math.abs(u - (0.3 + hash1(o.seed || 1, 77) * 0.4)) < 0.16 && v > 0.55 && v < 0.85;
+          if (sv > 0) c = K.mixU(c, U(sv > 0.7 ? '#8ccaf6' : '#4aa0ea'), 0.18 + sv * 0.3);
+          else if (v > 0.16 && v < 0.32) c = K.mixU(c, U('#22c8e0'), 0.34);
+          if (cloudR) c = K.mixU(c, U('#e8f4ff'), 0.32);
+        }
         // suciedad: polvo de arena en clusters, más en el borde inferior
         const soil = o.soil || 0;
         if (soil > 0) { const d = PFK.cl(xx, yy, 3, 41 + (o.seed || 0)) * (1.2 - v * 0.8); if (d < soil * 1.6) c = K.mixU(c, U('#c89a5c'), clamp(soil * 1.6 - d + 0.25, 0, 0.72)); }
@@ -179,16 +186,25 @@ const PFASolar = (() => {
       if ((ly === 9 || ly === 34) && lx > 9 && lx < 55) k = ly === 9 ? 2 : 7;
       if ((lx === 10 || lx === 54) && ly >= 10 && ly < 34) k = 3;
       if (ly > yF - roof - 24) k = (ly === yF - roof - 24) ? 7 : 3 + ((xx >> 3) & 1 ? 0 : -1);
-      if (ly < 6) k -= ly < 3 ? 2 : 1;                                                               // sombra de la losa sobre el muro
       put(pb, xx, yy, Wl[clamp(k, 0, 8)]);
     }
+    // r3-desert: banda de sombra bajo el alero (4 px sólidos + 5 de penumbra, violeta) sobre el muro del fondo
+    for (let k = 0; k < 9; k++) for (let xx = x0; xx < x1; xx++) { const yy = roof + 9 + k, c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, U('#24183e'), k < 4 ? 0.58 - k * 0.04 : 0.34 - (k - 4) * 0.06)); }
     // desconchones con ladrillo a la vista
     const rr = RNG(57);
     for (let k = 0; k < Math.round(w / 70); k++) { const bx = x0 + rr.int(8, w - 30), by = roof + 8 + rr.int(38, 62), bw = rr.int(10, 18), bh = rr.int(5, 8); for (let yy = by; yy < by + bh; yy++) for (let xx = bx; xx < bx + bw; xx++) { const nx = (xx - bx) / bw - 0.5, ny = (yy - by) / bh - 0.5; if (nx * nx + ny * ny > 0.25 + hash2(xx, yy, 58) * 0.06) continue; const j = ((yy - by) % 3 === 0) || ((xx + ((yy - by) / 3 | 0) * 3) % 7 === 0); put(pb, xx, yy, j ? Wl[3] : U('#b4643a')); } }
     // cubierta: losa con canto, cara superior en 3/4 con módulos FV, luminarias colgantes
-    for (let xx = x0 - 6; xx < x1 + 6; xx++) for (let k = 0; k < 9; k++) put(pb, xx, roof + k, k === 0 ? R[6] : k < 3 ? R[4] : k === 8 ? R[0] : R[2]);
+    // r3-desert: lateral derecho en 3/4 (muro en sombra violeta con ventanuco) y sombra arrojada abajo-derecha
+    const RD = 12, sdx = Math.round(RD * 0.8);
+    PFK.polyFill(pb, [[x1 + 6, roof + 9], [x1 + 6 + sdx, roof + 9 - RD], [x1 + 6 + sdx, yF - RD], [x1 + 6, yF]], (xx, yy) => K.mixU(Wl[clamp(4 + Math.round((PFK.cl(xx, yy, 3, 59) - 0.5) * 1.2) - ((yy - roof) % 22 === 0 ? 1 : 0), 0, 8)], U('#4a2a6a'), 0.42));
+    for (let yy = roof + 30; yy < roof + 44; yy++) for (let xx = x1 + 8; xx < x1 + 6 + sdx - 1; xx++) put(pb, xx, yy - Math.round((xx - x1 - 6) * RD / sdx), U(yy < roof + 33 ? '#3a4a6a' : '#5a7aa0'));
+    for (let yy = yF - 12; yy < yF + 2; yy++) for (let xx = x1 + 6 + sdx; xx < x1 + 6 + sdx + 26 - (yy - yF + 12) * 1.4; xx++) { const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, R3SHC, 0.42)); }
+    // cubierta: losa con canto (labio cálido #fbc371 en la arista soleada), cara superior en 3/4 más honda
+    for (let xx = x0 - 6; xx < x1 + 6; xx++) for (let k = 0; k < 9; k++) put(pb, xx, roof + k, k === 0 ? U('#fbc371') : k < 3 ? R[6] : k === 8 ? R[0] : k === 7 ? R[3] : R[5]);
     for (let xx = x0 - 6; xx < x1 + 6; xx += 7) { put(pb, xx, roof + 4, R[1]); put(pb, xx, roof + 5, R[1]); }        // juntas de la losa
-    for (let r = 0; r < 8; r++) { const off = Math.round(r * 0.8); for (let xx = x0 - 6 + off; xx < x1 + 6 + off; xx++) put(pb, xx, roof - 1 - r, r === 0 ? R[6] : R[5 - (r > 5 ? 1 : 0)]); }
+    for (let r = 0; r < RD; r++) { const off = Math.round(r * 0.8); for (let xx = x0 - 6 + off; xx < x1 + 6 + off; xx++) put(pb, xx, roof - 1 - r, r === RD - 1 ? U('#fbc371') : r === 0 ? R[6] : R[5 - (r > 8 ? 1 : 0) + (((xx - off) % 24) === 0 ? -1 : 0)]); }
+    for (let r = 0; r < RD; r++) { const off = Math.round(r * 0.8); put(pb, x0 - 6 + off, roof - 1 - r, U('#fbc371')); put(pb, x1 + 6 + off, roof - 1 - r, R[1]); put(pb, x1 + 5 + off, roof - 1 - r, R[3]); }
+    for (let k = 0; k < 9; k++) { put(pb, x0 - 6, roof + k, U(k ? '#e8a070' : '#fbc371')); put(pb, x1 + 5, roof + k, R[0]); }
     for (let xx = x0 + 6; xx < x1 - 40; xx += 66) pvTable(pb, xx, roof - 4, 56, { low: 3, ph: 16, sk: 6, piles: 2, seed: xx });
     for (let lx = x0 + 30; lx < x1 - 10; lx += 70) {
       vline(pb, lx, roof + 9, roof + 18, U('#2a282e')); rect(pb, lx - 6, roof + 18, 13, 3, U('#4f4d51')); hline(pb, lx - 5, lx + 5, roof + 21, U('#fff6d8')); lamps.push([lx, roof + 23]);
@@ -206,7 +222,7 @@ const PFASolar = (() => {
     // extractor de aire en el muro (rejilla circular)
     K.ellipseFn(pb, x0 + 262, roof + 22, 7, 7, (nx, ny, dd) => dd > 0.85 ? Wl[1] : ((Math.round((ny + 1) * 7)) % 2 ? Wl[2] : Wl[4]));
     // pilastras extremas en corte
-    for (const px2 of [x0 - 6, x1]) for (let yy = roof; yy < yF; yy++) for (let k = 0; k < 6; k++) put(pb, px2 + k, yy, Wl[[2, 7, 6, 5, 4, 1][k]]);
+    for (const px2 of [x0 - 6, x1]) for (let yy = roof + 9; yy < yF; yy++) for (let k = 0; k < 6; k++) put(pb, px2 + k, yy, px2 === x0 - 6 ? (k === 0 ? U('#fbc371') : Wl[[2, 7, 6, 5, 4, 1][k]]) : K.mixU(Wl[[2, 6, 5, 4, 3, 1][k]], U('#4a2a6a'), 0.25));
     // puerta lateral (vano ≥ 90 px) en el muro derecho
     if (o.doorX) { const dx = o.doorX; for (let yy = yF - 94; yy < yF; yy++) for (let xx = dx; xx < dx + 34; xx++) put(pb, xx, yy, (yy === yF - 94 || xx === dx || xx === dx + 33) ? Wl[1] : K.mixU(U('#3a2418'), U('#7a4a30'), ((xx - dx) % 6 === 0 ? 0.2 : 0.45) + ((yy - yF + 94) < 30 && (xx - dx) < 20 - (yy - yF + 94) * 0.5 ? 0.15 : 0))); hline(pb, dx + 26, dx + 29, yF - 48, U('#f0bc2c')); for (const hy of [yF - 80, yF - 20]) rect(pb, dx + 1, hy, 3, 4, U('#8e94a2')); }
     return { roofY: roof, lamps };
@@ -585,8 +601,469 @@ const PFASolar = (() => {
     PFInfra.cylV(pb, x + 26, yb - 1, 10, 18, { ramp: ['#3a2a1a', '#5a4430', '#7a5e44', '#9a7a5a', '#b89874', '#d4b690', '#ecd4b0', '#f8ead0'] });
     return { hub: [x - 1, yt] };
   }
+  /* =====================================================================
+     r3-desert · DIORAMA DE LA LADERA (bandas inferiores del N4)
+     Cara 'r3tier': bajo la línea de paso, cuatro alturas en 3/4 elevado:
+       U  talud de arena iluminado con rizos de viento (d < e1) — o muro del zócalo (zona r3.wall)
+       E  muro de contención (gaviones · hormigón con mechinales · arenisca) con labio cálido
+       T  bancal inferior visto desde arriba (e1+GH ≤ d < e2): suelo de cultivo, grava o arena
+       C  corte frontal del bancal (d ≥ e2): suelo, caliche, arenas estratificadas, AO hacia abajo
+     Zonas por x en def.pf.r3zones = [{x0, x1, edge, top, e1?}] (prep → world._r3 por columna).
+     Primitivas: tabaiba · cardon · grassWind · cropRow · agriPV · invSkid · robotRail · canal ·
+     cableTray · trenchPit · trenchSection · pipeSection · roots · r3Shadow (sombra arrojada abajo-derecha).
+     ===================================================================== */
+  const R3TAB = ['#1a2a0e', '#2a4214', '#3e5c1a', '#567a20', '#729828', '#94b42e', '#bcd040', '#e2e474'];
+  const R3LET = ['#0e2a0e', '#164414', '#22601a', '#347e22', '#4e9c2a', '#74ba38', '#a2d65a', '#d0ee8a'];
+  const R3ALOE = ['#142a2c', '#20403e', '#305a54', '#46766a', '#62927e', '#86ae96', '#b2ccb2'];
+  const R3SOIL = ['#22100a', '#381c0e', '#502a14', '#6a3c1c', '#845026', '#9e6632', '#b47e44', '#ca9a5c'];
+  const R3WAT = ['#05303e', '#084c5e', '#0b6c80', '#0f8ea2', '#16b0c0', '#38cfd8', '#86eaee', '#d4fcfc'];
+  const R3CALI = ['#7c6a4c', '#a69472', '#cab896', '#e6d8b4', '#f6ecd0'];
+  const R3GH = 7, R3SHC = U('#46203e');
+  const R3CONW = ['#2a1a12', '#4a3020', '#6e4a32', '#8e6446', '#ae825c', '#c8a074', '#e0bc90', '#f4dab0'];   // hormigón cálido (árido local)
+  const R3EDGE = { gabion: 1, concrete: 2, rock: 3 }, R3TOP = { soil: 1, gravel: 2, sand: 3 };
+  function r3E1(x) { return 17 + Math.round((PFK.vn(x * 0.013, 0.3, 501) - 0.5) * 10 + Math.sin(x * 0.0045) * 3); }
+  function r3E2(x, gy, hd) { return Math.round((hd - gy) * 0.64 + (PFK.vn(x * 0.008, 0.7, 503) - 0.5) * 10 + Math.sin(x * 0.0033 + 1) * 3); }
+  /** Precálculo por columna (world._r3): e1, e2, borde y suelo del bancal según def.pf.r3zones */
+  function r3Prep(s, world) {
+    if (world._r3) return;
+    const wd = world.w + 1, Z = (world.def.pf && world.def.pf.r3zones) || [], T = { e1: new Int16Array(wd), e2: new Int16Array(wd), fan: new Int16Array(wd), edge: new Uint8Array(wd), top: new Uint8Array(wd), wall: new Uint8Array(wd) };
+    for (let x = 0; x < wd; x++) {
+      const z = Z.find(q => x >= q.x0 && x < q.x1) || {}, gy = world.ground[Math.min(x, world.w)];
+      T.e1[x] = z.e1 ? z.e1(x) : r3E1(x); T.e2[x] = Math.max(T.e1[x] + R3GH + 8, r3E2(x, gy, world.h));
+      T.edge[x] = R3EDGE[z.edge || 'gabion']; T.top[x] = R3TOP[z.top || 'soil']; T.wall[x] = z.wall ? 1 : 0;
+    }
+    // abanicos de arena que rebosan el muro (rompen la horizontal): z.fans = [[cx, ancho, fondo]…]
+    for (const z of Z) for (const [cx, fw, fd] of (z.fans || [])) for (let x = Math.max(0, cx - fw / 2 | 0); x < Math.min(wd, cx + fw / 2); x++) {
+      const q = (x - cx) / (fw / 2); T.fan[x] = Math.max(T.fan[x], Math.round(fd * Math.pow(Math.max(0, 1 - q * q), 0.7) + (PFK.vn(x * 0.15, 4, 597) - 0.5) * 2));
+    }
+    world._r3 = T;
+  }
+  /** Alturas del diorama en x (coordenadas de mundo): {gy, e1, top, e2} */
+  function r3At(world, x) { const T = world._r3, i = clamp(Math.round(x), 0, world.w), gy = world.ground[i], f = T.fan[i]; return { gy, e1: gy + T.e1[i], fan: f, top: gy + T.e1[i] + Math.max(R3GH, f + 3), e2: gy + T.e2[i] }; }
+  function r3SlopePix(x, y, d, e1) {
+    const S = P32(SAND), t = d / e1;
+    let lam = 0.84 - t * 0.2 + (PFK.vn(x * 0.05, y * 0.09, 511) - 0.5) * 0.16;
+    const rp = (d + x * 0.32 + PFK.vn(x * 0.03, d * 0.2, 513) * 3) % 5;                                  // rizos de viento en diagonal
+    if (PFK.vn(x * 0.025, 3, 519) > 0.35) { if (rp < 0.9) lam -= 0.1; else if (rp < 1.8) lam += 0.04; }
+    lam += (PFK.cl(x, y, 2, 515) - 0.5) * 0.08;
+    if (hash2(x, y, 517) < 0.015) lam -= 0.22;
+    if (d > e1 - 3) lam -= (d - e1 + 3) * 0.04;
+    return S[clamp(Math.round(lam * 9), 3, 9)];
+  }
+  function r3EdgePix(kind, x, yy) {
+    const RW = P32(RAMP.rockWarmR);
+    if (kind === 1) {                                                                                    // gaviones: piedras en malla
+      const bw = 12, bx = ((x % bw) + bw) % bw;
+      if (yy === 0) return U(bx === 0 ? '#9aa0ae' : (x & 1) ? '#f4dcae' : '#fbc371');
+      if (yy === R3GH - 1) return U('#2a140a');
+      if (bx === 0) return U('#5c6270');
+      const r = yy < 3 ? 0 : 1, off = r * 2, cx = Math.floor((x + off) / 4), lx = (x + off) & 3, ly = r ? yy - 3 : yy - 1, lh = r ? 2 : 1;
+      let k = 3 + Math.floor(hash2(cx, r, 541) * 3);
+      if (lx === 0 || ly === 0) k += 1; if (lx === 3 || ly === lh) k -= 2;
+      if (yy === R3GH - 2) k -= 1;
+      return RW[clamp(k, 1, 8)];
+    }
+    if (kind === 2) {                                                                                    // muro de hormigón con mechinales
+      const C = P32(PFTerrain.CONC), m = ((x % 28) + 28) % 28;
+      if (yy === 0) return C[7]; if (yy === R3GH - 1) return U('#2a1c14');
+      if (m >= 12 && m < 15 && yy >= 2 && yy < 4) return U(m === 12 ? '#3a2a20' : '#140c08');
+      if (m === 13 && yy >= 4) return C[2];
+      let k = 4 + Math.round((PFK.cl(x, yy, 2, 543) - 0.5) * 1.4) - (yy === 1 ? 0 : 0) + (yy === 1 ? 1 : 0);
+      if (((x + 400) % 56) === 0) k = 2;
+      return C[clamp(k, 1, 7)];
+    }
+    // arenisca en lajas con labio iluminado
+    if (yy === 0) return RW[8]; if (yy === 1) return RW[7]; if (yy === R3GH - 1) return RW[0];
+    const lay = (yy + Math.round(PFK.vn(x * 0.08, 1, 545) * 2)) % 3;
+    return RW[clamp(5 - (lay === 0 ? 2 : 0) + Math.round((PFK.cl(x, yy, 3, 547) - 0.5) * 1.4) - (yy > 4 ? 1 : 0), 1, 7)];
+  }
+  function r3TopPix(kind, x, y, q, span) {
+    const v = q / Math.max(1, span), ao = q < 2 ? (q === 0 ? -2 : -1) : 0;
+    if (kind === 1) {                                                                                    // suelo de cultivo
+      const SO = P32(R3SOIL);
+      let k = 5 + Math.round((PFK.cl(x, y, 2, 521) - 0.5) * 1.6 + (PFK.vn(x * 0.04, y * 0.1, 523) - 0.5) * 1.2) + (v > 0.75 ? 1 : 0) + ao;
+      if (hash2(x, y, 525) < 0.03) k += 2;
+      return SO[clamp(k, 1, 7)];
+    }
+    if (kind === 2) {                                                                                    // grava compactada con rodadas
+      const G_ = P32(GRAV);
+      let k = 5 + Math.round((PFK.cl(x, y, 2, 527) - 0.5) * 1.8) + ao;
+      if (Math.abs(v - 0.55) < 0.05 || Math.abs(v - 0.8) < 0.04) k -= 1;
+      const hh = hash2(x, y, 529); if (hh < 0.06) k -= 2; else if (hh > 0.95) k += 2;
+      return G_[clamp(k, 1, 8)];
+    }
+    const S = P32(SAND);                                                                                 // arena con rizos
+    let k = 6 + Math.round((PFK.cl(x, y, 2, 531) - 0.5) * 1.4 + (PFK.vn(x * 0.05, y * 0.12, 533) - 0.5) * 1.4) + ao;
+    if (((y * 1.0 + x * 0.25 + PFK.vn(x * 0.04, 0, 535) * 3) % 6) < 0.9) k -= 1;
+    return S[clamp(k, 2, 9)];
+  }
+  function r3CutPix(x, y, c, tot) {
+    const S = P32(SAND), SO = P32(R3SOIL), CA = P32(R3CALI), w1 = (PFK.vn(x * 0.05, 1, 551) - 0.5) * 4;
+    const ao = Math.round(c / Math.max(20, tot) * 2.2), lt = c < 2 ? 1 : 0;
+    if (c < 4 + w1 * 0.5) return SO[clamp(3 + lt + Math.round((PFK.cl(x, y, 2, 553) - 0.5) * 1.4), 1, 6)];
+    if (c < 9 + w1) { const nod = hash2(x >> 1, y >> 1, 555) < 0.12; return CA[clamp(3 - (nod ? 1 : 0) + Math.round((PFK.cl(x, y, 2, 557) - 0.5) * 1.2), 0, 4)]; }
+    const zz = c + w1 * 1.5 + PFK.vn(x * 0.02, c * 0.1, 559) * 3, L = Math.floor(zz / 7) % 3, edge = (zz % 7) < 1;
+    let col;
+    if (L === 0) col = S[clamp(5 - ao + Math.round((PFK.cl(x, y, 2, 561) - 0.5) * 1.2) - (edge ? 2 : 0), 1, 8)];
+    else if (L === 1) col = S[clamp(4 - ao + Math.round((PFK.cl(x, y, 2, 563) - 0.5) * 1.2) - (edge ? 2 : 0), 1, 8)];
+    else col = SO[clamp(5 - ao + Math.round((PFK.cl(x, y, 2, 565) - 0.5) * 1.2) - (edge ? 2 : 0), 0, 7)];
+    if (hash2(x >> 1, y >> 1, 567) < 0.025) col = SO[1];                                                // guijarros oscuros
+    return col;
+  }
+  function r3Face(s, x, y, gy, world) {
+    const d = y - gy, S = P32(SAND), T = world._r3, i = clamp(x, 0, world.w);
+    const e1 = T.e1[i], top = e1 + R3GH, e2 = T.e2[i];
+    if (d < e1) { if (T.wall[i] && s.r3wall) return s.r3wall(s, x, y, d, e1, world); if (d === 0) return S[9]; if (d === 1) return S[8]; return r3SlopePix(x, y, d, e1); }
+    const fan = T.fan[i];
+    if (fan > 0 && d < e1 + fan) { const S2 = d - e1, edge = e1 + fan - 1 - d; if (edge === 0) return S[4]; if (edge === 1) return S[6]; const c = r3SlopePix(x, y, d, e1 + fan + 4); return S2 < 2 && edge > 3 ? c : c; }
+    if (d < top) return r3EdgePix(T.edge[i], x, d - e1);
+    if (d < e2) return r3TopPix(T.top[i], x, y, d - top, e2 - top);
+    if (d === e2) return U((x & 3) ? '#fde3a8' : '#f7c679');
+    if (d === e2 + 1) return U('#e29441');
+    return r3CutPix(x, y, d - e2 - 2, world.h - gy - e2 - 2);
+  }
+  /** Sombra arrojada sobre el suelo hacia abajo-derecha (elipse sin tramado, tono granate-violeta) */
+  function r3Shadow(pb, x, yb, rx, ry, k = 0.36) {
+    for (let yy = Math.round(yb - ry * 0.5); yy <= Math.round(yb + ry); yy++) for (let xx = Math.round(x - rx * 0.3); xx <= Math.round(x + rx * 1.7); xx++) {
+      const nx = (xx - (x + rx * 0.7)) / (rx * 1.05), ny = (yy - (yb + ry * 0.25)) / ry; if (nx * nx + ny * ny > 1) continue;
+      const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, R3SHC, k * (1 - Math.max(0, nx) * 0.35)));
+    }
+  }
+  /** Tabaiba dulce: domo pálido verde-gris de rosetas sobre tallos plateados */
+  function tabaiba(pb, x, yb, s = 1, seed = 1) {
+    const w = Math.round(20 * s), h = Math.round(13 * s), r = RNG(seed);
+    r3Shadow(pb, x + 1, yb, w * 0.45, 3 + 2 * s);
+    for (let i = 0; i < 5; i++) { const ex = x + (r() - 0.5) * w * 0.7, ey = yb - h * (0.3 + r() * 0.3); K.lineFn(pb, x + (r() - 0.5) * 4, yb, ex, ey, (t) => U(t < 0.5 ? '#5e584e' : '#9a9488')); }
+    PFFlora.bush(pb, x, yb - 1, w, h, R3TAB, seed, { leaf: [2, 4], density: 0.6, lobes: s > 1.1 ? 3 : 2 });
+    for (let i = 0; i < Math.round(3 * s); i++) put(pb, Math.round(x + (r() - 0.5) * w * 0.6), Math.round(yb - h * (0.55 + r() * 0.35)), U(i % 2 ? '#e8e070' : '#f6f2b0'));
+  }
+  /** Cardón canario: candelabro de columnas costilladas de varias alturas con base común */
+  function cardon(pb, x, yb, h = 30, seed = 1) {
+    const C = P32(CACT), r = RNG(seed), n = 5 + r.int(0, 4), cols = [], hw = h * 0.42;
+    for (let i = 0; i < n; i++) { const t = i / (n - 1), cx = Math.round(x + (t - 0.5) * hw * 2 + r.int(-1, 1)), ch = Math.round(h * (0.5 + Math.sin(t * Math.PI) * 0.5) * (0.8 + r() * 0.3)); cols.push({ cx, ch, z: Math.abs(t - 0.5) + r() * 0.1 }); }
+    r3Shadow(pb, x + 3, yb, hw + 2, 4 + h * 0.06);
+    for (let xx = Math.round(x - hw); xx <= Math.round(x + hw); xx++) for (let k = 0; k < 4; k++) put(pb, xx, yb - 1 - k, C[k === 3 ? 3 : 2]);
+    cols.sort((a, b) => b.z - a.z);
+    for (const c of cols) {
+      for (let y = yb - c.ch; y < yb - 2; y++) for (let i = 0; i < 5; i++) { let k = [6, 5, 4, 2, 1][i]; if ((i === 1 || i === 3) && ((y + c.cx) % 4 === 0)) k = i === 1 ? 7 : 3; if (y > yb - 6) k -= 1; put(pb, c.cx + i - 2, y, C[clamp(k, 0, 7)]); }
+      put(pb, c.cx - 1, yb - c.ch - 1, C[6]); put(pb, c.cx, yb - c.ch - 1, C[5]); put(pb, c.cx + 1, yb - c.ch - 1, C[3]);
+      if (hash1(c.cx, seed) < 0.45) { put(pb, c.cx, yb - c.ch - 2, U('#e2404a')); put(pb, c.cx + 1, yb - c.ch - 2, U('#9a1830')); }
+    }
+  }
+  /** Mata de gramínea doblada por el viento (hacia el este) */
+  function grassWind(pb, x, yb, w = 10, h = 9, seed = 1, ramp = PFFlora.DRY) { PFFlora.tuft(pb, x, yb, w, h, seed, ramp, { wind: 1.4 }); }
+  /** Hilera de cultivo con caballón, gotero cian y plantas (lechuga, aloe, tomate, lavanda) */
+  function cropRow(pb, x0, x1, yb, kind = 'lettuce', seed = 1, skip = null) {
+    const SO = P32(R3SOIL), r = RNG(seed), sk = skip || (() => false);
+    for (let x = x0; x < x1; x++) { if (sk(x)) continue; put(pb, x, yb - 1, SO[6]); put(pb, x, yb, SO[4]); put(pb, x, yb + 1, SO[2]); }
+    const sp = kind === 'aloe' ? 9 : kind === 'tomato' ? 8 : 6;
+    for (let x = x0 + 3; x < x1 - 2; x += sp + r.int(-1, 1)) {
+      if (sk(x - 3) || sk(x + 3)) continue;
+      if (kind === 'lettuce') { const L = P32(R3LET); K.ellipseFn(pb, x, yb - 3, 3.2, 2.4, (nx, ny, d) => L[clamp(Math.round(5 - nx * 1.4 - ny * 1.8 - (d > 0.75 ? 1.5 : 0) + (d < 0.3 ? -1 : 0)), 1, 7)]); put(pb, x - 1, yb - 4, L[7]); }
+      else if (kind === 'aloe') { PFFlora.agave(pb, x, yb - 1, 6, seed + x, R3ALOE); if (r() < 0.3) { for (let k = 0; k < 7; k++) put(pb, x + 1, yb - 6 - k, U(k < 3 ? '#5a6a3a' : k % 2 ? '#f08a2a' : '#ffb84a')); } }
+      else if (kind === 'tomato') { const L = P32(R3LET); for (let k = 0; k < 10; k++) put(pb, x + 2, yb - 2 - k, U('#8a6a3a')); K.ellipseFn(pb, x, yb - 6, 3.4, 4.2, (nx, ny, d) => L[clamp(Math.round(3.6 - nx * 1.4 - ny * 1.2 - (d > 0.8 ? 1 : 0)), 0, 6)]); for (let k = 0; k < 3; k++) if (r() < 0.7) put(pb, x + r.int(-2, 2), yb - 3 - r.int(0, 6), U(k % 2 ? '#e2302a' : '#ff6a4a')); }
+      else { PFFlora.tuft(pb, x, yb - 1, 5, 6, seed + x, R3ALOE); for (let k = 0; k < 3; k++) put(pb, x - 2 + k * 2, yb - 6 - (k % 2), U(k % 2 ? '#9a6ad8' : '#c9a8f0')); }
+    }
+    for (let x = x0; x < x1; x++) { if (sk(x)) continue; put(pb, x, yb + 2, U('#1e7a8a')); if (((x - x0) % 6) === 3) put(pb, x, yb + 2, U('#7ae8f0')); }
+  }
+  /** Mesa agrivoltaica elevada: módulos altos sobre los cultivos (deja pasar luz y maquinaria) */
+  function agriPV(pb, x, yb, w = 56, seed = 1) { return pvTable(pb, x, yb, w, { low: 24, ph: 14, sk: 10, piles: 3, seed }); }
+  /** Skid de inversor + transformador de MT sobre losa, con marquesina en 3/4 (plano de cubierta, sombra bajo el alero) */
+  function invSkid(pb, x, yb, o = {}) {
+    const w = o.w || 66, Y = P32(PL.YEL), TG = ['#1c2632', '#2e3c4c', '#46586c', '#62768a', '#8698aa', '#aebccc', '#d4dee8'], Tg = P32(TG);
+    r3Shadow(pb, x + w * 0.55, yb + 1, w * 0.55, 7, 0.4);
+    I.box3q(pb, x - 4, yb, w + 8, 4, 9, { ramp: PFTerrain.CONC, skew: 0.7 });
+    for (let xx = x - 1; xx < x + w + 1; xx++) { put(pb, xx, yb - 5, Y[5]); put(pb, xx, yb - 4, Y[3]); if ((xx - x) % 8 === 0) { put(pb, xx, yb - 6, Y[2]); } }
+    const inv = inverter(pb, x + 1, yb - 6, { style: 'central', w: 24, h: 24, label: o.label || null, wear: 0.25, brand: o.brand || '#1a9a6a' });
+    I.box3q(pb, x + 30, yb - 6, 20, 18, 7, { ramp: TG, skew: 0.7, front: (xx, yy, u, v) => Tg[((xx - x) % 3 === 0) ? 1 : clamp(4 - Math.round(v * 2), 2, 5)] });
+    for (let k = 0; k < 3; k++) { const bx = x + 34 + k * 5; for (let q = 0; q < 6; q++) put(pb, bx, yb - 25 - 7 - q, U(q % 2 ? '#c8562a' : '#e8805a')); }
+    I.box3q(pb, x + 52, yb - 6, 12, 16, 6, { ramp: A.WHITE, skew: 0.7 }); rect(pb, x + 54, yb - 18, 4, 3, U('#06122a'));
+    PL.sign(pb, x + 54, yb - 14, 'bolt');
+    // marquesina: plano de cubierta visible (gris claro con borde cálido) sobre 4 postes, banda de sombra bajo el alero
+    const ry = yb - 46, rd = 9, sk = 0.7, Al = P32(['#0a2026', '#10343e', '#164a58', '#1e6272', '#2a7e8e', '#3e9aa8', '#62b6c0', '#9ad4d8']);
+    for (const px of [x - 2, x + w - 1]) { for (let yy = ry + 2; yy < yb - 5; yy++) { put(pb, px, yy, Al[5]); put(pb, px + 1, yy, Al[2]); } }
+    for (let r = 0; r < rd; r++) { const off = Math.round(r * sk); for (let xx = x - 5 + off; xx < x + w + 4 + off; xx++) put(pb, xx, ry - r, r === rd - 1 ? U('#fbc371') : (xx - x - off) % 9 === 0 ? Al[3] : Al[5 + (r < 3 ? 1 : 0)]); }
+    for (let xx = x - 5; xx < x + w + 4; xx++) { put(pb, xx, ry + 1, U('#fbc371')); put(pb, xx, ry + 2, Al[2]); }
+    for (let k = 0; k < 3; k++) for (let xx = x - 1; xx < x + w; xx++) { const c = get(pb, xx, ry + 3 + k); if (c >>> 24) put(pb, xx, ry + 3 + k, K.mixU(c, U('#2a1c4a'), 0.42 - k * 0.1)); }
+    for (let r = 0; r < rd; r++) put(pb, x + w + 4 + Math.round(r * sk), ry - r, Al[1]);
+    return { fan: [x + 12, yb - 31], led: [x + 21, yb - 25], scr: [x + 5, yb - 20, 10, 5], inPt: [x - 2, yb - 10], outPt: [x + 64, yb - 14], hv: [x + 39, yb - 39] };
+  }
+  /** Carril del robot de limpieza (dos raíles sobre traviesas) con estación de carga al final */
+  function robotRail(pb, x0, x1, yb) {
+    const Al = P32(ALU), Wd = P32(WOODF);
+    for (let x = x0; x < x1; x++) { if ((x - x0) % 5 === 0) for (let k = -1; k <= 4; k++) put(pb, x + Math.round(k * 0.4), yb - k, Wd[2]); }
+    for (let x = x0; x < x1; x++) { put(pb, x, yb, Al[6]); put(pb, x, yb + 1, Al[2]); put(pb, x + 2, yb - 4, Al[5]); put(pb, x + 2, yb - 3, Al[1]); }
+    I.box3q(pb, x1 - 2, yb + 1, 12, 14, 6, { ramp: A.WHITE, skew: 0.7 }); rect(pb, x1, yb - 10, 6, 3, U('#06122a'));
+    return { y: yb, x0, x1, dock: [x1 + 3, yb - 8] };
+  }
+  /** Canal de riego revestido en 3/4: labio trasero iluminado, lámina turquesa, cara delantera */
+  function canal(pb, x0, x1, yy0) {
+    const C = P32(PFTerrain.CONC), Wt = P32(R3WAT), Y = typeof yy0 === 'function' ? yy0 : () => yy0, y = Math.round(Y(x0));
+    for (let x = x0; x < x1; x++) {
+      const y = Math.round(Y(x));
+      put(pb, x, y - 5, C[6]); put(pb, x, y - 4, C[3]);
+      for (let k = 0; k < 4; k++) { let c = Wt[[3, 4, 5, 6][k] + (PFK.cl(x, y + k, 3, 571) < 0.25 ? -1 : 0)]; if (((x * 3 + k * 7) % 23) === 0) c = Wt[7]; put(pb, x, y - 3 + k, c); }
+      put(pb, x, y + 1, C[7]); put(pb, x, y + 2, C[5]); put(pb, x, y + 3, C[2]); put(pb, x, y + 4, U('#2a1c14'));
+    }
+    return { x0, x1, y: y - 1 };
+  }
+  /** Bandeja portacables de escalera (galvanizada) a lo largo de una polilínea, con mazo de cables */
+  function cableTray(pb, pts, o = {}) {
+    const St = P32(PFInfra.STEEL), out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [xa, ya] = pts[i], [xb, yb2] = pts[i + 1], n = Math.max(1, Math.round(Math.max(Math.abs(xb - xa), Math.abs(yb2 - ya))));
+      for (let q = 0; q <= n; q++) {
+        const t = q / n, x = Math.round(lerp(xa, xb, t)), y = Math.round(lerp(ya, yb2, t));
+        put(pb, x, y - 2, St[6]); put(pb, x, y + 1, St[2]); put(pb, x, y - 1, U(o.cab || ((x >> 1) % 3 ? '#1c1c24' : '#a8202a'))); put(pb, x, y, U('#2a2a30'));
+        if (q % 4 === 0) { put(pb, x, y - 1, St[4]); put(pb, x, y + 2, St[1]); }
+        out.push([x, y - 1]);
+      }
+    }
+    return out;
+  }
+  /** Cata de la zanja CC vista desde arriba: hoyo con tablestacas, cama de arena, tubos y cinta de aviso */
+  function trenchPit(pb, x0, x1, y, dpt = 12) {
+    const S = P32(SAND), Wd = P32(WOODF), pits = [];
+    for (let x = x0; x < x1; x++) {
+      const t = (x - x0) / (x1 - x0), sh = Math.sqrt(Math.sin(Math.PI * t)), a = y - Math.round(sh * 3), b = y + Math.round(dpt * (0.55 + sh * 0.45));
+      for (let yy = a - 3; yy < a; yy++) put(pb, x, yy, S[clamp(8 - (a - yy), 6, 9)]);                    // caballón de arena removida
+      for (let yy = a; yy < b; yy++) {
+        const q = yy - a, L = b - a;
+        let c = q < 3 ? Wd[(x % 4) ? 3 : 1] : q > L - 4 ? S[clamp(5 + (q - L + 4), 4, 8)] : S[clamp(3 + Math.round((PFK.cl(x, yy, 2, 573) - 0.5) * 1.4), 2, 5)];
+        if (q === 3) c = U('#140c08');
+        put(pb, x, yy, c);
+      }
+      const cy = b - 5;                                                                                   // tubos corrugados con cables
+      for (let k = 0; k < 2; k++) { put(pb, x, cy - k * 3, U(((x + k) % 3) ? '#f08a3a' : '#9a4614')); put(pb, x, cy - k * 3 + 1, U('#7a3410')); }
+      put(pb, x, b, S[8]); put(pb, x, b + 1, S[6]);
+      pits.push([x, cy - 1]);
+    }
+    for (const px of [x0 - 3, x1 + 2]) for (let k = 0; k < 9; k++) { put(pb, px, y - 2 - k, U(k > 6 ? '#e2404a' : '#e8e4dc')); put(pb, px + 1, y - 2 - k, U('#8e8a84')); }
+    for (let x = x0 - 3; x < x1 + 3; x++) put(pb, x, y - 9 + Math.round(Math.sin((x - x0) / (x1 - x0 + 6) * Math.PI) * 2), U(((x >> 2) & 1) ? '#f0bc2c' : '#1c1c24'));
+    return pits;
+  }
+  /** Zanja CC en sección (en el corte del bancal): losa de aviso, cinta, cama de arena y tubos con cables */
+  function trenchSection(pb, cx, ytop, w = 26, h = 20) {
+    const S = P32(SAND), x0 = Math.round(cx - w / 2), cores = [];
+    for (let yy = ytop; yy < ytop + h; yy++) for (let x = x0; x < x0 + w; x++) {
+      const e = x === x0 || x === x0 + w - 1 || yy === ytop + h - 1;
+      put(pb, x, yy, e ? U('#3a2010') : S[clamp(7 - Math.round((yy - ytop) / h * 2) + (PFK.cl(x, yy, 2, 577) < 0.2 ? -1 : 0), 4, 8)]);
+    }
+    for (let x = x0 - 2; x < x0 + w + 2; x++) { put(pb, x, ytop - 2, P32(PFTerrain.CONC)[6]); put(pb, x, ytop - 1, P32(PFTerrain.CONC)[3]); put(pb, x, ytop + 3, U(((x >> 1) & 1) ? '#f0bc2c' : '#e2404a')); }
+    const n = Math.max(2, Math.round(w / 8));
+    for (let i = 0; i < n; i++) {
+      const px = x0 + Math.round((i + 0.5) * w / n), py = ytop + h - 6;
+      K.ellipseFn(pb, px, py, 3.2, 3.2, (nx, ny, dd) => dd > 0.75 ? U(nx + ny < 0 ? '#f8a050' : '#7a3410') : dd > 0.5 ? U('#2a1408') : U(i % 2 ? '#c87a3a' : '#e8a050'));
+      put(pb, px - 1, py, U(i % 2 ? '#1c1c24' : '#a8202a')); put(pb, px + 1, py, U(i % 2 ? '#a8202a' : '#1c1c24'));
+      cores.push([px, py]);
+    }
+    return cores;
+  }
+  /** Tubería en sección (anillo de pared y fluido) — riego cian por defecto */
+  function pipeSection(pb, cx, cy, r = 4, fl = R3WAT) {
+    const Fw = P32(fl);
+    K.ellipseFn(pb, cx, cy, r + 1.2, r + 1.2, (nx, ny, dd) => dd > 0.82 ? U(nx + ny < 0 ? '#c8ccd2' : '#3a3e48') : dd > 0.7 ? U('#14181e') : Fw[clamp(Math.round(5 - ny * 2 - nx), 2, 7)]);
+    put(pb, Math.round(cx - r * 0.4), Math.round(cy - r * 0.4), Fw[7]);
+  }
+  /** Zócalo del taller: altura del muro (más alto en el centro, se funde con el talud en los flancos) */
+  function r3VaultE1(x, x0, x1) { const m = Math.min(x - x0, x1 - 1 - x), k = smooth(clamp(m / 40, 0, 1)); return Math.round(lerp(r3E1(x), 52, k)); }
+  /** Muro del zócalo: viga de cimentación de hormigón y mampostería de basalto (piedras irregulares con techo
+      iluminado y llagas claras); arena apilada en diagonal en los flancos */
+  const R3BAS = ['#120c26', '#1c1636', '#282048', '#362c5a', '#463a6c', '#5a4c80', '#706094', '#8c7cac', '#b0a0c8'];
+  function r3Stone(x, y, cw, ch, seed) {
+    // celdas con centro desplazado: piedra más cercana y distancia al borde (llaga)
+    const gx = Math.floor(x / cw), gy = Math.floor(y / ch);
+    let best = 1e9, second = 1e9, id = 0, bx = 0, by = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const cx = gx + i, cy = gy + j, ox = (cx + (cy & 1) * 0.5 + hash2(cx, cy, seed) * 0.7 + 0.15) * cw, oy = (cy + hash2(cx, cy, seed + 1) * 0.6 + 0.2) * ch;
+      const dx = (x - ox) / cw, dy = (y - oy) / ch, d = dx * dx + dy * dy * 1.3;
+      if (d < best) { second = best; best = d; id = cx * 977 + cy * 131; bx = dx; by = dy; } else if (d < second) second = d;
+    }
+    return { id, edge: Math.sqrt(second) - Math.sqrt(best), bx, by };
+  }
+  function r3VaultWall(s, x, y, d, e1, world, x0, x1) {
+    const S = P32(SAND), Bz = P32(R3BAS), C = P32(R3CONW), m = Math.min(x - x0, x1 - 1 - x);
+    const dd = 5 + Math.round(m * 1.25 + (PFK.vn(x * 0.1, 2, 581) - 0.5) * 3);
+    if (m < 44 && d >= dd) { if (d === dd) return S[9]; if (d === dd + 1) return S[8]; return r3SlopePix(x, y, d, e1); }
+    if (d === 0) return U('#fde3a8');
+    if (d < 5) return d === 4 ? U('#2a1c14') : C[[7, 6, 5][d - 1]];
+    if (d === 5) return U('#3a2a24');
+    const st = r3Stone(x, d, 11, 8, 583);
+    if (st.edge < 0.09) return U(st.edge < 0.04 ? '#8a7a68' : '#b8a68e');                             // llaga de mortero claro
+    let k = 4 + Math.floor(hash1(st.id, 585) * 2.4) + Math.round((-st.bx - st.by * 1.2) * 2.2) + Math.round((PFK.cl(x, y, 2, 587) - 0.5) * 1.1);
+    if (st.edge < 0.16 && (st.bx + st.by) > 0) k -= 1;                                                  // canto en sombra abajo-derecha
+    if (st.edge < 0.16 && (st.bx + st.by) < -0.2) k += 1;                                               // canto iluminado arriba-izquierda
+    k -= Math.round(Math.max(0, d - e1 + 12) / 7);
+    const c = Bz[clamp(k, 0, 8)];
+    return hash1(st.id, 589) < 0.22 ? K.mixU(c, U('#a04a2a'), 0.42) : c;                               // alguna piedra rojiza (toba)
+  }
+  /** Aljibe / balsa en 3/4: brocal de piedra iluminado, lámina turquesa, cara delantera */
+  function basin(pb, x, y, w, h) {
+    const RW = P32(RAMP.rockWarmR), Wt = P32(R3WAT);
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+      const bx = xx - x, by = yy - y, rim = by < 2 || bx < 2 || bx > w - 3 || by > h - 5;
+      if (rim) { const front = by > h - 5; put(pb, xx, yy, front ? RW[by === h - 5 ? 8 : by === h - 1 ? 1 : 4 + ((xx >> 2) & 1)] : RW[by === 0 ? 8 : bx < 2 ? 7 : 5]); continue; }
+      let c = Wt[clamp(5 - Math.round((by - 2) / (h - 6) * 2) + (PFK.cl(xx, yy, 3, 591) < 0.2 ? -1 : 0), 1, 7)];
+      if (by === 2) c = Wt[1]; if (((xx * 3 + yy * 5) % 29) === 0) c = Wt[7];
+      put(pb, xx, yy, c);
+    }
+    return { water: [x + 3, y + 3, w - 6, h - 8] };
+  }
+  /** Zoco de La Geria: media luna de piedra volcánica seca que abriga una higuera/parra sobre picón negro */
+  function zoco(pb, x, yb, s = 1, seed = 1) {
+    const r = RNG(seed), rx = 12 * s, ry = 5 * s, BS = P32(['#120c22', '#20183a', '#302650', '#423666', '#5a4a7a', '#7a6488', '#a88a8c', '#d8b49a']);
+    K.ellipseFn(pb, x, yb - ry * 0.4, rx * 1.05, ry * 1.1, (nx, ny, d, xx, yy) => P32(['#140e1c', '#20182a', '#2c2238', '#3a2e46'])[clamp(Math.round(2 - ny + (PFK.cl(xx, yy, 2, seed) - 0.5) * 1.5), 0, 3)]);
+    // muro en media luna detrás (a barlovento): piedras de basalto con techo cálido
+    for (let a = Math.PI * 1.0; a < Math.PI * 2.0; a += 0.17 / s) {
+      const cx = x + Math.cos(a) * rx, cy = yb - ry * 0.45 + Math.sin(a) * ry, st = 2.3 + r() * 1.2;
+      for (let lay = 0; lay < 3; lay++) K.ellipseFn(pb, cx + (r() - 0.5), cy - lay * 2.3 * s, st, st * 0.75, (nx, ny) => BS[clamp(Math.round(3.2 - nx * 1.2 - ny * 1.8 + lay * 0.9), 0, 7)]);
+    }
+    // higuera o parra en el centro (hojas anchas verde intenso) con tronco
+    for (let k = 0; k < Math.round(5 * s); k++) { put(pb, Math.round(x + k * 0.3), yb - Math.round(ry * 0.4) - k, U('#5a3a22')); put(pb, Math.round(x + 1 + k * 0.3), yb - Math.round(ry * 0.4) - k, U('#3a2414')); }
+    PFFlora.cluster(pb, x + 1, yb - ry - 5 * s, 8 * s, 6 * s, R3LET, seed, { leaf: [3, 5], density: 0.7 });
+    r3Shadow(pb, x + 3, yb, rx * 0.8, 3, 0.3);
+  }
+  /** Pared de piedra seca (linde de bancales) a lo largo de una polilínea: piedras volcánicas con techo iluminado */
+  function dryWall(pb, pts, seed = 1) {
+    const r = RNG(seed), BS = P32(['#120c22', '#20183a', '#302650', '#423666', '#5a4a7a', '#7a6488', '#a88a8c', '#d8b49a']);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [xa, ya] = pts[i], [xb, yb2] = pts[i + 1], n = Math.max(1, Math.round(Math.hypot(xb - xa, yb2 - ya) / 3));
+      for (let q = 0; q <= n; q++) {
+        const t = q / n, cx = lerp(xa, xb, t), cy = lerp(ya, yb2, t);
+        for (let lay = 0; lay < 2; lay++) { const st = 2 + r() * 1.3; K.ellipseFn(pb, cx + (r() - 0.5) * 1.5, cy - lay * 2.6, st, st * 0.72, (nx, ny) => BS[clamp(Math.round(3 - nx * 1.2 - ny * 1.8 + lay * 1.2), 0, 7)]); }
+        if (q % 2 === 0) { const c = get(pb, Math.round(cx + 3), Math.round(cy + 2)); if (c >>> 24) put(pb, Math.round(cx + 3), Math.round(cy + 2), K.mixU(c, R3SHC, 0.4)); }
+      }
+    }
+  }
+  /** Cuadrícula de paja (fijación de dunas) en perspectiva con plantones en algunas celdas */
+  function strawGrid(pb, x0, x1, y0, y1, seed = 1) {
+    const r = RNG(seed), ST = P32(['#5a3a10', '#8a6420', '#b88a34', '#dcb456', '#f4d888', '#fff0c0']);
+    for (let y = y0; y < y1; y++) {
+      const v = (y - y0) / Math.max(1, y1 - y0), cell = Math.round(11 + v * 7), rowH = Math.round(5 + v * 3);
+      const ry = Math.floor((y - y0) / rowH), lyy = (y - y0) % rowH;
+      for (let x = x0; x < x1; x++) {
+        const lx = ((x - x0 + ry * 4) % cell + cell) % cell;
+        if (hash2(x >> 2, ry, seed) < 0.08) continue;
+        if (lyy === 0) put(pb, x, y, ST[(x + ry) % 3 ? 4 : 5]); else if (lyy === 1) put(pb, x, y, ST[2]);
+        else if (lyy === 2) { const c = get(pb, x, y); if (c >>> 24) put(pb, x, y, K.mixU(c, R3SHC, 0.22)); }
+        if (lx === 0 && lyy > 0) put(pb, x, y, ST[3]); else if (lx === 1 && lyy > 0) put(pb, x, y, ST[1]);
+      }
+    }
+    // plantones (tabaiba joven / balancón) en celdas
+    for (let k = 0; k < Math.round((x1 - x0) / 7); k++) { const x = r.int(x0 + 3, x1 - 3), y = r.int(y0 + 4, y1 - 2); if (r() < 0.6) PFFlora.tuft(pb, x, y, 5, 5 + r.int(0, 3), seed + k, R3TAB); else PFFlora.cluster(pb, x, y - 2, 3, 2.4, R3TAB, seed + k, { leaf: [2, 3], density: 0.8, core: false }); }
+  }
+  /** Bobina de cable (carrete de madera) en 3/4 */
+  function cableDrum(pb, x, yb, r0 = 9, col = '#1c1c24') {
+    const Wd = P32(PFArch.WOOD);
+    r3Shadow(pb, x + 3, yb, r0, 3);
+    K.ellipseFn(pb, x + 3, yb - r0, r0 * 0.45, r0, (nx, ny, d) => Wd[clamp(Math.round(4 - nx * 1.5 - ny * 1.2 - (d > 0.8 ? 1 : 0)), 0, 7)]);
+    for (let yy = yb - r0 * 2 + 3; yy < yb - 2; yy++) for (let xx = x - 2; xx < x + 4; xx++) put(pb, xx, yy, ((yy + xx) % 3) ? U(col) : U('#4a4a54'));
+    K.ellipseFn(pb, x - 3, yb - r0, r0 * 0.45, r0, (nx, ny, d) => d > 0.82 ? Wd[2] : d < 0.2 ? Wd[1] : Wd[clamp(Math.round(6 - nx - ny * 1.4 - d * 2), 2, 7)]);
+    put(pb, x - 3, yb - r0, Wd[0]);
+  }
+  /** Palé de módulos FV de repuesto (azul con reflejo) */
+  function modulePallet(pb, x, yb, n = 5) {
+    r3Shadow(pb, x + 12, yb, 14, 3);
+    I.box3q(pb, x, yb, 26, 3, 6, { ramp: PFArch.WOOD, skew: 0.7 });
+    for (let k = 0; k < n; k++) I.box3q(pb, x + 1, yb - 3 - k * 2, 24, 2, 6, { ramp: ['#0c1838', '#1b3366', '#335a98', '#6e98d0', '#d2d6dc', '#ffffff'], skew: 0.7 });
+  }
+  /** Umbráculo del vivero: postes, malla de sombreo verde en 3/4 (plano visible) y bandejas de plantones */
+  function shadeHouse(pb, x, yb, w = 90, h = 30) {
+    const St = P32(PFInfra.STEEL), NET = P32(['#0e2a1c', '#164030', '#1e5640', '#2a6e50', '#3a8a62']), d = 12, sk = 0.7;
+    r3Shadow(pb, x + w * 0.5, yb + 1, w * 0.55, 6, 0.24);
+    for (let k = 0; k < 3; k++) { const ty = yb - 2 - k * 7; for (let xx = x + 4 + k * 3; xx < x + w - 4 + k * 3; xx++) { put(pb, xx, ty, U('#3a2a1a')); if ((xx % 4) && (xx + k) % 7) PFFlora.tuft(pb, xx, ty - 1, 2, 3, xx + k, R3LET); } }
+    for (const px of [x, x + w - 2, x + Math.round(d * sk), x + w - 2 + Math.round(d * sk)]) for (let yy = yb - h; yy < yb - (px > x + w - 3 ? 0 : 0); yy++) { put(pb, px, yy, St[5]); put(pb, px + 1, yy, St[2]); }
+    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = x + off; xx < x + w + off; xx++) { const c = get(pb, xx, yb - h - r); const net = NET[clamp(2 + ((xx + r) % 3 === 0 ? 1 : 0) + (r === d - 1 ? 2 : 0), 0, 4)]; put(pb, xx, yb - h - r, c >>> 24 ? K.mixU(c, net, 0.82) : net); } }
+    for (let xx = x; xx < x + w; xx++) { put(pb, xx, yb - h + 1, U('#fbc371')); for (let k = 0; k < 4; k++) { const c = get(pb, xx, yb - h + 2 + k); if (c >>> 24) put(pb, xx, yb - h + 2 + k, K.mixU(c, U('#0e2a1c'), 0.35 - k * 0.07)); } }
+  }
+  /** Hubara canaria (avutarda pequeña): parda arena con collar blanco y negro */
+  function hubara(pb, x, yb, f = 1) {
+    const B = ['#2a1a0c', '#5a3c1e', '#8a6232', '#b48a4a', '#d8b878', '#f4e4c0'];
+    const px = (dx, dy, k) => put(pb, x + dx * f, yb + dy, U(typeof k === 'string' ? k : B[k]));
+    for (let dx = -4; dx <= 3; dx++) for (let dy = -6; dy <= -2; dy++) { const e = (dx / 4.5) ** 2 + ((dy + 4) / 2.6) ** 2; if (e <= 1) px(dx, dy, dy < -4 ? 4 : dx > 1 ? 2 : 3); }
+    for (let dy = -10; dy <= -6; dy++) { px(2, dy, dy < -8 ? 4 : '#f4f0e8'); px(3, dy, dy === -7 ? '#1a1410' : dy < -8 ? 3 : '#e8e4dc'); }
+    px(3, -11, 4); px(4, -11, 3); px(5, -11, '#3a2a1a'); px(4, -12, '#1a1410');
+    for (const dx of [-1, 1]) { px(dx, -1, 1); px(dx, 0, 1); }
+    px(-5, -4, 1); px(-5, -3, 2);
+  }
+  /** Patio de subestación en 3/4: grava vallada, pórticos de celosía, transformador de potencia, interruptores y barras */
+  function substation(pb, x, yb, w = 150) {
+    const St = P32(PFInfra.STEEL), Tp = P32(['#14202a', '#24384a', '#3a566e', '#567a94', '#7aa0b8', '#a8c4d4', '#d0e2ec']), out = { ins: [], hv: [] };
+    r3Shadow(pb, x + w * 0.5, yb + 1, w * 0.5, 6, 0.28);
+    // pórticos de celosía (dos torres + travesaño), con cadenas de aisladores
+    const portal = (px, h) => {
+      for (const tx of [px, px + 34]) { for (let y = yb - h; y < yb; y++) { put(pb, tx, y, St[6]); put(pb, tx + 3, y, St[2]); if (((y - yb) & 3) === 0) { put(pb, tx + 1, y, St[4]); put(pb, tx + 2, y, St[3]); } else if (((y - yb) & 3) === 2) { put(pb, tx + 2, y, St[4]); } } }
+      for (let xx = px; xx < px + 38; xx++) { put(pb, xx, yb - h, St[7]); put(pb, xx, yb - h + 1, St[3]); put(pb, xx, yb - h + 3, St[2]); if (((xx - px) & 3) === 1) put(pb, xx, yb - h + 2, St[4]); }
+      for (const ix of [px + 8, px + 18, px + 28]) { for (let k = 0; k < 6; k++) put(pb, ix, yb - h + 4 + k, U(k % 2 ? '#c8562a' : '#e8805a')); out.ins.push([ix, yb - h + 10]); }
+    };
+    portal(x + 4, 52); portal(x + w - 44, 52);
+    // barras entre pórticos (catenaria)
+    for (const ix of [8, 18, 28]) for (let xx = x + 4 + ix; xx < x + w - 44 + ix; xx++) { const t = (xx - x - 4 - ix) / (w - 48); put(pb, xx, Math.round(yb - 42 + Math.sin(t * Math.PI) * 5), U('#2a2a30')); }
+    // transformador de potencia con radiadores y pasatapas
+    const tx = x + Math.round(w * 0.36);
+    I.box3q(pb, tx - 4, yb, 50, 5, 10, { ramp: PFTerrain.CONC, skew: 0.6 });
+    I.box3q(pb, tx + 4, yb - 5, 30, 26, 9, { ramp: ['#14202a', '#24384a', '#3a566e', '#567a94', '#7aa0b8', '#a8c4d4', '#d0e2ec'], skew: 0.6, front: (xx, yy, u, v) => Tp[((xx - tx) % 4 === 0) ? 1 : 3 - Math.round(v)] });
+    for (let k = 0; k < 4; k++) for (let yy = yb - 28; yy < yb - 7; yy++) { put(pb, tx - 2 + k * 2, yy, Tp[k % 2 ? 2 : 5]); put(pb, tx + 36 + k * 2, yy, Tp[k % 2 ? 2 : 4]); }
+    for (const bx of [tx + 9, tx + 17, tx + 25]) { for (let k = 0; k < 9; k++) { put(pb, bx, yb - 32 - 6 - k, U(k % 2 ? '#c8562a' : '#e8805a')); put(pb, bx + 1, yb - 32 - 6 - k, U('#8a3a1a')); } out.hv.push([bx, yb - 48]); }
+    PFInfra.cylH(pb, tx + 6, tx + 30, yb - 35, 3, { ramp: PFInfra.STEEL });
+    // interruptores (tres polos en columnas) y seccionadores
+    for (let k = 0; k < 3; k++) { const bx = x + w - 40 + k * 10; for (let yy = yb - 30; yy < yb; yy++) { put(pb, bx, yy, St[5]); put(pb, bx + 1, yy, St[2]); } I.cylV(pb, bx + 1, yb - 30, 3, 10, { ramp: ['#3a3e48', '#5a6070', '#8a92a2', '#b8c0cc', '#e0e6ee'] }); }
+    // valla perimetral de malla con cartel de peligro
+    for (let xx = x - 4; xx < x + w + 4; xx++) { put(pb, xx, yb - 14, St[5]); if (((xx - x) % 3) === 0) for (let yy = yb - 13; yy < yb; yy++) if ((yy + xx) % 3 === 0) put(pb, xx, yy, St[3]); }
+    for (let xx = x - 4; xx < x + w + 4; xx += 14) for (let yy = yb - 16; yy < yb + 1; yy++) { put(pb, xx, yy, St[6]); put(pb, xx + 1, yy, St[2]); }
+    rect(pb, x + 10, yb - 11, 9, 7, U('#fcd856')); PL.sign(pb, x + 11, yb - 11, 'bolt');
+    return out;
+  }
+  /** Hangar de mantenimiento en 3/4: fachada con portón abierto e interior iluminado, faldón de cubierta visible
+      (chapa grecada clara con borde cálido), banda de sombra bajo el alero, lateral en sombra y sombra arrojada abajo-derecha */
+  function hangar(pb, x, yb, w = 96, h = 40, o = {}) {
+    const Wl = P32(['#3a2a2a', '#5a4040', '#7a5a52', '#9a7666', '#b8927a', '#d2ae92', '#e8caa8', '#f6e2c4']), Rf = P32(['#0e2a3a', '#16405a', '#1e5a7a', '#2a7898', '#4a98b4', '#7ab8cc', '#b8dce6']), d = 18, sk = 0.75, dx = Math.round(d * sk);
+    // sombra arrojada hacia abajo-derecha (en el suelo, delante del lateral)
+    for (let yy = yb - 2; yy < yb + 7; yy++) for (let xx = x + w - 6; xx < x + w + dx + 22 - (yy - yb) * 1.2; xx++) { const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, R3SHC, 0.4)); }
+    // lateral derecho en sombra (violeta cálido)
+    PFK.polyFill(pb, [[x + w, yb - h], [x + w + dx, yb - h - d], [x + w + dx, yb - d], [x + w, yb]], (xx, yy) => K.mixU(Wl[2 + ((xx >> 2) & 1)], U('#4a2a6a'), 0.35));
+    // fachada: muro de bloque claro con portón abierto (interior cálido) y ventana alta
+    for (let yy = yb - h; yy < yb; yy++) for (let xx = x; xx < x + w; xx++) {
+      const lx = xx - x, ly = yy - (yb - h);
+      let k = 5 + Math.round((PFK.cl(xx, yy, 2, 601) - 0.5) * 1.2) - (lx > w - 4 ? 1 : 0); if (ly % 6 === 5) k -= 1; if (ly < 4) k -= 2 - (ly >> 1);
+      put(pb, xx, yy, Wl[clamp(k, 0, 7)]);
+    }
+    const dx0 = x + Math.round(w * 0.18), dw = Math.round(w * 0.52), dh = Math.round(h * 0.78);
+    for (let yy = yb - dh; yy < yb; yy++) for (let xx = dx0; xx < dx0 + dw; xx++) {
+      const lx = (xx - dx0) / dw, ly = (yy - yb + dh) / dh;
+      let c = K.mixU(U('#2a1c24'), U('#e8b878'), clamp(0.7 - Math.hypot(lx - 0.5, ly - 0.15) * 1.1, 0.05, 0.7));
+      if (ly > 0.82) c = K.mixU(U('#5a4434'), U('#f0d0a0'), clamp(0.55 - Math.abs(lx - 0.5), 0.1, 0.55));
+      put(pb, xx, yy, c);
+    }
+    for (let xx = dx0 - 1; xx <= dx0 + dw; xx++) { put(pb, xx, yb - dh - 1, Wl[1]); put(pb, xx, yb - dh - 2, P32(PL.YEL)[4]); }
+    for (let k = 0; k < 4; k++) rect(pb, dx0 + 3 + k * 9, yb - dh + 2, 7, 1, U('#c8c0b0'));                                    // persiana recogida
+    // interior: vehículo utilitario y estanterías con robots de recambio
+    I.box3q(pb, dx0 + 6, yb - 2, 22, 9, 6, { ramp: PL.YEL, skew: 0.7 }); I.box3q(pb, dx0 + 20, yb - 2, 10, 14, 5, { ramp: PL.YEL, skew: 0.7 });
+    for (const wx of [dx0 + 10, dx0 + 25]) K.ellipseFn(pb, wx, yb - 2, 3, 3, (nx, ny, dd) => dd > 0.45 ? U('#14141a') : U('#6c7280'));
+    for (let s2 = 0; s2 < 3; s2++) { rect(pb, dx0 + dw - 16, yb - 8 - s2 * 8, 13, 1, U('#6c7280')); rect(pb, dx0 + dw - 15, yb - 11 - s2 * 8, 5, 3, U('#f0bc2c')); rect(pb, dx0 + dw - 9, yb - 11 - s2 * 8, 5, 3, U('#1aa894')); }
+    rect(pb, x + w - 18, yb - h + 8, 12, 7, U('#8ab8d8')); rect(pb, x + w - 18, yb - h + 8, 12, 1, U('#d8ecf8')); rect(pb, x + w - 18, yb - h + 15, 12, 1, Wl[1]);
+    // faldón de cubierta en 3/4 (chapa grecada) con borde cálido y canalón
+    for (let r = 0; r < d; r++) { const off = Math.round(r * sk); for (let xx = x - 3 + off; xx < x + w + 3 + off; xx++) { const rib = ((xx - x - off) % 5) === 0; put(pb, xx, yb - h - 1 - r, r === d - 1 ? U('#fbc371') : rib ? Rf[3] : Rf[r < 4 ? 6 : 5]); } }
+    for (let xx = x - 3; xx < x + w + 3; xx++) { put(pb, xx, yb - h, U('#fbc371')); put(pb, xx, yb - h + 1, Rf[1]); }
+    for (let r = 0; r < d; r++) put(pb, x + w + 3 + Math.round(r * sk), yb - h - 1 - r, Rf[0]);
+    // banda de sombra bajo el alero (3 px) sobre la fachada
+    for (let k = 0; k < 3; k++) for (let xx = x; xx < x + w; xx++) { const c = get(pb, xx, yb - h + 2 + k); if (c >>> 24) put(pb, xx, yb - h + 2 + k, K.mixU(c, U('#2a1c4a'), 0.45 - k * 0.12)); }
+    // rótulo y lámpara
+    if (o.label) { const tw = K.measure(o.label, { font: 'tiny' }); rect(pb, x + 4, yb - h + 6, tw + 4, 8, U('#0a1a34')); K.text(pb, o.label, x + 6, yb - h + 7, U('#ffe14d'), { font: 'tiny' }); }
+    return { lamp: [dx0 + Math.round(dw / 2), yb - dh + 3], door: [dx0, yb - dh, dw, dh], roof: [x, yb - h - d, w + dx, d] };
+  }
+  /** Raíces que bajan por el corte */
+  function roots(pb, x, y0, len, seed = 1, col = '#5a3418') {
+    const r = RNG(seed);
+    const grow = (xx, yy, a, L, wdt) => { for (let k = 0; k < L; k++) { xx += Math.cos(a) * 0.6; yy += 1; a += (r() - 0.5) * 0.5; put(pb, Math.round(xx), Math.round(yy), U(col)); if (wdt > 1) put(pb, Math.round(xx) + 1, Math.round(yy), U('#3a1e0c')); if (L > 8 && r() < 0.08) grow(xx, yy, a + (r() < 0.5 ? -0.8 : 0.8), Math.round(L * 0.4), 1); } };
+    grow(x, y0, Math.PI / 2 + (r() - 0.5) * 0.6, len, 2);
+  }
+
   PFTerrain.register('track', { surf: trackSurf, depth: 16, flat: false });
   PFTerrain.register('sandcut', { face: sandCut, prep: PFTerrain.EXT.prep.dune });
+  PFTerrain.register('r3tier', { face: r3Face, prep: r3Prep });
 
-  return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV };
+  return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV,
+    // r3-desert: diorama de la ladera
+    r3At, r3Shadow, r3VaultE1, r3VaultWall, tabaiba, cardon, grassWind, cropRow, agriPV, invSkid, robotRail, canal, cableTray, trenchPit, trenchSection, pipeSection, roots, basin, zoco, dryWall, strawGrid, hubara, substation, hangar, cableDrum, modulePallet, shadeHouse, R3TAB, R3LET, R3ALOE, R3SOIL, R3WAT, R3GH, R3CONW };
 })();

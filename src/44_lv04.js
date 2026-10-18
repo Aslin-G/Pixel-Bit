@@ -35,10 +35,20 @@ LEVELS[4] = {
   cam: { look: 50, vy: 0.6 },
   pf: {
     terrain: [
-      { x0: 0, x1: 340, surf: 'dune', face: 'sandcut', depth: 16, seed: 3 },
-      { x0: 340, x1: 1160, surf: 'track', face: 'sandcut', depth: 18, trench: [352, 1150], trenchWin: [[400, 486], [636, 772], [906, 984], [1066, 1142]], seed: 5 },
-      { x0: 1160, x1: 1520, surf: 'paving', face: 'cliff', depth: 16, seed: 7, ledges: false, ledgePlants: false },
-      { x0: 1520, x1: 2800, surf: 'dune', face: 'sandcut', depth: 16, seed: 9 },
+      /* r3-desert: la cara bajo la pasarela es un diorama en 4 alturas (talud · muro · bancal · corte), ver PFASolar 'r3tier' */
+      { x0: 0, x1: 340, surf: 'dune', face: 'r3tier', depth: 16, seed: 3 },
+      { x0: 340, x1: 1160, surf: 'track', face: 'r3tier', depth: 18, seed: 5 },
+      { x0: 1160, x1: 1520, surf: 'paving', face: 'r3tier', depth: 16, seed: 7, r3wall: (s, x, y, d, e1, w) => PFASolar.r3VaultWall(s, x, y, d, e1, w, 1160, 1520) },
+      { x0: 1520, x1: 2800, surf: 'dune', face: 'r3tier', depth: 16, seed: 9 },
+    ],
+    /** r3-desert: zonas del diorama inferior (borde del muro, suelo del bancal; el zócalo del taller es más alto) */
+    r3zones: [
+      { x0: 0, x1: 340, edge: 'rock', top: 'sand', fans: [[250, 70, 16]] },
+      { x0: 340, x1: 1160, edge: 'gabion', top: 'soil', fans: [[580, 64, 14], [904, 58, 11]] },
+      { x0: 1160, x1: 1520, edge: 'concrete', top: 'gravel', wall: true, e1: (x) => PFASolar.r3VaultE1(x, 1160, 1520) },
+      { x0: 1520, x1: 1920, edge: 'gabion', top: 'sand', fans: [[1680, 76, 18], [1890, 50, 12]] },
+      { x0: 1920, x1: 2300, edge: 'concrete', top: 'gravel', fans: [[2122, 40, 9]] },
+      { x0: 2300, x1: 2801, edge: 'rock', top: 'sand', fans: [[2330, 60, 18], [2590, 90, 22]] },
     ],
     /** Primer plano oscuro del desierto: chumberas y matas secas en el borde inferior */
     fg: [
@@ -49,7 +59,7 @@ LEVELS[4] = {
       { kind: 'aDesert', x: 2780, w: 160, h: 90, seed: 5, side: -1 },
       { kind: 'aDesert', x: 3360, w: 150, h: 84, seed: 6, side: 1 },
     ],
-    decorateFace(pb, world) { PFASolar.decorateDunes(pb, world, world.def.pf.terrain, 4401); },
+    decorateFace(pb, world) { LEVELS[4].r3face(pb, world); },
     fauna: { eagle: { x0: 300, x1: 2500, y: 70 }, drones: [{ x: 760, y: 150, r: 60 }, { x: 2040, y: 130, r: 40 }] },
   },
   /** Etiquetas científicas en el mundo */
@@ -62,7 +72,7 @@ LEVELS[4] = {
     { x: 2124, y: 178, title: 'SUBESTACIÓN', sub: 'Eleva la tensión', kind: 'tech', ax: 2122, ay: 198 },
     { x: 2224, y: 148, title: 'DESPACHO SOLAR', sub: (sc) => fmt0(LEVELS[4].fieldPower(sc.state, sc)) + ' kW', kind: 'solar', ax: 2224, ay: 164 },
     { x: 2580, y: 200, title: 'CERCAS DE ARENA', sub: 'Fijan las dunas', kind: 'green', ax: 2580, ay: 236 },
-    { x: 700, y: 328, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 700, ay: 334 },
+    { x: 712, y: 311, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 712, ay: 324 },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
@@ -77,6 +87,7 @@ LEVELS[4] = {
     /* ===== 1. ENTRADA Y ESTACIÓN METEOROLÓGICA (0–340) ===== */
     S.fence(pb, 0, 300, (x) => back(x) + 3);
     F.scatter(pb, (x) => back(x) + 2, 0, 320, 401, { gap: 14, mix: { dry: 4, tuft: 1, agave: 1 }, ramp: PFFlora.DRY });
+    { const r3 = RNG(4474); for (let x = 4; x < 300; x += 11 + r3.int(0, 9)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.45) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1 }); else if (k < 0.75) S.tabaiba(pb, x, y, 0.5 + r3() * 0.25, x); } }
     const met = S.meteo(pb, 76, gy(76) - 8); N.met = met;
     S.cactus(pb, 22, gy(22) - 6, 42, 11); S.opuntia(pb, 140, gy(140) - 5, 1, 12); S.dryBush(pb, 180, gy(180) - 4, 22, 12, 13);
     S.stones(pb, 110, gy(110) - 3, 18, 14); S.stones(pb, 262, gy(262) - 3, 14, 15);
@@ -85,6 +96,13 @@ LEVELS[4] = {
     for (const gx of [300, 330]) { for (let y = gy(gx) - 44; y < gy(gx) - 4; y++) { K.put(pb, gx, y, U('#d2d6dc')); K.put(pb, gx + 1, y, U('#6c7280')); } }
     for (let x = 302; x < 330; x++) { K.put(pb, x, gy(x) - 40, U('#b2b6c0')); K.put(pb, x, gy(x) - 22, U('#8e94a2')); if ((x - 302) % 6 === 0) for (let y = gy(x) - 40; y < gy(x) - 22; y++) K.put(pb, x, y, U('#8e94a2')); }
     /* ===== 2. CAMPO FV: 6 STRINGS DE MESAS FIJAS (340–1160) ===== */
+    // r3-desert: cubierta vegetal agrivoltaica bajo las mesas (gramíneas verdes al viento, tabaibas, aloe, aulagas)
+    { const r3 = RNG(4471); for (let x = 344; x < 1156; x += 7 + r3.int(0, 7)) { const y = Math.round(back(x) + 5 + r3.int(0, 9)), k = r3();
+      if (k < 0.42) F.tuft(pb, x, y, 7 + r3.int(0, 3), 6 + r3.int(0, 4), x, RAMP.grassR, { wind: 0.9 });
+      else if (k < 0.58) S.tabaiba(pb, x, y, 0.42 + r3() * 0.2, x);
+      else if (k < 0.7) F.agave(pb, x, y, 5 + r3.int(0, 2), x, S.R3ALOE);
+      else if (k < 0.8) F.cluster(pb, x, y - 3, 4, 3, ['#2a3a10', '#46601a', '#6a8a22', '#94b02e', '#c4d640', '#eee870'], x, { leaf: [2, 3], density: 0.8 });
+      else if (k < 0.88) F.tuft(pb, x, y, 6, 5, x, PFFlora.DRY, { wind: 0.9 }); } }
     for (const s of PV_STRINGS) {
       const tabs = [];
       for (let k = 0; k < 2; k++) { const tx = s.x - 64 + k * 64, yb = Math.round(Math.max(back(tx), back(tx + 60)) + 10); tabs.push(Object.assign(S.pvTable(pb, tx, yb, 60, { low: 14, ph: 40, sk: 12, seed: s.x + k }), { x: tx, yb })); }
@@ -116,6 +134,7 @@ LEVELS[4] = {
     K.text(pb, '150 L', 1488, 224, U('#0c2650'), { font: 'tiny' });
     /* ===== 4. CRESTAS CON SEGUIDORES Y PASARELAS (1520–1920) ===== */
     F.scatter(pb, (x) => back(x) + 2, 1520, 1940, 451, { gap: 16, mix: { dry: 4, agave: 1 }, ramp: PFFlora.DRY });
+    { const r3 = RNG(4472); for (let x = 1524; x < 1936; x += 10 + r3.int(0, 9)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.45) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1 }); else if (k < 0.7) S.tabaiba(pb, x, y, 0.5 + r3() * 0.25, x); else if (k < 0.8) S.cardon(pb, x, y, 16 + r3.int(0, 8), x); } }
     N.trackers = [];
     for (const [x, y] of [[1610, 236], [1720, 214], [1830, 230]]) {
       for (let k = 0; k < 2; k++) { const tx = x - 6 + k * 46, tb = Math.round(back(tx + 20) + 8); N.trackers.push(S.tracker(pb, tx, tb, 42, { ang: 0.1, h: tb - (y - 40), seed: tx })); }
@@ -135,6 +154,7 @@ LEVELS[4] = {
     S.sandFence(pb, 2310, 2470, (x) => back(x) + 5, { seed: 31, bury: 0.35 });
     S.sandFence(pb, 2520, 2700, (x) => back(x) + 4, { seed: 33, bury: 0.2 });
     F.scatter(pb, (x) => back(x) + 2, 2300, 2800, 461, { gap: 12, mix: { dry: 4, tuft: 2, agave: 2 }, ramp: PFFlora.DRY });
+    { const r3 = RNG(4473); for (let x = 2304; x < 2796; x += 11 + r3.int(0, 10)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.4) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1.2 }); else if (k < 0.7) S.tabaiba(pb, x, y, 0.5 + r3() * 0.3, x); else if (k < 0.78) S.cardon(pb, x, y, 18 + r3.int(0, 10), x); } }
     for (const [x, h, sd] of [[2336, 46, 1], [2498, 36, 2], [2652, 52, 3], [2740, 30, 4]]) S.cactus(pb, x, back(x) + 8, h, sd);
     for (const [x, s] of [[2390, 1], [2560, 0.8], [2706, 1.1]]) S.opuntia(pb, x, back(x) + 10, s, x);
     for (const x of [2440, 2610]) S.dryBush(pb, x, gy(x) - 4, 24, 13, x);
@@ -152,6 +172,171 @@ LEVELS[4] = {
     for (let x = 8; x < 340; x += 19) if ((x * 7) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 6, x, PFFlora.DRY);
     for (let x = 1530; x < 2800; x += 27) if ((x * 13) % 7 < 2) F.tuft(pb, x, gy(x) + 3, 7, 6, x, PFFlora.DRY);
     for (const x of [360, 610, 890, 1140]) PFASolar.stones(pb, x, gy(x) + 4, 10, x);
+  },
+  /**
+   * r3-desert · diorama de la cara inferior (lienzo del terreno, f = 1, tras los accesorios):
+   * talud con matas y bandejas de cable que bajan de cada caja de string · muro (gaviones/hormigón/arenisca) ·
+   * bancal inferior por zonas (jardín de tabaibas y aljibe · franja agrivoltaica con carril del robot y canal ·
+   * zócalo del taller con galería de cables · skids de inversores · patio de subestación y hangar · vivero de dunas) ·
+   * corte frontal con zanjas en sección, tubería de riego y raíces. Anclas animadas en LV4_ANCH.face.
+   */
+  r3face(pb, world) {
+    const S = PFASolar, F = PFFlora, K = PFK, I = PFInfra, P = PFAPlant;
+    const at = (x) => S.r3At(world, x), gy = (x) => world.ground[clamp(Math.round(x), 0, world.w)];
+    const FA = LV4_ANCH.face = { trays: [], pits: [], cores: [], skids: [], rails: [], canals: [], water: [], fans: [], leds: [], grass: [], ins: [], lamps: [], birds: [] };
+    const items = [], add = (y, fn) => items.push({ y, fn }), put4 = (q, x, y, hex) => K.put(q, x, y, U(hex));
+    const qy = (x, q) => { const A = at(x); return Math.round(A.top + (A.e2 - A.top) * q); };
+    const veg = (kind, x, y, sc, sd) => {
+      if (kind === 'tab') S.tabaiba(pb, x, y, sc, sd);
+      else if (kind === 'card') S.cardon(pb, x, y, Math.round(24 * sc + 6), sd);
+      else if (kind === 'agave') F.agave(pb, x, y, Math.max(6, 10 * sc), sd);
+      else if (kind === 'grass') { S.grassWind(pb, x, y, Math.round(10 * sc), Math.round(9 * sc), sd); FA.grass.push([x, y, Math.round(9 * sc), 0]); }
+      else if (kind === 'green') { S.grassWind(pb, x, y, Math.round(10 * sc), Math.round(10 * sc), sd, RAMP.grassR); FA.grass.push([x, y, Math.round(10 * sc), 1]); }
+      else if (kind === 'opu') S.opuntia(pb, x, y, 0.55 + sc * 0.3, sd);
+      else if (kind === 'stones') S.stones(pb, x, y, Math.round(12 * sc), sd);
+      else if (kind === 'aloe') F.agave(pb, x, y, Math.max(5, 8 * sc), sd, S.R3ALOE);
+      else if (kind === 'zoco') S.zoco(pb, x, y, 0.8 + sc * 0.25, sd);
+    };
+    /** Vegetación del bancal: un grupo cada ~gap px repartido en profundidad (q0..q1 del bancal) */
+    const flora = (x0, x1, q0, q1, gap, mix, seed, skip) => {
+      const rr = RNG(seed), keys = Object.keys(mix), tot = keys.reduce((s, k) => s + mix[k], 0), small = ['grass', 'tab', 'stones', 'green', 'aloe', 'grass'];
+      for (let x = x0 + rr.int(2, gap); x < x1 - 4; x += Math.round(gap * (0.6 + rr() * 0.8))) {
+        const A = at(x), span = A.e2 - A.top, y = Math.round(A.top + (q0 + rr() * (q1 - q0)) * span), sc = 0.95 + (y - A.top) / Math.max(1, span) * 0.8;
+        if (skip && skip(x, y)) continue;
+        let p = rr() * tot, kind = keys[0]; for (const k of keys) { p -= mix[k]; if (p <= 0) { kind = k; break; } }
+        add(y, () => veg(kind, x, y, sc, x * 7 + seed));
+        // satélites del grupo (2–3 piezas menores ordenadas por profundidad)
+        const n = rr.int(1, 3);
+        for (let k = 0; k < n; k++) {
+          const x2 = x + rr.int(-15, 15), y2 = clamp(y + rr.int(-3, 7), A.top + 2, A.e2 - 3), kk = small[rr.int(0, small.length - 1)];
+          if (skip && skip(x2, y2)) continue;
+          add(y2, () => veg(kk, x2, y2, sc * (kk === 'tab' ? 0.55 : 0.75), x2 * 3 + seed + k));
+        }
+      }
+    };
+    /** Talud: matas, piedras, gramíneas entre la pasarela y el muro */
+    const slope = (x0, x1, gap, seed) => {
+      const rr = RNG(seed);
+      for (let x = x0 + rr.int(2, gap); x < x1 - 4; x += Math.round(gap * (0.6 + rr() * 0.8))) {
+        const A = at(x), y = Math.round(A.gy + 6 + rr() * Math.max(2, A.e1 - A.gy - 6)), k = rr();
+        add(y, () => k < 0.3 ? veg(k < 0.15 ? 'green' : 'grass', x, y, 0.95, x + seed) : k < 0.42 ? veg('stones', x, y, 0.9, x + seed) : k < 0.76 ? S.tabaiba(pb, x, y, 0.62 + rr() * 0.3, x + seed) : k < 0.84 ? S.dryBush(pb, x, y, 13, 8, x + seed) : k < 0.92 ? F.agave(pb, x, y, 7, x + seed, S.R3ALOE) : F.agave(pb, x, y, 8, x + seed));
+      }
+    };
+    /* ===== A · JARDÍN DE TABAIBAS, ZOCOS Y ALJIBE (0–340) ===== */
+    slope(0, 340, 10, 11);
+    { const y = qy(150, 0.42); add(y, () => { const b = S.basin(pb, 118, y - 13, 64, 15); FA.water.push(b.water); K.text(pb, 'ALJIBE', 130, y + 5, U('#fbe6c0'), { font: 'tiny' }); S.r3Shadow(pb, 170, y + 2, 16, 3, 0.3); }); }
+    { const y = qy(206, 0.36); add(y, () => { I.cylV(pb, 208, y, 9, 28, { ramp: ['#063a52', '#0a5a7a', '#0e7ea6', '#16a6cc', '#3ac8e6', '#8ae6f6', '#e0fbff'] }); S.r3Shadow(pb, 214, y, 11, 4); for (let k = 0; k < 30; k++) put4(pb, 199 - Math.round(k * 0.9), y - 6 + Math.round(Math.sin(k * 0.2) * 2), '#1e7a8a'); FA.leds.push({ x: 212, y: y - 24, col: '#56e5ff', hz: 0.8, ph: 2 }); }); }
+    for (const [x, q] of [[40, 0.55], [86, 0.82], [262, 0.7], [300, 0.3]]) { const y = qy(x, q); add(y, () => S.zoco(pb, x, y, 1.05, x)); }
+    add(qy(60, 0.3), () => S.dryWall(pb, [[8, qy(8, 0.12)], [60, qy(60, 0.45)], [104, qy(104, 0.95)]], 13));
+    add(qy(240, 0.3), () => S.dryWall(pb, [[226, qy(226, 0.08)], [244, qy(244, 0.5)], [236, qy(236, 0.96)]], 17));
+    flora(0, 340, 0.08, 0.96, 15, { tab: 6, card: 2, agave: 2, grass: 1, opu: 1, green: 1 }, 101, (x, y) => x > 112 && x < 222 && y < qy(150, 0.5));
+    /* ===== B · FRANJA AGRIVOLTAICA (340–1160) ===== */
+    slope(340, 1160, 10, 21);
+    const kinds = ['lettuce', 'aloe', 'tomato', 'herb'];
+    const fanSkip = (yy) => (x) => at(x).top > yy - 2;
+    const path = (x) => Math.abs(x - 836) < 7;
+    for (let px0 = 352, pi = 0; px0 < 1150; px0 += 160, pi++) {
+      const px1 = Math.min(1150, px0 + 146);
+      for (const [q, ki] of [[0.2, pi], [0.36, pi + 1], [0.66, pi + 2], [0.84, pi + 3]]) {
+        const y = qy((px0 + px1) / 2, q);
+        add(y, () => S.cropRow(pb, px0, px1, y, kinds[ki % 4], px0 + q * 100, (x) => fanSkip(y)(x) || path(x)));
+      }
+    }
+    const tabs = [];
+    for (let x = 362; x < 1110; x += 92) { const yb = qy(x + 28, 0.52); if (at(x + 28).fan > 4 || at(x).fan > 4 || at(x + 56).fan > 4) continue; add(yb, () => { const T = S.agriPV(pb, x, yb, 56, x); tabs.push(T); }); }
+    // senda de mantenimiento en diagonal con pasarela sobre el canal
+    add(1, () => { for (let k = 0; k < 60; k++) { const x = 812 + Math.round(k * 0.4), y = at(x).top + k; if (y > at(x).e2 - 8) break; for (let w = -4; w <= 4; w++) put4(pb, x + w, y, Math.abs(w) === 4 ? '#8e5a2a' : ((x + w + y) % 5 ? '#d8b078' : '#c09060')); } });
+    // canal de riego al frente del bancal (compuertas cada ~160 px) y pasarela
+    add(9999, () => {
+      S.canal(pb, 344, 1156, (x) => at(x).e2 - 6); FA.canals.push({ x0: 344, x1: 1156, y: (x) => at(x).e2 - 7 });
+      for (let x = 420; x < 1150; x += 160) { const y = at(x).e2 - 6; I.box3q(pb, x, y + 1, 4, 9, 3, { ramp: PFInfra.STEEL }); put4(pb, x + 1, y - 9, '#2c6cc6'); }
+      const bx = 832, by = at(bx).e2 - 7; I.box3q(pb, bx - 8, by + 3, 20, 2, 4, { ramp: PFArch.WOOD }); for (const px of [bx - 8, bx + 11]) for (let k = 0; k < 7; k++) put4(pb, px, by - 4 - k, '#9a6a44');
+      for (let x = bx - 8; x < bx + 12; x++) put4(pb, x, by - 8, '#c08e60');
+    });
+    // zanja CC enterrada al pie del muro: hitos y catas; bandejas que bajan de cada caja de string
+    add(0, () => { for (let x = 366; x < 1150; x += 44) { const A = at(x); if (A.fan > 3) continue; const y = A.top + 4; for (let k = 0; k < 6; k++) { put4(pb, x, y - k, k < 2 ? '#f0bc2c' : '#e8e4dc'); put4(pb, x + 1, y - k, k < 2 ? '#a87a10' : '#9a968e'); } put4(pb, x, y - 6, '#e2404a'); } });
+    for (const s of PV_STRINGS) {
+      const xa = s.x + 64, A = at(xa + 8);
+      add(A.top + 2, () => { FA.trays.push(S.cableTray(pb, [[xa, gy(xa) + 3], [xa + 4, Math.round((gy(xa) + A.e1) / 2)], [xa + 8, A.top + 3], [xa + 40, A.top + 3]])); });
+    }
+    add(2, () => { for (const [x0, x1] of [[648, 778], [990, 1060]]) { const A = at((x0 + x1) / 2); FA.pits.push(S.trenchPit(pb, x0, x1, A.top + 7, 12)); } });
+    // carril del robot de limpieza a lo largo del borde inferior de los módulos (tras las mesas)
+    add(qy(700, 0.52) + 1, () => {
+      if (!tabs.length) return;
+      const Al = K.P32(S.ALU), segs = tabs.map(t => [t.quad[0][0] - 3, t.quad[1][0] + 3, t.quad[0][1] + 1]);
+      for (const [x0, x1, y] of segs) for (let x = x0; x < x1; x++) { K.put(pb, x, y, Al[6]); K.put(pb, x, y + 1, Al[2]); }
+      FA.rails.push({ segs });
+    });
+    /* ===== C · ZÓCALO DEL TALLER CON GALERÍA DE CABLES (1160–1520) ===== */
+    add(0, () => {
+      const vx0 = 1248, vx1 = 1400, g = gy(1300), y0 = g + 12, y1 = g + 49;
+      const C = K.P32(S.R3CONW);
+      // contrafuertes de hormigón que rompen el paño de sillería
+      for (const bx of [1222, 1412, 1470]) { for (let y = g + 5; y < g + 50; y++) for (let k = 0; k < 9; k++) K.put(pb, bx + k, y, C[clamp([7, 6, 5, 5, 4, 4, 3, 2, 1][k] - (y > g + 44 ? 1 : 0), 0, 7)]); for (let k = 0; k < 9; k++) K.put(pb, bx + k, g + 5, C[7]); }
+      for (let y = y0; y < y1; y++) for (let x = vx0; x < vx1; x++) {
+        const lx = x - vx0, ly = y - y0, lw = vx1 - vx0, lh = y1 - y0;
+        if (ly < 3 || lx < 3 || lx > lw - 4) { K.put(pb, x, y, C[ly === 0 ? 7 : lx < 3 ? [7, 6, 4][lx] : ly < 3 ? [7, 5, 2][ly] : [2, 1, 1][lw - 1 - lx]]); continue; }
+        const dl = Math.hypot((lx - lw * 0.5) / lw, (ly - 4) / lh * 0.8);
+        let c = K.mixU(U('#2a1c2a'), U('#d0a070'), clamp(0.78 - dl * 1.2, 0, 0.78));
+        if (ly < 6) c = K.mixU(c, U('#140c14'), 0.5);
+        if (ly > lh - 6) c = K.mixU(U('#5a4434'), U('#e0c098'), clamp(0.65 - dl, 0.1, 0.65));
+        K.put(pb, x, y, c);
+      }
+      const trays = [[y0 + 10, '#a8202a', '#1c1c24'], [y0 + 17, '#1c1c24', '#a8202a'], [y0 + 24, '#6c7280', '#3a3e48']];
+      for (const [ty, c1, c2] of trays) for (let x = vx0 + 3; x < vx1 - 3; x++) { K.put(pb, x, ty, U('#b2b6c0')); K.put(pb, x, ty + 1, U('#4c5260')); K.put(pb, x, ty - 1, U((x >> 1) % 3 ? c1 : c2)); if ((x - vx0) % 12 === 0) for (let k = 0; k < 4; k++) K.put(pb, x, ty + 1 + k, U('#3a3e48')); }
+      for (const cx of [1270, 1286, 1330, 1346]) for (let y = y0 + 3; y < y0 + 10; y++) { K.put(pb, cx, y, U(y % 2 ? '#a8202a' : '#1c1c24')); K.put(pb, cx + 1, y, U('#1c1c24')); }
+      // armario de seccionadores CC y transformador de servicios auxiliares dentro de la galería
+      I.box3q(pb, vx0 + 50, y1 - 5, 16, 16, 4, { ramp: ['#5a5466', '#7e7686', '#a39aa4', '#c4bcc0', '#ddd6d4', '#efe9e2', '#faf6ee'], skew: 0.6 }); P.rect(pb, vx0 + 52, y1 - 17, 5, 3, U('#06122a'));
+      I.box3q(pb, vx0 + 96, y1 - 5, 20, 13, 5, { ramp: ['#14202a', '#24384a', '#3a566e', '#567a94', '#7aa0b8', '#a8c4d4'], skew: 0.6 });
+      FA.vault = { x0: vx0, x1: vx1, y0, y1, dc: [[1160, y0 + 9], [vx0 + 22, y0 + 9], [vx0 + 22, y0 + 3]], dc2: [[1160, y0 + 16], [vx0 + 38, y0 + 16], [vx0 + 38, y0 + 3]], ac: [[vx1 - 46, y0 + 23], [vx1 + 160, y0 + 23]], lamp: [Math.round((vx0 + vx1) / 2), y0 + 6], scr: [vx0 + 52, y1 - 17, 5, 3] };
+      P.rect(pb, Math.round((vx0 + vx1) / 2) - 6, y0 + 3, 13, 2, U('#4f4d51')); P.hline(pb, Math.round((vx0 + vx1) / 2) - 5, Math.round((vx0 + vx1) / 2) + 5, y0 + 5, U('#fff6d8'));
+      P.rect(pb, vx0 + 8, y1 - 14, 34, 9, U('#0a1a34')); K.text(pb, 'GALERÍA', vx0 + 10, y1 - 13, U('#ffe14d'), { font: 'tiny' });
+      for (const vx of [1192, 1440]) { P.rect(pb, vx, g + 14, 16, 10, U('#2a1c14')); for (let k = 0; k < 4; k++) P.hline(pb, vx + 1, vx + 14, g + 16 + k * 2, U('#8e7a64')); }
+      I.pipe(pb, [[1176, g + 36], [1238, g + 36], [1238, g + 8]], 2, 'product', { flange: 18 });
+      FA.water.push([1176, g + 35, 62, 1]);
+      // escalera de servicio en diagonal (del bancal a la pasarela) junto al contrafuerte este
+      for (let k = 0; k < 40; k++) { const x = 1484 - Math.round(k * 0.9), y = g + 48 - k; for (let w = 0; w < 7; w++) K.put(pb, x + w, y, C[(k % 3 === 0) ? 7 : w > 4 ? 3 : 5]); }
+      for (let k = 0; k < 40; k++) { const x = 1484 - Math.round(k * 0.9) + 8, y = g + 48 - k - 10; K.put(pb, x, y, U('#f0bc2c')); if (k % 8 === 0) for (let q = 0; q < 10; q++) K.put(pb, x, y + q, U('#a87414')); }
+      // aeonium y uña de gato (flor amarilla) colgando del borde del zócalo
+      for (let x = 1186; x < 1478; x += 14 + ((x * 7) % 9)) { if (x > vx0 - 6 && x < vx1 + 6) continue; for (let k = 0; k < 6 + (x % 7); k++) { K.put(pb, x + (k % 2), g + 5 + k, U(k % 3 ? '#4a7a2a' : '#7aa83a')); } K.put(pb, x + 1, g + 6, U('#f6d24a')); }
+    });
+    add(9000, () => { const A = at(1192), y = A.e2 - 3; I.cylV(pb, 1192, y, 13, 32, { ramp: ['#063a52', '#0a5a7a', '#0e7ea6', '#16a6cc', '#3ac8e6', '#8ae6f6', '#e0fbff'] }); S.r3Shadow(pb, 1200, y, 14, 5); K.text(pb, 'AGUA', 1185, y - 20, U('#e8fbff'), { font: 'tiny' }); FA.leds.push({ x: 1200, y: y - 30, col: '#56e5ff', hz: 1, ph: 1 }); });
+    add(9001, () => { for (const x of [1414, 1446]) { const y = at(x).e2 - 3; S.robot(pb, x, y); S.r3Shadow(pb, x + 14, y, 15, 4); } });
+    flora(1160, 1520, 0.25, 0.95, 18, { tab: 3, grass: 3, stones: 2, agave: 1, aloe: 1 }, 131, (x) => x > 1176 && x < 1214 || x > 1405 && x < 1480);
+    /* ===== D · SKIDS DE INVERSORES BAJO LOS SEGUIDORES (1520–1920) ===== */
+    slope(1520, 1920, 10, 41);
+    for (const [x, lab, tx] of [[1566, 'INV-5', 1604], [1744, 'INV-6', 1834]]) {
+      const yb = qy(x + 30, 0.62);
+      add(yb, () => { const k = S.invSkid(pb, x, yb, { label: lab }); FA.skids.push(k); FA.fans.push(k.fan); FA.leds.push({ x: k.led[0], y: k.led[1], col: '#3fe0a0', hz: 1.3, ph: x }); FA.ins.push(k.hv); });
+      // bandeja desde la fila de seguidores hasta la entrada CC del skid
+      const A = at(tx); add(A.top, () => FA.trays.push(S.cableTray(pb, [[tx, gy(tx) + 3], [tx + 3, A.e1 - 2], [tx + 6, A.top + 4], [x - 2, yb - 10]])));
+    }
+    { const y = qy(1690, 0.85); add(y, () => S.cableDrum(pb, 1690, y, 9)); }
+    flora(1520, 1920, 0.05, 0.98, 14, { tab: 5, card: 2, grass: 1, agave: 1, aloe: 1 }, 141, (x, y) => (x > 1556 && x < 1640 && y < qy(x, 0.75) && y > qy(x, 0.15)) || (x > 1734 && x < 1818 && y < qy(x, 0.75) && y > qy(x, 0.15)));
+    /* ===== E · PATIO DE SUBESTACIÓN Y HANGAR (1920–2300) ===== */
+    slope(1920, 2300, 10, 51);
+    { const yb = qy(2010, 0.72); add(yb, () => { const s2 = S.substation(pb, 1934, yb, 150); FA.ins.push(...s2.ins, ...s2.hv); FA.sub = s2; K.text(pb, 'SUBESTACIÓN 20/66 kV', 1950, yb + 3, U('#fbe6c0'), { font: 'tiny' }); }); }
+    { const yb = qy(2210, 0.86); add(yb, () => { const h = S.hangar(pb, 2150, yb, 104, 40, { label: 'HANGAR' }); FA.lamps.push([h.lamp[0], h.lamp[1], '#ffd890', 12]); FA.hangar = h; }); }
+    for (const [x, q, kind] of [[2098, 0.5, 'drum'], [2120, 0.62, 'drum2'], [2104, 0.86, 'pallet'], [1996, 0.2, 'pallet']]) { const y = qy(x, q); add(y, () => kind === 'pallet' ? S.modulePallet(pb, x, y, 5) : S.cableDrum(pb, x, y, kind === 'drum' ? 10 : 8, kind === 'drum' ? '#1c1c24' : '#a8202a')); }
+    flora(1920, 2300, 0.05, 0.98, 16, { tab: 3, grass: 2, card: 1, agave: 1 }, 151, (x, y) => (x > 1926 && x < 2094 && y > qy(x, 0.2)) || (x > 2140 && x < 2290 && y > qy(x, 0.3)));
+    /* ===== F · VIVERO DE DUNAS: CUADRÍCULA DE PAJA, ZOCOS Y CARDONAL (2300–2800) ===== */
+    slope(2300, 2800, 9, 61);
+    { const y0 = qy(2420, 0.12), y1 = qy(2420, 0.6); add(y0, () => S.strawGrid(pb, 2340, 2560, y0, y1, 71)); }
+    for (const [x, q] of [[2600, 0.4], [2680, 0.75], [2760, 0.35]]) { const y = qy(x, q); add(y, () => S.zoco(pb, x, y, 1.1, x)); }
+    for (const [x, q, f] of [[2470, 0.82, 1], [2520, 0.9, -1]]) { const y = qy(x, q); add(y, () => S.hubara(pb, x, y, f)); }
+    { const yb = qy(2700, 0.62); add(yb, () => S.shadeHouse(pb, 2652, yb, 100, 30)); }
+    add(qy(2580, 0.2), () => S.sandFence(pb, 2566, 2648, (x) => qy(x, 0.12 + (x - 2566) / 82 * 0.8), { seed: 37, bury: 0.25 }));
+    add(qy(2300, 0.2), () => S.dryWall(pb, [[2304, qy(2304, 0.1)], [2330, qy(2330, 0.6)], [2310, qy(2310, 0.97)]], 19));
+    { const y = qy(2622, 0.9); add(y, () => { I.cylV(pb, 2622, y, 8, 22, { ramp: ['#063a52', '#0a5a7a', '#0e7ea6', '#16a6cc', '#3ac8e6', '#8ae6f6', '#e0fbff'] }); S.r3Shadow(pb, 2628, y, 9, 3); for (let k = 0; k < 24; k++) put4(pb, 2631 + k, y - 3, '#1e7a8a'); }); }
+    flora(2300, 2800, 0.05, 0.98, 14, { tab: 5, card: 3, grass: 2, agave: 2, opu: 1, green: 2 }, 161, (x, y) => (x > 2336 && x < 2564 && y < qy(x, 0.62)) || (x > 2644 && x < 2768 && y > qy(x, 0.2) && y < qy(x, 0.66)));
+    // orden por profundidad (lo más lejano primero)
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.fn();
+    /* ===== corte frontal: zanjas en sección, tubería de riego, raíces y nidos ===== */
+    for (let x = 380; x < 1150; x += 92) { const A = at(x + 30); FA.cores.push(...S.trenchSection(pb, x + 30, A.e2 + 14, 18, 14)); }
+    for (const x of [1594, 1772, 2040]) { const A = at(x); FA.cores.push(...S.trenchSection(pb, x, A.e2 + 16, 26, 16)); }
+    for (let x = 30; x < 2780; x += 110) { const A = at(x); if (x > 360 && x < 1150) continue; S.pipeSection(pb, x, A.e2 + 20, 3); }
+    { const rr = RNG(171); for (let x = 10; x < 2790; x += 7 + rr.int(0, 10)) { const A = at(x); S.roots(pb, x, A.e2 + 2, 8 + rr.int(0, 24), x); } }
   },
   /* ---------------- dinámico ---------------- */
   /** Detrás de los accesorios: reverbero del horizonte (dos trazos claros que ondulan) — no cruza el taller ni las mesas */
