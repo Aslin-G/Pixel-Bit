@@ -440,9 +440,9 @@ const R2LIGHT = (() => {
     if (fade <= 0) return;
     // contacto
     const rx = Math.max(4, Math.round(((img.anchors && img.anchors.shadowR) || CHARS[CC.charId].shadowR || 9) * (1 - Math.min(0.5, air / 80)) * (CC.contactK || 1)));
-    const sh = contactOf(rx);
+    // r3-chars: banda de contacto sólida en el tono del suelo (R3CHARS_contactBand, 10_rig.js); si no, la elipse
+    if (!(typeof R3CHARS_contactBand === 'function' && R3CHARS_contactBand(g, img, CHARS[CC.charId], CC.dx, gyS, CC.facing, air, (sx) => okAt(Math.round(sx + cam.ox))))) { g.globalAlpha = fade; const sh = contactOf(rx); g.drawImage(sh, CC.dx - rx - 1, gyS - 3); }
     g.globalAlpha = fade;
-    g.drawImage(sh, CC.dx - rx - 1, gyS - 3);
     // arrojada (por tramos de 16 px que siguen la pendiente del suelo; se corta en huecos y bordes)
     const K = L.cast;
     if (K && !CC.noCast) {

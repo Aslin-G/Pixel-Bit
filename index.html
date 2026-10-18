@@ -5069,23 +5069,69 @@ const ACCESSORY = {
   },
 };
 
-/* ---------- Sombra de contacto (bandas sólidas, sin tramado) ---------- */
+/* ---------- Sombra de contacto (bandas sólidas, sin tramado) ----------
+   r3-chars (STYLE_LOCK §7, jueces ronda 2: «la elipse al 30 % casi no se ve»): banda SÓLIDA de 1–2 px,
+   100 % opaca, en el tono más oscuro del suelo del entorno (roca/arena #3e0c03, suelos de atardecer
+   #24205e, interiores #1a0e30), del ancho de los pies + 4 px (2 a cada lado), medido en el propio
+   cuadro del sprite (los pies abiertos al andar ensanchan la sombra). El ancla es la última fila de la
+   suela: fila 1 (y+1) sobre el borde del suelo, justo bajo las suelas; fila 2 (y+2) 1 px más estrecha
+   por lado (extremos redondeados). Lo que flota (KIRU, vainas a ~48 px) deja una sola fila más estrecha según la
+   altura y nada por encima de 70 px.
+   API: R3CHARS_shadowCol() → hex del entorno actual · R3CHARS_feetOf(pb, oy) → {x0,x1,y} ·
+        R3CHARS_contactBand(g, img, def, dx, gy, facing, air, ok?) → true si dibujó (ok(sx): columna apta). */
+const R3CHARS_SHADOW = { rock: '#3e0c03', dusk: '#24205e', interior: '#1a0e30' };
+/** Suelo por nivel (0–11): exteriores de día y calima → roca/arena; atardecer; interiores */
+const R3CHARS_SHADOW_LV = { 0: 'rock', 1: 'rock', 2: 'interior', 3: 'dusk', 4: 'rock', 5: 'rock', 6: 'interior', 7: 'dusk', 8: 'rock', 9: 'interior', 10: 'rock', 11: 'dusk' };
+const R3CHARS_SHADOW_ENV = { dusk: 'dusk', night: 'dusk', tech: 'interior', interior: 'interior' };
+function R3CHARS_shadowCol() {
+  if (typeof Game !== 'undefined' && Game.scenes && typeof GameplayScene !== 'undefined' && Game.scenes.includes(GameplayScene)) {
+    const k = R3CHARS_SHADOW_LV[GameplayScene.levelId]; if (k) return R3CHARS_SHADOW[k];
+  }
+  return R3CHARS_SHADOW[R3CHARS_SHADOW_ENV[SpriteCache.env] || 'rock'];
+}
+/** Extensión de los pies en el lienzo del sprite: columnas opacas de las 4 filas más bajas (y = fila más baja) */
+function R3CHARS_feetOf(pb, oy) {
+  const w = pb.w, h = pb.h, D = pb.data;
+  let low = -1;
+  for (let y = Math.min(h - 1, oy + 2); y >= 0 && low < 0; y--) for (let x = 0; x < w; x++) if ((D[y * w + x] >>> 24) > 8) { low = y; break; }
+  if (low < 0) return null;
+  let x0 = w, x1 = -1;
+  for (let y = Math.max(0, low - 3); y <= low; y++) for (let x = 0; x < w; x++) if ((D[y * w + x] >>> 24) > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+  return { x0, x1, y: low };
+}
+function R3CHARS_contactBand(g, img, def, dx, gy, facing, air = 0, ok = null) {
+  const F = img && img.r3feet; if (!F || !def) return false;
+  const ox = def.ox ?? 30, oy = def.oy ?? 78, hover = Math.max(0, oy - 1 - F.y) + Math.max(0, air);
+  if (hover > 70) return true;
+  let a = facing < 0 ? dx + ox - F.x1 : dx - ox + F.x0, b = facing < 0 ? dx + ox - F.x0 : dx - ox + F.x1;
+  a -= 2; b += 2;
+  if (hover > 6) { const k = Math.max(0.4, 1 - hover / 90), c = (a + b) / 2, hw = Math.max(3, Math.round((b - a + 1) * k / 2)); a = Math.round(c - hw); b = Math.round(c + hw) - 1; }
+  // el ancla (pies) es la última fila de la suela: el suelo empieza en gy + 1
+  const rows = hover > 6 ? [[gy + 1, 0]] : [[gy + 1, 0], [gy + 2, 1]];
+  g.fillStyle = R3CHARS_shadowCol();
+  for (const [y, ins] of rows) {
+    let s = a + ins;
+    const e = b - ins;
+    if (!ok) { if (e >= s) g.fillRect(s, y, e - s + 1, 1); continue; }
+    // recorte en bordes de acantilado / plataforma: tramos de columnas aptas
+    for (let x = s; x <= e + 1; x++) {
+      const good = x <= e && ok(x);
+      if (!good) { if (x > s) g.fillRect(s, y, x - s, 1); s = x + 1; }
+    }
+  }
+  return true;
+}
+/** Compatibilidad (escenas, KIRU sin r2-light): banda sólida de 2 filas centrada; rx = radio de la antigua elipse */
 const _shadowCache = new Map();
 function charShadow(rx) {
   rx = Math.max(4, Math.round(rx));
-  let c = _shadowCache.get(rx);
+  const col = R3CHARS_shadowCol(), k = rx + col;
+  let c = _shadowCache.get(k);
   if (c) return c;
-  c = makeCanvas(rx * 2 + 2, 4);
-  const g = c.g;
-  for (let y = 0; y < 4; y++) {
-    const ry = 1.6, yy = y - 1.5;
-    const hw = Math.round((rx + 1) * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry + 0.6))));
-    if (hw <= 0) continue;
-    g.fillStyle = 'rgba(26,12,40,0.30)'; g.fillRect(rx + 1 - hw, y, hw * 2, 1);
-    const ih = Math.round(hw * 0.68);
-    if (ih > 0 && y > 0 && y < 3) { g.fillStyle = 'rgba(26,12,40,0.32)'; g.fillRect(rx + 1 - ih, y, ih * 2, 1); }
-  }
-  _shadowCache.set(rx, c);
+  const w = Math.max(6, Math.round(rx * 1.33));
+  c = makeCanvas(w + 2, 5);
+  c.g.fillStyle = col; c.g.fillRect(1, 3, w, 1); c.g.fillRect(2, 4, w - 2, 1);
+  _shadowCache.set(k, c);
   return c;
 }
 
@@ -5111,6 +5157,7 @@ const SpriteCache = {
       const pb = def.render(anim, t, o2);
       c = pb.toCanvas();
       c.anchors = pb.anchors;
+      c.r3feet = R3CHARS_feetOf(pb, def.oy ?? 78);   // r3-chars: pies del cuadro para la sombra de contacto
       this.map.set(k, c);
       if (this.map.size > this.cap) { const first = this.map.keys().next().value; this.map.delete(first); }
     } else if (this.map.size > this.cap * 0.75) { this.map.delete(k); this.map.set(k, c); }
@@ -5168,7 +5215,7 @@ function drawChar(g, charId, anim, time, x, y, facing = 1, opts = {}) {
   const c = SpriteCache.get(charId, anim, frame, opts);
   const ox = def.ox ?? 30, oy = def.oy ?? 78;
   const dx = Math.round(x), dy = Math.round(y);
-  if (opts.shadow !== false && def.shadow !== false) {
+  if (opts.shadow !== false && def.shadow !== false && !R3CHARS_contactBand(g, c, def, dx, dy, facing, 0)) {
     const rx = (c.anchors && c.anchors.shadowR) || def.shadowR || 9;
     const sh = charShadow(rx);
     g.drawImage(sh, dx - (sh.width >> 1), dy - 2);
@@ -30946,9 +30993,9 @@ const R2LIGHT = (() => {
     if (fade <= 0) return;
     // contacto
     const rx = Math.max(4, Math.round(((img.anchors && img.anchors.shadowR) || CHARS[CC.charId].shadowR || 9) * (1 - Math.min(0.5, air / 80)) * (CC.contactK || 1)));
-    const sh = contactOf(rx);
+    // r3-chars: banda de contacto sólida en el tono del suelo (R3CHARS_contactBand, 10_rig.js); si no, la elipse
+    if (!(typeof R3CHARS_contactBand === 'function' && R3CHARS_contactBand(g, img, CHARS[CC.charId], CC.dx, gyS, CC.facing, air, (sx) => okAt(Math.round(sx + cam.ox))))) { g.globalAlpha = fade; const sh = contactOf(rx); g.drawImage(sh, CC.dx - rx - 1, gyS - 3); }
     g.globalAlpha = fade;
-    g.drawImage(sh, CC.dx - rx - 1, gyS - 3);
     // arrojada (por tramos de 16 px que siguen la pendiente del suelo; se corta en huecos y bordes)
     const K = L.cast;
     if (K && !CC.noCast) {
@@ -37127,7 +37174,8 @@ class Kiru extends Entity {
     // r2-light: KIRU flota; sombra de contacto tenue y sombra arrojada desprendida del suelo
     if (!R2LIGHT_drawChar(g, this, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false }, { contactK: 0.85, alpha: 0.7 })) {
       // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
-      const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+      // r3-chars: banda sólida (charShadow ya es opaca en el tono del suelo); pequeña: KIRU flota
+      const sh = charShadow(6); g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2);
     }
     if (this.scanT > 0) {
       // anillos de escaneo centrados en el visor (ancla del ojo del sprite)

@@ -403,7 +403,8 @@ class Kiru extends Entity {
     // r2-light: KIRU flota; sombra de contacto tenue y sombra arrojada desprendida del suelo
     if (!R2LIGHT_drawChar(g, this, 'kiru', this.anim, this.animT, x, y + dy, this.facing, { expr: this.mood, shadow: false }, { contactK: 0.85, alpha: 0.7 })) {
       // sombra de contacto en el suelo (KIRU flota): pequeña y más tenue cuanto más alto
-      const sh = charShadow(5); g.globalAlpha = 0.75; g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2); g.globalAlpha = 1;
+      // r3-chars: banda sólida (charShadow ya es opaca en el tono del suelo); pequeña: KIRU flota
+      const sh = charShadow(6); g.drawImage(sh, Math.round(x) - (sh.width >> 1), Math.round(y) - 2);
     }
     if (this.scanT > 0) {
       // anillos de escaneo centrados en el visor (ancla del ojo del sprite)
