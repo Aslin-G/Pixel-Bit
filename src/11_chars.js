@@ -227,6 +227,8 @@ function renderHumanoid(id, D, anim, t, opts) {
   if (opts.item) pose.item = opts.item;
   if (D.prepare) D.prepare();
   buildHumanoid(R, D, pose, opts);
+  // r3-chars: sombreado más rico en ropa (bisel mayor → 4–5 tonos visibles por prenda en vez de 3)
+  if (D.richShade) for (const p of R.parts) if (!p.flat && !/^(head|ear|neck|face)$/.test(p.group) && p.bevel < 4) p.bevel *= D.richShade;
   // r3-chars: luz de borde cálida de 1 px en espalda y coronilla (D.rimWarm) en exteriores de día/atardecer
   const env = opts.env || SpriteCache.env || 'coast', warm = D.rimWarm ? R3CHARS_RIM_WARM[env] : null;
   const pb = R.render(warm ? { env: opts.env, rim: D.rimK ?? 0.42, rimColor: warm, rimTint: 0.42 } : { env: opts.env, rim: D.rimK });
@@ -868,7 +870,7 @@ const PROP = { cane: 'cane', basket: 'basket', crate: 'crate', tablet: 'tablet',
 /* ------------------------------------------------------------------ */
 const NAIRA_D = Object.assign(makeBody('adult', { headRX: 10.5, headRY: 11 }), {
   face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6.5, mouthY: 7, noseX: 10.5, noseY: 3.5, iris: ['#160a14', '#3a2440', '#6a4a6e'], lash: '#0a0816', blush: '#b8604a', browCol: '#15132a' },
-  defaultExpr: 'smile', idleStyle: 'look', energetic: 0.8, shortSleeve: 0, sole: '#2a1410', laces: null, bootTall: 3, shadowR: 12,
+  defaultExpr: 'smile', idleStyle: 'gesture', energetic: 0.8, shortSleeve: 0, sole: '#2a1410', laces: null, bootTall: 3, shadowR: 12, turn3q: true, rimWarm: true, richShade: 1.6,
   prepare() {
     if (this.mat) return;
     const leather = Mat({ ramp: MAT.leather, outline: '#1a0a06' });
@@ -905,7 +907,7 @@ CHARS.naira = { name: 'Naira', render: (a, t, op) => renderHumanoid('naira', NAI
 /* ------------------------------------------------------------------ */
 const DANTE_D = Object.assign(makeBody('adult', { thigh: 14, shin: 14, torsoW: 18, chestH: 17, armW: 3.0, legW: 3.5, headRX: 10.5, headRY: 10.8, footL: 7.5, handR: 2.5 }), {
   face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6.5, mouthY: 6.5, noseX: 10.5, noseY: 3, iris: ['#0e2a16', '#2a5a3a', '#5a8a5a'], lash: '#1a0806', browCol: '#46180f' },
-  freckles: true, idleStyle: 'hips', energetic: 1.3, sole: '#1a0c08', laces: '#c8a070', bootTall: 4.5, shortSleeve: 0.6, jaw: 'square', noseSize: 1.4, shadowR: 13,
+  freckles: true, idleStyle: 'hips', energetic: 1.3, sole: '#1a0c08', laces: '#c8a070', bootTall: 4.5, shortSleeve: 0.6, jaw: 'square', noseSize: 1.4, shadowR: 13, turn3q: true, rimWarm: true, richShade: 1.6,
   prepare() {
     if (this.mat) return;
     const skin = Mat({ ramp: RAMP.skinD, outline: '#3a160e' });
@@ -939,7 +941,7 @@ CHARS.dante = { name: 'Dante', render: (a, t, op) => renderHumanoid('dante', DAN
 /* ------------------------------------------------------------------ */
 const ELIANA_D = Object.assign(makeBody('tall', { torsoW: 14, armW: 2.4, legW: 2.8, headRX: 10.2, headRY: 10.8 }), {
   face: { eyeX: 2.5, eyeY: 0.5, eye2X: 8.5, mouthX: 6.5, mouthY: 7, noseX: 10.5, noseY: 3.5, iris: ['#1a0e06', '#4a3020', '#7a5a3a'], lash: '#1a0e0a', browCol: '#3a3c5c' },
-  energetic: 0.7, idleStyle: 'behind', sole: '#1a0c10', bootTall: 2.5, jaw: 'long', shadowR: 12,
+  energetic: 0.7, idleStyle: 'behind', sole: '#1a0c10', bootTall: 2.5, jaw: 'long', shadowR: 12, turn3q: true, rimWarm: true, richShade: 1.6,
   prepare() {
     if (this.mat) return;
     const skin = Mat({ ramp: RAMP.skinE, outline: '#1e100a' });
@@ -1292,7 +1294,7 @@ function makeNPC(id, cfg) {
     },
     jaw: cfg.jaw || r.pick(['round', 'round', 'square', 'long']), noseSize: cfg.nose ?? r.pick([0.6, 1, 1, 1.4, 1.8]),
     shortSleeve: cfg.shortSleeve ? 0.55 : 0, energetic: child ? 1.4 : (B.energetic ?? 1), shadowR: child ? 9 : bodyKind === 'stocky' ? 13 : 12,
-    sole: '#1a0c08', bootTall: cfg.shoesLow ? 2 : 3, earZ: 56,
+    sole: '#1a0c08', bootTall: cfg.shoesLow ? 2 : 3, earZ: 56, turn3q: cfg.turn3q !== false, turnK: cfg.turnK ?? (child ? 0.8 : 1), rimWarm: true, richShade: 1.6,
     prepare() {
       if (this.mat) return;
       const skin = Mat({ ramp: skinR, outline: outlineOf(skinR[0], 0.16) });
@@ -1331,18 +1333,18 @@ function makeNPC(id, cfg) {
   if (cfg.posture === 'stoop') D.stoop = 0.16;
   // r2-chars: variante de reposo propia (RNG aparte: no altera los sorteos de ropa/sombrero)
   { const r2 = RNG((cfg.seed || 1) + 991), prop = cfg.prop || B.prop;
-    D.idleStyle = cfg.idleStyle !== undefined ? cfg.idleStyle : prop ? r2.pick(['look', 'shift', 'look']) : r2.pick(['look', 'shift', 'gesture', 'crossed', 'behind', 'hips', 'look', 'shift', 'stretch']); }
+    D.idleStyle = cfg.idleStyle !== undefined ? cfg.idleStyle : prop ? r2.pick(['look', 'shift', 'lean']) : r2.pick(['look', 'lean', 'gesture', 'crossed', 'behind', 'hips', 'chin', 'shift', 'stretch']); }
   CHARS[id] = { name: cfg.name || id, render: (a, t, op) => renderHumanoid(id, D, a, t, op), ox: HUM_OX, oy: HUM_OY, shadowR: D.shadowR, D };
   return D;
 }
-makeNPC('marea', { name: 'Tía Marea', seed: 11, skin: 'skinM', hair: RAMP.hairE, style: 'braid', top: MAT.danteOver, legs: MAT.tealPants, hat: 'bucket', hatCol: MAT.kiruBody, outfit: 'raincoat', coat: RAMP_CH.rain, wrinkles: true, body: 'elder', prop: 'net', shoes: MAT.boots });
-makeNPC('cobre', { name: 'Don Cobre', seed: 22, skin: 'skinE', hair: RAMP.hairE, style: 'bald', top: MAT.tshirtW, legs: MAT.amayaPants, outfit: 'apron', apron: RAMP.copper, mustache: '#cdcfe2', glasses: '#c8861a', wrinkles: true, body: 'stocky', prop: 'toolbox' });
-makeNPC('alma', { name: 'Alma Semilla', seed: 33, skin: 'skinA', hair: RAMP.hairA, style: 'curly', child: true, pigtails: true, top: MAT.nairaShirt, legs: MAT.kiruBody, flowers: true, shoes: MAT.sneakerY, outfit: 'tee', shortSleeve: true });
-makeNPC('nimbo', { name: 'Capitán Nimbo', seed: 44, skin: 'skinD', hair: RAMP.hairE, style: 'short', top: NPC_CLOTH[5], legs: MAT.olive, hat: 'aviator', hatCol: MAT.leather, mustache: '#a8aac6', outfit: 'vest', vest: RAMP.coral, body: 'tall', wrinkles: true });
-makeNPC('consejal', { name: 'Consejera Ruth', seed: 55, skin: 'skinN', hair: RAMP.hairN, style: 'bun', top: NPC_CLOTH[0], legs: MAT.amayaPants, glasses: '#8a5e14', outfit: 'jacket', jacket: RAMP_CH.plum, body: 'adult', earring: '#ffd84a' });
-makeNPC('operador', { name: 'Operador Iván', seed: 66, skin: 'skinM', style: 'short', hair: RAMP_CH.blackHair, hat: 'cap', hatCol: NPC_CLOTH[1], top: NPC_CLOTH[6], legs: MAT.danteOver, outfit: 'hivis', vest: RAMP_CH.hivisO, body: 'adult', prop: 'tablet' });
-makeNPC('pastora', { name: 'Doña Celia', seed: 77, skin: 'skinA', hair: RAMP.hairE, style: 'long', top: NPC_CLOTH[7], legs: NPC_CLOTH[4], wrinkles: true, body: 'elder', outfit: 'poncho', poncho: RAMP_CH.terracotta, stripe: '#ffe14d', prop: 'cane' });
-makeNPC('financia', { name: 'Sr. Ledesma', seed: 88, skin: 'skinE', hair: RAMP.hairN, style: 'short', top: NPC_CLOTH[5], legs: NPC_CLOTH[5], glasses: '#263442', outfit: 'jacket', jacket: RAMP_CH.charcoal, inner: MAT.tshirtW, body: 'tall', jaw: 'long' });
+makeNPC('marea', { idleStyle: 'lean', name: 'Tía Marea', seed: 11, skin: 'skinM', hair: RAMP.hairE, style: 'braid', top: MAT.danteOver, legs: MAT.tealPants, hat: 'bucket', hatCol: MAT.kiruBody, outfit: 'raincoat', coat: RAMP_CH.rain, wrinkles: true, body: 'elder', prop: 'net', shoes: MAT.boots });
+makeNPC('cobre', { idleStyle: 'crossed', name: 'Don Cobre', seed: 22, skin: 'skinE', hair: RAMP.hairE, style: 'bald', top: MAT.tshirtW, legs: MAT.amayaPants, outfit: 'apron', apron: RAMP.copper, mustache: '#cdcfe2', glasses: '#c8861a', wrinkles: true, body: 'stocky', prop: 'toolbox' });
+makeNPC('alma', { idleStyle: 'look', name: 'Alma Semilla', seed: 33, skin: 'skinA', hair: RAMP.hairA, style: 'curly', child: true, pigtails: true, top: MAT.nairaShirt, legs: MAT.kiruBody, flowers: true, shoes: MAT.sneakerY, outfit: 'tee', shortSleeve: true });
+makeNPC('nimbo', { idleStyle: 'behind', name: 'Capitán Nimbo', seed: 44, skin: 'skinD', hair: RAMP.hairE, style: 'short', top: NPC_CLOTH[5], legs: MAT.olive, hat: 'aviator', hatCol: MAT.leather, mustache: '#a8aac6', outfit: 'vest', vest: RAMP.coral, body: 'tall', wrinkles: true });
+makeNPC('consejal', { idleStyle: 'gesture', name: 'Consejera Ruth', seed: 55, skin: 'skinN', hair: RAMP.hairN, style: 'bun', top: NPC_CLOTH[0], legs: MAT.amayaPants, glasses: '#8a5e14', outfit: 'jacket', jacket: RAMP_CH.plum, body: 'adult', earring: '#ffd84a' });
+makeNPC('operador', { idleStyle: 'tool', name: 'Operador Iván', seed: 66, skin: 'skinM', style: 'short', hair: RAMP_CH.blackHair, hat: 'cap', hatCol: NPC_CLOTH[1], top: NPC_CLOTH[6], legs: MAT.danteOver, outfit: 'hivis', vest: RAMP_CH.hivisO, body: 'adult', prop: 'tablet' });
+makeNPC('pastora', { idleStyle: 'shift', name: 'Doña Celia', seed: 77, skin: 'skinA', hair: RAMP.hairE, style: 'long', top: NPC_CLOTH[7], legs: NPC_CLOTH[4], wrinkles: true, body: 'elder', outfit: 'poncho', poncho: RAMP_CH.terracotta, stripe: '#ffe14d', prop: 'cane' });
+makeNPC('financia', { idleStyle: 'chin', name: 'Sr. Ledesma', seed: 88, skin: 'skinE', hair: RAMP.hairN, style: 'short', top: NPC_CLOTH[5], legs: NPC_CLOTH[5], glasses: '#263442', outfit: 'jacket', jacket: RAMP_CH.charcoal, inner: MAT.tshirtW, body: 'tall', jaw: 'long' });
 /* Público de la plaza (nivel 00) y del puerto: diversidad de edad, talla, ropa y oficio.
    crowd1 conserva el diseño anterior de Amaya (piel oscura, moño rizado, chaqueta coral y
    camiseta turquesa) para mantener la diversidad del elenco. */

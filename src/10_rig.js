@@ -636,6 +636,11 @@ for (const [a, b] of Object.entries(ANIM_ALIAS)) if (!ANIMS[a]) ANIMS[a] = ANIMS
    (6 cuadros) sin cambiar el guion: mirar alrededor, gesto con la mano, cambio de peso, brazos
    cruzados, manos a la espalda, estirarse. Solo la cara y los brazos; los pies no se mueven. */
 const R2CHARS_IDLE = {
+  // r3-chars: variantes nuevas para el reposo 3/4 — apoyado (cadera adelantada, mano en el bolsillo),
+  // mano en la barbilla (pensativo) y herramienta (mira el objeto que sostiene con la mano lejana)
+  lean(p, t, P) { p.lean = -0.06 + Math.sin(P) * 0.01; p.hipF = 0.14; p.kneeF = -0.06; p.hipB = 0.42; p.kneeB = -0.8; p.shF = -0.18; p.elF = 0.5; p.handF = 'fist'; p.shB = 0.05; p.elB = 0.25; p.headTilt = -0.05; },
+  chin(p, t, P) { p.shB = 0.55; p.elB = 2.55 + Math.sin(P) * 0.04; p.handB = 'fist'; p.shF = 0.3; p.elF = 1.5; p.handF = 'fist'; p.headTilt = 0.06; p.eyeLook = Math.floor(t * 6) === 2 ? 1 : 0; },
+  tool(p, t, P) { p.shB = 0.7; p.elB = 1.35 + Math.sin(P) * 0.03; p.handB = 'open'; p.headTilt = 0.12; p.headDX = 0.4; },
   look(p, t, P) { const f = Math.floor(t * 6 + 1e-6); if (f === 1 || f === 2) { p.expr = p.expr || null; p.eyeLook = 1; p.headDX = 0.6; p.headTilt = -0.04; } else if (f === 4) { p.eyeLook = -1; p.headDX = -0.5; p.headTilt = 0.03; } },
   gesture(p, t, P) { const f = Math.floor(t * 6 + 1e-6); if (f >= 2 && f <= 4) { const k = f === 3 ? 1 : 0.6; p.shF = 0.5 + 0.5 * k; p.elF = 1.1 + 0.3 * k; p.handF = 'open'; p.headTilt = 0.04 * k; } },
   shift(p, t, P) { const w = Math.sin(P); p.lean = 0.03 * w; p.hipF = 0.1 + 0.08 * w; p.hipB = -0.07 + 0.08 * w; p.kneeF = -0.04 - Math.max(0, -w) * 0.25; p.kneeB = 0.02 - Math.max(0, w) * 0.25; p.headTilt = -0.03 * w; },
@@ -679,6 +684,11 @@ function poseFor(anim, t, ch) {
         p.lean = -0.015; p.headTilt = -0.02 + S(P) * 0.02;
       }
       if (ch.idleStyle && R2CHARS_IDLE[ch.idleStyle]) R2CHARS_IDLE[ch.idleStyle](p, t, P, ch);
+      if (p.turn) {
+        // 3/4: el gesto lo hace el brazo lejano (delante del pecho, visible) y las manos a la espalda quedan detrás
+        if (ch.idleStyle === 'gesture') { const sw = [p.shF, p.elF, p.handF]; p.shF = -0.2; p.elF = 0.42; p.handF = 'open'; if (sw[0] > 0.3) { p.shB = sw[0]; p.elB = sw[1]; p.handB = sw[2]; } }
+        if (ch.idleStyle === 'behind') p.backArmZ = 5;
+      }
       break;
     }
     case 'walk': case 'wade': {
