@@ -152,7 +152,7 @@ LEVELS[9] = {
   /** r3-int-a: haces de sol poniente nítidos (3 escalones de alfa, bordes sólidos) que bajan de los ventanales en arco
       hasta los charcos de luz del suelo y encienden las piernas de los personajes; motas de polvo en suspensión */
   renderFront(g, sc, cam) {
-    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[9].shafts), Game.time, { col: '#ffb468', a: 0.34, lum: 0.36, motes: 16, moteCol: '#ffe8c0' });
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[9].shafts), Game.time, { col: '#ffb468', a: 0.34, lum: 0.36, motes: 22, moteCol: '#ffe8c0' });
     if (typeof R3INTA_L9front === 'function') R3INTA_L9front(g, sc, cam);
   },
   lens(g, sc, cam, k) {

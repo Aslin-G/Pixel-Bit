@@ -248,7 +248,7 @@ function R3INTA_L9mid(g, sc, cam) {
   const t = Game.time, ox = cam.x, oy = cam.y;
   for (const b of R3INTA_L9.banners) {
     const sx = Math.round(b.x - ox), sy = Math.round(b.y - oy); if (sx > W + 8 || sx + 40 < -8) continue;
-    for (let y = 0; y < 82; y += 3) { const k = Math.pow(y / 82, 1.3), dx = Math.round(Math.sin(t * 1.3 + b.ph - y * 0.045) * 2.4 * k); g.drawImage(b.c, 0, y, 40, Math.min(3, 82 - y), sx + dx, sy + y, 40, Math.min(3, 82 - y)); }
+    for (let y = 0; y < 82; y += 3) { const k = Math.pow(y / 82, 1.15), dx = Math.round((Math.sin(t * 1.3 + b.ph - y * 0.045) * 3 + Math.sin(t * 3.1 + b.ph * 2 - y * 0.12) * 0.9) * k); g.drawImage(b.c, 0, y, 40, Math.min(3, 82 - y), sx + dx, sy + y, 40, Math.min(3, 82 - y)); }
   }
   for (const [x] of R3INTA_L9.fans) {
     const sx = Math.round(x - ox), sy = -oy; if (sx < -30 || sx > W + 30) continue;

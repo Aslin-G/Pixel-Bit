@@ -29994,7 +29994,7 @@ function R3INTA_L9mid(g, sc, cam) {
   const t = Game.time, ox = cam.x, oy = cam.y;
   for (const b of R3INTA_L9.banners) {
     const sx = Math.round(b.x - ox), sy = Math.round(b.y - oy); if (sx > W + 8 || sx + 40 < -8) continue;
-    for (let y = 0; y < 82; y += 3) { const k = Math.pow(y / 82, 1.3), dx = Math.round(Math.sin(t * 1.3 + b.ph - y * 0.045) * 2.4 * k); g.drawImage(b.c, 0, y, 40, Math.min(3, 82 - y), sx + dx, sy + y, 40, Math.min(3, 82 - y)); }
+    for (let y = 0; y < 82; y += 3) { const k = Math.pow(y / 82, 1.15), dx = Math.round((Math.sin(t * 1.3 + b.ph - y * 0.045) * 3 + Math.sin(t * 3.1 + b.ph * 2 - y * 0.12) * 0.9) * k); g.drawImage(b.c, 0, y, 40, Math.min(3, 82 - y), sx + dx, sy + y, 40, Math.min(3, 82 - y)); }
   }
   for (const [x] of R3INTA_L9.fans) {
     const sx = Math.round(x - ox), sy = -oy; if (sx < -30 || sx > W + 30) continue;
@@ -41562,7 +41562,7 @@ LEVELS[2] = {
     /* ===== 9. LIMPIEZA CIP Y ANTIINCRUSTANTE (1690–1930) ===== */
     for (const [cx, r, h, band] of [[1712, 17, 88, '#ff9f43'], [1752, 16, 80, '#ff9f43'], [1792, 15, 72, '#86e36f']]) {
       const bb = band === '#86e36f' ? ['#08301a', '#0e5a2a', '#1a8a3a', '#46b85a', '#86e36f', '#c8f5b0'] : ['#3a1a04', '#7a3a0a', '#c0601a', '#ef8a2c', '#ff9f43', '#ffd0a0'];
-      P.tankV(pb, cx, fb + 2, r, h, { ramp: I.STEEL, band: bb, ladder: cx === 1712, rail: cx === 1712, plate: cx === 1790 ? 'NaOH' : cx === 1752 ? 'ÁCIDO' : 'CIP', plateCol: '#3a1a04' });
+      P.tankV(pb, cx, fb + 2, r, h, { ramp: cx === 1712 ? P.FRP : cx === 1752 ? ['#3a2410', '#5c3a1a', '#8a5a2a', '#b47e3e', '#d4a058', '#e8c07a', '#f6dca4', '#fff2d0'] : R3INTA_TEAL, band: bb, ladder: cx === 1712, rail: cx === 1712, plate: cx === 1790 ? 'NaOH' : cx === 1752 ? 'ÁCIDO' : 'CIP', plateCol: '#3a1a04' });
     }
     I.pipe(pb, [[1726, fb - 20], [1820, fb - 20]], 2, 'steel', { flange: 16 });
     P.landing(pb, 1760, 248, 60, fb + 4, { d: 7, railH: 28 });
@@ -47038,7 +47038,7 @@ LEVELS[9] = {
   /** r3-int-a: haces de sol poniente nítidos (3 escalones de alfa, bordes sólidos) que bajan de los ventanales en arco
       hasta los charcos de luz del suelo y encienden las piernas de los personajes; motas de polvo en suspensión */
   renderFront(g, sc, cam) {
-    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[9].shafts), Game.time, { col: '#ffb468', a: 0.34, lum: 0.36, motes: 16, moteCol: '#ffe8c0' });
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[9].shafts), Game.time, { col: '#ffb468', a: 0.34, lum: 0.36, motes: 22, moteCol: '#ffe8c0' });
     if (typeof R3INTA_L9front === 'function') R3INTA_L9front(g, sc, cam);
   },
   lens(g, sc, cam, k) {
