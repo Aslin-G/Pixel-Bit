@@ -12514,7 +12514,7 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
     }
     return out;
   };
-  /** Haces nítidos: aclarado (luminosity) + luz suave cálida (soft-light) + núcleo aditivo; o = {col, a, soft, lum, steps, cut} */
+  /** Haces nítidos: aclarado (luminosity) + luz suave cálida (soft-light) + núcleo aditivo + motas; o = {col, a, soft, lum, steps, cut, motes, moteCol} */
   V.r3iaDrawBeams = function (g, list, t, o = {}) {
     const col = o.col || '#ffd58a', pk = 0.92 + 0.08 * Math.sin(t * 0.37);
     for (const q of list) {
@@ -12524,6 +12524,19 @@ Backdrop.prototype.vofs = function (L, cam) { return [-Math.round(cam.x * L.f), 
       if (o.lum) { g.globalCompositeOperation = 'luminosity'; g.globalAlpha = Math.min(1, o.lum * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
       if (o.soft) { g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, o.soft * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
       g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (o.a ?? 0.2) * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh);
+    }
+    // motas de polvo que derivan dentro de cada haz (2×1 px, 2 brillos)
+    if (o.motes) {
+      g.globalCompositeOperation = 'lighter'; g.fillStyle = o.moteCol || '#fff0c8';
+      for (let i = 0; i < list.length; i++) {
+        const q = list[i];
+        for (let k = 0; k < o.motes; k++) {
+          const ph = (t * (0.035 + (k % 5) * 0.009) + k * 0.271 + i * 0.37) % 1, v = 0.08 + ph * 0.8, bw = q.w0 + (q.w1 - q.w0) * v;
+          const u = (k * 0.618 + i * 0.13 + Math.sin(t * 0.5 + k * 1.7) * 0.06) % 1;
+          g.globalAlpha = (k % 3 ? 0.35 : 0.7) * Math.sin(ph * Math.PI);
+          g.fillRect(Math.round(q.x + q.s * v + (Math.max(q.w0, q.w1) - bw) / 2 + bw * (0.12 + u * 0.76)), Math.round(q.top + q.h * v), k % 4 ? 1 : 2, 1);
+        }
+      }
     }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   };
@@ -19442,7 +19455,8 @@ const PFCivic = (() => {
      sign(pb,x,y,kind)  kind: warn|bolt|ear|helmet|goggles|exit|first
      tray(pb,x0,x1,y)   bandeja de cables con soportes colgantes
      stencil(pb,x,y,text,col)  rótulo pintado en el suelo (3/4 achatado)
-   Oclusores frontales registrados en PFStage.FG: 'aColumn', 'aPipes', 'aChain'.
+   Oclusores frontales registrados en PFStage.FG: 'aColumn', 'aPipes', 'aChain', 'aRail', 'aElbow'
+   y (r3-int-a) 'aRiser' (montante con volante, abajo) y 'aDuct' (conducto con ventilador, arriba).
    Sin tramado.
    ===================================================================== */
 const PFAPlant = (() => {
@@ -20092,7 +20106,35 @@ const PFAPlant = (() => {
     rect(pb, cx + 52, cy - 4, 22, 8, U('#2a0a24')); hline(pb, cx + 52, cx + 73, cy - 4, U('#7a3a6a'));
     return pb;
   }
-  if (typeof PFStage !== 'undefined' && PFStage.FG) Object.assign(PFStage.FG, { aColumn: fgColumn, aPipes: fgPipes, aChain: fgChain, aRail: fgRail, aElbow: fgElbow });
+  /** r3-int-a: montante doble del primer plano que sube del borde inferior: tubos oscuros y fríos con canto
+      cálido de los ventanales (#fbc371), bridas, volante rojo y manómetro con esfera clara */
+  function fgRiser(o) {
+    const h = o.h || 72, w = 44, pb = new PixelBuffer(w, h), C = P32(['#03070e', '#060d1a', '#0a1628', '#0f203a', '#16304e', '#1e4064', '#2a5480', '#4a7ab8']);
+    const RIM = U('#fbc371');
+    for (const [cx, r] of [[12, 7], [30, 5]]) {
+      for (let y = 6; y < h; y++) for (let i = -r; i <= r; i++) put(pb, cx + i, y, C[clamp(Math.round(prof((i + r) / (2 * r)) * 7), 0, 7)]);
+      for (let y = 6; y < h; y++) put(pb, cx - r, y, (y % 7) ? RIM : C[6]);
+      for (const fy of [18, 46]) for (let i = -r - 2; i <= r + 2; i++) { put(pb, cx + i, fy, i < -r ? RIM : C[6]); put(pb, cx + i, fy + 1, C[2]); put(pb, cx + i, fy + 2, C[1]); }
+      K.ellipseFn(pb, cx, 6, r + 0.5, 2.5, (nx, ny) => ny < 0 ? C[6] : C[3]);
+    }
+    // volante rojo en sombra y manómetro
+    K.ellipseFn(pb, 12, 30, 9, 3.2, (nx, ny, d) => d > 0.6 ? U(ny < 0 ? '#c83a3a' : '#5a0e10') : (Math.abs(nx) < 0.14 || Math.abs(ny) < 0.25 ? U('#7a1418') : 0));
+    K.ellipseFn(pb, 38, 26, 4.5, 4.5, (nx, ny, d) => d > 0.7 ? C[5] : U(ny < -0.3 ? '#e8e0c8' : '#a8a088'));
+    put(pb, 39, 25, U('#c0242a')); put(pb, 40, 24, U('#c0242a'));
+    return pb;
+  }
+  /** r3-int-a: conducto de extracción colgado del borde superior con ventilador y abrazaderas (oscuro, canto cálido) */
+  function fgDuct(o) {
+    const w = o.w || 180, h = o.h || 40, pb = new PixelBuffer(w, h), C = P32(FGC), RIM = U('#d89a5a');
+    for (let y = 0; y < 24; y++) for (let x = 0; x < w; x++) put(pb, x, y, (x % 30 === 0) ? C[1] : C[clamp(Math.round(prof(y / 23) * 6), 0, 6)]);
+    for (let x = 0; x < w; x++) put(pb, x, 24, RIM);
+    for (let x = 14; x < w; x += 60) { for (let y = 24; y < h - 4; y++) { put(pb, x, y, C[4]); put(pb, x + 1, y, C[1]); } }
+    const fx = Math.round(w * 0.55);
+    K.ellipseFn(pb, fx, 26, 11, 11, (nx, ny, d) => d > 0.82 ? C[5] : d > 0.7 ? C[1] : ((Math.round(Math.atan2(ny, nx) * 2.5) & 1) ? C[3] : C[0]));
+    put(pb, fx, 26, U('#d89a5a'));
+    return pb;
+  }
+  if (typeof PFStage !== 'undefined' && PFStage.FG) Object.assign(PFStage.FG, { aColumn: fgColumn, aPipes: fgPipes, aChain: fgChain, aRail: fgRail, aElbow: fgElbow, aRiser: fgRiser, aDuct: fgDuct });
 
   return { vesselH, roRack, cartridge, pumpSkid, erd, tankV, catwalk, landing, pipeDeck, controlRoom, cabinets, rackCab, rollDoor, dosing, analyzers, pallet, extinguisher, eyewash, sign, tray, stencil, cone, toolbox, bucket, cart, hoseReel, stepLadder, duct, hangSign, column, beam, shade, rect, hline, vline, boltRing, prof, ti, FRAME, FRP, CAP, GREEN, BLUEP, YEL, RED, NAVY, WALLW, HDPE, CARD, FGC };
 })();
@@ -41186,13 +41228,19 @@ LEVELS[2] = {
     terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 46, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
     /** Oclusores de interior en el primer plano (f 1,3): pilares en I, haces de tubos y cadenas de polipasto */
     fg: [
+      // r3-int-a: más denso y legible (≈ 1 cada 220 px; arriba conductos/tubos/cadenas cortas que no tapan rótulos, abajo montantes y codos)
       { kind: 'aRail', x: 120, w: 220, h: 56, seed: 1 },
+      { kind: 'aDuct', x: 330, w: 170, h: 40, top: true, seed: 9, sway: 0 },
+      { kind: 'aRiser', x: 560, h: 74, seed: 10, sway: 0 },
       { kind: 'aPipes', x: 760, w: 240, h: 46, y: -4, top: true, seed: 2 },
       { kind: 'aElbow', x: 1180, w: 150, h: 84, r: 12, seed: 3 },
-      { kind: 'aChain', x: 1600, h: 104, y: -6, top: true, seed: 4 },
+      { kind: 'aChain', x: 1440, h: 50, y: -6, top: true, seed: 4 },
+      { kind: 'aRiser', x: 1700, h: 70, seed: 11, sway: 0 },
       { kind: 'aPipes', x: 1930, w: 260, h: 46, y: -4, top: true, seed: 5 },
+      { kind: 'aDuct', x: 2180, w: 190, h: 40, top: true, seed: 12, sway: 0 },
       { kind: 'aRail', x: 2330, w: 200, h: 56, seed: 6 },
-      { kind: 'aChain', x: 2760, h: 92, y: -6, top: true, seed: 7 },
+      { kind: 'aRiser', x: 2580, h: 76, seed: 13, sway: 0 },
+      { kind: 'aChain', x: 2760, h: 48, y: -6, top: true, seed: 7 },
       { kind: 'aElbow', x: 3020, w: 150, h: 84, r: 12, seed: 8 },
     ],
     decorateFace(pb, world) { LEVELS[2].gallery(pb, world); },
@@ -41488,7 +41536,7 @@ LEVELS[2] = {
   /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
   renderFront(g, sc, cam) {
     // r3-int-a: haces nítidos de los ventanales (3 escalones de alfa, bordes sólidos) que iluminan piernas y equipos
-    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffb050', a: 0.18, lum: 0.3 });
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffb050', a: 0.18, lum: 0.3, motes: 14 });
     if (cam.y + H < 300) return;
     PFDyn.flowsImg(g, sc, LV2_GALFLOWS, 14);
     if (typeof R3INTA_L2galleryAnim === 'function') R3INTA_L2galleryAnim(g, sc, cam);

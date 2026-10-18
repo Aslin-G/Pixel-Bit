@@ -27,7 +27,8 @@
      sign(pb,x,y,kind)  kind: warn|bolt|ear|helmet|goggles|exit|first
      tray(pb,x0,x1,y)   bandeja de cables con soportes colgantes
      stencil(pb,x,y,text,col)  rótulo pintado en el suelo (3/4 achatado)
-   Oclusores frontales registrados en PFStage.FG: 'aColumn', 'aPipes', 'aChain'.
+   Oclusores frontales registrados en PFStage.FG: 'aColumn', 'aPipes', 'aChain', 'aRail', 'aElbow'
+   y (r3-int-a) 'aRiser' (montante con volante, abajo) y 'aDuct' (conducto con ventilador, arriba).
    Sin tramado.
    ===================================================================== */
 const PFAPlant = (() => {
@@ -677,7 +678,35 @@ const PFAPlant = (() => {
     rect(pb, cx + 52, cy - 4, 22, 8, U('#2a0a24')); hline(pb, cx + 52, cx + 73, cy - 4, U('#7a3a6a'));
     return pb;
   }
-  if (typeof PFStage !== 'undefined' && PFStage.FG) Object.assign(PFStage.FG, { aColumn: fgColumn, aPipes: fgPipes, aChain: fgChain, aRail: fgRail, aElbow: fgElbow });
+  /** r3-int-a: montante doble del primer plano que sube del borde inferior: tubos oscuros y fríos con canto
+      cálido de los ventanales (#fbc371), bridas, volante rojo y manómetro con esfera clara */
+  function fgRiser(o) {
+    const h = o.h || 72, w = 44, pb = new PixelBuffer(w, h), C = P32(['#03070e', '#060d1a', '#0a1628', '#0f203a', '#16304e', '#1e4064', '#2a5480', '#4a7ab8']);
+    const RIM = U('#fbc371');
+    for (const [cx, r] of [[12, 7], [30, 5]]) {
+      for (let y = 6; y < h; y++) for (let i = -r; i <= r; i++) put(pb, cx + i, y, C[clamp(Math.round(prof((i + r) / (2 * r)) * 7), 0, 7)]);
+      for (let y = 6; y < h; y++) put(pb, cx - r, y, (y % 7) ? RIM : C[6]);
+      for (const fy of [18, 46]) for (let i = -r - 2; i <= r + 2; i++) { put(pb, cx + i, fy, i < -r ? RIM : C[6]); put(pb, cx + i, fy + 1, C[2]); put(pb, cx + i, fy + 2, C[1]); }
+      K.ellipseFn(pb, cx, 6, r + 0.5, 2.5, (nx, ny) => ny < 0 ? C[6] : C[3]);
+    }
+    // volante rojo en sombra y manómetro
+    K.ellipseFn(pb, 12, 30, 9, 3.2, (nx, ny, d) => d > 0.6 ? U(ny < 0 ? '#c83a3a' : '#5a0e10') : (Math.abs(nx) < 0.14 || Math.abs(ny) < 0.25 ? U('#7a1418') : 0));
+    K.ellipseFn(pb, 38, 26, 4.5, 4.5, (nx, ny, d) => d > 0.7 ? C[5] : U(ny < -0.3 ? '#e8e0c8' : '#a8a088'));
+    put(pb, 39, 25, U('#c0242a')); put(pb, 40, 24, U('#c0242a'));
+    return pb;
+  }
+  /** r3-int-a: conducto de extracción colgado del borde superior con ventilador y abrazaderas (oscuro, canto cálido) */
+  function fgDuct(o) {
+    const w = o.w || 180, h = o.h || 40, pb = new PixelBuffer(w, h), C = P32(FGC), RIM = U('#d89a5a');
+    for (let y = 0; y < 24; y++) for (let x = 0; x < w; x++) put(pb, x, y, (x % 30 === 0) ? C[1] : C[clamp(Math.round(prof(y / 23) * 6), 0, 6)]);
+    for (let x = 0; x < w; x++) put(pb, x, 24, RIM);
+    for (let x = 14; x < w; x += 60) { for (let y = 24; y < h - 4; y++) { put(pb, x, y, C[4]); put(pb, x + 1, y, C[1]); } }
+    const fx = Math.round(w * 0.55);
+    K.ellipseFn(pb, fx, 26, 11, 11, (nx, ny, d) => d > 0.82 ? C[5] : d > 0.7 ? C[1] : ((Math.round(Math.atan2(ny, nx) * 2.5) & 1) ? C[3] : C[0]));
+    put(pb, fx, 26, U('#d89a5a'));
+    return pb;
+  }
+  if (typeof PFStage !== 'undefined' && PFStage.FG) Object.assign(PFStage.FG, { aColumn: fgColumn, aPipes: fgPipes, aChain: fgChain, aRail: fgRail, aElbow: fgElbow, aRiser: fgRiser, aDuct: fgDuct });
 
   return { vesselH, roRack, cartridge, pumpSkid, erd, tankV, catwalk, landing, pipeDeck, controlRoom, cabinets, rackCab, rollDoor, dosing, analyzers, pallet, extinguisher, eyewash, sign, tray, stencil, cone, toolbox, bucket, cart, hoseReel, stepLadder, duct, hangSign, column, beam, shade, rect, hline, vline, boltRing, prof, ti, FRAME, FRP, CAP, GREEN, BLUEP, YEL, RED, NAVY, WALLW, HDPE, CARD, FGC };
 })();

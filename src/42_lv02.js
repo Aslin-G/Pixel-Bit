@@ -50,13 +50,19 @@ LEVELS[2] = {
     terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 46, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
     /** Oclusores de interior en el primer plano (f 1,3): pilares en I, haces de tubos y cadenas de polipasto */
     fg: [
+      // r3-int-a: más denso y legible (≈ 1 cada 220 px; arriba conductos/tubos/cadenas cortas que no tapan rótulos, abajo montantes y codos)
       { kind: 'aRail', x: 120, w: 220, h: 56, seed: 1 },
+      { kind: 'aDuct', x: 330, w: 170, h: 40, top: true, seed: 9, sway: 0 },
+      { kind: 'aRiser', x: 560, h: 74, seed: 10, sway: 0 },
       { kind: 'aPipes', x: 760, w: 240, h: 46, y: -4, top: true, seed: 2 },
       { kind: 'aElbow', x: 1180, w: 150, h: 84, r: 12, seed: 3 },
-      { kind: 'aChain', x: 1600, h: 104, y: -6, top: true, seed: 4 },
+      { kind: 'aChain', x: 1440, h: 50, y: -6, top: true, seed: 4 },
+      { kind: 'aRiser', x: 1700, h: 70, seed: 11, sway: 0 },
       { kind: 'aPipes', x: 1930, w: 260, h: 46, y: -4, top: true, seed: 5 },
+      { kind: 'aDuct', x: 2180, w: 190, h: 40, top: true, seed: 12, sway: 0 },
       { kind: 'aRail', x: 2330, w: 200, h: 56, seed: 6 },
-      { kind: 'aChain', x: 2760, h: 92, y: -6, top: true, seed: 7 },
+      { kind: 'aRiser', x: 2580, h: 76, seed: 13, sway: 0 },
+      { kind: 'aChain', x: 2760, h: 48, y: -6, top: true, seed: 7 },
       { kind: 'aElbow', x: 3020, w: 150, h: 84, r: 12, seed: 8 },
     ],
     decorateFace(pb, world) { LEVELS[2].gallery(pb, world); },
@@ -352,7 +358,7 @@ LEVELS[2] = {
   /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
   renderFront(g, sc, cam) {
     // r3-int-a: haces nítidos de los ventanales (3 escalones de alfa, bordes sólidos) que iluminan piernas y equipos
-    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffb050', a: 0.18, lum: 0.3 });
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffb050', a: 0.18, lum: 0.3, motes: 14 });
     if (cam.y + H < 300) return;
     PFDyn.flowsImg(g, sc, LV2_GALFLOWS, 14);
     if (typeof R3INTA_L2galleryAnim === 'function') R3INTA_L2galleryAnim(g, sc, cam);

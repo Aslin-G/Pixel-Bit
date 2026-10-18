@@ -207,7 +207,7 @@
     }
     return out;
   };
-  /** Haces nítidos: aclarado (luminosity) + luz suave cálida (soft-light) + núcleo aditivo; o = {col, a, soft, lum, steps, cut} */
+  /** Haces nítidos: aclarado (luminosity) + luz suave cálida (soft-light) + núcleo aditivo + motas; o = {col, a, soft, lum, steps, cut, motes, moteCol} */
   V.r3iaDrawBeams = function (g, list, t, o = {}) {
     const col = o.col || '#ffd58a', pk = 0.92 + 0.08 * Math.sin(t * 0.37);
     for (const q of list) {
@@ -217,6 +217,19 @@
       if (o.lum) { g.globalCompositeOperation = 'luminosity'; g.globalAlpha = Math.min(1, o.lum * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
       if (o.soft) { g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, o.soft * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
       g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (o.a ?? 0.2) * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh);
+    }
+    // motas de polvo que derivan dentro de cada haz (2×1 px, 2 brillos)
+    if (o.motes) {
+      g.globalCompositeOperation = 'lighter'; g.fillStyle = o.moteCol || '#fff0c8';
+      for (let i = 0; i < list.length; i++) {
+        const q = list[i];
+        for (let k = 0; k < o.motes; k++) {
+          const ph = (t * (0.035 + (k % 5) * 0.009) + k * 0.271 + i * 0.37) % 1, v = 0.08 + ph * 0.8, bw = q.w0 + (q.w1 - q.w0) * v;
+          const u = (k * 0.618 + i * 0.13 + Math.sin(t * 0.5 + k * 1.7) * 0.06) % 1;
+          g.globalAlpha = (k % 3 ? 0.35 : 0.7) * Math.sin(ph * Math.PI);
+          g.fillRect(Math.round(q.x + q.s * v + (Math.max(q.w0, q.w1) - bw) / 2 + bw * (0.12 + u * 0.76)), Math.round(q.top + q.h * v), k % 4 ? 1 : 2, 1);
+        }
+      }
     }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   };
