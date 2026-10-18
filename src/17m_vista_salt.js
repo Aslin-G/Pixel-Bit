@@ -350,6 +350,8 @@
       return [clamp((o.t0 ?? 0.5) + (I - 0.62) * (o.contrast ?? 1.55) + cav + hgt + flat, 0, 0.999), dx, dv, h];
     };
     const SH = o.shadeHue ? U(o.shadeHue) : 0, shK = o.shadeK ?? 0.3;
+    // o.cap {ramp, minH, slope, lip, lift}: las caras casi horizontales por encima de minH se pintan con otra rampa (pradera)
+    const CAP = o.cap ? V.P32(o.haze ? V.hz(o.cap.ramp, (o.haze.k0 || 0), o.haze.col) : o.cap.ramp) : null, nC = CAP ? CAP.length : 0, capMin = o.cap ? (o.cap.minH ?? 4) : 0, capSl = o.cap ? (o.cap.slope ?? 0.45) : 0;
     for (let x = x0; x < x1; x++) {
       let yt = Math.min(pb.h, Math.round(yBase) + 1);
       for (let v = 0; v < nv; v++) {
@@ -367,6 +369,7 @@
           const k = V.band(clamp(tt, 0, 0.999), n, x, y, 0.05, seed);
           let c = R[k];
           if (SH && k < n * 0.45) c = V.mixU(c, SH, shK * (1 - k / (n * 0.45)));
+          if (CAP && h >= capMin && Math.hypot(dx, dv) < capSl && y - sy < (o.cap.lip ?? 2) + 1) c = CAP[V.band(clamp(t + (o.cap.lift ?? 0.08) - (y - sy) * 0.18, 0, 0.999), nC, x, y, 0.06, seed + 13)];
           if (sl && SALT && sl[1] % (S.salt.every || 5) === 2 && sl[2] > 0 && sl[2] < sl[3] - 1) c = V.mixU(c, SALT, S.salt.k ?? 0.3);
           if (y < pb.h) pb.data[y * w + x] = c;
         }

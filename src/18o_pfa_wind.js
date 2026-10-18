@@ -241,6 +241,16 @@ const PFAWind = (() => {
     const sd = o.seed || 5, seaY = yBot - 26, R = P32(o.ramp || ['#260a12', '#3e1420', '#58202c', '#702e36', '#9a4c4e', '#bc6c64', '#d88c78', '#f0b490', '#fcd8b4']);
     const SEA = P32(['#03203a', '#063656', '#0a5276', '#11789a', '#27a8c0', '#7cd8e0', '#e6fdff']);
     const top = (x) => yTop + Math.round((PFK.vn(x * 0.05, 0, sd) - 0.5) * 8);
+    // r2-biomes-a: pared del fondo ESCULPIDA (campo de alturas con espolones verticales irregulares, grietas y
+    // lóbulos; luz rasante desde la izquierda) en lugar de la rejilla de columnas con juntas
+    const gw = x1 - x0 + 2, gh = yBot - yTop + 12, HF = new Float32Array(gw * gh);
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const X = x0 - 1 + i, Y = yTop - 6 + j;
+      const rid = 1 - Math.abs(fbm(X * 0.055 + fbm(X * 0.01, Y * 0.01, 2, sd + 9) * 2, Y * 0.012, 3, sd + 11) * 2 - 1);
+      HF[j * gw + i] = rid * 10 + fbm(X * 0.02, Y * 0.03, 3, sd + 13) * 10 + (vnoise(X * 0.14, Y * 0.05, sd + 15) - 0.5) * 3.5 + Math.floor(fbm(X * 0.03, Y * 0.02, 2, sd + 17) * 4) * 1.5;
+    }
+    const hAt = (X, Y) => HF[clamp(Y - yTop + 6, 0, gh - 1) * gw + clamp(X - x0 + 1, 0, gw - 1)];
+    const nR = R.length;
     for (let x = x0; x < x1; x++) for (let y = top(x); y < yBot; y++) {
       if (y >= seaY + Math.round(Math.sin(x * 0.07) * 1.5)) {
         const q = y - seaY; let k = q < 2 ? 5 : q < 5 ? 4 : q < 10 ? 3 : q < 18 ? 2 : 1;
@@ -248,7 +258,14 @@ const PFAWind = (() => {
         put(pb, x, y, SEA[k]); continue;
       }
       if (y - top(x) < 2) { put(pb, x, y, U(y - top(x) === 0 ? '#748c2a' : '#3a5214')); continue; }
-      let u = K.shU(colRock(x, y, sd, R, 1.2), -0.2, 240);
+      const dx = (hAt(x + 1, y) - hAt(x - 1, y)) * 0.5, dy = (hAt(x, y + 1) - hAt(x, y - 1)) * 0.5, hh = hAt(x, y);
+      const cav = hh - (hAt(x - 3, y) + hAt(x + 3, y) + hAt(x, y - 3) + hAt(x, y + 3)) * 0.25;
+      let I = 0.5 - dx * 0.55 - dy * 0.22 + cav * 0.12 + (PFK.cl(x, y, 2, sd + 3) - 0.5) * 0.1;
+      if (Math.abs(dx) < 0.08 && hh < 6 && hash2(x, y >> 2, sd + 5) < 0.5) I -= 0.18;   // grietas en los valles
+      // la pared izquierda de la garganta mira a la derecha (en sombra); la derecha mira a la luz
+      const side = (x - x0) / (x1 - x0); I += (side - 0.5) * 0.18;
+      let u = R[clamp(Math.round(I * (nR - 1)), 0, nR - 1)];
+      u = K.shU(u, -0.12, 240);
       const mist = clamp((y - yTop) / (seaY - yTop), 0, 1);
       // profundidad: velo aéreo claro arriba que se hunde hacia el azul marino en el fondo de la garganta (bandas, sin tramado)
       const band = Math.floor(mist * 5) / 5;
@@ -269,11 +286,26 @@ const PFAWind = (() => {
       if (r.chance(0.55)) { const bx = lx + r.int(3, lw - 4); put(pb, bx, ly - 1, U('#f4f6fb')); put(pb, bx + 1, ly - 1, U('#f4f6fb')); put(pb, bx, ly - 2, U('#ffffff')); put(pb, bx - 1, ly - 1, U('#a8b4c8')); put(pb, bx + 2, ly - 2, U('#f0b030')); }
     }
     // farallones (columnas bajo las plataformas de roca), más cerca y mejor iluminados
-    for (const [sx, sy, sw] of (o.stacks || [])) for (let y = sy; y < seaY + 2; y++) for (let i = 0; i < sw; i++) {
-      const xx = sx + i - Math.round((y - sy) * 0.03);
-      let u = colRock(sx * 3 + i, y, sd + 7, R, 3);
-      if (i === 0 || i === sw - 1) u = R[i === 0 ? 3 : 0];
-      put(pb, xx, y, K.mixU(u, U('#c4d4e2'), clamp((y - sy) / (seaY - sy), 0, 1) * 0.4));
+    // farallones esculpidos: columna con perfil irregular por estratos, sombreado cilíndrico (luz izquierda),
+    // espolones verticales, base que se ensancha en derrubios con espuma; velo azul hacia el mar
+    for (const [sx, sy, sw] of (o.stacks || [])) {
+      const H = seaY + 2 - sy, rs = RNG(sd + sx);
+      let acc = 0, lh = rs.int(5, 12), lay = 0;
+      for (let q = 0; q < H; q++) {
+        if (++acc > lh) { acc = 0; lh = rs.int(5, 12); lay++; }
+        const y = sy + q, t = q / H, hard = lay % 2;
+        const hw = sw / 2 * (0.92 + t * 0.22 + (fbm1(q * 0.08, 2, sd + sx) - 0.5) * 0.24) * (hard ? 1.03 : 0.97);
+        const cx = sx + sw / 2 - Math.round(q * 0.03) + (fbm1(q * 0.04, 2, sd + sx + 3) - 0.5) * 2;
+        for (let xx = Math.floor(cx - hw); xx <= Math.ceil(cx + hw); xx++) {
+          const nx = (xx + 0.5 - cx) / hw; if (Math.abs(nx) > 1) continue;
+          const nz = Math.sqrt(1 - nx * nx), col = 1 - Math.abs(fbm(xx * 0.18, q * 0.02, 2, sd + 21) * 2 - 1);
+          let I = 0.34 - nx * 0.46 + nz * 0.3 + col * 0.18 - (hard ? 0 : 0.08) + (acc === 0 && hard && nx < 0.3 ? 0.2 : 0) + (acc === 1 && !hard ? -0.12 : 0) + (PFK.cl(xx, y, 2, sd + 23) - 0.5) * 0.14;
+          let u = R[clamp(Math.round(I * (nR - 1)), 0, nR - 1)];
+          if (Math.abs(nx) > 0.9) u = R[clamp(Math.round(I * (nR - 1)) - 2, 0, nR - 1)];
+          put(pb, xx, y, K.mixU(u, U('#c4d4e2'), clamp(t, 0, 1) * 0.35));
+        }
+      }
+      for (let i = -6; i < sw + 6; i++) { if (hash2(i, 3, sd) < 0.6) put(pb, sx + i, seaY + 1, U('#ffffff')); if (hash2(i, 4, sd) < 0.4) put(pb, sx + i, seaY, U('#e6fdff')); }
     }
     return { seaY };
   }

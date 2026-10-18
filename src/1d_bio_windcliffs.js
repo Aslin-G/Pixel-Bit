@@ -66,10 +66,10 @@ BIOMES.windcliffs = function (L) {
   const capeT = [], capeFx = { beam: null };
   P(0.1, 120, 56, (pb, w, h) => {
     const k = 0.3, base = h - 4;
-    const C = V.headlands(pb, { seed: 87, k, base, yTop: [16, 30], w: [70, 170], gap: [30, 110], x0: 150, x1: w });
+    const C = V.r2baHeadlands(pb, { seed: 87, k, base, yTop: [12, 26], w: [70, 170], gap: [30, 110], x0: 150, x1: w, nv: 18, dvy: 0.45, ramp: V.RAMPS.cliffWarm, haze: { col: '#b8c4dc', k0: 0.36, k: 0.06 } });
     let n = 0;
-    for (const [a, b, yT] of C.spans) { const x = Math.round((a + b) / 2); if (n++ % 2 === 0) { const hub = V.turbineTower(pb, x, C.top[x] + 1, 16, { k: 0.38, w: 1 }); capeT.push({ x: hub.hx, y: hub.hy, R: 6, k: 0.38, sp: 2.2, ph: x }); } else if (x + 14 < b) for (let q = 0; q < 3; q++) V.house(pb, x + q * 7 - 7, C.top[x + q * 7 - 7] + 1, 5, 4, 8700 + x + q, { k }); }
-    const sp0 = C.spans[0]; if (sp0) { const lx = sp0[0] + 18; const lh = V.lighthouse(pb, lx, C.top[lx] + 1, 14, { k }); capeFx.beam = [lh.lx, lh.ly]; }
+    for (const [a, b] of C.spans) { const x = Math.round((a + b) / 2); if (x >= w - 4) continue; if (n++ % 2 === 0) { const hub = V.turbineTower(pb, x, C.surfY(x) + 1, 16, { k: 0.38, w: 1 }); capeT.push({ x: hub.hx, y: hub.hy, R: 6, k: 0.38, sp: 2.2, ph: x }); } else if (x + 14 < b) for (let q = 0; q < 3; q++) V.house(pb, x + q * 7 - 7, C.surfY(x + q * 7 - 7) + 1, 5, 4, 8700 + x + q, { k }); }
+    const sp0 = C.spans[0]; if (sp0) { const lx = sp0[0] + 18; const lh = V.lighthouse(pb, lx, C.surfY(lx) + 1, 14, { k }); capeFx.beam = [lh.lx, lh.ly]; }
   }, {
     tag: 'capes', dyn: (g, cam, Ly) => {
       turbines(capeT)(g, cam, Ly);
@@ -81,16 +81,28 @@ BIOMES.windcliffs = function (L) {
   const midT = [], midFx = { surf: [], fauna: [] };
   P(0.18, 146, 86, (pb, w, h) => {
     const k = 0.14, r = RNG(91), base = h - 6;
-    const C = V.headlands(pb, { seed: 93, k, base, yTop: [14, 30], w: [150, 290], gap: [70, 160], x0: 60, x1: w });
+    const C = V.r2baHeadlands(pb, { seed: 93, k, base, yTop: [8, 22], w: [150, 290], gap: [70, 160], x0: 60, x1: w, nv: 28, dvy: 0.6, haze: { col: '#c4c8d8', k0: 0.14, k: 0.08 } });
+    const SR = V.P32(V.hz(['#8a6a4a', '#b8946a', '#dcc090', '#f4e2b8'], k)), FN = U(V.hzc('#d8dce4', k));
     for (const [a, b] of C.spans) {
-      for (let x = a + 30; x < b - 24; x += r.int(34, 50)) {
-        const y = C.top[x]; if (y > base - 16) continue;
+      if (a >= w) continue;
+      const tx = [];
+      for (let x = a + 30; x < Math.min(w, b) - 24; x += r.int(34, 50)) {
+        const y = C.surfY(x); if (y > base - 16) continue;
+        tx.push([x, y]);
+      }
+      // camino de servicio de tierra que serpentea por la meseta uniendo las turbinas (antes que las torres)
+      for (let i = 0; i + 1 < tx.length; i++) { const [x0, y0] = tx[i], [x1, y1] = tx[i + 1]; for (let x = x0; x <= x1; x++) { const u = (x - x0) / Math.max(1, x1 - x0), y = Math.round(y0 + (y1 - y0) * u + Math.sin(u * Math.PI) * 3 + 2); V.put(pb, x, y, SR[2 + (hash2(x >> 1, 1, 3) < 0.3 ? 1 : 0)]); V.put(pb, x, y + 1, SR[1]); if (hash2(x, 2, 5) < 0.2) V.put(pb, x, y - 1, SR[3]); } }
+      for (const [x, y] of tx) {
+        // plataforma de grava al pie de cada torre
+        for (let q = -4; q <= 5; q++) { V.put(pb, x + q, y + 2, SR[q < 0 ? 3 : 2]); V.put(pb, x + q, y + 3, SR[1]); }
         const th = r.int(36, 52), hub = V.turbineTower(pb, x, y + 1, th, { k: 0.2 });
         midT.push({ x: hub.hx, y: hub.hy, R: Math.round(th * 0.36), k: 0.2, sp: 2 + (x % 5) * 0.2, ph: x * 0.2 });
       }
-      const mx = Math.round(a + (b - a) * 0.7); if (C.top[mx] < base - 20) V.metMast(pb, mx, C.top[mx] + 1, 40, { k });
-      V.windGrass(pb, a, b, (x) => C.top[x] + 1, { k, seed: 95 + a, density: 0.5, h: 3 });
-      for (let x = a + 6; x < b - 6; x += r.int(16, 36)) V.flowerBush(pb, x, C.top[x] + 2, r.int(2, 3), 9500 + x, { k });
+      // subestación: vallado, transformadores en 3/4 y pórtico de línea
+      if (tx.length > 1) { const sx = Math.round((tx[0][0] + tx[1][0]) / 2) + 4, sy = C.surfY(sx) + 4; V.box3q(pb, sx, sy, 7, 4, 3, { ramp: V.ARCH.WHITE, k }); V.box3q(pb, sx + 9, sy, 5, 4, 3, { ramp: V.ARCH.WHITE, k }); for (let q = -2; q < 18; q++) { V.put(pb, sx + q, sy + 1, FN); if (q % 4 === 0) for (let z = 0; z < 4; z++) V.put(pb, sx + q, sy + 1 - z, FN); } for (let z = 0; z < 9; z++) { V.put(pb, sx + 16, sy - z, U(V.hzc('#7a7e90', k))); } V.put(pb, sx + 15, sy - 8, FN); V.put(pb, sx + 17, sy - 8, FN); }
+      const mx = Math.round(a + (b - a) * 0.7); if (mx < w && C.surfY(mx) < base - 20) V.metMast(pb, mx, C.surfY(mx) + 1, 40, { k });
+      V.windGrass(pb, a, Math.min(w, b), (x) => C.top[x] < 32767 ? C.top[x] + 1 : null, { k, seed: 95 + a, density: 0.5, h: 3 });
+      for (let x = a + 6; x < Math.min(w, b) - 6; x += r.int(10, 22)) { const y = C.surfY(x) + r.int(-3, 6); if (y < base - 8) V.flowerBush(pb, x, y, r.int(2, 3), 9500 + x, { k }); }
       midFx.surf.push({ x0: a, x1: b, y: base + 1 });
     }
     midFx.fauna.push({ kind: 'gull', x: 200, y: 20, r: 300, sp: 9 }, { kind: 'gull', x: 220, y: 28, r: 280, sp: 8 }, { kind: 'gull', x: 900, y: 14, r: 320, sp: -10 }, { kind: 'eagle', x: 600, y: 4, r: 140 });

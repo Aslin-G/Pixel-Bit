@@ -10,7 +10,7 @@ const WIND_TURBINES = [760, 900, 1040, 1180];
 /* ---------- anclas del plano jugable (kit PF + PFAWind) ---------- */
 const LV5_ANCH = { hubs: [], leds: [], lamps: [], cups: [] };
 /** Arenisca rosada de los acantilados eólicos (rampa del acantilado columnar del kit PF) */
-const LV5_ROCK = ['#260a12', '#3e1420', '#58202c', '#702e36', '#9a4c4e', '#bc6c64', '#d88c78', '#f0b490', '#fcd8b4'];
+const LV5_ROCK = ['#220a10', '#3a1218', '#561c1e', '#762a24', '#9a422c', '#bc5e36', '#d8804a', '#f0aa66', '#fcd49a'];
 
 LEVELS[5] = {
   id: 5, title: 'Las Torres de Brisa', chapter: 'CAPÍTULO 05', biome: 'windcliffs', music: 'wind', width: 3000, height: 420, fallY: 420,
