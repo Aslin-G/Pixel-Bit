@@ -186,16 +186,25 @@ const PFASolar = (() => {
       if ((ly === 9 || ly === 34) && lx > 9 && lx < 55) k = ly === 9 ? 2 : 7;
       if ((lx === 10 || lx === 54) && ly >= 10 && ly < 34) k = 3;
       if (ly > yF - roof - 24) k = (ly === yF - roof - 24) ? 7 : 3 + ((xx >> 3) & 1 ? 0 : -1);
-      if (ly < 6) k -= ly < 3 ? 2 : 1;                                                               // sombra de la losa sobre el muro
       put(pb, xx, yy, Wl[clamp(k, 0, 8)]);
     }
+    // r3-desert: banda de sombra bajo el alero (4 px sólidos + 5 de penumbra, violeta) sobre el muro del fondo
+    for (let k = 0; k < 9; k++) for (let xx = x0; xx < x1; xx++) { const yy = roof + 9 + k, c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, U('#24183e'), k < 4 ? 0.58 - k * 0.04 : 0.34 - (k - 4) * 0.06)); }
     // desconchones con ladrillo a la vista
     const rr = RNG(57);
     for (let k = 0; k < Math.round(w / 70); k++) { const bx = x0 + rr.int(8, w - 30), by = roof + 8 + rr.int(38, 62), bw = rr.int(10, 18), bh = rr.int(5, 8); for (let yy = by; yy < by + bh; yy++) for (let xx = bx; xx < bx + bw; xx++) { const nx = (xx - bx) / bw - 0.5, ny = (yy - by) / bh - 0.5; if (nx * nx + ny * ny > 0.25 + hash2(xx, yy, 58) * 0.06) continue; const j = ((yy - by) % 3 === 0) || ((xx + ((yy - by) / 3 | 0) * 3) % 7 === 0); put(pb, xx, yy, j ? Wl[3] : U('#b4643a')); } }
     // cubierta: losa con canto, cara superior en 3/4 con módulos FV, luminarias colgantes
-    for (let xx = x0 - 6; xx < x1 + 6; xx++) for (let k = 0; k < 9; k++) put(pb, xx, roof + k, k === 0 ? R[6] : k < 3 ? R[4] : k === 8 ? R[0] : R[2]);
+    // r3-desert: lateral derecho en 3/4 (muro en sombra violeta con ventanuco) y sombra arrojada abajo-derecha
+    const RD = 12, sdx = Math.round(RD * 0.8);
+    PFK.polyFill(pb, [[x1 + 6, roof + 9], [x1 + 6 + sdx, roof + 9 - RD], [x1 + 6 + sdx, yF - RD], [x1 + 6, yF]], (xx, yy) => K.mixU(Wl[clamp(4 + Math.round((PFK.cl(xx, yy, 3, 59) - 0.5) * 1.2) - ((yy - roof) % 22 === 0 ? 1 : 0), 0, 8)], U('#4a2a6a'), 0.42));
+    for (let yy = roof + 30; yy < roof + 44; yy++) for (let xx = x1 + 8; xx < x1 + 6 + sdx - 1; xx++) put(pb, xx, yy - Math.round((xx - x1 - 6) * RD / sdx), U(yy < roof + 33 ? '#3a4a6a' : '#5a7aa0'));
+    for (let yy = yF - 12; yy < yF + 2; yy++) for (let xx = x1 + 6 + sdx; xx < x1 + 6 + sdx + 26 - (yy - yF + 12) * 1.4; xx++) { const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, R3SHC, 0.42)); }
+    // cubierta: losa con canto (labio cálido #fbc371 en la arista soleada), cara superior en 3/4 más honda
+    for (let xx = x0 - 6; xx < x1 + 6; xx++) for (let k = 0; k < 9; k++) put(pb, xx, roof + k, k === 0 ? U('#fbc371') : k < 3 ? R[6] : k === 8 ? R[0] : k === 7 ? R[3] : R[5]);
     for (let xx = x0 - 6; xx < x1 + 6; xx += 7) { put(pb, xx, roof + 4, R[1]); put(pb, xx, roof + 5, R[1]); }        // juntas de la losa
-    for (let r = 0; r < 8; r++) { const off = Math.round(r * 0.8); for (let xx = x0 - 6 + off; xx < x1 + 6 + off; xx++) put(pb, xx, roof - 1 - r, r === 0 ? R[6] : R[5 - (r > 5 ? 1 : 0)]); }
+    for (let r = 0; r < RD; r++) { const off = Math.round(r * 0.8); for (let xx = x0 - 6 + off; xx < x1 + 6 + off; xx++) put(pb, xx, roof - 1 - r, r === RD - 1 ? U('#fbc371') : r === 0 ? R[6] : R[5 - (r > 8 ? 1 : 0) + (((xx - off) % 24) === 0 ? -1 : 0)]); }
+    for (let r = 0; r < RD; r++) { const off = Math.round(r * 0.8); put(pb, x0 - 6 + off, roof - 1 - r, U('#fbc371')); put(pb, x1 + 6 + off, roof - 1 - r, R[1]); put(pb, x1 + 5 + off, roof - 1 - r, R[3]); }
+    for (let k = 0; k < 9; k++) { put(pb, x0 - 6, roof + k, U(k ? '#e8a070' : '#fbc371')); put(pb, x1 + 5, roof + k, R[0]); }
     for (let xx = x0 + 6; xx < x1 - 40; xx += 66) pvTable(pb, xx, roof - 4, 56, { low: 3, ph: 16, sk: 6, piles: 2, seed: xx });
     for (let lx = x0 + 30; lx < x1 - 10; lx += 70) {
       vline(pb, lx, roof + 9, roof + 18, U('#2a282e')); rect(pb, lx - 6, roof + 18, 13, 3, U('#4f4d51')); hline(pb, lx - 5, lx + 5, roof + 21, U('#fff6d8')); lamps.push([lx, roof + 23]);
@@ -213,7 +222,7 @@ const PFASolar = (() => {
     // extractor de aire en el muro (rejilla circular)
     K.ellipseFn(pb, x0 + 262, roof + 22, 7, 7, (nx, ny, dd) => dd > 0.85 ? Wl[1] : ((Math.round((ny + 1) * 7)) % 2 ? Wl[2] : Wl[4]));
     // pilastras extremas en corte
-    for (const px2 of [x0 - 6, x1]) for (let yy = roof; yy < yF; yy++) for (let k = 0; k < 6; k++) put(pb, px2 + k, yy, Wl[[2, 7, 6, 5, 4, 1][k]]);
+    for (const px2 of [x0 - 6, x1]) for (let yy = roof + 9; yy < yF; yy++) for (let k = 0; k < 6; k++) put(pb, px2 + k, yy, px2 === x0 - 6 ? (k === 0 ? U('#fbc371') : Wl[[2, 7, 6, 5, 4, 1][k]]) : K.mixU(Wl[[2, 6, 5, 4, 3, 1][k]], U('#4a2a6a'), 0.25));
     // puerta lateral (vano ≥ 90 px) en el muro derecho
     if (o.doorX) { const dx = o.doorX; for (let yy = yF - 94; yy < yF; yy++) for (let xx = dx; xx < dx + 34; xx++) put(pb, xx, yy, (yy === yF - 94 || xx === dx || xx === dx + 33) ? Wl[1] : K.mixU(U('#3a2418'), U('#7a4a30'), ((xx - dx) % 6 === 0 ? 0.2 : 0.45) + ((yy - yF + 94) < 30 && (xx - dx) < 20 - (yy - yF + 94) * 0.5 ? 0.15 : 0))); hline(pb, dx + 26, dx + 29, yF - 48, U('#f0bc2c')); for (const hy of [yF - 80, yF - 20]) rect(pb, dx + 1, hy, 3, 4, U('#8e94a2')); }
     return { roofY: roof, lamps };
