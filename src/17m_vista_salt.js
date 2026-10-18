@@ -555,7 +555,7 @@
       const lo = o.lo ?? 284, hi = o.hi ?? 344;
       if (h >= lo && h <= hi && S >= 0.16 && !(S > (o.keepS ?? 0.55) && Vv > (o.keepV ?? 0.62))) {
         const mid = (lo + hi) / 2, toV = h < mid, q = toV ? (h - lo) / (mid - lo) : (hi - h) / (hi - mid);   // q: 0 en el borde, 1 en la costura
-        let h2 = toV ? 276 - (1 - q) * 6 : (o.redH ?? 350) + (1 - q) * 6; const S2 = S * (0.95 - q * 0.4); if (h2 >= 360) h2 -= 360;
+        let h2 = toV ? 276 - (1 - q) * 6 : (o.redH ?? 350) + (1 - q) * 6; const S2 = Math.min(1, S * (1.1 - q * 0.32)); if (h2 >= 360) h2 -= 360;
         const c = Vv * S2, x = c * (1 - Math.abs(((h2 / 60) % 2) - 1)), m = Vv - c, hh = h2 / 60;
         let rr, gg, bb;
         if (hh < 1) [rr, gg, bb] = [c, x, 0]; else if (hh < 2) [rr, gg, bb] = [x, c, 0]; else if (hh < 3) [rr, gg, bb] = [0, c, x];
@@ -568,10 +568,13 @@
   };
   /** Igual sobre un lienzo ya horneado (p. ej. tras la gradación de r2-light): getImageData → guarda → putImageData */
   V.r2baHueGuardCanvas = function (c, o = {}) {
-    if (!c || !c.getContext) return c;
-    const g = c.getContext('2d'), img = g.getImageData(0, 0, c.width, c.height);
+    if (!c || !c.getContext || !c.width || !c.height) return c;
+    // lectura en un lienzo temporal con willReadFrequently (el original ya lo leyó r2-light: evita el aviso de lecturas repetidas)
+    const tmp = document.createElement('canvas'); tmp.width = c.width; tmp.height = c.height;
+    const tg = tmp.getContext('2d', { willReadFrequently: true }); tg.drawImage(c, 0, 0);
+    const img = tg.getImageData(0, 0, c.width, c.height);
     V.r2baHueGuard({ w: c.width, h: c.height, data: new Uint32Array(img.data.buffer) }, o);
-    g.putImageData(img, 0, 0); return c;
+    c.getContext('2d').putImageData(img, 0, 0); return c;
   };
   V.r2baHueGuard = function (pb, o = {}) {
     const W_ = pb.w, x0 = Math.max(0, o.x0 ?? 0), x1 = Math.min(W_, o.x1 ?? W_), y0 = Math.max(0, o.y0 ?? 0), y1 = Math.min(pb.h, o.y1 ?? pb.h), D = pb.data;
