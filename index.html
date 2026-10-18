@@ -30316,70 +30316,58 @@ function buildCalima(L) {
   const CY0 = 0;
   const at = (f, y) => Math.round(y - (V.CAMY - CY0) * f * 0.3);
   const HZ = 178;
-  const SUN = { x: 420, y: 74, r: 9, halo: 22 };
   const T = () => Game.time;
   const st = () => B.calima || { storm: 1, gust: 0.5, clear: 0, transformed: false };
+  /* ---------------- r2-biomes-b: cielo de tormenta con el COLOSO de polvo (MIRAGE), paralaje 0,02 ----------------
+     Una sola pasada a pantalla completa: cielo + nubes colgantes + muro (haboob) + coloso + haces horneados. */
+  const SF = 0.02, SWd = Math.ceil(W + Math.max(0, L.width - W) * SF) + 2;
+  const R2S = V.timed('r2storm', () => R2BB_stormSky(SWd, H, {}));
+  const S0 = R2S.sun;
+  // sol en pantalla a mitad de recorrido (r2-light orienta las sombras con él)
+  const SUN = { x: S0.x - Math.round(Math.max(0, L.width - W) * SF / 2), y: S0.y, r: S0.r, halo: 22 };
   B.horizon = HZ;
   B.sun = SUN;
   B.weather.wind = 2.5;
   B.calima = null;
-  // cielo de tormenta (bandas óxido → ocre, sol pálido difuso) y cielo despejado para el final
-  B.sky = V.timed('sky', () => {
-    const pb = V.sky(W, H, { horizonY: HZ, stops: D.sky, haze: ['#f2b860', '#f6c470', '#f8cc7c', '#fad488'], bands: 24, curve: 0.9 });
-    // sol velado por el polvo: disco apagado y difuso (sin borde nítido) y corona ocre ancha en anillos
-    for (let y = SUN.y - 40; y <= SUN.y + 40; y++) for (let x = SUN.x - 40; x <= SUN.x + 40; x++) {
-      const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2((x / 3) | 0, (y / 2) | 0, 3) - 0.5) * 2.2;
-      const c0 = V.get(pb, x, y);
-      if (d <= SUN.r - 3) V.put(pb, x, y, V.mixU(c0, U('#f8dcaa'), 0.62));
-      else if (d <= SUN.r + 1) V.put(pb, x, y, V.mixU(c0, U('#f2c88e'), 0.46));
-      else if (d < 40) V.put(pb, x, y, V.mixU(c0, U('#e8b070'), [0.34, 0.26, 0.19, 0.13, 0.08, 0.04][Math.min(5, Math.floor((d - SUN.r - 1) / 5))]));
-    }
-    // color medio de cada fila del cielo (para que los velos lejanos se fundan con él)
-    FIXLB_CAL.skyRows = []; for (let y = 0; y < pb.h; y++) { let r = 0, g2 = 0, b = 0; for (let x = 8; x < 200; x += 8) { const u = pb.data[y * pb.w + x]; r += u & 255; g2 += (u >>> 8) & 255; b += (u >>> 16) & 255; } FIXLB_CAL.skyRows.push([r / 24, g2 / 24, b / 24]); }
-    return pb.toCanvas();
-  });
+  B.r2storm = R2S; B.r2sf = SF;
+  B.sky = R2S.c;
   B.skyClear = V.timed('skyClear', () => V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas());
-  // halo del sol (débil con tormenta, fuerte al despejar)
-  B.vdyn(0, (g) => { const S = st(); V.sunBloom(g, SUN, T(), { a: 0.16 + 0.22 * S.clear, r: 60, col: '#ffd8a0' }); }, { tag: 'sun' });
-  /* ---------------- muro de tormenta: MIRAGE (0,02) ---------------- */
-  const wallH = 196, wallW = Math.ceil(W + (L.width - W) * 0.02) + 2;
-  const wallC = V.timed('wall', () => V.stormWall(wallW, wallH, { seed: 1001, n: 8, pal: D.wall, tint: '#8a3a1e', wMin: 170, wMax: 270, hK0: 0.62, hK1: 0.86 }).toCanvas());
-  const eyes = [[296, 62], [328, 60]];
-  B.vdyn(0.02, (g, cam) => {
-    const S = st(), a = clamp(S.storm * 1.1 - S.clear * 0.3, 0, 1); if (a <= 0.02) return;
-    const ox = -Math.round(cam.x * 0.02), y = Math.round(HZ - wallH + 12 + S.clear * 60);
-    g.globalAlpha = a; g.drawImage(wallC, ox, y); g.globalAlpha = 1;
-    // brasas de MIRAGE dentro del muro (se apagan cuando se transforma en MOSAICO)
-    if (!S.transformed && S.storm > 0.4) { const p = 0.35 + 0.25 * Math.sin(T() * 1.3); for (const [ex, ey] of eyes) { V.drawGlow(g, ex + ox, ey + y, 6, '#ff8a3a', p * S.storm); g.fillStyle = '#ffd8a0'; g.globalAlpha = p * S.storm; g.fillRect(ex + ox - 1, ey + y, 3, 1); g.globalAlpha = 1; } }
-  }, { tag: 'wall' });
-  // nubes de polvo → cúmulos blancos al despejar (misma semilla: mismas formas y posiciones, fundido cruzado)
-  const dustDeck = B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], pal: D.pal, sunX: SUN.x, haze: 0.12, hazeCol: '#c46a34' });
+  // coloso vivo: halo del sol tras su hombro, ojos y fauces de brasa que respiran, grietas del pecho (se apagan con MOSAICO)
+  B.vdyn(SF, (g, cam) => {
+    const S = st(), t = T(), ox = -Math.round(cam.x * SF), a = clamp(1 - S.clear * 1.2, 0, 1);
+    if (S.clear > 0.02) V.sunBloom(g, { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 }, t, { a: 0.4 * S.clear, r: 60, col: '#ffe8b0' });
+    if (a <= 0.02) return;
+    V.sunBloom(g, { x: S0.x + ox, y: S0.y, r: S0.r, halo: 24 }, t, { a: (0.34 + 0.08 * Math.sin(t * 0.7)) * a, r: 66, col: '#ffc070' });
+    if (S.transformed) return;
+    const p = (0.62 + 0.22 * Math.sin(t * 1.9) + 0.12 * Math.sin(t * 5.3)) * a;
+    for (const [ex, ey] of R2S.eyes) { V.drawGlow(g, ex + ox, ey - 1, 8, '#ff6a1a', p * 0.8); V.drawGlow(g, ex + ox, ey - 1, 3, '#ffe6a0', p); }
+    const m = R2S.maw[11]; V.drawGlow(g, m[0] + ox, m[1], 13, '#ff4a14', (0.32 + 0.22 * Math.sin(t * 1.3)) * a);
+    for (let i = 0; i < R2S.cracks.length; i++) { const [x, y] = R2S.cracks[i]; V.drawGlow(g, x + ox, y, 4, '#ff8a30', (0.28 + 0.24 * Math.sin(t * 2.2 + i)) * a); }
+  }, { tag: 'r2colossus' });
+  // cúmulos blancos al despejar (solo aparecen con el cielo azul)
   const clearDeck = B.cloudDeck({ n: 7, seed: 1011, f: [0.03, 0.08], y: [-10, 70], w: [90, 170], speed: [10, 18], sunX: SUN.x, haze: 0.06, hazeCol: '#f2e2d0' });
-  FIXLB_fadeDeck(B, dustDeck, () => 1 - st().clear); FIXLB_fadeDeck(B, clearDeck, () => st().clear);
-  /* ---------------- cordillera disuelta (0,05) ---------------- */
+  FIXLB_fadeDeck(B, clearDeck, () => st().clear);
+  // jirones de polvo que el viento arranca del coloso (velo animado, 1 tira parcial)
+  const veils = [
+    V.timed('veil1', () => V.dustVeil(W * 2, 70, { seed: 2, a0: 0.1, a1: 0.5, billow: 0.6, dense: false, cols: ['#3a141a', '#5a2018', '#7e3420', '#a64c26', '#d27434'] })),
+    V.timed('veil3', () => V.dustVeil(W * 2, 60, { seed: 4, a0: 0.06, a1: 0.42, billow: 0.55, dense: false, cols: ['#4a1c14', '#6e2c1a', '#96421e', '#c26428', '#e8944a'] })),
+  ];
+  const veilLayer = (i, f, y, sp, aK) => B.vdyn(f, (g, cam) => {
+    const S = st(), a = (S.storm * (0.75 + 0.25 * S.gust)) * aK; if (a <= 0.02) return;
+    V.drawVeil(g, veils[i], y + Math.round(S.clear * 30), cam.x * f - T() * sp * (0.6 + S.gust), a);
+  }, { tag: 'veil' + i });
+  veilLayer(0, 0.03, 112, 9, 0.55);
+  /* ---------------- cordillera a contraluz (0,05): siluetas oscuras con borde encendido y bruma en la base ---------------- */
   B.vplane(0.05, at(0.05, HZ - 56), 58, (pb, w, h) => {
     const r = RNG(1021), peaks = [];
     for (let x = -40; x < w + 60;) { const ww = r.int(50, 130); peaks.push({ x: x + ww * 0.5, v: r.int(14, 30), h: r.int(16, 50), w: ww, d: r.int(16, 28) }); x += r.int(36, 90); }
     V.relief(pb, {
       yBase: h - 1, nv: 40, dvy: 0.3, seed: 1023, hMax: 50,
       H: V.massif(peaks, { seed: 1023, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4 }),
-      ramp: V.RAMPS.hill, contrast: 1.6, t0: 0.5,
-      haze: { col: '#d08a54', k0: 0.55, k: 0.15 }, mist: { col: '#e09a5a', h: 22, k: 0.7 }, rim: '#f6c080', tex: 0.04,
+      ramp: R2BB_FARR, contrast: 1.5, t0: 0.42,
+      haze: { col: '#9a4424', k0: 0.3, k: 0.1 }, mist: { col: '#c4642e', h: 16, k: 0.6 }, rim: '#ffc06a', tex: 0.05,
     });
   }, { tag: 'far' });
-  const veils = [
-    V.timed('veil0', () => V.dustVeil(W * 2, 70, { seed: 1, a0: 0.2, a1: 0.8 })),
-    V.timed('veil1', () => V.dustVeil(W * 2, 90, { seed: 2, a0: 0.15, a1: 0.7 })),
-    V.timed('veil2', () => V.dustVeil(W * 2, 110, { seed: 3, a0: 0.1, a1: 0.46, billow: 0.5 })),
-    V.timed('veil3', () => V.dustVeil(W * 2, 120, { seed: 4, a0: 0.06, a1: 0.38, billow: 0.55, dense: false })),
-  ];
-  const veilLayer = (i, f, y, sp, aK) => B.vdyn(f, (g, cam) => {
-    const S = st(), a = (S.storm * (0.75 + 0.25 * S.gust)) * aK; if (a <= 0.02) return;
-    V.drawVeil(g, veils[i], y + Math.round(S.clear * 30), cam.x * f + T() * sp * (0.6 + S.gust), a);
-  }, { tag: 'veil' + i });
-  veilLayer(0, 0.05, HZ - 44, 14, 0.9);
-  // cortina de polvo: con la tormenta plena la cordillera se disuelve en el cielo (visibilidad 200 m)
-  FIXLB_curtain(B, 0.05, at(0.05, HZ - 62), 70, 0.62, 0.92, st, 0.3);
   /* ---------------- ARIDIA en el cabo con luces de emergencia (0,09) ---------------- */
   const ariFx = { beacons: [], lights: [] };
   B.vplane(0.09, at(0.09, HZ - 70), 82, (pb, w, h) => {
@@ -30388,13 +30376,14 @@ function buildCalima(L) {
       yBase: h - 1, nv: 30, dvy: 0.3, seed: 1033, hMax: 50,
       H: V.massif([{ x: cx, v: 12, h: 44, w: 130, d: 20, k: 0.8 }, { x: cx + 120, v: 10, h: 26, w: 100, d: 18 }, { x: cx - 120, v: 10, h: 22, w: 90, d: 18 }, { x: 640, v: 12, h: 30, w: 140, d: 20 }, { x: 880, v: 10, h: 24, w: 120, d: 18 }],
         { seed: 1033, rough: 0.45, scale: 0.05, apron: 4, plateaus: [{ x: cx, w: 30, h: 40 }] }),
-      ramp: V.RAMPS.hill, contrast: 1.6, t0: 0.5,
-      haze: { col: '#c87a48', k0: 0.45, k: 0.1 }, mist: { col: '#d88a52', h: 18, k: 0.6 }, rim: '#f0b070', tex: 0.04,
+      ramp: R2BB_MIDR, contrast: 1.6, t0: 0.45,
+      haze: { col: '#7a3420', k0: 0.2, k: 0.08 }, mist: { col: '#b0542a', h: 16, k: 0.55 }, rim: '#ffb860', tex: 0.05,
     });
     const dc = V.domeCity(pb, cx, info.top[cx] + 6, { k: 0.5, s: 0.5, label: false });
     ariFx.beacons.push([cx, dc.top + 1, '#ff5040'], ...dc.towers.map(tw => [tw.x + (tw.w >> 1), tw.top, '#56e5ff']).slice(0, 4));
     for (let i = 0; i < 40; i++) { const x = r.int(cx - 50, cx + 50), y = info.top[x] + r.int(2, 14); if (V.get(pb, x, y) >>> 24) { V.put(pb, x, y, U('#ffd890')); if (r.chance(0.3)) ariFx.lights.push([x, y, '#ffe0a0']); } }
-    V.dustPlane(pb, '#c87a48', 0.55);
+    V.dustPlane(pb, '#6a2c1c', 0.34);
+    V.rim(pb, U('#ffb060'), 0.55, -1, -1);
   }, {
     tag: 'aridia', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
@@ -30402,8 +30391,6 @@ function buildCalima(L) {
       for (let i = 0; i < ariFx.beacons.length; i++) { const [x, y, c] = ariFx.beacons[i]; if ((Math.floor(t * 1.4 + i * 0.5) % 2) === 0) V.drawGlow(g, x + ox, y + oy, 4, c, 0.6); }
     },
   });
-  veilLayer(1, 0.1, HZ - 40, 22, 0.85);
-  FIXLB_curtain(B, 0.09, at(0.09, HZ - 76), 92, 0.5, 0.8, st, 0.35);
   /* ---------------- SYNARA bajo el polvo (0,18) ---------------- */
   const synFx = { turb: [], beacons: [], glows: [] };
   B.vplane(0.18, at(0.18, 96), 140, (pb, w, h) => {
@@ -30412,8 +30399,8 @@ function buildCalima(L) {
       yBase: h - 1, nv: 40, dvy: 0.9, seed: 1043, hMax: 44,
       H: V.massif([{ x: 80, v: 12, h: 30, w: 150, d: 20 }, { x: 420, v: 12, h: 22, w: 160, d: 20 }, { x: 700, v: 14, h: 44, w: 140, d: 22, k: 0.8 }, { x: 960, v: 12, h: 26, w: 150, d: 20 }, { x: 1180, v: 12, h: 34, w: 140, d: 20 }],
         { seed: 1043, rough: 0.4, scale: 0.05, apron: 4, base: 6 }),
-      ramp: V.RAMPS.hill, contrast: 1.7, t0: 0.5, facet: 0.3,
-      haze: { col: '#c87a48', k0: 0.2, k: 0.1 }, mist: { col: '#d88a52', h: 20, k: 0.55 }, rim: '#f4b878', tex: 0.05,
+      ramp: R2BB_MIDR, contrast: 1.7, t0: 0.42, facet: 0.3,
+      haze: { col: '#6a2c1c', k0: 0.1, k: 0.06 }, mist: { col: '#a84c26', h: 18, k: 0.5 }, rim: '#ffb860', tex: 0.06,
       veg: { ramp: V.RAMPS.vegMid, density: 0.03, maxSlope: 0.8, minY: 40 },
     });
     // desaladora y FV a la izquierda (como en el recorrido del nivel)
@@ -30432,7 +30419,8 @@ function buildCalima(L) {
     if (w > 1000) { const h2 = V.h2Plant(pb, 960, base - 2, { k, s: 0.8 }); synFx.glows.push(...h2.glows.slice(0, 4)); }
     if (w > 1160) V.carveTerraces(pb, info, { x0: 1110, x1: Math.min(w - 2, 1250), yTop: base - 40, yBot: base, stepH: [8, 10], wallK: 0.45, k, seed: 1047, kinds: ['rows', 'vine', 'rows'] });
     V.scatterVeg(pb, (x) => info.top[x] > base - 30 ? info.top[x] + 1 : null, 0, w, 1049, { k, gap: 12, mix: { palm: 2, shrub: 3, tree: 1 } });
-    V.dustPlane(pb, '#9a4a26', 0.3);
+    V.dustPlane(pb, '#5a2418', 0.28);
+    V.rim(pb, U('#ffa850'), 0.5, -1, -1);
   }, {
     tag: 'synara', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T(), S = st();
@@ -30443,8 +30431,6 @@ function buildCalima(L) {
       for (const [x, y, rr] of synFx.glows) V.drawGlow(g, x + ox, y + oy, rr, '#4cd48e', 0.3 + 0.15 * Math.sin(t * 2 + x));
     },
   });
-  veilLayer(2, 0.2, 112, 34, 0.75);
-  FIXLB_curtain(B, 0.18, at(0.18, 92), 120, 0.3, 0.55, st, 0.4);
   /* ---------------- pueblo con persianas cerradas (0,32) ---------------- */
   const townFx = { lights: [], beacons: [], crests: [], lit: [] };
   B.vplane(0.32, at(0.32, 132), 156, (pb, w, h) => {
@@ -30469,7 +30455,8 @@ function buildCalima(L) {
     for (let x = 30; x < w; x += r.int(40, 90)) { const y = info.onSurf(x, 2); if (y != null) V.palm(pb, x, y + 2, r.int(26, 40), r.range(8, 14), 5200 + x, { k }); }
     for (const x of [300, 980, 1600]) if (x < w) { const y = info.top[x] + 2; for (let i = 0; i < 60; i++) { V.put(pb, x, y - i, U(V.hzc('#c8b8b0', k))); if (i % 6 === 0) { V.put(pb, x - 1, y - i, U('#8a7a76')); V.put(pb, x + 1, y - i, U('#8a7a76')); } } townFx.beacons.push([x, y - 61]); }
     // contraluz: el pueblo cercano queda en silueta cálida oscura; las ventanas encendidas destacan
-    V.dustPlane(pb, '#4a1c10', 0.42, { y0: 0 });
+    V.dustPlane(pb, '#2e1010', 0.5, { y0: 0 });
+    V.rim(pb, U('#ff9c48'), 0.6, -1, -1);
     for (const [lx, ly] of townFx.lit) { V.put(pb, lx, ly, U('#ffd890')); V.put(pb, lx + 1, ly, U('#ffe8b0')); }
   }, {
     tag: 'town', dyn: (g, cam, Ly) => {
@@ -30479,7 +30466,7 @@ function buildCalima(L) {
       if (S.storm > 0.2) V.drawSandWisps(g, townFx.crests, ox, oy, t, { n: 3, a: 0.55 * S.storm, wind: 1.6, col: '#f0c080' });
     },
   });
-  veilLayer(3, 0.4, 168, 60, 0.7);
+  veilLayer(1, 0.4, 196, 40, 0.6);
   B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
   return B;
 }
@@ -31426,6 +31413,209 @@ BIOMES.vault = function (L) {
 };
 
 BIOME_LABELS.vault = BIOME_LABELS.vault || [];
+
+/* ===== 1e_r2bb_storm.js ===== */
+/* =====================================================================
+   1e_r2bb_storm.js — r2-biomes-b · CIELO DE TORMENTA CON EL COLOSO DE
+   POLVO (MIRAGE) para el Nivel 10 «La Gran Calima».
+   Un único lienzo (ancho W + paralaje 0,02 del nivel) que se dibuja en una
+   sola pasada: cielo óxido→ámbar en bandas con el sol detrás del coloso,
+   cúmulos de polvo colgando con el vientre encendido, el muro de la
+   tormenta (haboob) que sube en diagonal hacia la derecha y el COLOSO de
+   polvo (cuernos de polvo, ojos de brasa, fauces, hombros y brazos que se
+   apoyan en el muro). Sombreado por bultos (z-buffer por caja de cada
+   bulto: coste ∝ área de los bultos), luz de borde desde el sol que tiene
+   detrás y haces/sombras crepusculares por oclusión angular desde el sol.
+   Sin tramado: bandas con borde en clusters 3×2 (VISTA.band).
+     R2BB_stormSky(w, h, o) → { c, sun, eyes, maw, head, cracks, wallTop }
+     R2BB_puffRaster(w, h, puffs, ID, Z, NX, NY)   raster de bultos
+     R2BB_chain(out, rng, a, b, ra, rb, mat, zo, n, fest)  cadena de bultos
+   ===================================================================== */
+const R2BB_SKYR = ['#14060e', '#1e0912', '#2a0d16', '#381218', '#48161a', '#5a1c1a', '#6e241a', '#84301c', '#9a3c1e', '#b04a20', '#c45a24', '#d66c28', '#e4802e', '#ee9636', '#f6ae44', '#fbc458', '#fed876', '#ffeaa0', '#fff6cc'];
+const R2BB_BODYR = ['#12060c', '#1a0910', '#230c14', '#2e1018', '#3a141c', '#46181e', '#541e20', '#642622', '#763024', '#8a3c26'];
+const R2BB_WALLR = ['#2a0e12', '#381416', '#481a18', '#5a221a', '#6e2c1c', '#84381e', '#9a4620', '#b05624', '#c46a2a', '#d68032'];
+const R2BB_CLOUDR = ['#1c0a12', '#260e16', '#32121a', '#40181e', '#502020', '#622822', '#783222', '#8e3e24', '#a84e26', '#c2622a'];
+const R2BB_RIMR = ['#a0401e', '#c45a22', '#e07a2a', '#f49a3a', '#ffbe58', '#ffdc86', '#fff2bc'];
+/** Relieve a contraluz: cordillera (lejos, más bruma) y montes/cabo (medio, más oscuro) */
+const R2BB_FARR = ['#2a0e16', '#36121a', '#46181c', '#58201e', '#6c2a20', '#843622', '#9c4426', '#b4562c', '#cc6c34', '#e2883e'];
+const R2BB_MIDR = ['#1c0a10', '#260e14', '#341418', '#441a1a', '#58221c', '#6e2c1e', '#863a22', '#a04a26', '#bc602c', '#d67c36'];
+/** Rasteriza bultos esféricos [cx, cy, r, zOff, mat] con z-buffer recorriendo solo la caja de cada bulto */
+function R2BB_puffRaster(w, h, puffs, ID, Z, NX, NY) {
+  for (let p = 0; p < puffs.length; p++) {
+    const P = puffs[p], cx = P[0], cy = P[1], r = P[2], zo = P[3] || 0, r2 = r * r;
+    const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(w - 1, Math.ceil(cx + r)), y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(h - 1, Math.ceil(cy + r));
+    for (let y = y0; y <= y1; y++) {
+      const dy = y + 0.5 - cy, o = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x + 0.5 - cx, q = r2 - dx * dx - dy * dy; if (q <= 0) continue;
+        const z = Math.sqrt(q) + zo, i = o + x;
+        if (z > Z[i]) { Z[i] = z; ID[i] = p; NX[i] = dx / r; NY[i] = dy / r; }
+      }
+    }
+  }
+}
+/** Cadena de bultos de a → b (radios ra → rb) con jitter; añade bultos de superficie (festón) */
+function R2BB_chain(out, r, a, b, ra, rb, mat, zo = 0, n = 0, fest = 0.6) {
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]), k = n || Math.max(2, Math.ceil(L / (Math.min(ra, rb) * 0.7)));
+  for (let i = 0; i <= k; i++) {
+    const t = i / k, x = lerp(a[0], b[0], t), y = lerp(a[1], b[1], t), rr = lerp(ra, rb, t);
+    out.push([x + r.range(-1.5, 1.5), y + r.range(-1.5, 1.5), rr * r.range(0.9, 1.06), zo, mat]);
+    if (r.chance(fest)) { const an = r.range(0, TAU), d = rr * r.range(0.62, 0.92); out.push([x + Math.cos(an) * d, y + Math.sin(an) * d, rr * r.range(0.26, 0.46), zo + rr * 0.5, mat]); }
+  }
+}
+function R2BB_stormSky(w, h, o = {}) {
+  const V = VISTA, r = RNG(o.seed || 4401), pb = new PixelBuffer(w, h), N = w * h;
+  const SUN = o.sun || { x: 404, y: 70, r: 10 };
+  const HX = o.hx || 470, HY = o.hy || 50; // cabeza del coloso
+  const P = [];
+  /* ---- cúmulos de polvo colgando arriba (mat 2), con hueco sobre el sol ---- */
+  for (let x = -30; x < w + 40; x += r.int(22, 40)) {
+    const gap = Math.abs(x - SUN.x + 10) < 70 ? 1 : 0;
+    const cy = gap ? r.range(-34, -20) : r.range(-14, 10) + (x < 140 ? 10 : 0), rr = r.range(22, 40);
+    P.push([x, cy, rr, 0, 2]);
+    for (let q = 0; q < 4; q++) { const ax = x + r.range(-rr, rr), ay = cy + rr * r.range(0.45, 0.9); if (!gap || r.chance(0.3)) P.push([ax, ay, r.range(5, 12), rr * 0.4, 2]); }
+  }
+  // islas de polvo a la izquierda (bajo el panel de objetivo) y a la derecha alta
+  for (const [cx, cy, ww] of [[120, 98, 120], [232, 128, 70], [640, 50, 90]]) {
+    const n = Math.round(ww / 10);
+    for (let q = 0; q < n; q++) { const t = q / (n - 1), x = cx - ww / 2 + t * ww, rr = (6 + 9 * Math.sin(t * Math.PI)) * r.range(0.8, 1.2); P.push([x + r.range(-2, 2), cy - rr * 0.4 + r.range(-2, 2), rr, 0, 2]); }
+  }
+  /* ---- muro de la tormenta (mat 1): sube en diagonal hacia la derecha ---- */
+  const wallTop = (x) => lerp(150, 104, clamp(x / w, 0, 1)) + Math.sin(x * 0.037) * 5 + Math.sin(x * 0.011 + 1) * 7;
+  for (let x = -20; x < w + 30; x += r.int(9, 15)) {
+    const top = wallTop(x), rr = r.range(10, 19);
+    P.push([x, top + rr, rr, 0, 1]);
+    P.push([x + r.range(-6, 6), top + rr * 2.2 + r.range(0, 6), rr * r.range(1, 1.3), -6, 1]);
+    P.push([x + r.range(-6, 6), top + rr * 3.6 + r.range(0, 8), rr * r.range(1.1, 1.5), -12, 1]);
+    for (let q = 0; q < 2; q++) P.push([x + r.range(-rr, rr), top + rr * r.range(0.3, 0.8), r.range(4, 8), rr * 0.5, 1]);
+  }
+  /* ---- coloso (mat 0) ---- */
+  const z0 = 30;
+  // torso, joroba y caderas que se deshacen en el muro
+  R2BB_chain(P, r, [HX, HY + 34], [HX - 2, HY + 112], 30, 40, 0, z0, 6, 0.9);
+  R2BB_chain(P, r, [HX - 44, HY + 60], [HX + 50, HY + 58], 28, 30, 0, z0 + 4, 5, 0.9);
+  R2BB_chain(P, r, [HX - 50, HY + 118], [HX + 52, HY + 116], 24, 26, 0, z0 - 4, 7, 1);
+  for (let q = 0; q < 26; q++) { const a = r.range(0, TAU), d = r.range(0.4, 1); P.push([HX + Math.cos(a) * 46 * d, HY + 82 + Math.sin(a) * 44 * d, r.range(6, 13), z0 + 12, 0]); }
+  // hombros
+  P.push([HX - 52, HY + 44, 27, z0 + 10, 0], [HX + 56, HY + 42, 29, z0 + 10, 0]);
+  R2BB_chain(P, r, [HX - 66, HY + 36], [HX - 30, HY + 30], 14, 16, 0, z0 + 18, 3, 1);
+  R2BB_chain(P, r, [HX + 34, HY + 28], [HX + 72, HY + 34], 16, 14, 0, z0 + 18, 3, 1);
+  // brazos: hombro → codo → puño hundido en el muro
+  R2BB_chain(P, r, [HX - 70, HY + 56], [HX - 104, HY + 96], 22, 18, 0, z0 + 16, 4, 1);
+  R2BB_chain(P, r, [HX - 104, HY + 96], [HX - 118, HY + 132], 18, 21, 0, z0 + 20, 4, 1);
+  R2BB_chain(P, r, [HX + 76, HY + 54], [HX + 108, HY + 92], 23, 19, 0, z0 + 16, 4, 1);
+  R2BB_chain(P, r, [HX + 108, HY + 92], [HX + 124, HY + 128], 19, 22, 0, z0 + 20, 4, 1);
+  // garras de polvo (dedos) en los puños
+  for (const [fx, fy, s] of [[HX - 118, HY + 136, -1], [HX + 124, HY + 132, 1]]) for (let q = 0; q < 4; q++) R2BB_chain(P, r, [fx + s * (q * 7 - 10), fy + 6], [fx + s * (q * 8 - 12), fy + 22], 6, 4, 0, z0 + 26, 3, 0.2);
+  // cabeza: cráneo, cejas, mandíbula y cuernos de polvo
+  P.push([HX, HY, 21, z0 + 26, 0], [HX - 10, HY - 9, 12, z0 + 30, 0], [HX + 10, HY - 10, 12, z0 + 30, 0], [HX, HY + 14, 15, z0 + 24, 0], [HX - 14, HY + 9, 10, z0 + 28, 0], [HX + 14, HY + 8, 10, z0 + 28, 0]);
+  R2BB_chain(P, r, [HX - 14, HY - 14], [HX - 30, HY - 36], 8, 3, 0, z0 + 22, 6, 0.3);
+  R2BB_chain(P, r, [HX - 30, HY - 36], [HX - 26, HY - 50], 3, 1.6, 0, z0 + 22, 4, 0);
+  R2BB_chain(P, r, [HX + 14, HY - 15], [HX + 32, HY - 38], 8, 3, 0, z0 + 22, 6, 0.3);
+  R2BB_chain(P, r, [HX + 32, HY - 38], [HX + 29, HY - 53], 3, 1.6, 0, z0 + 22, 4, 0);
+  // bultos de superficie sobre hombros y espalda (coliflor)
+  for (let q = 0; q < 40; q++) { const a = r.range(-Math.PI, 0), sx = q % 2 ? HX - 52 : HX + 56, sy = HY + 44; P.push([sx + Math.cos(a) * 24, sy + Math.sin(a) * 22, r.range(4, 9), z0 + 24, 0]); }
+  /* ---- raster ---- */
+  const ID = new Int16Array(N).fill(-1), Z = new Float32Array(N).fill(-1e9), NX = new Float32Array(N), NY = new Float32Array(N);
+  R2BB_puffRaster(w, h, P, ID, Z, NX, NY);
+  const MAT = new Int8Array(N).fill(-1); for (let i = 0; i < N; i++) if (ID[i] >= 0) MAT[i] = P[ID[i]][4];
+  /* ---- oclusión angular desde el sol: OCC[a] = distancia al primer bulto ---- */
+  const NA = 1440, OCC = new Float32Array(NA).fill(1e9);
+  for (let a = 0; a < NA; a++) {
+    const an = a / NA * TAU, ca = Math.cos(an), sa = Math.sin(an);
+    for (let d = SUN.r + 2; d < 900; d += 1) { const x = Math.round(SUN.x + ca * d), y = Math.round(SUN.y + sa * d); if (x < 0 || y < 0 || x >= w || y >= h) break; if (MAT[y * w + x] >= 0) { OCC[a] = d; break; } }
+  }
+  // variación de los haces: ruido angular suave (huecos entre bultos = haces brillantes)
+  const RAY = new Float32Array(NA); for (let a = 0; a < NA; a++) RAY[a] = fbm1(a / NA * 46, 3, 77);
+  const sky = V.P32(R2BB_SKYR), body = V.P32(R2BB_BODYR), wall = V.P32(R2BB_WALLR), cloud = V.P32(R2BB_CLOUDR), rimR = V.P32(R2BB_RIMR);
+  const HZ = o.hz || 200;
+  const BODYMIX = [0, 0.25, 0.5, 0.75].map(k => new Uint32Array(R2BB_BODYR.map((c, j) => U(mixHex(c, R2BB_WALLR[j], k)))));
+  const glowAt = (x, y) => { const d = Math.hypot(x - SUN.x, (y - SUN.y) * 1.2); return Math.exp(-d / 46) * 0.5 + Math.exp(-d / 150) * 0.42 + Math.exp(-d / 420) * 0.16; };
+  const rayAt = (x, y) => {
+    const dx = x - SUN.x, dy = y - SUN.y, d = Math.hypot(dx, dy); if (d < SUN.r) return 0;
+    let a = Math.round((Math.atan2(dy, dx) / TAU) * NA); a = ((a % NA) + NA) % NA;
+    const occ = OCC[a];
+    if (d > occ + 1) return -Math.min(1, (d - occ) / 40) * clamp(1.2 - (d - occ) / 520, 0.25, 1);  // sombra crepuscular
+    const v = RAY[a]; return v > 0.55 ? (v - 0.55) * 2.4 * clamp(1 - d / 380, 0, 1) : 0;          // haz brillante
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, m = MAT[i];
+    if (m < 0) {
+      const wt = wallTop(x) + 26;
+      if (y > wt) { // banco de polvo bajo el muro: opaco, más claro hacia abajo (polvo iluminado)
+        const t = 0.3 + clamp((y - wt) / 120, 0, 1) * 0.42 + (fbm(x * 0.05, y * 0.12, 2, 5) - 0.5) * 0.14;
+        pb.data[i] = wall[V.band(clamp(t, 0, 0.999), wall.length, x, y, 0.04, 17)];
+        continue;
+      }
+      const vy = clamp(y / HZ, 0, 1);
+      let t = 0.1 + 0.36 * Math.pow(vy, 0.85) + glowAt(x, y) * 0.66;
+      const ry = rayAt(x, y); t += ry > 0 ? ry * 0.09 : ry * 0.12;
+      pb.data[i] = sky[V.band(clamp(t, 0, 0.999), sky.length, x, y, 0.012, 11)];
+      continue;
+    }
+    const tex = (fbm(x * 0.09, y * 0.11, 3, 21 + m) - 0.5) * 0.16;
+    const nx = NX[i], ny = NY[i], nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+    // dirección hacia el sol (en pantalla) y contraluz: los bultos que miran al sol se encienden en el borde
+    let sx = SUN.x - x, sy = SUN.y - y; const sd = Math.hypot(sx, sy) || 1; sx /= sd; sy /= sd;
+    const back = Math.max(0, nx * sx + ny * sy) * Math.pow(1 - nz, 1.4) * clamp(1.5 - sd / 260, 0.25, 1.2);
+    const top = clamp(-ny * 0.7 + nz * 0.5 - nx * 0.12, -1, 1);
+    let t, R;
+    if (m === 0) {
+      t = 0.2 + 0.34 * top + 0.5 * back + tex;
+      // la base del coloso se deshace en el muro: rampa mezclada por bandas de altura (borde en clusters)
+      const dk = clamp((y - HY - 92) / 70 + (hash2((x / 3) | 0, (y / 2) | 0, 61) - 0.5) * 0.3, 0, 0.999);
+      R = BODYMIX[Math.floor(dk * BODYMIX.length)];
+      t += dk * 0.12;
+    } else if (m === 1) { t = 0.26 + 0.3 * top + 0.55 * back + 0.06 * rayAt(x, y) + clamp((y - 150) / 160, 0, 0.25) + tex; R = wall; }
+    else { t = 0.2 + 0.26 * top + 0.75 * back + glowAt(x, y) * 0.45 + tex; R = cloud; }
+    // pliegue: bulto delante → línea interior más oscura
+    for (const j of [i + 1, i - w, i - 1]) { if (j < 0 || j >= N) continue; const q = ID[j]; if (q >= 0 && q !== ID[i] && Z[j] > Z[i] + 1.8) { t -= 0.12; break; } }
+    pb.data[i] = R[V.band(clamp(t, 0, 0.999), R.length, x, y, 0.04, 13 + m)];
+  }
+  /* ---- luz de borde contra el cielo, del lado del sol (1–3 px, más fuerte cerca del sol) ---- */
+  const rimList = [];
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x, m = MAT[i]; if (m < 0) continue;
+    let sx = SUN.x - x, sy = SUN.y - y; const sd = Math.hypot(sx, sy) || 1; sx /= sd; sy /= sd;
+    let lv = 0;
+    for (let k = 1; k <= 3; k++) { const xx = Math.round(x + sx * k), yy = Math.round(y + sy * k); if (xx < 0 || yy < 0 || xx >= w || yy >= h || MAT[yy * w + xx] < 0 || (m === 0 && MAT[yy * w + xx] > 0 && k === 1)) { lv = 4 - k; break; } }
+    if (!lv) continue;
+    const near = clamp(1.35 - sd / 240, 0.15, 1) * (m === 0 ? 1 : m === 2 ? 0.85 : 0.6);
+    const k = Math.round((lv / 3) * near * (rimR.length - 1) + (hash2(x >> 1, y, 5) - 0.5) * 1.2);
+    if (k >= 1) rimList.push(i, clamp(k, 0, rimR.length - 1));
+  }
+  for (let q = 0; q < rimList.length; q += 2) pb.data[rimList[q]] = rimR[rimList[q + 1]];
+  /* ---- sol velado detrás del coloso (solo sobre cielo) ---- */
+  const SR = SUN.r;
+  for (let y = SUN.y - SR - 3; y <= SUN.y + SR + 3; y++) for (let x = SUN.x - SR - 3; x <= SUN.x + SR + 3; x++) {
+    if (x < 0 || y < 0 || x >= w || y >= h) continue; const i = y * w + x; if (MAT[i] >= 0) continue;
+    const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.8;
+    if (d <= SR - 3) pb.data[i] = U('#fffbe6'); else if (d <= SR - 1) pb.data[i] = U('#fff2c0'); else if (d <= SR + 1) pb.data[i] = U('#ffe49a');
+  }
+  /* ---- cara: cuencas, ojos de brasa y fauces ---- */
+  const eyes = [[HX - 9, HY + 1, -1], [HX + 9, HY, 1]];
+  const put = (x, y, c) => V.put(pb, x, y, U(c));
+  for (const [ex, ey, s] of eyes) {
+    // cuenca honda bajo la ceja (sombra granate) y ojo rasgado de brasa con núcleo claro
+    for (let yy = -3; yy <= 3; yy++) for (let xx = -6; xx <= 6; xx++) if (Math.abs(xx) + Math.abs(yy) * 1.7 <= 6.6) put(ex + xx, ey + yy, yy < -1 ? '#0a0306' : yy < 1 ? '#10050a' : '#1c0a10');
+    for (let xx = -4; xx <= 4; xx++) { const yy = Math.round(-xx * s * 0.3); put(ex + xx, ey + yy, Math.abs(xx) === 4 ? '#c8401a' : '#ff7a24'); if (Math.abs(xx) <= 3) put(ex + xx, ey + yy - 1, Math.abs(xx) <= 1 ? '#fff4b0' : '#ffb03a'); }
+  }
+  const my = HY + 15, maw = [];
+  for (let xx = -11; xx <= 11; xx++) {
+    const yy = Math.round(Math.abs(xx) * 0.24 - (Math.abs(xx) > 9 ? 1 : 0));
+    put(HX + xx, my + yy - 2, '#0a0306'); put(HX + xx, my + yy - 1, '#2a0808'); put(HX + xx, my + yy, '#7a1a0c'); put(HX + xx, my + yy + 1, '#3a0a08'); put(HX + xx, my + yy + 2, '#0a0306');
+    if (Math.abs(xx) < 10) {
+      if (xx % 3 === 0) { put(HX + xx, my + yy - 1, '#ffd070'); put(HX + xx, my + yy, '#ff8a30'); }          // colmillo superior
+      else if ((xx + 12) % 3 === 1) { put(HX + xx, my + yy + 1, '#ffb050'); put(HX + xx, my + yy, '#e05a22'); } // colmillo inferior
+      else put(HX + xx, my + yy, '#ff6a20');
+    }
+    maw.push([HX + xx, my + yy]);
+  }
+  // grietas de brasa en el pecho (el corazón de la tormenta)
+  const cracks = [];
+  for (let q = 0; q < 3; q++) { let x = HX + r.range(-10, 10), y = HY + 60 + q * 14; for (let k = 0; k < 14; k++) { const nx2 = x + r.range(-2.2, 2.2), ny2 = y + r.range(0.6, 1.8); put(Math.round(nx2), Math.round(ny2), k % 4 === 0 ? '#ffb040' : '#c8401a'); if (k % 5 === 0) cracks.push([Math.round(nx2), Math.round(ny2)]); x = nx2; y = ny2; } }
+  return { c: pb.toCanvas(), sun: SUN, eyes, maw, head: [HX, HY], cracks, wallTop };
+}
 
 /* ===== 20_models.js ===== */
 /* =====================================================================
@@ -43522,11 +43712,15 @@ LEVELS[10] = {
   },
   /* ---------------- dinámico ---------------- */
   /* ---------------- cielo: publica el estado de la tormenta para el panorama ---------------- */
+  /* r2-biomes-b: cielo de tormenta con el coloso (paralaje 0,02, una pasada); al despejar, fundido al cielo azul */
+  renderSky(g, sc, cam) {
+    const S = sc.state, B = sc.backdrop, clear = clamp(S.clearK || 0, 0, 1);
+    if (clear < 0.995) g.drawImage(B.sky, -Math.round(cam.x * (B.r2sf || 0)), Math.round(-cam.y * 0.05));
+    if (clear > 0.005 && B.skyClear) { g.globalAlpha = clear; g.drawImage(B.skyClear, 0, 0); g.globalAlpha = 1; }
+  },
   skyFx(g, sc, cam) {
     const S = sc.state, B = sc.backdrop, clear = clamp(S.clearK || 0, 0, 1);
     B.calima = { storm: 1 - clear, gust: S.gust || 0, clear, transformed: !!S.transformed };
-    // al despejar vuelve el cielo azul (fundido sobre el cielo de polvo)
-    if (clear > 0.01 && B.skyClear) { g.globalAlpha = clear; g.drawImage(B.skyClear, 0, 0); g.globalAlpha = 1; }
   },
   renderBack(g, sc, cam) {
     // relámpagos secos azul eléctrico dentro de la tormenta de polvo
@@ -43614,21 +43808,25 @@ LEVELS[10] = {
   renderFront(g, sc, cam) {
     const S = sc.state, t = Game.time, storm = 1 - (S.clearK || 0);
     if (storm <= 0.02) return;
-    // bandas de polvo que barren la escena
-    for (let i = 0; i < 5; i++) { const y = 40 + i * 62 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 20) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, -x, (0.4 + 0.3 * S.gust) * storm); }
-    // arena en vuelo: tres planos de estrías inclinadas por el viento (lejos → cerca), ráfagas aceleran
+    // r2-biomes-b: el viento sopla desde la tormenta (derecha → izquierda, «ráfagas de frente»)
+    // bandas de polvo que barren la escena (3 tiras parciales)
+    for (let i = 0; i < 3; i++) { const y = 70 + i * 84 + Math.sin(t * 0.8 + i) * 8, x = ((t * (90 + i * 24) + i * 170) % (W + 360)) - 360; VISTA.drawVeil(g, calWisp(i), y, x + cam.x * 0.2, (0.3 + 0.25 * S.gust) * storm); }
+    // arena en vuelo: estrías en 3 planos como sprites pequeños (≈130 drawImage, 0 pasadas completas)
     FIXLB_STORM.t += Game.dt * (0.55 + 0.9 * (S.gust || 0));
-    for (let i = 0; i < 3; i++) { const sp = [150, 250, 400][i], pf = [0.5, 0.85, 1.25][i], d = FIXLB_STORM.t * sp - cam.x * pf; FIXLB_drawTile(g, FIXLB_streaks(i), d, d * [0.1, 0.14, 0.18][i], [0.6, 0.75, 0.9][i] * storm * (0.75 + 0.25 * (S.gust || 0))); }
+    R2BB_drawSand(g, FIXLB_STORM.t, cam, storm * (0.75 + 0.25 * (S.gust || 0)));
     // arena rasante: cinta de saltación pegada al suelo
-    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, FIXLB_groundDrift(), d, null, 0.85 * storm, gy); }
-    // visibilidad reducida (≈200 m): velo en bandas con claro estrecho alrededor de Amaya y KIRU
+    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = -FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, R2BB_groundDrift(), d, null, 0.8 * storm, gy); }
+    // visibilidad reducida (≈200 m): viñeta de polvo con claro amplio alrededor de Amaya y KIRU; el cielo
+    // (el coloso) queda casi libre y los bordes bajos se hunden en granate
     const P = sc.player; if (!P) return;
     const cx = Math.round(P.x - cam.x), cy = Math.round(P.y - cam.y - 30);
-    calVeil(g, cx, cy, (0.45 + 0.3 * S.gust) * storm);
+    R2BB_veil(g, cx, cy, (0.55 + 0.45 * S.gust) * storm);
   },
   renderGrade(g, sc) {
     const S = sc.state, storm = 1 - (S.clearK || 0);
-    if (storm > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.42 * storm; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    // r2-biomes-b: sin multiplicar naranja a pantalla completa (lo volvía monocromo): la tormenta la ponen el cielo,
+    // la viñeta y la gradación horneada en las capas estáticas (R2LIGHT_CFG[10]); con r2-light apagado, gradación ligera
+    if (storm > 0 && !(typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc))) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.25 * storm; frect(g, 0, 0, W, H, '#d07a40'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.clearK > 0) { g.globalCompositeOperation = 'screen'; g.globalAlpha = 0.12 * S.clearK; frect(g, 0, 0, W, H, '#c2f58e'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.flash > 0) { g.globalAlpha = S.flash; frect(g, 0, 0, W, H, '#ffffff'); g.globalAlpha = 1; }
   },
@@ -43655,6 +43853,8 @@ LEVELS[10] = {
   /* ---------------- guion ---------------- */
   setup(sc, p) {
     const S = sc.state;
+    // r2-biomes-b: lienzos del frente de tormenta preparados al entrar (sin tirón en el primer cuadro)
+    R2BB_veilMask(); R2BB_sandAtlas(); R2BB_groundDrift(); for (let i = 0; i < 3; i++) calWisp(i);
     Object.assign(S, { cards: {}, fourth: 0, pol: calDefaultPolicy(), ntu: 40, tank: 840, soc: 0.65, socTrend: 0, pond: 0, tideBad: true, gust: 0, rotor: 0, clearK: 0, flash: 0, dataFlow: 0, falseDone: false, phase7: false, phase8: false, phase9: false, transformed: false, coreOpen: false });
     for (const tr of LEVELS[10].triggers) tr.done = false;
     sc.actor('naira', 'naira', 150, { facing: 1 });
@@ -43795,6 +43995,84 @@ function FIXLB_drawTile(g, c, dx, dy, a, y0) {
   if (y0 != null) { g.drawImage(c, Math.round(x), y0); g.drawImage(c, Math.round(x) + c.width, y0); }
   else { const y = (((dy % c.height) + c.height) % c.height) - c.height; for (const ox of [0, c.width]) for (const oy of [0, c.height]) g.drawImage(c, Math.round(x) + ox, Math.round(y) + oy); }
   g.globalAlpha = 1;
+}
+/* ---------------- r2-biomes-b: arena en vuelo, cinta rasante y viñeta de visibilidad ----------------
+   Las 12 capas de estrías a pantalla completa (FIXLB) pasan a ≈130 sprites pequeños sin estado: cada
+   estría tiene posición inicial y velocidad propias y su posición es función del tiempo acumulado y
+   de la cámara (paralaje por plano). El viento va de derecha a izquierda (desde la tormenta). */
+const R2BB_SAND = { atlas: null, list: null, drift: null, veil: null };
+const R2BB_SANDCFG = [
+  { n: 64, l0: 4, l1: 10, th: 1, slope: 0.1, sp: 150, pf: 0.5, a: 0.55, cols: ['#f0c88a', '#e8b474', '#fad8a0'] },
+  { n: 46, l0: 9, l1: 19, th: 1, slope: 0.14, sp: 250, pf: 0.85, a: 0.72, cols: ['#fde2ae', '#f6d294', '#e8b06a'] },
+  { n: 22, l0: 18, l1: 36, th: 2, slope: 0.18, sp: 400, pf: 1.25, a: 0.9, cols: ['#fff0cc', '#fde4ae', '#f2c27c'] },
+];
+function R2BB_sandAtlas() {
+  if (R2BB_SAND.atlas) return R2BB_SAND.atlas;
+  const CW = 40, CH = 10, NV = 8, pb = new PixelBuffer(CW * NV, CH * 3), r = RNG(7311), spr = [];
+  for (let i = 0; i < 3; i++) for (let v = 0; v < NV; v++) {
+    const c = R2BB_SANDCFG[i], L = Math.round(lerp(c.l0, c.l1, v / (NV - 1))), col = U(r.pick(c.cols)) & 0xffffff;
+    const ox = v * CW, oy = i * CH, hy = CH - 1 - c.th;
+    // cabeza a la izquierda (avanza hacia la izquierda), cola hacia la derecha y arriba en 3 bandas de alfa
+    for (let k = 0; k < L; k++) {
+      const a = k < L * 0.34 ? 235 : k < L * 0.67 ? 150 : 70, x = ox + k, y = oy + hy - Math.round(k * c.slope);
+      for (let q = 0; q < c.th; q++) pb.data[(y + q) * pb.w + x] = ((a << 24) | col) >>> 0;
+    }
+    spr.push([ox, oy, L, CH]);
+  }
+  R2BB_SAND.spr = spr;
+  return (R2BB_SAND.atlas = pb.toCanvas());
+}
+function R2BB_drawSand(g, T, cam, a) {
+  if (a <= 0.02) return;
+  const atlas = R2BB_sandAtlas(), spr = R2BB_SAND.spr, WW = W + 48, HH = H + 12;
+  if (!R2BB_SAND.list) { const r = RNG(7321); R2BB_SAND.list = R2BB_SANDCFG.map((c, i) => Array.from({ length: c.n }, () => [r.range(0, WW), r.range(0, HH), r.range(0.8, 1.2), i * 8 + r.int(0, 7)])); }
+  for (let i = 0; i < 3; i++) {
+    const c = R2BB_SANDCFG[i]; g.globalAlpha = Math.min(1, c.a * a);
+    for (const [x0, y0, k, v] of R2BB_SAND.list[i]) {
+      const d = T * c.sp * k + cam.x * c.pf, x = ((((x0 - d) % WW) + WW) % WW) - 40, y = ((((y0 + d * c.slope) % HH) + HH) % HH) - 10;
+      const s = spr[v]; g.drawImage(atlas, s[0], s[1], s[2], s[3], Math.round(x), Math.round(y), s[2], s[3]);
+    }
+  }
+  g.globalAlpha = 1;
+}
+/** Cinta de arena rasante (26 px, periódica en x): lámina en bandas más densa abajo y estrías con la cabeza a la izquierda */
+function R2BB_groundDrift() {
+  if (R2BB_SAND.drift) return R2BB_SAND.drift;
+  const h = 26, pb = new PixelBuffer(W, h), r = RNG(7400), sheet = U('#eab474') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < W; x++) {
+    const v = y / (h - 1), wave = Math.sin(x / W * TAU * 5 + Math.sin(x / W * TAU * 2) * 1.5) * 3;
+    const f = clamp((v * h - 8 - wave) / (h - 8), 0, 1) * 0.62 + (hash2((x / 3) | 0, (y / 2) | 0, 91) - 0.5) * 0.1;
+    const lv = clamp(Math.round(f * 5), 0, 5); if (lv) pb.data[y * W + x] = ((Math.round(lv / 5 * 255) << 24) | sheet) >>> 0;
+  }
+  for (let s = 0; s < 120; s++) {
+    const x0 = r.int(0, W - 1), y0 = r.int(6, h - 2), L = r.int(6, 22), col = U(r.pick(['#fde0a4', '#f4c886', '#e8b070'])) & 0xffffff;
+    for (let k = 0; k < L; k++) { const x = (x0 + k) % W, y = y0 - Math.round(k * 0.03); if (y < 0) break; const a = k < L * 0.34 ? 240 : k < L * 0.67 ? 160 : 80; const idx = y * W + x; if ((pb.data[idx] >>> 24) < a) pb.data[idx] = ((a << 24) | col) >>> 0; }
+  }
+  return (R2BB_SAND.drift = pb.toCanvas());
+}
+/** Viñeta de visibilidad (2W×2H): claro elíptico amplio; arriba (cielo y coloso) apenas velo de polvo ocre,
+    a los lados polvo y abajo en las esquinas granate oscuro. Alfa en 6 bandas con borde en clusters 3×2. */
+function R2BB_veilMask() {
+  if (R2BB_SAND.veil) return R2BB_SAND.veil;
+  const w = W * 2, h = H * 2, hw = w >> 1, hh = h >> 1, pb = new PixelBuffer(w, h), nb = 6;
+  const cTop = U('#b05a28') & 0xffffff, cSide = U('#7a3418') & 0xffffff, cLow = U('#2a0c10') & 0xffffff;
+  for (let y = 0; y < h; y++) {
+    const dy = y - hh, up = dy < 0, dyk = up ? dy * 0.55 : dy * 1.5;
+    for (let x = 0; x < hw; x++) {
+      const dx = hw - x, dd = Math.hypot(dx, dyk);
+      let f = clamp((dd - 150) / 260, 0, 1); f += (hash2((x / 3) | 0, (y / 2) | 0, 41) - 0.5) * (1 / nb) * 0.9;
+      const lv = clamp(Math.round(f * nb), 0, nb); if (!lv) continue;
+      const low = clamp(dy / 120, 0, 1), dens = up ? 0.34 : lerp(0.5, 0.72, low);
+      const col = up ? cTop : low > 0.5 ? cLow : cSide;
+      const v = ((Math.round(lv / nb * dens * 255) << 24) | col) >>> 0;
+      pb.data[y * w + x] = v; pb.data[y * w + (w - 1 - x)] = v;
+    }
+  }
+  return (R2BB_SAND.veil = pb.toCanvas());
+}
+function R2BB_veil(g, cx, cy, k) {
+  if (k < 0.05) return;
+  g.globalAlpha = Math.min(1, k); g.drawImage(R2BB_veilMask(), Math.round(cx - W), Math.round(cy - H)); g.globalAlpha = 1;
 }
 /* jirones de polvo que barren la escena (velo en bandas, sin tramado) */
 const CAL_WISP = [];
