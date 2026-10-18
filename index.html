@@ -28661,7 +28661,13 @@ const R2MAP = (() => {
     const leds = [];
     if (M._tower && M._tower.beacon) leds.push([M._tower.beacon[0] - PAD, M._tower.beacon[1], '#56e5ff']);
     const ground = (id) => { const n = MAP_NODES[id]; return [n.x, groundY(n.x, n.y + 6)]; };
-    return { c: pb.toCanvas(), clouds, puffs, rotors, falls: F2, fauna, leds, ground, plantMouth: plant && plant.mouth };
+    // rompientes: puntos de agua a 2 px del pie de los acantilados que miran al sur (tierra encima)
+    const surf = [];
+    for (let y = 2; y < MH; y++) for (let X = 0; X < MW; X += 2) { const i = y * MW + X; if (!KIND[i] && DS[i] === 2 && KIND[i - 2 * MW] && hash2(X, y, 41) < 0.6) surf.push([X - PAD, y]); }
+    // destellos que recorren las filas del campo FV
+    const glints = [];
+    for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) { const x = 318 + col * 26 + row * 3, cy = 200 + row * 9; glints.push({ x: x + 1, y: groundY(x + 8, cy) - 4, len: 14, sp: 0.22 + (col * 0.05), ph: row * 0.37 + col * 0.6, col: '#e8f6ff', w: 2 }); }
+    return { c: pb.toCanvas(), clouds, puffs, rotors, falls: F2, fauna, leds, ground, surf, glints, plantMouth: plant && plant.mouth };
   };
   /** Nodos del mapa: insignias-isla flotantes con sombra en el suelo, número y anillo de selección */
   M.drawMapNodes = function (g, sc, ox, oy, t) {
@@ -28686,6 +28692,9 @@ const R2MAP = (() => {
     if (I.falls.length) V.drawFalls(g, I.falls, ox, oy, t, { alpha: 0.8 });
     if (V.drawLights && I.leds.length) for (const [x, y, col] of I.leds) { if (Math.sin(t * 4 + x) > 0) { g.drawImage(M.glow(col, 5, 0.6), x + ox - 5, y + oy - 5); fpx(g, x + ox, y + oy, '#ffffff'); } }
     V.drawFauna(g, I.fauna, ox, oy, t);
+    if (I.glints) V.drawGlints(g, I.glints, ox, oy, t);
+    // espuma que rompe al pie de los acantilados del sur (ola que sube y baja 1–2 px)
+    if (I.surf) { g.fillStyle = '#ffffff'; for (let i = 0; i < I.surf.length; i++) { const p = I.surf[i], ph = Math.sin(t * 2.2 + p[0] * 0.21 + (i & 7)); if (ph > 0.55) g.fillRect(p[0] + ox, p[1] + oy + (ph > 0.85 ? 1 : 0), ph > 0.8 ? 2 : 1, 1); } }
     // cúmulos blancos que derivan por encima del mapa
     for (let i = 0; i < I.puffs.length; i++) { const c = I.puffs[i]; const x = ((t * (3 + i) + i * 300) % (W + 260)) - 150, y = [2, 18, 8][i % 3]; g.drawImage(c, Math.round(x), y); }
   };
