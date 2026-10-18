@@ -24,7 +24,8 @@ BIOMES.canyon = function (L) {
   B.horizon = HZ; B.sun = SUN; B.seaY = () => HZ;
   B.weather.wind = 0.5;
   const T = () => Game.time;
-  const P = (f, ys, h, draw, opts) => B.vplane(f, ys - Math.round(V.CAMY * f * 0.3), h, draw, opts);
+  // r2-biomes-a: cada plano pasa por la guarda de tono (malvas/rosas → violeta o granate; magenta < 3 %)
+  const P = (f, ys, h, draw, opts) => B.vplane(f, ys - Math.round(V.CAMY * f * 0.3), h, (pb, w, hh) => { const res = draw(pb, w, hh); V.r2baHueGuard(pb, { hi: 359, redH: 4 }); return res; }, opts);
   const labels = [];
   const ROCK = V.RAMPS.canyonR2, VEG = V.RAMPS.canyonVegR2;
   const turbines = (list) => (g, cam, Ly) => {
@@ -40,11 +41,12 @@ BIOMES.canyon = function (L) {
     });
     V.sunDisc(pb, SUN.x, SUN.y, SUN.r, SUN.halo, 'dusk');
     V.rays(pb, SUN.x, SUN.y, { n: 9, len: 320, col: '#ffd8b0', a: 0.08, spread: 2.8, ang: -Math.PI / 2, w: 0.05, seed: 14, yMax: HZ });
+    V.r2baHueGuard(pb, { hi: 359, redH: 4 });
     return pb.toCanvas();
   });
   B.vdyn(0, (g) => { const t = T(); V.drawStars(g, 46, t, 31, { y1: 96, a: 0.85 }); V.drawBloom(g, SUN.x, SUN.y, 64, '#ff9a70', 0.24, t); }, { tag: 'stars+bloom' });
-  const CIR = ['#6a4c94', '#a06a90', '#e09a8a', '#ffd8bc'];
-  const DUSK = ['#2e2462', '#46307a', '#5e3e8c', '#7a5292', '#b2667a', '#d87a7c', '#f0987e', '#fcb88a', '#ffd6a0', '#fff0c8'];
+  const CIR = ['#6a4c94', '#8a6a9e', '#e09a8a', '#ffd8bc'];
+  const DUSK = ['#2e2462', '#46307a', '#5e3e8c', '#7a5292', '#b46a6a', '#d87a7c', '#f0987e', '#fcb88a', '#ffd6a0', '#fff0c8'];
   B.cloudDeck({ kind: 'cirrus', n: 8, seed: 91, f: [0.01, 0.03], y: [16, 96], w: [90, 190], speed: [1, 2], pal: CIR });
   B.cloudDeck({ n: 9, seed: 93, f: [0.03, 0.07], y: [4, 84], w: [56, 140], bias: 0.6, speed: [1.5, 3], sunX: SUN.x, pal: DUSK });
   const skyFauna = [{ kind: 'eagle', x: 360, y: 46, r: 120 }, { kind: 'gull', x: 200, y: 70, r: 260, sp: 7 }, { kind: 'gull', x: 214, y: 76, r: 250, sp: 6 }, { kind: 'gull', x: 760, y: 58, r: 300, sp: -8 }, { kind: 'drone', x: 980, y: 64, r: 30 }];
@@ -62,7 +64,7 @@ BIOMES.canyon = function (L) {
   P(0.08, HZ, 70, (pb) => V.seaFar(pb, 0, pb.h, { seed: 99, stops: ['#f8b49a', '#c87a8e', '#7c5a9e', '#5a4a98', '#3a4290', '#2e3c88', '#2a3a80', '#26367a'], horizonCol: '#ffd0b0' }), {
     tag: 'sea', dyn: (g, cam, Ly) => { const [, oy] = B.vofs(Ly, cam); V.drawSeaFx(g, 0, oy, W, 60, T(), { sunX: SUN.x, density: 0.6 }); },
   });
-  B.cloudDeck({ n: 4, seed: 95, f: [0.08, 0.1], y: [76, 120], w: [90, 150], speed: [1, 2], sunX: SUN.x, tall: true, haze: 0.1, hazeCol: '#c890a0', pal: DUSK });
+  B.cloudDeck({ n: 4, seed: 95, f: [0.08, 0.1], y: [76, 120], w: [90, 150], speed: [1, 2], sunX: SUN.x, tall: true, haze: 0.1, hazeCol: '#c8949a', pal: DUSK });
   /* ---------------- paredes del cañón estratificadas (0,14) ---------------- */
   const wallT = [];
   P(0.14, 46, 168, (pb, w, h) => {

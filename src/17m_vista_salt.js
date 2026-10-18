@@ -535,4 +535,47 @@
     }
     return { ponds, glints, y1: y };
   };
+  /**
+   * Guarda de tono (r2-biomes-a, regla STYLE LOCK de magenta < 3 %): remapea en el búfer los rosas/malvas/magentas
+   * (tono 284–344°, S ≥ 0,16) hacia el violeta (≤ 278°) o hacia el granate-rojo (≥ 348°), según el lado más cercano,
+   * conservando el valor; en la costura (~314°) baja la saturación para que el salto no se lea. Los emisivos de
+   * salmuera (S > 0,55 y V > 0,62) se respetan. Tabla cacheada por color: coste ≈ un recorrido del búfer.
+   * o: {lo, hi, redH (tono destino del lado granate), keepS, keepV, x0, y0, x1, y1}
+   */
+  const _hgM = new Map();
+  V.r2baHueGuardU = function (u, o = {}) {
+    const ok = (o.lo ?? 284) + '|' + (o.hi ?? 344) + '|' + (o.redH ?? 350) + '|' + (o.keepS ?? 0.55);
+    let _hg = _hgM.get(ok); if (!_hg) { _hg = new Map(); _hgM.set(ok, _hg); }
+    const key = u >>> 0; let v = _hg.get(key); if (v !== undefined) return v;
+    const a = u >>> 24, r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    v = u;
+    if (a && mx > 0 && d > 0) {
+      const S = d / mx, Vv = mx / 255;
+      let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360;
+      const lo = o.lo ?? 284, hi = o.hi ?? 344;
+      if (h >= lo && h <= hi && S >= 0.16 && !(S > (o.keepS ?? 0.55) && Vv > (o.keepV ?? 0.62))) {
+        const mid = (lo + hi) / 2, toV = h < mid, q = toV ? (h - lo) / (mid - lo) : (hi - h) / (hi - mid);   // q: 0 en el borde, 1 en la costura
+        let h2 = toV ? 276 - (1 - q) * 6 : (o.redH ?? 350) + (1 - q) * 6; const S2 = S * (0.95 - q * 0.4); if (h2 >= 360) h2 -= 360;
+        const c = Vv * S2, x = c * (1 - Math.abs(((h2 / 60) % 2) - 1)), m = Vv - c, hh = h2 / 60;
+        let rr, gg, bb;
+        if (hh < 1) [rr, gg, bb] = [c, x, 0]; else if (hh < 2) [rr, gg, bb] = [x, c, 0]; else if (hh < 3) [rr, gg, bb] = [0, c, x];
+        else if (hh < 4) [rr, gg, bb] = [0, x, c]; else if (hh < 5) [rr, gg, bb] = [x, 0, c]; else [rr, gg, bb] = [c, 0, x];
+        v = ((a << 24) | (Math.round((bb + m) * 255) << 16) | (Math.round((gg + m) * 255) << 8) | Math.round((rr + m) * 255)) >>> 0;
+      }
+    }
+    if (_hg.size > 60000) _hg.clear();
+    _hg.set(key, v); return v;
+  };
+  /** Igual sobre un lienzo ya horneado (p. ej. tras la gradación de r2-light): getImageData → guarda → putImageData */
+  V.r2baHueGuardCanvas = function (c, o = {}) {
+    if (!c || !c.getContext) return c;
+    const g = c.getContext('2d'), img = g.getImageData(0, 0, c.width, c.height);
+    V.r2baHueGuard({ w: c.width, h: c.height, data: new Uint32Array(img.data.buffer) }, o);
+    g.putImageData(img, 0, 0); return c;
+  };
+  V.r2baHueGuard = function (pb, o = {}) {
+    const W_ = pb.w, x0 = Math.max(0, o.x0 ?? 0), x1 = Math.min(W_, o.x1 ?? W_), y0 = Math.max(0, o.y0 ?? 0), y1 = Math.min(pb.h, o.y1 ?? pb.h), D = pb.data;
+    for (let y = y0; y < y1; y++) for (let x = x0, i = y * W_ + x0; x < x1; x++, i++) { const u = D[i]; if (u >>> 24) D[i] = V.r2baHueGuardU(u, o); }
+    return pb;
+  };
 })();

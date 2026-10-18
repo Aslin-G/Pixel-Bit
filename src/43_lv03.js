@@ -54,6 +54,8 @@ LEVELS[3] = {
       { kind: 'aSalt', x: 2860, w: 150, h: 70, seed: 5 },
       { kind: 'aSalt', x: 3400, w: 140, h: 74, seed: 6 },
     ],
+    /** r2-biomes-a: guarda de tono sobre el talud (malvas del lodo y del yeso → violeta/granate; la salmuera emisiva se respeta) */
+    decorateFace(pb) { VISTA.r2baHueGuard(pb, { hi: 359, redH: 4 }); },
     fauna: { gulls: [{ x: 300, y: 128, n: 3 }, { x: 900, y: 120, n: 3 }, { x: 1420, y: 116, n: 2 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
   },
   /** Etiquetas científicas en el mundo (la sal se conserva: de la planta a la bahía) */
@@ -133,6 +135,8 @@ LEVELS[3] = {
       else if (zone === 1) { if (h < 0.45) S.boulder(pb, x, yb, 8 + (x % 10), 5 + (x % 6), LV3_ROCK, x, { speck: h < 0.2 ? '#a8c070' : null }); else if (h < 0.75) S.saltScrub(pb, x, yb, 10 + (x % 6), x); else So.dryBush(pb, x, yb - 1, 14, 9, x); if (hash2(x, 9, 4) < 0.3) S.boulder(pb, x + 7, yb + 1, 5, 3, LV3_ROCK, x + 3); }
       else if (x < 1556 || x > 1794) S.saltScrub(pb, x, yb, 12, x);
     }
+    // r2-biomes-a: guarda de tono también en los accesorios (la salmuera emisiva, clara y saturada, se conserva)
+    VISTA.r2baHueGuard(pb, { hi: 359, redH: 4 });
     LEVELS[3]._ms = Math.round(nowMs() - t0);
   },
   propsFront(pb, world) {
@@ -260,6 +264,9 @@ LEVELS[3] = {
   },
   /* ---------------- guion ---------------- */
   setup(sc, p) {
+    // r2-biomes-a (solo visual): la gradación de atardecer de r2-light vuelve a mezclar granate con violeta → malva;
+    // la guarda de tono se repite sobre las capas ya horneadas (magenta < 3 %, la salmuera emisiva se conserva)
+    for (const c of [sc.terrainC, sc.propsC, sc.propsFrontC]) VISTA.r2baHueGuardCanvas(c, { hi: 359, redH: 4 });
     const S = sc.state;
     Object.assign(S, { hud: false, diverted: false, gateOpen: true, crystals: 0, pond: 0.22, compassT: 0, sensors: 0 });
     const naira = sc.actor('naira', 'naira', 120, { facing: 1 });
