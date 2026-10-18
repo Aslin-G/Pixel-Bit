@@ -134,7 +134,7 @@ BIOMES.canyon = function (L) {
     panFx.buoys.push([ex + 70, 0, '#f5dc5a'], [ex + 100, 1, '#e83b41'], [ex + 40, -1, '#f5dc5a'], [ex + 600, 0, '#e83b41'], [ex + 640, 1, '#f5dc5a']);
     panFx.fauna.push({ kind: 'drone', x: 420, y: -10, r: 26 }, { kind: 'gull', x: 640, y: -16, r: 200, sp: 6 });
     labels.push({ x: 196, y: PAN_YS - 8, f: 0.22, title: 'SALINAS', sub: 'Evaporación por etapas', kind: 'brine', ax: 180, ay: PAN_YS + 20, camX: [0, 1100] });
-    labels.push({ x: ex + 66, y: PAN_YS - 30, f: 0.22, title: 'EMISARIO', sub: 'Difusor y vigilancia', kind: 'brine', ax: ex + 60, ay: PAN_YS - 2, camX: [0, 1100] });
+    // r3-desert: la etiqueta EMISARIO del fondo se retira (el emisario, el difusor y la zona de mezcla se ven en el plano jugable)
   }, {
     tag: 'pans', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();

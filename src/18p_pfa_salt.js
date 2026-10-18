@@ -709,6 +709,27 @@ const PFASalt = (() => {
     return pb;
   }
   if (typeof PFStage !== 'undefined' && PFStage.FG) PFStage.FG.aSalt = fgSalt;
+  /** r3-desert · oclusor frontal 'r3sFrame': roca oscura fría con racimo de cristales y tubo de salmuera grafito que
+      sale del borde (o.side −1 izquierda / 1 derecha), silueta con luz de borde violeta-coral */
+  function fgSaltFrame(o) {
+    const w = o.w || 130, h = o.h || 86, pb = new PixelBuffer(w, h), r = RNG(o.seed || 1), side = o.side || -1;
+    const RK = P32(['#06040c', '#0c0818', '#141026', '#1e1838', '#2a2248', '#3a2e5e']), C = P32(['#0a0a2a', '#141a4a', '#20286a', '#2e3a8a', '#4a5ab0']);
+    // masa de roca: sube hacia el borde exterior (el lado de dentro queda bajo, deja ver la escena)
+    for (let x = 0; x < w; x++) {
+      const u = side < 0 ? 1 - x / w : x / w, top = Math.round(h - (12 + Math.pow(u, 1.6) * (h - 18)) - (PFK.vn(x * 0.09, 0, o.seed || 1) - 0.5) * 10);
+      for (let y = Math.max(0, top); y < h; y++) put(pb, x, y, RK[clamp(Math.round(3 - (y - top) / 12 + (PFK.cl(x, y, 3, 701) - 0.5) * 1.4) + (y - top < 2 ? 2 : 0), 0, 5)]);
+    }
+    // tubo de salmuera (grafito-índigo) que asoma en diagonal, con brida y abrazadera
+    const BR = P32(I.PIPES.brine.ramp), y0 = Math.round(h * 0.5), x0 = side < 0 ? 0 : w - 1;
+    for (let k = 0; k < Math.round(w * 0.55); k++) { const x = x0 - side * k, y = y0 + Math.round(k * 0.35); for (let j = -3; j <= 3; j++) put(pb, x, y + j, BR[clamp(j + 3, 0, 6)]); if (k === 22) for (let j = -5; j <= 5; j++) { put(pb, x, y + j, BR[5]); put(pb, x - side, y + j, BR[1]); } }
+    // cristales de sal oscuros (azul profundo) con canto claro
+    for (let i = 0; i < 5; i++) { const cx = Math.round((side < 0 ? 0.15 : 0.55) * w + r() * w * 0.3), hh = 10 + r.int(0, 18), cw = 3 + r.int(0, 2), yb = h - 2 - r.int(0, 10); for (let k = 0; k < hh; k++) for (let q = 0; q < cw; q++) { if (k > hh - cw && q > hh - k) continue; put(pb, cx + q + Math.round(k * 0.2 * side), yb - k, C[q === 0 ? 4 : q === cw - 1 ? 0 : 2]); } }
+    // salicornia oscura en la base
+    for (let i = 0; i < Math.round(w / 4); i++) { const sx = r() * w, hh = 4 + r.int(0, 9); for (let k = 0; k < hh; k++) put(pb, Math.round(sx), h - 1 - k, U(k > hh - 2 ? '#3a0a1e' : '#0e1a12')); }
+    K.rim(pb, U('#c88a9a'), 0.45, -1, -1);
+    return pb;
+  }
+  if (typeof PFStage !== 'undefined' && PFStage.FG) PFStage.FG.r3sFrame = fgSaltFrame;
 
   return { build, renderBack, renderFront, outfall, boulder, halite, saltScrub, saltPile, saltPillar, hoodoo, weir, pond, mangrove, salicornia, reeds, boardwalk, station, emissary, drawBuoy, SALT, BRW, WET, MANG,
     // r3-desert: diorama salino del N3

@@ -46,13 +46,16 @@ LEVELS[3] = {
       { x0: 1840, x1: 2800, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 9, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a', shadeHue: '#2a0c14' },
     ],
     /** Primer plano: cristales de sal violetas y salicornia oscura en los bordes inferiores */
+    // r3-desert: plano frontal f = 1,3 colocado para quedar en los bordes del encuadre en las posiciones de juego
+    // (x = 1,3·cámara − ancho/2 a la izquierda, 1,3·cámara + 560 a la derecha); altura ≤ 92 → nunca tapa a la jugadora
     fg: [
-      { kind: 'aSalt', x: -20, w: 150, h: 72, seed: 1 },
-      { kind: 'aSalt', x: 720, w: 120, h: 60, seed: 2 },
-      { kind: 'aSalt', x: 1460, w: 150, h: 76, seed: 3 },
-      { kind: 'clump', x: 2160, w: 130, h: 84, seed: 4, spikes: 4, leaves: 9 },
-      { kind: 'aSalt', x: 2860, w: 150, h: 70, seed: 5 },
-      { kind: 'aSalt', x: 3400, w: 140, h: 74, seed: 6 },
+      { kind: 'r3sFrame', x: -70, w: 130, h: 88, seed: 1, side: -1 },
+      { kind: 'aSalt', x: 499, w: 130, h: 70, seed: 2 },
+      { kind: 'r3sFrame', x: 1119, w: 130, h: 92, seed: 3, side: 1 },
+      { kind: 'r3sFrame', x: 1409, w: 130, h: 86, seed: 4, side: -1 },
+      { kind: 'clump', x: 2029, w: 130, h: 84, seed: 4, spikes: 4, leaves: 9 },
+      { kind: 'r3sFrame', x: 2560, w: 130, h: 80, seed: 5, side: -1 },
+      { kind: 'r3sFrame', x: 3199, w: 130, h: 90, seed: 6, side: 1 },
     ],
     /** r2-biomes-a: guarda de tono sobre el talud (malvas del lodo y del yeso → violeta/granate; la salmuera emisiva se respeta) */
     decorateFace(pb, world) {
@@ -67,7 +70,7 @@ LEVELS[3] = {
       { x0: 600, x1: 1110, kind: 'ledge', caves: [[668, 22, 12], [846, 30, 15], [1012, 24, 12]], pipe: [[604, 0.16], [1108, 0.16]], seed: 32 },
       { x0: 1110, x1: 1530, kind: 'dikes', stage0: 2, houses: [[1300, 0.5, 'BOMBA 2']], seed: 33, pw: [38, 60] },
       { x0: 1530, x1: 1840, kind: 'marsh', birds: [[1590, 0.36, 1], [1668, 0.72, -1], [1760, 0.4, 1], [1804, 0.8, -1]], seed: 34 },
-      { x0: 1840, x1: 2660, kind: 'bay', wl: 322, bed: 390, pipeX: 2292, diff: [2338], caves: [[1902, 14, 7], [2580, 16, 7]], fish: [{ x0: 1870, x1: 2360, y: 346, n: 4 }, { x0: 1990, x1: 2640, y: 372, n: 5 }], seed: 35 },
+      { x0: 1840, x1: 2660, kind: 'bay', wl: 314, bed: 374, pipeX: 2292, diff: [2338], caves: [[1902, 14, 7], [2580, 16, 7]], fish: [{ x0: 1870, x1: 2360, y: 346, n: 4 }, { x0: 1990, x1: 2640, y: 372, n: 5 }], seed: 35 },
       { x0: 2660, x1: 2801, kind: 'caves', caves: [[2722, 26, 13]], seed: 36 },
     ],
     fauna: { gulls: [{ x: 300, y: 128, n: 3 }, { x: 900, y: 120, n: 3 }, { x: 1420, y: 116, n: 2 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
@@ -76,7 +79,7 @@ LEVELS[3] = {
   labels: [
     { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 60 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
     { x: 296, y: 248, title: 'CANAL DE SALMUERA', sub: 'Más densa: corre por el fondo', kind: 'brine', ax: 296, ay: 296 },
-    { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 540, ay: 226 },
+    { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 574, ay: 262 },
     { x: 1252, y: 186, title: 'CRUCE DE CANALES', sub: (sc) => sc.state.diverted ? '→ contingencia' : '→ costa', kind: 'alert', ax: 1252, ay: 210 },
     { x: 1410, y: 236, title: 'LAGUNA DE CONTINGENCIA', sub: (sc) => fmt0(clamp(sc.state.pond ?? 0.22, 0, 1) * 100) + ' % llena', kind: 'brine', ax: 1410, ay: 266 },
     { x: 1676, y: 200, title: 'HUMEDAL SALINO', sub: 'Manglar, aves y salicornia', kind: 'green', ax: 1676, ay: 232 },
