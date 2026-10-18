@@ -137,6 +137,9 @@ LEVELS[7] = {
     H2.pipeRack(pb, 430, 760, 214, [{ kind: 'perm', dy: 0, r: 2 }, { kind: 'cool', dy: 7, r: 2 }], { span: 66, footY: (x) => back(x) + 1 });
     H2.pipeRack(pb, 1290, 1770, 182, [{ kind: 'h2', dy: 0, r: 3 }, { kind: 'o2', dy: 9, r: 2 }, { kind: 'cool', dy: 16, r: 2 }], { span: 60, footY: (x) => back(x) + 1 });
     H2.pipeRack(pb, 2190, 2436, 200, [{ kind: 'cool', dy: 0, r: 3 }, { kind: 'upw', dy: 9, r: 2 }], { span: 62, footY: (x) => back(x) + 1 });
+    // r3-int-b: hiedra que cuelga de los racks de tuberías del fondo (antes que los equipos, que la tapan)
+    { const IVY = ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'];
+      for (const [x0, x1, y] of [[440, 750, 216], [1300, 1760, 186], [2200, 2430, 202]]) for (let x = x0 + 6; x < x1; x += 22 + ((x * 13) % 23)) R3INTB_ivy(pb, x, y, 8 + ((x * 7) % 18), 7400 + x, IVY, 1); }
     /* ===== 1. ENTRADA (0–330): caseta, tótem, barrera, jardineras, farolas ===== */
     const gh = H2.gatehouse(pb, 16, yb, 72, 106);
     lampG(gh.lamp[0], gh.lamp[1], 9, 0.3); D.glows.push({ x: gh.win[0], y: gh.win[1], r: 14, col: '#ffcf7a', a: 0.18, mode: 'steady' });
@@ -265,6 +268,8 @@ LEVELS[7] = {
     // r3-int-b: cubiertas verdes (sedum, matas en flor y palmitos) sobre la nave, la sala de control y la caseta; hiedra en los pilares de la nave
     R3INTB_greenRoof(pb, 758, 1238, 102, 7201); R3INTB_greenRoof(pb, 1962, 2178, 102, 7203); R3INTB_greenRoof(pb, 18, 86, yb - 108, 7205);
     for (const cx of [760, 917, 1067, 1217]) { R3INTB_ivy(pb, cx + 1, yb - 1, 70 + (cx % 3) * 14, 7210 + cx, ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'], -1); R3INTB_ivy(pb, cx + 7, yb - 1, 40 + (cx % 5) * 8, 7220 + cx, ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438', '#7a9c44'], -1); }
+    // r3-int-b: macetones con helechos, matas en flor y palmitos al pie de los pilares de la nave y en los huecos entre equipos
+    for (const [px, big] of [[921, 0], [1071, 0], [1221, 0], [744, 1], [1730, 0], [1534, 0], [1634, 0], [2296, 1], [2424, 0]]) R3INTB_pot(pb, px, yb + 3, big, 7300 + px);
     R3INTB_L7ROOFFANS.length = 0;
     for (const fx of [812, 896, 1100, 1184]) { const fy = 100; for (let q = -6; q <= 6; q++) for (let k = 0; k < 4; k++) PFK.put(pb, fx + q, fy - 2 + k, U(k === 0 ? '#d4daee' : Math.abs(q) > 5 ? '#383e5a' : k === 3 ? '#24283e' : '#0e1424')); R3INTB_L7ROOFFANS.push([fx, fy]); }
     D.plumes.push([1250, 94, 1.0], [2384, vm.top != null ? vm.top - 2 : yb - 164, 1.3], [1310, yb - 44, 0.6], [1382, yb - 44, 0.6]);
@@ -479,6 +484,18 @@ function R3INTB_L7floor(pb, world, gy, back, D) {
 }
 const R3INTB_L7DRONES = [{ kind: 'drone', x: 1000, y: 104, r: 160 }, { kind: 'drone', x: 1590, y: 120, r: 110 }, { kind: 'drone', x: 300, y: 128, r: 90 }, { kind: 'drone', x: 2250, y: 112, r: 120 }];
 const R3INTB_L7ROOFFANS = [];
+/** Macetón de terracota (o jardinera de hormigón si big) con helecho, mata en flor y, a veces, un palmito */
+function R3INTB_pot(pb, x, yb, big, seed) {
+  const K = PFK, r = RNG(seed), w = big ? 22 : 14, h = big ? 12 : 10;
+  const T = big ? ['#2a3148', '#384058', '#48506a', '#5a6380', '#6e7896', '#8690ac'] : ['#3a160e', '#5c2414', '#80341c', '#a44a26', '#c46634', '#da8448'];
+  for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const inset = big ? 0 : Math.floor(yy / 4); if (xx < inset || xx >= w - inset) continue; K.put(pb, x - (w >> 1) + xx, yb - h + yy, U(T[yy === 0 ? 5 : yy === 1 ? 4 : xx - inset < 2 ? 4 : xx > w - inset - 3 ? 1 : 2 + (hash2(xx, yy, seed) < 0.2 ? 1 : 0)])); }
+  PFFlora.fern(pb, x - 3, yb - h, 12 + r.int(0, 6), seed);
+  PFFlora.bush(pb, x - (w >> 1) + 1, yb - h + 1, w - 2, 7 + r.int(0, 3), RAMP.foliageR, seed + 1);
+  const FL = ['#ff6a9a', '#ffe14d', '#ff9a3a', '#ffffff'].map(U);
+  for (let k = 0; k < 6; k++) K.put(pb, x - (w >> 1) + 2 + r.int(0, w - 4), yb - h - 2 - r.int(0, 5), FL[r.int(0, 3)]);
+  if (big) PFFlora.palm(pb, x + 2, yb - h, 30 + r.int(0, 10), r.range(-3, 3), seed + 2);
+  if (typeof PFB !== 'undefined' && PFB.contact) PFB.contact(pb, x, yb, (w >> 1) + 2, 1.4);
+}
 /** Cubierta verde sobre la línea y (techo): sustrato, sedum en 3 tonos con puntas lima, matas redondas con flores y palmitos */
 function R3INTB_greenRoof(pb, x0, x1, y, seed) {
   const K = PFK, r = RNG(seed), SED = ['#16301a', '#1e4220', '#2a5626', '#3a6c2c', '#4e8234', '#6c9a3c', '#94b84a'].map(U), FL = ['#ff6a9a', '#ffe14d', '#ffffff', '#ff9a3a', '#b49cff'].map(U);

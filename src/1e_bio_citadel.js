@@ -276,7 +276,7 @@ function buildCitadel(L) {
       for (let q = 0; q < hh; q++) V.put(pb, x, base - 12 - q, HED[clamp(2 + (q > hh - 3 ? 2 : 0) + (hash2(x, q, 7954) < 0.3 ? 1 : 0), 0, 6)]);
     }
     let x = r.int(10, 40);
-    const kinds = ['annex', 'palms', 'gap', 'pergola', 'annex', 'gap', 'cypress', 'annex', 'palms', 'gap'];
+    const kinds = ['annex', 'palms', 'pergola', 'annex', 'palms', 'cypress', 'annex', 'gap', 'palms', 'pergola'];
     let ki = 0;
     while (x < w - 40) {
       const kind = kinds[ki++ % kinds.length];
@@ -297,7 +297,7 @@ function buildCitadel(L) {
         x += bw + 18 + r.int(10, 30);
       } else if (kind === 'palms') {
         const n = r.int(2, 3);
-        for (let i = 0; i < n; i++) V.palm(pb, x + i * 22, base - 16, r.int(50, 76), r.range(-7, 7), 7990 + x + i, { k: 0.06 });
+        for (let i = 0; i < n; i++) V.palm(pb, x + i * 22, base - 16, r.int(64, 104), r.range(-8, 8), 7990 + x + i, { k: 0.06 });
         x += n * 22 + r.int(30, 60);
       } else if (kind === 'cypress') {
         for (let i = 0; i < 3; i++) V.cypress(pb, x + i * 12, base - 16, r.int(36, 54), 8000 + x + i, { k: 0.1 });
@@ -313,6 +313,9 @@ function buildCitadel(L) {
         x += pw + r.int(30, 60);
       } else x += r.int(70, 130);
     }
+    // buganvillas que cuelgan sobre el muro de contención (magenta y coral)
+    const BGV = V.P32(['#5a1440', '#8a1e5a', '#c02a78', '#e84a98', '#ff7ab8', '#ff9a70']);
+    for (let bx = r.int(0, 30); bx < w; bx += r.int(40, 90)) { const bw = r.int(14, 28); for (let n = 0; n < bw * 5; n++) { const fx = r(), fy = Math.pow(r(), 1.6), xx = Math.round(bx + fx * bw), yy = Math.round(base - 16 + fy * 12 * (1 - Math.abs(fx - 0.5))); V.put(pb, xx, yy, r.chance(0.6) ? BGV[clamp(Math.round(4 - fy * 3 + (r() - 0.5)), 0, 5)] : HED[clamp(Math.round(5 - fy * 3), 1, 6)]); } }
     // farolas cálidas a lo largo del seto
     for (let lx = 60; lx < w; lx += r.int(120, 200)) { const lp = V.lamp(pb, lx, base - 14, 22, { k }); gardenFx.lamps.push([lp.x, lp.y]); }
     V.rim(pb, U('#ffb080'), 0.55, -1, 0); V.rim(pb, U('#ffc8a0'), 0.4, 0, -1);

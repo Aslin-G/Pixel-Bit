@@ -17,6 +17,17 @@ if (typeof Adversary !== 'undefined' && typeof FIXLB_ADV !== 'undefined') {
   };
 }
 
+/* r3-int-b: oclusor frontal (f≈1,3) de hiedra que cuelga en hebras desde arriba, en verdes muy oscuros con borde cálido */
+function R3INTB_ivyCurtain(o) {
+  const w = o.w || 90, h = o.h || 70, pb = new PixelBuffer(w, h), r = RNG(o.seed || 1);
+  const LF = ['#03060a', '#060e0c', '#0a1810', '#102416', '#18341e', '#224626'];
+  for (let x = 0; x < w; x++) for (let y = 0; y < 4; y++) PFK.put(pb, x, y, U(LF[1 + (hash2(x, y, o.seed) < 0.4 ? 1 : 0)]));
+  for (let i = 0; i < Math.round(w / 9); i++) { const pb2 = pb; R3INTB_ivy(pb2, 3 + r.int(0, w - 6), 2, r.int(Math.round(h * 0.3), h - 2), (o.seed || 1) * 31 + i, LF, 1); }
+  for (let n = 0; n < w; n++) { const x = r.int(0, w - 1), y = r.int(2, h - 1); if (PFK.get(pb, x, y) >>> 24 && !(PFK.get(pb, x - 1, y) >>> 24)) PFK.put(pb, x, y, U(hash2(x, y, 3) < 0.5 ? '#6a5a3a' : '#3a4a2a')); }
+  return pb;
+}
+if (typeof PFStage !== 'undefined') PFStage.FG.r3intbIvy = R3INTB_ivyCurtain;
+
 const VAULT_RACKS = [360, 440, 520, 600, 680, 760, 1800, 1880, 1960, 2040];
 const ARCS = [{ x: 1000, w: 22 }, { x: 1090, w: 22 }, { x: 1180, w: 22 }];
 
@@ -58,6 +69,10 @@ LEVELS[6] = {
       { kind: 'cables', x: 2080, y: 10, w: 300, h: 40, seed: 63, n: 3 },
       { kind: 'rail', x: 2520, w: 240, h: 40 },
       { kind: 'beam', x: 2940, y: 0, w: 360, h: 14, bolts: true },
+      // r3-int-b: cortinas de hiedra oscura que cuelgan de las vigas del primer plano
+      { kind: 'r3intbIvy', x: 440, y: 6, w: 96, h: 74, seed: 641, top: true },
+      { kind: 'r3intbIvy', x: 1640, y: 6, w: 110, h: 82, seed: 643, top: true },
+      { kind: 'r3intbIvy', x: 3010, y: 6, w: 100, h: 78, seed: 645, top: true },
       { kind: 'pillar', x: 3340, w: 26, h: 360, ramp: ['#020308', '#05070e', '#0a0e1c', '#121a2e', '#1c2842', '#2a3a58', '#48dcf4'], lit: true },
     ],
   },
