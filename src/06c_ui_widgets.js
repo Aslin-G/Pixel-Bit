@@ -726,7 +726,8 @@ const LevelThumbs = {
     if (!force && this.lastBuild === Game.frame) return null;
     this.lastBuild = Game.frame;
     let c = null;
-    try { c = this.build(id); } catch (e) { c = this.placeholder(id); }
+    // mini-ilustración del capítulo (R2MAP, 19w); si no hay, el dibujo esquemático de abajo
+    try { c = (typeof R2MAP !== 'undefined' && R2MAP.thumb && R2MAP.thumb(id)) || this.build(id); } catch (e) { c = this.placeholder(id); }
     this.cache.set(id, c);
     return c;
   },

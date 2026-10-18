@@ -364,10 +364,13 @@ const WorldMapScene = {
     GS.s.scene = 'map';
   },
   build() {
-    if (BG_CACHE.has('worldmap3')) { const C = BG_CACHE.get('worldmap3'); this.mapC = C.c; this.cloudC = C.clouds; return; }
-    const C = FIXUI_buildMap();
-    this.mapC = C.c; this.cloudC = C.clouds;
-    BG_CACHE.set('worldmap3', C);
+    // diorama en 3/4 de R2MAP (19w); si fallara, el mapa en terrazas de FIXUI
+    if (BG_CACHE.has('worldmap_r2')) { const C = BG_CACHE.get('worldmap_r2'); this.mapC = C.c; this.cloudC = C.clouds; this.isl = C.live ? C : null; return; }
+    let C = null;
+    try { if (typeof R2MAP !== 'undefined') { C = R2MAP.buildIsland(); C.live = true; } } catch (e) { console.warn('R2MAP', e); C = null; }
+    if (!C) C = FIXUI_buildMap();
+    this.mapC = C.c; this.cloudC = C.clouds; this.isl = C.live ? C : null;
+    BG_CACHE.set('worldmap_r2', C);
   },
   update(dt) {
     this.t += dt; this.ps.update(dt);
@@ -408,6 +411,7 @@ const WorldMapScene = {
     drawSeaSparkles(g, 0, 0, W, MAP_STRIP_Y, t, 0.5, ['#c6fff2', '#ffffff']);
     // sombras de nube: siluetas de cúmulo en dos bandas planas, teñidas hacia el violeta (sin discos sucios)
     for (let i = 0; i < 3; i++) { const cl = this.cloudC[i % this.cloudC.length]; const x = ((t * (5 + i * 2) + i * 230) % (W + 260)) - 180, y = 30 + i * 78; g.drawImage(cl, Math.round(x), Math.round(y)); }
+    if (this.isl) R2MAP.drawIslandLive(g, this.isl, ox, OY, t);
     // enlaces SYNARA animados
     MAP_LINKS.forEach(([a, b], i) => {
       const A = MAP_NODES[a], B = MAP_NODES[b];
@@ -415,9 +419,10 @@ const WorldMapScene = {
       const n = Math.ceil(dist(A.x, A.y, B.x, B.y) / 3);
       for (let k = 0; k < n; k++) { const ph = (k / n + t * 0.4 + i * 0.13) % 1; const x = lerp(A.x, B.x, k / n) + ox, y = lerp(A.y, B.y, k / n) + OY; if (on && ph < 0.08) fpx(g, x, y - 1, i % 2 ? '#56e5ff' : '#ffe14d'); }
     });
-    for (let i = 0; i < 5; i++) ART.turbine(g, 400 + i * 14 + ox, 86 + (i % 2) * 8 + OY, 10, t * 2 + i, { col: '#fffaf0', shade: '#cfe8ee' });
-    // nodos: islas-nodo con anillo del color del capítulo
-    for (const n of MAP_NODES) {
+    if (!this.isl) for (let i = 0; i < 5; i++) ART.turbine(g, 400 + i * 14 + ox, 86 + (i % 2) * 8 + OY, 10, t * 2 + i, { col: '#fffaf0', shade: '#cfe8ee' });
+    // nodos: insignias-isla flotantes (R2MAP) o islas-nodo con anillo del color del capítulo
+    if (this.isl) R2MAP.drawMapNodes(g, this, ox, OY, t);
+    else for (const n of MAP_NODES) {
       const un = GS.s.unlocked.includes(n.id), done = GS.s.completed.includes(n.id), sel = this.sel === n.id;
       const nx = n.x + ox, ny = n.y + OY, acc = LEVEL_CARD_ACCENT[n.id] || '#56e5ff';
       g.globalAlpha = un ? 0.4 : 0.18; fdisc(g, nx, ny + 3, 12, acc); g.globalAlpha = 1;

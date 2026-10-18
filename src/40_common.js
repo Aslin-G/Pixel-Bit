@@ -146,7 +146,10 @@ function makeSim(def) {
       this.ps = new Particles(600);
       // fondo: el nivel de donde se abrió el simulador, atenuado (o la rejilla si no hay nivel debajo)
       const below = Game.scenes[Game.scenes.length - 2];
-      this.bgC = FIXUI_simBackdrop(p.gameplay || (typeof GameplayScene !== 'undefined' && below === GameplayScene ? GameplayScene : null));
+      // R2MAP (19w): sala de control con ventanal sobre la maquinaria real del capítulo; si no, el nivel atenuado
+      this.r2bg = null;
+      try { const k = typeof R2MAP !== 'undefined' ? R2MAP.simKey(this) : null; if (k != null) this.r2bg = R2MAP.simBackdrop(k); } catch (e) { this.r2bg = null; }
+      this.bgC = this.r2bg ? this.r2bg.c : FIXUI_simBackdrop(p.gameplay || (typeof GameplayScene !== 'undefined' && below === GameplayScene ? GameplayScene : null));
       Audio2.sfx('power', { vol: 0.5 });
       this.init && this.init(p);
       this.enterPhase(this.phase);
@@ -194,7 +197,11 @@ function makeSim(def) {
     render(g) {
       // fondo de laboratorio: azul noche plano con rejilla de 16 px (prerenderizado, sin tramado)
       g.drawImage(this.bgC || simBackdrop(), 0, 0);
-      this.draw && this.draw(g);
+      if (this.r2bg) R2MAP.drawSimLive(g, this.r2bg, this.t);
+      // paneles con pozo interior, rejilla tenue y remaches (R2MAP) solo mientras dibuja el simulador
+      const tex = !!this.r2bg && typeof R2MAP !== 'undefined';
+      if (tex) R2MAP.simPanels(true, def.icon || 'flask');
+      try { this.draw && this.draw(g); } finally { if (tex) R2MAP.simPanels(false); }
       this.ps.render(g);
       // cabecera: insignia + título en negrita + fase + puntos de fase + RA
       UIK.panel(g, 4, 4, W - 8, 22, def.style || 'hud', null, { chamfer: 2, key: false });
@@ -211,15 +218,19 @@ function makeSim(def) {
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
         const bx = 6, by = H - 44;
-        UIK.frame(g, bx, by, 38, 38, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
-        const pid = sp.portrait || 'kiru', bust = UIK.bust(pid, 'smile');
-        // recorte 1:1 centrado en la cara (sin reescalar el arte): el visor y los ojos de KIRU, la cara de un humano
-        const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
-        const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
-        g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
+        // KIRU entero flotando junto a su globo (R2MAP); otros guías, en su marco de retrato
+        const whole = this.r2bg && typeof R2MAP !== 'undefined' && R2MAP.drawGuide(g, bx + 25, H - 4, this.t, m.who || 'kiru');
+        if (!whole) {
+          UIK.frame(g, bx, by, 38, 38, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+          const pid = sp.portrait || 'kiru', bust = UIK.bust(pid, 'smile');
+          // recorte 1:1 centrado en la cara (sin reescalar el arte): el visor y los ojos de KIRU, la cara de un humano
+          const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
+          const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
+          g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
+        }
         // globo acoplado a la derecha del busto, con la base a ras del marco: ocupa la franja inferior y no la
         // columna izquierda del simulador (allí suelen estar los valores y etiquetas que el guía menciona)
-        UIK.speechBubble(g, bx + 39, by + 24, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['sl'], minY: 30 });
+        UIK.speechBubble(g, bx + (whole ? 47 : 39), by + 24, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['sl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);
