@@ -107,20 +107,38 @@ const PFASolar = (() => {
     const mx = x + Math.round(w / 2);
     I.box3q(pb, mx - 6, ty + 10, 12, 9, 4, { ramp: ['#141a28', '#22304a', '#34507a', '#4a6ea0', '#7a9cc8'] });
     // franja de módulos: la inclinación ang desplaza el borde superior (vista en 3/4)
+    // r3-desert: con o.dyn la franja no se hornea (la dibuja el nivel con trackerFrames, girando con el sol)
+    if (!o.dyn) trackerStrip(pb, x, ty, w, ang, o.seed || 1);
+    // tubo de torsión asomando por los extremos
+    for (let k = 0; k < 3; k++) { put(pb, x - 2 + k, ty, Al[4]); put(pb, x - 2 + k, ty + 1, Al[1]); }
+    return { hub: [mx, ty + 4], panel: { x, ty, w, seed: o.seed || 1 } };
+  }
+  /** Franja de módulos del seguidor (inclinación ang ∈ [−0,5, 0,5]); reflejo del cielo arriba (r3-desert) */
+  function trackerStrip(pb, x, ty, w, ang, seed) {
+    const d = 16, Al = P32(ALU), C = P32(CELL);
     const lift = Math.round(d * (0.55 + ang * 0.5)), drop = Math.round(d * (0.45 - ang * 0.5));
     for (let r = -drop; r <= lift; r++) {
       const v = (r + drop) / (lift + drop), off = Math.round(v * 9), yy = ty - r;
       for (let xx = x + off; xx < x + w + off; xx++) {
         const lx = (xx - x - off) % 15;
-        let k = r === lift ? 8 : r === -drop ? 2 : lx < 1 ? 6 : 3 + Math.round(v * 2);
-        const gd = ((xx - x) / w * 1.3 + v * 0.8 + (o.seed || 1) * 0.21) % 1.5;
+        let k = r === lift ? 8 : r === -drop ? 2 : lx < 1 ? 6 : 3 + Math.round(v * 2) + (ang < -0.15 ? 1 : 0);
+        const gd = ((xx - x) / w * 1.3 + v * 0.8 + seed * 0.21 + ang * 0.6) % 1.5;
         if (gd > 0.7 && gd < 0.76) k += 3;
-        put(pb, xx, yy, r === lift ? Al[6] : r === -drop ? Al[2] : C[clamp(k, 0, 8)]);
+        let c = r === lift ? Al[6] : r === -drop ? Al[2] : C[clamp(k, 0, 8)];
+        if (r !== lift && r !== -drop && lx >= 1 && v > 0.62) c = K.mixU(c, U('#8ad8f4'), (v - 0.62) * 0.7);
+        put(pb, xx, yy, c);
       }
     }
-    // tubo de torsión asomando por los extremos
-    for (let k = 0; k < 3; k++) { put(pb, x - 2 + k, ty, Al[4]); put(pb, x - 2 + k, ty + 1, Al[1]); }
-    return { hub: [mx, ty + 4] };
+  }
+  /** r3-desert: fotogramas precalculados de la franja del seguidor ({c, ox, oy} relativos a (x, ty)) para n ángulos */
+  function trackerFrames(w, seed, n = 7) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const ang = -0.5 + i / (n - 1), pb = new PixelBuffer(w + 12, 30);
+      trackerStrip(pb, 0, 15, w, ang, seed);
+      out.push({ c: pb.toCanvas(), ox: 0, oy: -15, ang });
+    }
+    return out;
   }
 
   /* ---------- inversor de string / central ---------- */
@@ -169,7 +187,8 @@ const PFASolar = (() => {
     if (o.label) K.text(pb, o.label, x + 4, yb - h + 18, U('#2c3444'), { font: 'tiny' });
     if (st === 'tall') PL.sign(pb, x + w - 11, yb - h + 24, 'bolt'); else PL.sign(pb, x + 3, yb - 24, 'bolt');
     const sy = st === 'tall' ? yb - h + 26 : yb - h + 10;
-    return { screen: [x + 5, sy, st === 'tall' ? 7 : 10, st === 'tall' ? 3 : 5], led: [x + (st === 'central' ? 20 : 18), yb - h + 11], vent: [x + w + 2, yb - h] };
+    return { screen: [x + 5, sy, st === 'tall' ? 7 : 10, st === 'tall' ? 3 : 5], led: [x + (st === 'central' ? 20 : 18), yb - h + 11], vent: [x + w + 2, yb - h],
+      fan: st === 'tall' ? [Math.round(x + w / 2), yb - 10, 5] : st === 'central' ? [x + 12, yb - h - 3, 4, 1] : null };
   }
 
   /* ---------- taller de mantenimiento en corte (muros de estuco, cubierta con FV) ---------- */
@@ -1085,7 +1104,7 @@ const PFASolar = (() => {
   PFTerrain.register('sandcut', { face: sandCut, prep: PFTerrain.EXT.prep.dune });
   PFTerrain.register('r3tier', { face: r3Face, prep: r3Prep });
 
-  return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV,
+  return { trackerFrames, pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV,
     // r3-desert: diorama de la ladera
     r3At, r3Shadow, r3VaultE1, r3VaultWall, tabaiba, cardon, grassWind, cropRow, agriPV, invSkid, robotRail, canal, cableTray, trenchPit, trenchSection, pipeSection, roots, basin, zoco, dryWall, strawGrid, hubara, substation, hangar, cableDrum, modulePallet, shadeHouse, R3TAB, R3LET, R3ALOE, R3SOIL, R3WAT, R3GH, R3CONW };
 })();
