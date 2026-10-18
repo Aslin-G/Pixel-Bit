@@ -594,7 +594,7 @@ const PFASalt = (() => {
           else {
             c = Rk[clamp(5 + Math.round((PFK.cl(x, y, 3, 669) - 0.5) * 1.6 + (PFK.vn(x * 0.04, y * 0.08, 671) - 0.5) * 1.6) + ao + (v > 0.75 ? 1 : 0) - (hash2(x, y, 673) < 0.03 ? 2 : 0), 1, 8)];
             const ef = PFK.vn(x * 0.07, y * 0.16, 695);                                                         // eflorescencias de sal en manchas
-            if (ef > 0.66) c = Sl[clamp(6 + Math.round((ef - 0.66) * 8) + (PFK.cl(x, y, 2, 697) < 0.3 ? -1 : 0) + ao, 4, 8)];
+            if (ef > 0.6) c = Sl[clamp(7 + Math.round((ef - 0.6) * 6) + (PFK.cl(x, y, 2, 697) < 0.25 ? -1 : 0) + (ef < 0.63 ? -2 : 0) + ao, 4, 8)];
           }
         } else {                                                                                                   // corte frontal
           const c0 = y - e2;
