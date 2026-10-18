@@ -215,6 +215,8 @@ function coilTexture(x, y, idx, ramp, cell = 4) {
   return null;
 }
 
+/** r3-chars: color de la luz de borde cálida por ambiente (null = se queda el del ambiente) */
+const R3CHARS_RIM_WARM = { coast: '#ffc88a', day: '#ffc88a', dawn: '#ffb07a', dusk: '#ffa070', calima: '#ffa060', storm: null, night: null, tech: null, cave: null, none: null };
 /** Render común de humanoides (lienzo 88×104, pipeline v2) */
 function renderHumanoid(id, D, anim, t, opts) {
   const R = new Rig(HUM_W, HUM_H, { v2: true });
@@ -225,7 +227,9 @@ function renderHumanoid(id, D, anim, t, opts) {
   if (opts.item) pose.item = opts.item;
   if (D.prepare) D.prepare();
   buildHumanoid(R, D, pose, opts);
-  const pb = R.render({ env: opts.env, rim: D.rimK });
+  // r3-chars: luz de borde cálida de 1 px en espalda y coronilla (D.rimWarm) en exteriores de día/atardecer
+  const env = opts.env || SpriteCache.env || 'coast', warm = D.rimWarm ? R3CHARS_RIM_WARM[env] : null;
+  const pb = R.render(warm ? { env: opts.env, rim: D.rimK ?? 0.42, rimColor: warm, rimTint: 0.42 } : { env: opts.env, rim: D.rimK });
   pb.anchors = R.anchors;
   pb.anchors.shadowR = D.shadowR || 12;
   return pb;
@@ -246,6 +250,16 @@ const EYE_AM = {
   worried: { oy: -3, rows: ['...KK', 'KKKK.', '.whDD', '.wDDD', '.wMLL', '..ss.'] },
   sad: { oy: -2, rows: ['...KK', '.KKK.', 'K.hDD', '.wDDM', '.wMLL', '..ss.'] },
   blink: { oy: 1, rows: ['KKKKK', '..ss.'] },
+};
+/* r3-chars: ojo lejano de Amaya en 3/4 (3 columnas, comprimido junto al puente de la nariz; el iris
+   también mira a la derecha). {oy, rows} alineado con EYE_AM (y = fila superior del iris). */
+const R3CHARS_EYE_AM_FAR = {
+  open: { oy: -2, rows: ['KKK', 'wDh', 'wDD', '.ML'] }, look: { oy: -2, rows: ['KKK', '.wD', '.wD', '..M'] },
+  half: { oy: -1, rows: ['KKK', 'wDD', '.M.'] }, soft: { oy: 0, rows: ['KKK', '.DM'] }, tired: { oy: 0, rows: ['KKK', '.M.'] },
+  determined: { oy: -1, rows: ['KKK', 'wDh', '.MD'] }, angry: { oy: -1, rows: ['KK.', '.KK', 'wDD', '.MD'] },
+  wide: { oy: -3, rows: ['.KK', 'KwD', 'wDh', 'wDD', '.w.'] }, surprised: { oy: -3, rows: ['.KK', 'Kw.', 'wDh', 'wDD', '.w.'] }, scared: { oy: -3, rows: ['.KK', 'Kw.', 'wDw', 'ww.'] },
+  worried: { oy: -2, rows: ['KK.', 'wDh', 'wDD', '.ML'] }, sad: { oy: -2, rows: ['KK.', '.KK', 'wDD', '.ML'] }, down: { oy: 0, rows: ['KKK', 'wDD', '.M.'] },
+  blink: { oy: 1, rows: ['KKK'] }, happy: { oy: 0, rows: ['.K.', 'K.K'] }, closed: { oy: 1, rows: ['K.K', '.K.'] },
 };
 
 /* =====================================================================
@@ -327,10 +341,12 @@ const AMAYA_D = {
   headRX: 10.5, headRY: 11.5, upperArm: 10, foreArm: 9.5, armW: 2.5, legW: 3.1, handR: 2.2, neckR: 2.5,
   // cara amable/decidida como la referencia: ojo grande con brillo e iris castaño claro, sin ojo lejano
   // (perfil casi lateral), boca suave y rubor; sonrisa leve por defecto
-  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#62301a', '#a05a2c'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM },
+  face: { eyeX: 2, eyeY: 0, eye2X: 8.5, mouthX: 5, mouthY: 6, noseX: 10.5, noseY: 3, iris: ['#2a0e04', '#62301a', '#a05a2c'], lash: '#1a0604', lashFar: '#3a0d06', blush: '#ff8a6a', browCol: '#3a0d06', mouthInk: '#7a2416', noFar: true, eyes: EYE_AM,
+    // r3-chars: cara 3/4 del reposo (ojo cercano 1 px atrás, ojo lejano junto al puente de la nariz, nariz dentro del contorno)
+    turn: { eyeX: 0.5, eye2X: 7.5, mouthX: 4.5, noseX: 9.4, noFar: false, eyesFar: R3CHARS_EYE_AM_FAR, noseIn: 1.6, earIn: 1.4 } },
   defaultExpr: 'smile', earDX: -3.4, earDY: 2.5, noseSize: 0.55, runLean: 0.36,
   shortSleeve: 0.55, fingerless: true, wristBand: true, sole: '#1a0a06', laces: '#e48a4a', bootTall: 4, earZ: 56,
-  energetic: 1.15, shadowR: 12,
+  energetic: 1.15, shadowR: 12, turn3q: true, rimWarm: true,
   prepare() {
     if (this.mat) return;
     const M = charMats();
@@ -349,20 +365,41 @@ const AMAYA_D = {
     R.poly(torsoPts, { mat: M.topAm, base: 4, z: 30, group: 'top', bevel: 2 });
     // camisa-chaqueta roja de manga corta, abierta en V en el cuello, corta hasta la cintura
     const jy = waistY + 0.6, lag = Math.max(0, pose.pack || 0) * 0.5;
-    const jacket = [
-      [cx - tw * 0.55 + lx * 0.95, shoulderY - 1.5], [cx + tw * 0.06 + lx, shoulderY - 1.2], [cx + tw * 0.3 + lx * 0.85, shoulderY + 3.5],
-      [cx + tw * 0.47 + lx * 0.55, waistY - chestH * 0.42], [cx + tw * 0.44 + lx * 0.2, jy + lag], [cx - tw * 0.52 + lx * 0.25, jy + 1 + lag],
-      [cx - tw * 0.52 + lx * 0.5, waistY - chestH * 0.45],
-    ];
-    R.poly(jacket, { mat: M.jacketAm, base: 4, z: 31, group: 'jacket', bevel: 2.4, cast: { on: ['top'], dx: -1, dy: 2 } });
-    // cuello levantado (detrás de la nuca) y solapa delantera
-    R.poly([[cx - 4.5 + lx, shoulderY - 4.5], [cx - 0.5 + lx, shoulderY - 3.5], [cx + 1.5 + lx, shoulderY + 0.5], [cx - 5.5 + lx, shoulderY + 0.5]], { mat: M.jacketAm, base: 5, z: 28.5, group: 'collar', bevel: 1, lineIdx: 1 });
-    R.poly([[cx + tw * 0.06 + lx, shoulderY - 1.4], [cx + tw * 0.28 + lx, shoulderY - 0.6], [cx + tw * 0.24 + lx * 0.85, shoulderY + 4.5]], { mat: M.jacketAm, base: 5, z: 32, group: 'lapel', bevel: 0.8, lineIdx: 1 });
+    const turned = (o.turn || 0) > 0.5;
+    if (turned) {
+      // r3-chars: 3/4 hacia cámara — chaqueta abierta: panel cercano hasta la línea del pecho, top blanco en
+      // el centro y panel lejano en escorzo (franja estrecha más iluminada) en el borde delantero
+      const near = [
+        [cx - tw * 0.55 + lx * 0.95, shoulderY - 1.5], [cx - tw * 0.02 + lx, shoulderY - 1.4], [cx + tw * 0.08 + lx * 0.85, shoulderY + 4],
+        [cx + tw * 0.11 + lx * 0.5, waistY - chestH * 0.3], [cx + tw * 0.1 + lx * 0.2, jy + lag], [cx - tw * 0.52 + lx * 0.25, jy + 1 + lag],
+        [cx - tw * 0.52 + lx * 0.5, waistY - chestH * 0.45],
+      ];
+      R.poly(near, { mat: M.jacketAm, base: 4, z: 31, group: 'jacket', bevel: 2.4, cast: { on: ['top'], dx: -1, dy: 2 } });
+      const far = [
+        [cx + tw * 0.31 + lx, shoulderY - 1], [cx + tw * 0.47 + lx * 0.9, shoulderY + 0.6], [cx + tw * 0.5 + lx * 0.55, waistY - chestH * 0.42],
+        [cx + tw * 0.45 + lx * 0.2, jy + lag], [cx + tw * 0.31 + lx * 0.2, jy + lag], [cx + tw * 0.29 + lx * 0.6, waistY - chestH * 0.4], [cx + tw * 0.28 + lx * 0.85, shoulderY + 4],
+      ];
+      R.poly(far, { mat: M.jacketAm, base: 5, z: 31.2, group: 'jacketFar', bevel: 1.4, cast: { on: ['top'], dx: 1, dy: 2 } });
+      R.poly([[cx - 4.5 + lx, shoulderY - 4.5], [cx - 0.5 + lx, shoulderY - 3.5], [cx + 1.5 + lx, shoulderY + 0.5], [cx - 5.5 + lx, shoulderY + 0.5]], { mat: M.jacketAm, base: 5, z: 28.5, group: 'collar', bevel: 1, lineIdx: 1 });
+      R.poly([[cx - tw * 0.02 + lx, shoulderY - 1.5], [cx + tw * 0.14 + lx, shoulderY - 0.8], [cx + tw * 0.08 + lx * 0.85, shoulderY + 4.6]], { mat: M.jacketAm, base: 5, z: 32, group: 'lapel', bevel: 0.8, lineIdx: 1 });
+      R.poly([[cx + tw * 0.31 + lx, shoulderY - 1.1], [cx + tw * 0.24 + lx, shoulderY - 0.6], [cx + tw * 0.28 + lx * 0.85, shoulderY + 4.2]], { mat: M.jacketAm, base: 6, z: 32.1, group: 'lapelFar', bevel: 0.6, lineIdx: 1 });
+    } else {
+      const jacket = [
+        [cx - tw * 0.55 + lx * 0.95, shoulderY - 1.5], [cx + tw * 0.06 + lx, shoulderY - 1.2], [cx + tw * 0.3 + lx * 0.85, shoulderY + 3.5],
+        [cx + tw * 0.47 + lx * 0.55, waistY - chestH * 0.42], [cx + tw * 0.44 + lx * 0.2, jy + lag], [cx - tw * 0.52 + lx * 0.25, jy + 1 + lag],
+        [cx - tw * 0.52 + lx * 0.5, waistY - chestH * 0.45],
+      ];
+      R.poly(jacket, { mat: M.jacketAm, base: 4, z: 31, group: 'jacket', bevel: 2.4, cast: { on: ['top'], dx: -1, dy: 2 } });
+      // cuello levantado (detrás de la nuca) y solapa delantera
+      R.poly([[cx - 4.5 + lx, shoulderY - 4.5], [cx - 0.5 + lx, shoulderY - 3.5], [cx + 1.5 + lx, shoulderY + 0.5], [cx - 5.5 + lx, shoulderY + 0.5]], { mat: M.jacketAm, base: 5, z: 28.5, group: 'collar', bevel: 1, lineIdx: 1 });
+      R.poly([[cx + tw * 0.06 + lx, shoulderY - 1.4], [cx + tw * 0.28 + lx, shoulderY - 0.6], [cx + tw * 0.24 + lx * 0.85, shoulderY + 4.5]], { mat: M.jacketAm, base: 5, z: 32, group: 'lapel', bevel: 0.8, lineIdx: 1 });
+    }
     // cinturón de cuero con hebilla dorada y bolsa trasera
     R.box(cx + 0.3 + lx * 0.1, waistY + 2.6, tw * 0.49, 1.2, 0.4, { mat: M.leatherAm, base: 3, z: 37, group: 'belt', bevel: 0.8, cast: { on: ['shorts'], dx: 0, dy: 1 } });
     R.box(cx - tw * 0.46, waistY + 5.2, 2.5, 2.7, 1, { mat: M.leatherAm, base: 4, z: 38, group: 'pouch', bevel: 1 });
     // mapa doblado metido en el cinturón (delante)
-    R.stamp((pb) => {
+    R.stamp((pb0) => {
+      const pb = R3CHARS_maskPB(pb0, R, /^(jacket|top|lapel|collar|belt|pouch|shorts|strap)/);
       const bx = Math.round(cx + tw * 0.3), by = Math.round(waistY + 2);
       pb.stampMap(bx - 1, by - 1, ['.ww', 'wyw', 'yyw', 'wy.', '.y.'], { w: '#fff4dc', y: '#dbaa29' });
       // hebilla
@@ -371,11 +408,11 @@ const AMAYA_D = {
       const ax = Math.round(cx - 1 + lx * 0.8), ay = Math.round(shoulderY + 6);
       pb.set(ax, ay, M.jacketAm.ramp[2]); pb.set(ax + 1, ay + 1, M.jacketAm.ramp[2]); pb.set(ax + 1, ay, M.jacketAm.ramp[5]);
       pb.line(Math.round(cx - tw * 0.3 + lx * 0.6), Math.round(waistY - 5), Math.round(cx - tw * 0.18 + lx * 0.4), Math.round(waistY - 2), M.jacketAm.ramp[2]);
-      // bolsillo de pecho con solapa
-      const px = Math.round(cx + tw * 0.08 + lx * 0.7), py = Math.round(shoulderY + 7);
+      // bolsillo de pecho con solapa (girada: sobre el panel cercano)
+      const px = Math.round(cx + tw * (turned ? -0.2 : 0.08) + lx * 0.7), py = Math.round(shoulderY + 7);
       pb.hline(px - 1, px + 2, py, M.jacketAm.ramp[2]); pb.hline(px - 1, px + 2, py - 1, M.jacketAm.ramp[5]);
       // insignia SYNARA: gota turquesa 3×3
-      const ix = Math.round(cx + tw * 0.2 + lx * 0.75), iy = Math.round(shoulderY + 3);
+      const ix = Math.round(cx + tw * (turned ? -0.12 : 0.2) + lx * 0.75), iy = Math.round(shoulderY + 3);
       pb.stampMap(ix, iy, ['.a.', 'bcb', '.b.'], { a: '#7ff0dc', b: '#1aa894', c: '#d0fff2' });
       // bajo blanco del top bajo la chaqueta
       pb.hline(Math.round(cx - tw * 0.3), Math.round(cx + tw * 0.38), Math.round(jy + 1 + lag), M.topAm.ramp[3]);
@@ -396,19 +433,29 @@ const AMAYA_D = {
     };
     short(lb, hipBX, 13, 1, 'shortsB');
     const [fx, fy] = short(lf, hipFX, 43, 0, 'shortsF');
-    R.stamp(pb => {
+    R.stamp(pb0 => {
+      const pb = R3CHARS_maskPB(pb0, R, /^shorts/);
       // bolsillo cargo y parche azul pálido 2×2
       const mx = Math.round(lerp(hipFX, fx, 0.45)), my = Math.round(lerp(hipY + 1, fy, 0.45));
       pb.rect(mx - 2, my - 1, 3, 1, M.shortsAm.ramp[2]); pb.set(mx - 2, my, M.shortsAm.ramp[2]);
       pb.rect(mx + 1, my + 1, 2, 2, '#9ab4be'); pb.set(mx + 1, my + 1, '#cfe0e6');
     }, 95);
+    // r3-chars: rodillas de las mallas (brillo de rótula delante, pliegue detrás) y sombra bajo el dobladillo
+    R.stamp(pb0 => {
+      const pb = R3CHARS_maskPB(pb0, R, /^leg[FB]$/), LM = M.leggingsAm.ramp;
+      for (const [Lg, dk] of [[lf, 1], [lb, 0]]) {
+        const kx = Math.round(Lg.kx + legW * 0.55), ky = Math.round(Lg.ky);
+        pb.set(kx, ky, LM[Math.min(LM.length - 1, 4 - dk)]); pb.set(kx, ky + 1, LM[3 - dk]);
+        pb.set(Math.round(Lg.kx - legW * 0.6), ky + 1, LM[1]);
+      }
+    }, 95.5);
   },
   hair(R, o) {
     const M = charMats();
     const { hx, hy, rx, ry, pose } = o;
     const H = M.hairAm;
     // casquete + volumen trasero hasta la nuca
-    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.8, faceDX: -0.6, faceDY: -0.2, base: 3 });
+    HAIR2.cap(R, o, H, { grow: 0.8, sy: 0.95, faceR: 0.8 + (o.turn > 0.5 ? 0.04 : 0), faceDX: -0.6 - (o.turn > 0.5 ? 1.4 : 0), faceDY: -0.2, base: 3 });
     R.ellipse(hx - rx * 0.55, hy + 1, 5, 7.5, { mat: H, base: 3, z: 54, group: 'hair', bevel: 2.2 }, 0.25);
     // coleta alta voluminosa (r2-chars): abanico de 8 mechones que sube y cae, con movimiento secundario
     R2CHARS_pony(R, o, H, M.tieAm, pose);

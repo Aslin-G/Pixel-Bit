@@ -143,6 +143,26 @@ function scaledPB(pb, s) {
   };
 }
 
+/**
+ * r3-chars: fachada de PixelBuffer que solo pinta donde el z-buffer del rig pertenece a grupos que casan
+ * con re (costuras, bolsillos, hebillas…): los sellos de la ropa no atraviesan el brazo que pasa por
+ * delante (necesario con el reposo 3/4, donde los brazos cruzan el torso y la mochila).
+ */
+function R3CHARS_maskPB(pb, R, re) {
+  const zb = R.zbuf, parts = R.zparts;
+  if (!zb || pb.base) return pb;
+  const ok = (x, y) => { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= pb.w || y >= pb.h) return false; const p = zb[y * pb.w + x]; return p >= 0 && re.test(parts[p].group); };
+  const put = (x, y, c) => { if (ok(x, y)) pb.set(x, y, c); };
+  return {
+    w: pb.w, h: pb.h, data: pb.data, get: (x, y) => pb.get(x, y), set: put,
+    rect: (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c); },
+    hline: (x0, x1, y, c) => { if (x1 < x0) [x0, x1] = [x1, x0]; for (let x = x0; x <= x1; x++) put(x, y, c); },
+    vline: (x, y0, y1, c) => { if (y1 < y0) [y0, y1] = [y1, y0]; for (let y = y0; y <= y1; y++) put(x, y, c); },
+    line: (x0, y0, x1, y1, c) => { x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1); const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); for (let k = 0; k <= n; k++) put(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), c); },
+    stampMap: (x, y, rows, pal) => { x = Math.round(x); y = Math.round(y); rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const ch = r[i]; if (ch !== '.' && pal[ch]) put(x + i, y + j, pal[ch]); } }); },
+  };
+}
+
 /* ---------- Constructor de figuras ---------- */
 class Rig {
   /** o.v2 → pipeline de materiales del rediseño */
@@ -524,7 +544,7 @@ const MOUTH2 = {
 const FACE2 = {
   /** pb, o = {x, y, flip}, plantilla, tokens de color */
   eyeNear(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2[kind] || EYE2.open; pb.stampMap(x, y + T.oy, T.rows, pal); },
-  eyeFar(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2_FAR[kind] || EYE2_FAR.open; pb.stampMap(x, y - 1, T, pal); },
+  eyeFar(pb, x, y, kind, pal, set) { const T = (set && set[kind]) || EYE2_FAR[kind] || EYE2_FAR.open; if (T.rows) pb.stampMap(x, y + T.oy, T.rows, pal); else pb.stampMap(x, y - 1, T, pal); },
   brow(pb, x, y, kind, col) {
     // ceja cercana sobre el flequillo solo en estados intensos (x = inicio, y = fila de la pestaña)
     const c = U(col);
@@ -541,7 +561,8 @@ const FACE2 = {
    * lash, white, mouthInk, blush, browCol, lashFar}; skin = rampa de piel; exprName; pose.
    */
   draw(pb, A, exprName, D, pose, skin) {
-    const F = D.face || {};
+    // r3-chars: con el cuerpo girado 3/4 (pose.turn) la cara usa D.face.turn (ojo lejano visible, nariz hacia dentro)
+    const F = (pose.turn > 0.5 && D.face && D.face.turn) ? Object.assign({}, D.face, D.face.turn) : (D.face || {});
     const E = EXPR[exprName] || EXPR.neutral;
     const ex = Math.round(A.hx + (F.eyeX ?? 2)), ey = Math.round(A.hy + (F.eyeY ?? 0));
     const fx = Math.round(A.hx + (F.eye2X ?? 8)), mx = Math.round(A.hx + (F.mouthX ?? 6)), my = Math.round(A.hy + (F.mouthY ?? 7));
@@ -649,6 +670,14 @@ function poseFor(anim, t, ch) {
       // r3: solo el cuadro 4 (antes también el 5: ojos cerrados 1/6 del reposo además del parpadeo)
       p.blink = (t > 0.66 && t < 0.75);
       p.hair = { base: 0.05 + S(P - 0.9) * 0.06, amp: 0.16, P, lag: 0.55 }; p.pack = Math.round(S(P - 1.2) * 0.5 + 0.5);
+      if (ch.turn3q) {
+        // r3-chars: reposo girado 3/4 hacia cámara; peso en la pierna cercana (recta), la lejana relajada con
+        // la rodilla adelantada; brazos colgando a ambos lados del torso (antebrazos y guantes visibles)
+        p.turn = 1;
+        p.hipF = 0.03; p.kneeF = 0; p.hipB = 0.4; p.kneeB = -0.78; p.footB = 0.1;
+        p.shF = -0.34 + S(P) * 0.03; p.elF = 0.5 + S(P) * 0.03; p.shB = 0.12 - S(P) * 0.02; p.elB = 0.34;
+        p.lean = -0.015; p.headTilt = -0.02 + S(P) * 0.02;
+      }
       if (ch.idleStyle && R2CHARS_IDLE[ch.idleStyle]) R2CHARS_IDLE[ch.idleStyle](p, t, P, ch);
       break;
     }
@@ -729,6 +758,14 @@ function poseFor(anim, t, ch) {
       p.shF = 0.15 + Math.max(0, S(P)) * 0.9; p.elF = 0.6 + Math.max(0, S(P)) * 0.6; p.shB = -0.12; p.elB = 0.3;
       p.mouth = (Math.floor(t * 6) % 2) ? 'talk' : null; p.headTilt = S(P) * 0.03; p.bob = Math.round(S(P) * 0.5 + 0.5);
       p.hair.amp = 0.08;
+      if (ch.turn3q) {
+        // r3-chars: habla en 3/4; gesticula con el brazo lejano (delante del pecho, visible) y el cercano cuelga
+        const g = Math.max(0, S(P));
+        p.turn = 1; p.bob = 0; p.breath = Math.round(S(P) * 0.5 + 0.5);
+        p.hipF = 0.03; p.kneeF = 0; p.hipB = 0.34; p.kneeB = -0.66; p.footB = 0.08;
+        p.shF = -0.3; p.elF = 0.46; p.shB = 0.35 + g * 0.75; p.elB = 0.95 + g * 0.55; p.handB = 'open'; p.handF = 'open';
+        p.headTilt = -0.02 + S(P) * 0.03; p.hair = { base: 0.05, amp: 0.1, P, lag: 0.55 };
+      }
       break;
     }
     case 'celebrate': {
@@ -739,6 +776,17 @@ function poseFor(anim, t, ch) {
       break;
     }
     case 'frustrate': {
+      if (ch.turn3q) {
+        // r3-chars: frustración clara (distinta del reposo): hombros encogidos, cabeza hundida 2–3 px y
+        // sacudida, puños apretados tirados hacia abajo-atrás y pisotón con el pie cercano
+        const f = Math.floor(t * 6 + 1e-6), up = f === 1 || f === 2, stomp = f === 3;
+        p.turn = 1; p.slump = -1; p.headDY = 3; p.headDX = 0.6; p.headTilt = 0.14 + (f % 2 ? 0.05 : -0.05); p.lean = 0.12;
+        p.shF = -0.42; p.elF = 0.12; p.handF = 'fist'; p.shB = -0.28; p.elB = 0.14; p.handB = 'fist';
+        p.hipF = up ? 0.6 : 0.04; p.kneeF = up ? -1.1 : 0; p.hipB = 0.22; p.kneeB = -0.4;
+        p.bob = stomp ? 1 : 0; p.crouch = stomp ? 1 : 0; p.expr = 'frustrated';
+        p.hair = { base: stomp ? 0.5 : 0.1, amp: 0.2, P: P * 2, lag: 0.4 }; p.pack = stomp ? 1 : 0;
+        break;
+      }
       p.shF = 2.7; p.elF = 2.3 + S(P * 2) * 0.1; p.shB = 2.5; p.elB = 2.3; p.expr = 'frustrated'; p.headTilt = -0.06 + S(P * 2) * 0.05;
       p.bob = Math.round(Math.abs(S(P * 2))); p.hipF = Math.abs(S(P)) * 0.4; p.kneeF = -Math.abs(S(P)) * 0.6;
       p.hair = { base: 0, amp: 0.15, P: P * 2, lag: 0.4 };
@@ -779,6 +827,15 @@ function poseFor(anim, t, ch) {
     case 'sad': {
       p.shF = 0.05; p.elF = 0.1; p.shB = -0.05; p.elB = 0.1; p.expr = 'sad'; p.headTilt = 0.18; p.headDY = 1; p.lean = 0.05; p.bob = Math.round(S(P) * 0.5 + 0.5);
       p.hair = { base: 0.15, amp: 0.04, P, lag: 0.5 };
+      if (ch.turn3q) {
+        // r3-chars: tristeza legible: hombros hundidos 2 px, cabeza 3 px más baja e inclinada, brazos lacios,
+        // rodillas juntas y suspiro lento (el pecho sube y baja)
+        p.turn = 1; p.slump = 2; p.headDY = 1.5; p.headTilt = 0.24; p.headDX = 0.4; p.lean = 0.09; p.bob = 0;
+        p.breath = Math.round(S(P) * 0.5 + 0.5);
+        p.shF = -0.08; p.elF = 0.16; p.shB = 0.16; p.elB = 0.2; p.handF = 'open'; p.handB = 'open';
+        p.hipF = 0.04; p.kneeF = -0.05; p.hipB = 0.16; p.kneeB = -0.3;
+        p.hair = { base: 0.35, amp: 0.04, P, lag: 0.5 }; p.pack = 1;
+      }
       break;
     }
     case 'observe': {
@@ -859,7 +916,8 @@ function buildHumanoid(R, D, pose, opts = {}) {
   const waistY = hipY - D.pelvisH * sc;
   // respiración (r2-chars): el pecho y los hombros suben 1 px sin mover cadera ni pies
   const breath = pose.breath || 0;
-  const chestH = D.chestH * sc + breath;
+  // r3-chars: pose.slump (px) hunde los hombros y la cabeza con ellos (tristeza); negativo = hombros encogidos
+  const chestH = D.chestH * sc + breath - (pose.slump || 0);
   const shoulderY = waistY - chestH + 2;
   const lx = Math.sin(lean) * chestH;
   const neckX = cx + Math.sin(lean) * (chestH + 3) + (D.neckDX || 0);
@@ -870,37 +928,45 @@ function buildHumanoid(R, D, pose, opts = {}) {
   const M = D.mat;
   const skin = asMat(M.skin);
   R.anchors = { cx, hipY, waistY, chestY: waistY - chestH * 0.5, shoulderY, neckX, neckY, head: { x: hx, y: hy, rx: hrx, ry: hry, tilt: pose.headTilt }, lean, pose, footY };
+  // r3-chars: giro 3/4 hacia cámara (pose.turn ∈ [0,1], D.turnK lo atenúa): la cadera rota, la pierna
+  // cercana pasa atrás (izquierda) y la lejana delante (derecha, 1 px más alta: está más lejos)
+  const turn = clamp((pose.turn || 0) * (D.turnK ?? 1), 0, 1);
+  R.anchors.turn = turn;
   // ---- piernas
-  const hipFX = cx + 1.5 * sc, hipBX = cx - 1.5 * sc;
+  const hipFX = cx + 1.5 * sc - turn * 3.4 * sc, hipBX = cx - 1.5 * sc + turn * 4.4 * sc;
+  const footYB = footY - Math.round(turn);
   const lf = limb(hipFX, hipY + 1, pose.hipF, thigh, pose.kneeF, shin);
-  const lb = limb(hipBX, hipY + 1, pose.hipB, thigh, pose.kneeB, shin);
-  const clampFoot = (Lg) => { if (Lg.ey > footY) Lg.ey = footY; return Lg; };
-  clampFoot(lf); clampFoot(lb);
+  const lb = limb(hipBX, hipY + 1 - turn, pose.hipB, thigh, pose.kneeB, shin);
+  const clampFoot = (Lg, fy) => { if (Lg.ey > fy) Lg.ey = fy; return Lg; };
+  clampFoot(lf, footY); clampFoot(lb, footYB);
   R.anchors.legF = lf; R.anchors.legB = lb;
   const legW = D.legW * (D.wideLeg || 1);
   const legM = asMat(M.legs), shinM = asMat(M.shin || M.legs);
-  const leg = (Lg, hipX, z, grp, dark) => {
-    R.capsule(hipX, hipY + 1, Lg.kx, Lg.ky, legW, legW * 0.9, { mat: legM, base: 3, z, group: grp, dark, bevel: legW * 0.6 });
+  const leg = (Lg, hipX, z, grp, dark, fy, hy0) => {
+    R.capsule(hipX, hy0, Lg.kx, Lg.ky, legW, legW * 0.9, { mat: legM, base: 3, z, group: grp, dark, bevel: legW * 0.6 });
     R.capsule(Lg.kx, Lg.ky, Lg.ex, Lg.ey, legW * 0.88, legW * 0.72, { mat: shinM, base: 3, z: z + 0.5, group: grp, dark, bevel: legW * 0.6 });
-    bootPart(R, Lg, pose, D, z + 1, grp, dark, footY);
+    bootPart(R, Lg, pose, D, z + 1, grp, dark, fy);
   };
-  leg(lb, hipBX, 10, 'legB', 1);
-  leg(lf, hipFX, 40, 'legF', 0);
+  // girada, la pierna lejana queda delante y a la luz: menos oscura
+  leg(lb, hipBX, 10, 'legB', turn > 0.5 ? 0 : 1, footYB, hipY + 1 - turn);
+  leg(lf, hipFX, 40, 'legF', 0, footY, hipY + 1);
   if (D.legwear) D.legwear(R, { cx, hipY, waistY, lf, lb, hipFX, hipBX, pose, M, legW, sc });
   // ---- torso
-  const tw = D.torsoW * (D.wide || 1);
+  // girado 3/4 el torso se ve más ancho (pecho hacia cámara)
+  const tw = D.torsoW * (D.wide || 1) * (1 + 0.16 * turn);
   const torsoPts = [
     [cx - tw * 0.48 + lx * 0.95, shoulderY - 1], [cx + tw * 0.42 + lx, shoulderY - 0.5],
     [cx + tw * 0.5 + lx * 0.55 + (D.belly ? 2.5 : 0), waistY - chestH * 0.45], [cx + tw * 0.42 + lx * 0.15 + (D.belly ? 2 : 0), waistY],
     [cx + tw * 0.45, hipY + 2], [cx - tw * 0.5, hipY + 2], [cx - tw * 0.48 + lx * 0.4, waistY - chestH * 0.4],
   ];
-  const o = { cx, hipY, waistY, shoulderY, tw, lx, pose, M, torsoPts, lf, lb, chestH, sc, neckX, neckY, D };
+  const o = { cx, hipY, waistY, shoulderY, tw, lx, pose, M, torsoPts, lf, lb, chestH, sc, neckX, neckY, D, turn };
   if (D.torso) D.torso(R, o);
   else R.poly(torsoPts, { mat: asMat(M.top), base: 3, z: 30, group: 'torso', bevel: 3 });
   // cuello (el mentón proyecta sombra)
   R.capsule(neckX - 0.5, neckY + 3, hx - 1, hy + hry - 4, D.neckR || 2.8, D.neckR || 2.8, { mat: skin, base: 3, z: 29, group: 'neck', bevel: 1.5 });
   // ---- brazos
-  const shFX = cx + tw * 0.12 + lx, shBX = cx - tw * 0.16 + lx * 0.95;
+  // 3/4: el hombro cercano rota hacia atrás (izquierda) y el lejano asoma por el borde delantero del pecho
+  const shFX = cx + tw * (0.12 - 0.42 * turn) + lx, shBX = cx - tw * (0.16 - 0.6 * turn) + lx * 0.95;
   const armL1 = D.upperArm * sc, armL2 = D.foreArm * sc, aw = D.armW * (D.wideArm || 1);
   // estiramiento y encogimiento de hombro para poses de brazo en alto (la mano supera la cabeza)
   const kF = pose.armStretchF || 1, kB = pose.armStretchB || 1;
@@ -910,10 +976,12 @@ function buildHumanoid(R, D, pose, opts = {}) {
   af.sx = shFX; af.sy = syF; ab.sx = shBX; ab.sy = syB;
   R.anchors.armF = af; R.anchors.armB = ab;
   const sleeveM = asMat(M.sleeve || M.top), foreM = asMat(D.foreMat || M.sleeve || M.top);
-  const arm = (A, z, grp, dark, hand) => {
-    const upM = D.shortSleeve ? skin : sleeveM;
+  // zLow (opcional): antebrazo y mano en otro plano (brazo lejano girado: el hombro queda tras la
+  // chaqueta y el antebrazo cuelga libre delante del muslo); darkLow: su oscurecimiento
+  const arm = (A, z, grp, dark, hand, zLow, darkLow) => {
+    const upM = D.shortSleeve ? skin : sleeveM, zl = zLow ?? z, dl = darkLow ?? dark;
     R.capsule(A.sx, A.sy, A.kx, A.ky, aw, aw * 0.9, { mat: upM, base: 3, z, group: grp, dark, bevel: aw * 0.6 });
-    R.capsule(A.kx, A.ky, A.ex, A.ey, aw * 0.88, aw * 0.72, { mat: foreM, base: 3, z: z + 0.4, group: grp, dark, bevel: aw * 0.6 });
+    R.capsule(A.kx, A.ky, A.ex, A.ey, aw * 0.88, aw * 0.72, { mat: foreM, base: 3, z: zl + 0.4, group: grp, dark: dl, bevel: aw * 0.6 });
     if (D.shortSleeve) {
       // manga corta remangada: tubo de tela hasta medio brazo + puño claro de 2 px
       const k = D.shortSleeve, mx = lerp(A.sx, A.kx, k), my = lerp(A.sy, A.ky, k);
@@ -921,9 +989,10 @@ function buildHumanoid(R, D, pose, opts = {}) {
       const cx2 = lerp(A.sx, A.kx, k + 0.06), cy2 = lerp(A.sy, A.ky, k + 0.06);
       R.capsule(lerp(A.sx, A.kx, k - 0.12), lerp(A.sy, A.ky, k - 0.12), cx2, cy2, aw + 1.0, aw + 0.9, { mat: sleeveM, base: 4, z: z + 0.7, group: grp + 'cuff', dark, bevel: 0.8, lineIdx: 1 });
     }
-    handPart(R, A, hand, D, z + 1, grp, dark);
+    handPart(R, A, hand, D, zl + 1, grp, dl);
   };
-  arm(ab, 5, 'armB', 1, pose.handB);
+  if (turn > 0.5 && !pose.backHandFront && !pose.backHandZ) arm(ab, 29.2, 'armB', 1, pose.handB, pose.backArmZ ?? 44.5, 0);
+  else arm(ab, 5, 'armB', 1, pose.handB);
   // la mano lejana puede pasar delante de la cara (visera de 'observe')
   if (pose.backHandFront || pose.backHandZ) for (let k = R.parts.length - 1; k >= 0 && R.parts[k].group === 'armB'; k--) if (R.parts[k].z >= 6) { R.parts[k].z = pose.backHandZ || 81.5; R.parts[k].dark = 0; }
   // ---- cabeza
@@ -935,14 +1004,16 @@ function buildHumanoid(R, D, pose, opts = {}) {
   const jr = jaw === 'square' ? [0.62, 0.5, 0.35] : jaw === 'long' ? [0.55, 0.6, 0.3] : [0.6, 0.48, 0.3];
   R.ellipse(hx + hrx * jr[2], hy + hry * 0.42, hrx * jr[0], hry * jr[1], { mat: headM, base: 4, z: 51, group: 'head', bevel: 2.5, hiT: 0.8 }, tilt + 0.15);
   // nariz (pequeño saliente del perfil)
-  const nose = D.noseSize ?? 1;
-  if (nose > 0) R.capsule(hx + hrx - 1.2, hy + 1.5, hx + hrx + 0.2 + nose * 0.4, hy + 3.2 + nose * 0.3, 0.7 + nose * 0.15, 0.55, { mat: headM, base: 4, z: 51.5, group: 'head', bevel: 0.6 });
+  const nose = D.noseSize ?? 1, T3 = turn > 0.5 && D.face && D.face.turn ? D.face.turn : null;
+  // girada 3/4 la nariz entra en el contorno de la cara (noseIn) y la oreja se va hacia la nuca (earIn)
+  const nIn = T3 ? (T3.noseIn || 0) : 0;
+  if (nose > 0) R.capsule(hx + hrx - 1.2 - nIn, hy + 1.5, hx + hrx + 0.2 + nose * 0.4 - nIn, hy + 3.2 + nose * 0.3, 0.7 + nose * 0.15, 0.55, { mat: headM, base: 4, z: 51.5, group: 'head', bevel: 0.6 });
   // oreja
-  const earX = hx + (D.earDX ?? -hrx * 0.22), earY = hy + (D.earDY ?? 2);
+  const earX = hx + (D.earDX ?? -hrx * 0.22) - (T3 ? (T3.earIn || 0) : 0), earY = hy + (D.earDY ?? 2);
   R.ellipse(earX, earY, 2.1, 3, { mat: headM, base: 3, z: D.earZ ?? 52, group: 'ear', bevel: 1.2 });
   R.stamp((pb) => { const ex = Math.round(earX), ey = Math.round(earY); pb.set(ex, ey, headM.ramp[2]); pb.set(ex, ey + 1, headM.ramp[2]); pb.set(ex - 1, ey - 1, headM.ramp[3]); }, 60);
   // ---- pelo y accesorios de cabeza
-  const ho = { hx, hy, rx: hrx, ry: hry, pose, M, tilt, D };
+  const ho = { hx, hy, rx: hrx, ry: hry, pose, M, tilt, D, turn };
   if (D.hair) D.hair(R, ho);
   // ---- accesorios registrados (mochila, gafas, bolso, casco…)
   const A = Object.assign({}, o, { af, ab, hx, hy, hrx, hry, ho, footY });
@@ -1011,8 +1082,10 @@ function handPart(R, A, kind, D, z, group, dark) {
     R.box(hx, hy, r * k, r * k * 0.95, r * 0.5, { mat: glove, base: 4, z, group, bevel: 0.9, dark }, rot);
     // pulgar
     R.capsule(hx - uy * r * 0.5, hy + ux * r * 0.5, hx - uy * r * 0.7 + ux * r * 0.6, hy + ux * r * 0.7 + uy * r * 0.6, 0.75, 0.6, { mat: D.fingerless ? glove : glove, base: 4, z: z + 0.05, group, dark, bevel: 0.5 });
-    if (D.fingerless && kind !== 'fist') R.stamp(pb => { pb.set(Math.round(hx + ux * r * 0.9), Math.round(hy + uy * r * 0.9), skin.ramp[4 - dark]); }, 89);
-    if (D.fingerless && kind === 'fist') R.stamp(pb => { const fx = Math.round(hx + ux * r * 0.8 - uy * 0.6), fy = Math.round(hy + uy * r * 0.8 + ux * 0.6); pb.set(fx, fy, skin.ramp[4 - dark]); pb.set(Math.round(fx - uy), Math.round(fy + ux), skin.ramp[3 - dark]); }, 89);
+    // dedos al aire del guante sin dedos: solo dentro de la propia mano (r3: antes podía caer fuera y llevarse un contorno rojizo)
+    const gRe = new RegExp('^' + group + '$');
+    if (D.fingerless && kind !== 'fist') R.stamp(pb0 => { const pb = R3CHARS_maskPB(pb0, R, gRe); pb.set(Math.round(hx + ux * r * 0.6), Math.round(hy + uy * r * 0.6), skin.ramp[4 - dark]); }, 89);
+    if (D.fingerless && kind === 'fist') R.stamp(pb0 => { const pb = R3CHARS_maskPB(pb0, R, gRe); const fx = Math.round(hx + ux * r * 0.8 - uy * 0.6), fy = Math.round(hy + uy * r * 0.8 + ux * 0.6); pb.set(fx, fy, skin.ramp[4 - dark]); pb.set(Math.round(fx - uy), Math.round(fy + ux), skin.ramp[3 - dark]); }, 89);
   }
   if (D.wristBand) R.capsule(A.ex - ux * 1.2, A.ey - uy * 1.2, A.ex, A.ey, (D.armW || 2.6) * 0.82, (D.armW || 2.6) * 0.8, { mat: glove, base: 3, z: z - 0.05, group, dark, bevel: 0.7 });
   A.hx = hx; A.hy = hy;
@@ -1115,7 +1188,8 @@ const ACCESSORY = {
     const sx = A.cx - A.tw * 0.1 + A.lx, sy = A.shoulderY - 0.5;
     R.capsule(sx, sy, A.cx + A.tw * 0.32 + A.lx * 0.45, A.waistY - A.chestH * 0.22, 1.35, 1.2, { mat: strap, base: 3, z: 35, group: 'strap', bevel: 0.8, cast: { on: ['jacket', 'top', 'torso'], dx: -1, dy: 1 } });
     { const [tx, ty] = T(w * 0.45, -h * 0.8); R.capsule(tx, ty, sx - 0.5, sy + 1, 1.4, 1.3, { mat: strap, base: 4, z: 34, group: 'strap', bevel: 0.8 }); }
-    R.stamp(pb => {
+    R.stamp(pb0 => {
+      const pb = R3CHARS_maskPB(pb0, R, /^(pack|packPkt|flap|roll|handle|strap)/);
       // correa vertical de la solapa con hebilla dorada
       let [bx, by] = TR(-w * 0.35, -h * 0.2);
       pb.vline(bx, by - 1, by + 3, strap.ramp[2]); pb.vline(bx + 1, by - 1, by + 3, strap.ramp[4]);
