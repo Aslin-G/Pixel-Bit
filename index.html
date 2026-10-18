@@ -7256,12 +7256,24 @@ const PEYE = {
     iris: ['.RRR.', 'RDDDR', 'RDPPR', 'RDPPR', 'RDPPR', 'RMPMR', 'RMMMR', 'RLMLR', 'RLLLR', '.RlR.'],
     irisS: ['.RR.', 'RDDR', 'RDPR', 'RMMR', 'RLLR', '.Rl.'] },
 };
+/* r3 (r2-chars): ojo grande de la referencia para el retrato 96 (opt.geom = 'big'): ~1,4× más alto,
+   iris oscuro que llega al párpado inferior, brillo 3×3 y ceja más alta (browUp). lk escala los párpados
+   de las expresiones (medio cerrado, triste…) para que cubran la misma fracción del ojo. */
+const R2CHARS_PEYE_BIG = {
+  browUp: 4, blushDY: 1,
+  near: { W: 11, T: [-5, -7, -8, -8, -8, -8, -8, -8, -7, -6, -5], B: [3, 5, 6, 6, 7, 7, 7, 6, 6, 5, 3], ix: 0.5, iy: -7, hi: 3, lk: 1.4,
+    iris: ['..RRRRR..', '.RDDDDDR.', 'RDDDDDDDR', 'RDDPPPDDR', 'RDPPPPPDR', 'RDPPPPPDR', 'RDPPPPPDR', 'RMDPPPDMR', 'RMMPPPMMR', 'RMMMMMMMR', 'RLMMMMMLR', 'RLLMMMLLR', '.RLLLLLR.', '..RlllR..'],
+    irisS: ['.RRRRR.', 'RDDDDDR', 'RDDPDDR', 'RDPPPDR', 'RMDPDMR', 'RMMMMMR', 'RLMMMLR', 'RLLLLLR', '.RlllR.'] },
+  far: { W: 8, T: [-5, -7, -8, -8, -8, -7, -6, -5], B: [3, 5, 6, 7, 7, 6, 5, 3], ix: 0.5, iy: -7, hi: 2, lk: 1.4,
+    iris: ['.RRRR.', 'RDDDDR', 'RDDDDR', 'RDPPDR', 'RDPPPR', 'RDPPPR', 'RDPPPR', 'RMPPMR', 'RMPPMR', 'RMMMMR', 'RLMMLR', 'RLLLLR', '.RLLR.', '.RllR.'],
+    irisS: ['.RRR.', 'RDDDR', 'RDPDR', 'RMPMR', 'RMMMR', 'RLLLR', '.RlR.'] },
+};
 /**
  * Ojo 96. side 'near' (rabillo exterior a la izquierda) | 'far' (exterior a la derecha);
  * kind = forma del párpado; look = [dx, dy] en pantalla; pal = tokens → color.
  */
 function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
-  const G = PEYE[side], Wd = G.W;
+  const G = (opt.geom === 'big' ? R2CHARS_PEYE_BIG : PEYE)[side], Wd = G.W, lk = G.lk || 1;
   const flip = side === 'far';
   const half = Wd >> 1;
   const SX = (u) => flip ? cx + (Wd - 1 - half) - u : cx - half + u;
@@ -7279,7 +7291,7 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
   }
   // abertura: T[u] = fila de la pestaña (abre en T+1), B[u] = última fila abierta
   const T = G.T.slice().map(v => v + (opt.lidDrop || 0)), Bt = G.B.slice().map(v => v - (opt.lidUp || 0)), top = Math.min(...G.T) + (opt.lidDrop || 0);
-  const lid = (fn) => { for (let u = 0; u < Wd; u++) T[u] = Math.max(T[u], Math.round(fn(u / (Wd - 1)))); };
+  const lid = (fn) => { for (let u = 0; u < Wd; u++) T[u] = Math.max(T[u], Math.round(top + (fn(u / (Wd - 1)) - top) * lk)); };
   // forma propia del ojo de cada personaje (rasgo, no expresión): almendra, encapotado o rasgado
   const shp = opt.shape;
   if (shp === 'almond') for (let u = 0; u < Wd; u++) { const e = 1 - Math.sin(Math.PI * (u + 0.5) / Wd); T[u] += Math.round(e * 1.6); Bt[u] -= Math.round(0.6 + e * 0.8); }
@@ -7320,6 +7332,7 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
   let firstOpen = Infinity; for (let u = 0; u < Wd; u++) firstOpen = Math.min(firstOpen, T[u] + 1);
   const hx = ix0 + 1, hy = Math.max(iy0 + 2, cy + firstOpen + 1);
   hi(hx, hy); hi(hx + 1, hy); hi(hx, hy + 1); hi(hx + 1, hy + 1);
+  if (G.hi === 3) { hi(hx + 2, hy); hi(hx + 2, hy + 1); hi(hx, hy + 2); hi(hx + 1, hy + 2); hi(ix0 + iw - 3, iy0 + ih - 4); }
   hi(ix0 + iw - 2, iy0 + ih - 3);
   // pestaña superior 2 px (1 px en el lagrimal) con remate hacia arriba en el rabillo
   if (opt.male) {
@@ -7575,7 +7588,7 @@ PDEFS.amaya = () => {
   return {
     // r2-chars: iris castaño legible (pupila oscura, iris que aclara hacia abajo con ámbar)
     // r3: iris más oscuro (la referencia: ojos casi negros con brillo; el castaño claro dominaba la mitad baja)
-    M, iris: { R: '#120302', D: '#2a0c08', P: '#0c0201', M: '#4a1c0e', L: '#743818', l: '#b4683a' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
+    M, iris: { R: '#120302', D: '#2a0c08', P: '#0c0201', M: '#4a1c0e', L: '#743818', l: '#b4683a' }, white2: '#c8c4dc', browOverHair: true, browDY: 2, eyeOpt: { geom: 'big' },
     lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff6e66', blushAlways: 0.75, rimColor: '#ffc89a', rimK: 0.16,
     build(P, A) {
       // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
@@ -7724,6 +7737,7 @@ function stampHumanFace(base, scale, E, talk, blink) {
     };
     const k = Math.min(1.3, bl > 1 ? 1.3 : bl);
     if (sm) { cheek(enx - 0.5, eny + 4.5, 2.9, 1.5, k * 1.15); cheek(efx + 1.5, efy + 4.5, 1.6, 1.2, k * 0.9); }
+    else if (def.eyeOpt && def.eyeOpt.geom === 'big') { const bd = R2CHARS_PEYE_BIG.blushDY; cheek(enx - 2, eny + 9 + bd, 6.4 * (bl > 1 ? 1.15 : 1), 3, k); cheek(efx + 2.5, efy + 8.5 + bd, 3.4, 2.5, k * 0.85); }
     else { cheek(enx - 2, eny + 9, 6 * (bl > 1 ? 1.15 : 1), 3, k); cheek(efx + 2, efy + 8.5, 3.2, 2.5, k * 0.85); if (bl > 1) for (const dx of [-3, 0, 3]) { const x = enx - 2 + dx, y = eny + 8; if (isFace(x, y)) pb.set(x, y + (dx === 0 ? 0 : 1), pkMixU(pb.get(x, y), bcU, 0.9)); } }
   }
   // ojos
@@ -7740,9 +7754,9 @@ function stampHumanFace(base, scale, E, talk, blink) {
     drawPBrow(pb, enx - 3, enx + 2, eny + bdy, bk, bc, 1, canB);
     drawPBrow(pb, efx + 2, efx - 1, efy + bdy, bkF, bc, 1, canB);
   } else {
-    const bth = def.browStyle === 'thin' ? 1 : def.browThick || 2;
-    drawPBrow(pb, enx - 6, enx + 4, eny - 10 + (def.browDY || 0), bk, bc, bth, canB);
-    drawPBrow(pb, efx + 4, efx - 3, efy - 10 + (def.browDY || 0), bkF, bc, bth, canB);
+    const bth = def.browStyle === 'thin' ? 1 : def.browThick || 2, bup = eo.geom === 'big' ? R2CHARS_PEYE_BIG.browUp : 0;
+    drawPBrow(pb, enx - 6, enx + 4, eny - 10 - bup + (def.browDY || 0), bk, bc, bth, canB);
+    drawPBrow(pb, efx + 4, efx - 3, efy - 10 - bup + (def.browDY || 0), bkF, bc, bth, canB);
     if (def.browStyle === 'bushy') {
       // cejas pobladas: una fila más por encima en la parte interior y pelos sueltos
       const can2 = (x, y) => canB(x, y) && !(y % 3 === 0 && x % 2 === 0);
