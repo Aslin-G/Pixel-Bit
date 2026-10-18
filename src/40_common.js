@@ -200,7 +200,7 @@ function makeSim(def) {
       if (this.r2bg) R2MAP.drawSimLive(g, this.r2bg, this.t);
       // paneles con pozo interior, rejilla tenue y remaches (R2MAP) solo mientras dibuja el simulador
       const tex = !!this.r2bg && typeof R2MAP !== 'undefined';
-      if (tex) R2MAP.simPanels(true);
+      if (tex) R2MAP.simPanels(true, def.icon || 'flask');
       try { this.draw && this.draw(g); } finally { if (tex) R2MAP.simPanels(false); }
       this.ps.render(g);
       // cabecera: insignia + título en negrita + fase + puntos de fase + RA

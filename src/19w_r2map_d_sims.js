@@ -208,8 +208,9 @@
   /* ---------- textura de paneles durante el dibujo del simulador ---------- */
   const _tex = new Map();
   let _orig = null;
+  let _icon = null;
   function panelTex(w, h, style) {
-    const key = w + '|' + h + '|' + style;
+    const key = w + '|' + h + '|' + style + '|' + (_icon || '');
     let c = _tex.get(key); if (c) return c;
     c = makeCanvas(w, h); const g = c.g;
     const fx = 3, fy = 3, fw = w - 6, fh = h - 6;
@@ -226,10 +227,13 @@
     g.globalAlpha = 1;
     // remaches en las cuatro esquinas del pozo
     for (const [x, y] of [[fx + 3, fy + 3], [fx + fw - 5, fy + 3], [fx + 3, fy + fh - 5], [fx + fw - 5, fy + fh - 5]]) { g.fillStyle = '#000633'; g.fillRect(x, y, 2, 2); g.fillStyle = '#5a86c0'; g.fillRect(x, y, 1, 1); }
+    // marca de agua del sistema (icono grande del simulador) en la esquina inferior derecha de los paneles amplios
+    if (_icon && w >= 120 && h >= 64 && Icons.hasBig(_icon)) { g.globalAlpha = 0.1; g.drawImage(Icons.big(_icon), fx + fw - 30, fy + fh - 30); g.globalAlpha = 1; }
     _tex.set(key, c);
     return c;
   }
-  M.simPanels = function (on) {
+  M.simPanels = function (on, icon) {
+    _icon = icon || null;
     if (on && !_orig) {
       _orig = UIK.panel;
       UIK.panel = function (g, x, y, w, h, style = 'tech', accent = null, o = {}) {
