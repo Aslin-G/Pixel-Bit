@@ -42350,6 +42350,17 @@ function R2BB_L2front(pb, flow) {
   // macetas en el suelo (terracota) junto a los jardines
   A.planter(pb, 2470, fb + 2, 18, { kind: 'palm', seed: 21, ramp: R2BB_TERRA });
   A.planter(pb, 72, fb + 4, 14, { kind: 'agave', seed: 22, ramp: R2BB_TERRA });
+  // r3-int-a: más verde en la nave: potos que caen del canto de la sala de control y de la pasarela de los trenes,
+  // jardineras con plantas de hoja grande en los huecos del suelo y helechos al pie de los pilares
+  for (let x = 1424; x < 1650; x += 13 + ((x * 3) % 9)) R2BB_vine(pb, x, 222, 8 + ((x * 11) % 22), 7100 + x, { sway: 1.4 });
+  for (let x = 694; x < 1260; x += 23 + ((x * 7) % 15)) R2BB_vine(pb, x, 229, 6 + ((x * 13) % 16), 7200 + x, { sway: 1.2 });
+  for (const [x, w] of [[1404, 14], [1664, 16], [2268, 14], [2160, 14]]) {
+    const yb = fb + 4, T = PFK.P32(R2BB_TERRA);
+    A.castShadow(pb, x - 2, yb, w + 6, 6, -0.22);
+    for (let yy = 0; yy < 10; yy++) for (let xx = 0; xx < w; xx++) PFK.put(pb, x + xx, yb - yy, T[yy === 9 ? 6 : yy === 8 ? 5 : xx < 2 ? 5 : xx > w - 3 ? 1 : 3]);
+    PFFlora.bush(pb, x + (w >> 1), yb - 9, w + 10, 16, PFFlora.GLOSSY, 7300 + x, { density: 0.8 });
+    PFFlora.bigLeaf(pb, x + 2, yb - 12, -2.2, 9, 5, R2BB_LEAF, 3); PFFlora.bigLeaf(pb, x + w - 2, yb - 13, -0.9, 9, 5, R2BB_LEAF, 4);
+  }
   // conducto eléctrico amarillo desde el CCM hasta las bombas de alta presión (bajo la bandeja, código de color)
   const py = 124;
   I.pipe(pb, [[1448, py], [1418, py], [680, py], [680, 134], [356, 134], [356, 150]], 1, 'r2bbPower', { flange: 40 });
