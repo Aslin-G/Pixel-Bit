@@ -35,6 +35,8 @@ BIOMES.pvdunes = function (L) {
   });
   B.vdyn(0, (g) => { V.drawBloom(g, SUN.x, SUN.y, 60, '#fff6d0', 0.22, T()); V.drawGlow(g, SUN.x, SUN.y, 26, '#ffffff', 0.25); }, { tag: 'bloom' });
   B.cloudDeck({ kind: 'cirrus', n: 7, seed: 61, f: [0.01, 0.03], y: [8, 60], w: [80, 170], speed: [1, 2] });
+  // r2-biomes-a: cúmulos altos y lejanos (solo decorativos: f < 0,12 no entra en cloudShadowAt) para que el cielo no quede vacío
+  B.cloudDeck({ n: 4, seed: 73, f: [0.05, 0.09], y: [14, 54], w: [96, 170], bias: 0.6, speed: [1.5, 3], sunX: SUN.x });
   // cúmulos de buen tiempo que proyectan sombra sobre el campo (f ≥ 0,12)
   const shadeDeck = B.cloudDeck({ n: 6, seed: 67, f: [0.12, 0.22], y: [24, 92], w: [64, 132], bias: 0.7, speed: [3, 6], sunX: SUN.x });
   /** Sombra de nube en x de mundo (0..1): mismo criterio que Backdrop.cloudShadowAt, con las nubes VISTA */
@@ -114,8 +116,8 @@ BIOMES.pvdunes = function (L) {
   const terFx = { glints: [], leds: [] };
   P(0.2, 96, 92, (pb, w, h) => {
     const k = 0.08, r = RNG(141);
-    for (let x = 30 + r.int(0, 60); x < w - 120; x += r.int(380, 560)) {
-      const ww = r.int(220, 320), T = V.r2baPVTerraces(pb, { x0: x, x1: Math.min(w - 20, x + ww), yBase: h - 2, steps: r.int(4, 6), stepH: r.int(8, 10), depth: 4, runL: r.int(16, 26), runR: r.int(4, 10), seed: 143 + x, k });
+    for (let x = 10 + r.int(0, 40); x < w - 120; x += r.int(250, 340)) {
+      const ww = r.int(210, 300), T = V.r2baPVTerraces(pb, { x0: x, x1: Math.min(w - 20, x + ww), yBase: h - 2, steps: r.int(4, 6), stepH: r.int(8, 10), depth: 4, runL: r.int(16, 26), runR: r.int(4, 10), seed: 143 + x, k });
       terFx.glints.push(...T.glints);
       // caseta de inversores y poste en la cima de cada colina
       const cx = x + ww - 60, cy = T.top(cx) + 2; if (cy < h - 10) { const inv = V.inverter(pb, cx, cy + 6, { k, s: 0.7 }); terFx.leds.push([inv.led[0], inv.led[1], '#3fe0a0', 1.1]); }

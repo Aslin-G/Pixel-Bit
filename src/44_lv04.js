@@ -102,7 +102,7 @@ LEVELS[4] = {
     // altillo de repuestos (plataforma 1270/236) con módulos apilados y barandilla
     P.landing(pb, 1270, 236, 60, 278, { d: 6, railH: 24 });
     for (let k = 0; k < 4; k++) I.box3q(pb, 1276 + k * 2, 230 - k * 4, 34, 4, 6, { ramp: ['#0c1838', '#1b3366', '#335a98', '#6e98d0', '#d2d6dc'], skew: 0.7 });
-    const invs = [S.inverter(pb, 1196, 280, { label: 'INV-1' }), S.inverter(pb, 1230, 280, { label: 'INV-2' }), S.inverter(pb, 1282, 280, { w: 20, h: 28 }), S.inverter(pb, 1306, 280, { w: 20, h: 28, hot: true }), S.inverter(pb, 1342, 280, { label: 'INV-3' }), S.inverter(pb, 1376, 280, { label: 'INV-4' })];
+    const invs = [S.inverter(pb, 1196, 280, { label: 'INV-1', style: 'central', wear: 0.6 }), S.inverter(pb, 1232, 280, { label: 'INV-2', style: 'tall', brand: '#1a9a6a', wear: 0.3 }), S.inverter(pb, 1282, 280, { w: 20, h: 28, tint: 'sand', wear: 0.8 }), S.inverter(pb, 1306, 280, { w: 20, h: 28, hot: true, wear: 0.5 }), S.inverter(pb, 1342, 280, { label: 'INV-3', style: 'central', w: 28, brand: '#c8861a', wear: 0.2 }), S.inverter(pb, 1376, 280, { label: 'INV-4', style: 'tall', tint: 'white', wear: 0.5 })];
     for (const v of invs) { N.screens.push([...v.screen, '#3fe0a0']); N.leds.push({ x: v.led[0], y: v.led[1], col: '#3fe0a0', hz: 1, ph: v.led[0] * 0.1 }); }
     N.hot = invs[3].vent;
     // banco de trabajo y herramientas, módulo de repuesto apoyado, extintor
