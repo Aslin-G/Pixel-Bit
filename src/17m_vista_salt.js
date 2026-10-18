@@ -248,4 +248,276 @@
     }
     g.globalAlpha = 1;
   };
+
+  /* =================================================================
+     R2 (r2-biomes-a) — CAÑÓN ESCULPIDO EN 3/4
+     Sustituye las pilas de bloques lavanda por relieve sombreado:
+       VISTA.RAMPS.canyonR2 / canyonVegR2 / saltPanR2
+       VISTA.r2baMesaH(list, {seed, gully, soft}) → H(u,v) para VISTA.relief
+           list: [{x, v, w, d, h, step, p, wall0, tal}] mesetas estratificadas
+           (techo plano, paredes en escalones con repisa iluminada, cárcavas, talud)
+       VISTA.r2baHoodoo(pb, x, yb, h, r, seed, {k, ramp, veg}) → {top:[x,y]}
+           chimenea con sombrero de roca dura, estrangulamientos por estrato,
+           sombreado cilíndrico (luz arriba-izquierda), sombra arrojada a la derecha
+       VISTA.r2baPans(pb, {x0, x1, y0, rows, seed, k, surf}) → {glints, ponds}
+           salinas irregulares en terrazas (turquesa → verde → ámbar → coral → costra)
+       VISTA.r2baTufts(pb, surf, x0, x1, seed, {k, gap, ramp})   matas oscuras cada ~gap px
+     Las rampas evitan el magenta (tono 295–345°) salvo en emisivos de salmuera.
+     ================================================================= */
+  V.RAMPS.canyonR2 = ['#120c30', '#1c1242', '#2a1852', '#3c2062', '#52296c', '#6a3870', '#86506a', '#a8605e', '#c87a62', '#e29c6c', '#f6c080', '#ffe2a6'];
+  V.RAMPS.canyonVegR2 = ['#0a1424', '#102a36', '#18403e', '#225842', '#357046', '#4f8a4a', '#74a452', '#a0bc5e'];
+  V.RAMPS.saltPanR2 = [
+    ['#063a5a', '#0a6c8a', '#12a2b4', '#38d2d2', '#a6f4ec'],   // agua de mar: turquesa
+    ['#0a4a44', '#127a5e', '#22aa72', '#5ad48c', '#b4f2c0'],   // concentración media: verde
+    ['#3e4a12', '#6a7a1a', '#9aa82a', '#cad04a', '#f0f0a0'],   // algas: oliva
+    ['#6a3a0c', '#a8620e', '#e09422', '#f8c04a', '#fff0b0'],   // salmuera densa: ámbar
+    ['#6a1e22', '#a8382e', '#da5a40', '#f4886a', '#ffd0b8'],   // halobacterias: coral (no magenta)
+    ['#9a8aa8', '#c4b8cc', '#e4dcea', '#f6f2f8', '#ffffff'],   // cosecha: costra blanca
+  ];
+  /** Mesetas estratificadas: huella de superelipse deformada, techo plano, paredes escalonadas, talud */
+  V.r2baMesaH = function (list, o = {}) {
+    const seed = o.seed || 1, gully = o.gully ?? 0.14;
+    return (u, v) => {
+      let best = 0;
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i], dxu = u - m.x;
+        if (Math.abs(dxu) > m.w * 1.45) continue;
+        const gw = (V.ridged(u * 0.11 + i * 7.3, v * 0.04, 3, seed + i) - 0.45) * gully;
+        const wn = (fbm(u * 0.022, v * 0.07 + i * 3.1, 2, seed + 3 + i) - 0.5) * 0.34;
+        const a = Math.abs(dxu / m.w), b = Math.abs((v - m.v) / m.d), p = m.p || 3.2;
+        const r = Math.pow(Math.pow(a, p) + Math.pow(b, p), 1 / p) + wn + gw;
+        const w0 = m.wall0 ?? 0.74, tal = m.tal ?? 0.3, t0 = m.t0 ?? 0.2;
+        let hh = 0;
+        if (r < w0) hh = m.h + (fbm(u * 0.07, v * 0.18, 2, seed + 9 + i) - 0.5) * 3.2;
+        else if (r < 1) {
+          const e = (1 - r) / (1 - w0), hw = m.h * (t0 + (1 - t0) * Math.pow(e, 0.65));
+          const st = m.step || 9, off = (fbm(u * 0.035, i * 1.7, 2, seed + 21) - 0.5) * st * 0.9;
+          const q = (hw + off) / st, fl = Math.floor(q), s = q - fl;
+          hh = Math.min(m.h, (fl + Math.pow(s, 5)) * st - off);
+        } else if (r < 1 + tal) {
+          const e = 1 - (r - 1) / tal;
+          hh = m.h * t0 * Math.pow(e, 1.5) + (vnoise(u * 0.3, v * 0.5, seed + 31 + i) - 0.5) * 2.2 * e;
+        }
+        if (hh > best) best = hh;
+      }
+      return best;
+    };
+  };
+  /**
+   * VISTA.r2baRelief(pb, o): igual que VISTA.relief y además
+     o.strata {L:[min,max], seed, hard, soft, lip, under, warp, salt:{every, col, k}}  estratos por ALTURA
+       (bandas que envuelven cárcavas y espolones: canto superior claro, base socavada)
+     o.flatK   aclara las caras casi horizontales (techos y repisas iluminados desde arriba)
+     o.shadeHue color hacia el que se tiñen las caras en sombra (violeta) con o.shadeK
+   * Devuelve la misma info que VISTA.relief.
+   */
+  V.r2baRelief = function (pb, o) {
+    const w = pb.w, x0 = Math.max(0, o.x0 ?? 0), x1 = Math.min(w, o.x1 ?? w);
+    const nv = o.nv || 40, dvy = o.dvy ?? 0.45, yBase = o.yBase ?? pb.h - 1, H = o.H, kv = o.kv ?? 0.9;
+    const seed = o.seed || 1, tex = o.tex ?? 0.05;
+    const gw = x1 - x0 + 2;
+    const G = new Float32Array(gw * (nv + 2));
+    for (let v = -1; v <= nv; v++) for (let x = x0 - 1; x <= x1; x++) G[(v + 1) * gw + (x - x0 + 1)] = H(x, v);
+    const hAt = (x, v) => G[(clamp(v, -1, nv) + 1) * gw + (clamp(x, x0 - 1, x1) - x0 + 1)];
+    const nB = 4, ramps = [];
+    for (let b = 0; b < nB; b++) ramps.push(V.P32(o.haze ? V.hz(o.ramp, (o.haze.k0 || 0) + (o.haze.k || 0) * b / (nB - 1), o.haze.col) : o.ramp));
+    const n = o.ramp.length, L = o.light || V.LIGHT;
+    // tabla de estratos por altura
+    const S = o.strata, sT = [];
+    if (S) {
+      const rS = RNG(S.seed || seed + 77), Lr = S.L || [6, 11];
+      for (let h0 = 0, li = 0; h0 < 400; li++) { const th = rS.int(Lr[0], Lr[1]), hard = rS.chance(0.5); for (let q = 0; q < th; q++) sT.push([li, q, th, hard]); h0 += th; }
+    }
+    const SALT = S && S.salt ? U(S.salt.col || '#ffe0e8') : 0;
+    const strataDt = (hy, x) => {
+      const wq = S.warp ? Math.round((fbm1(x * 0.02, 2, seed + 5) - 0.5) * S.warp) : 0;
+      const e = sT[clamp(Math.round(hy) + wq + 20, 0, sT.length - 1)];
+      let dt = e[3] ? (S.hard ?? 0.05) : -(S.soft ?? 0.05);
+      if (e[1] === e[2] - 1) dt += (S.lip ?? 0.14); else if (e[1] === 0) dt -= (S.under ?? 0.12);
+      return [dt, e[0], e[1], e[2]];
+    };
+    const top = new Int16Array(w).fill(32767), surf = new Int16Array(w).fill(32767), veg = [];
+    const tAt = (x, v) => {
+      const h = hAt(x, v);
+      let dx = (hAt(x + 1, v) - hAt(x - 1, v)) * 0.5, dv = (hAt(x, v + 1) - hAt(x, v - 1)) * 0.5 * kv;
+      if (o.facet) { const q = o.facet, jx = (hash2((x / 3) | 0, v >> 1, seed + 5) - 0.5) * q * 0.6; dx = Math.round((dx + jx) / q) * q; dv = Math.round(dv / q) * q; }
+      const inv = 1 / Math.hypot(dx, dv, 1);
+      const I = (dx * -L[0] + dv * -L[1] * 0.9 + L[2]) * inv;
+      const avg = (hAt(x - 3, v) + hAt(x + 3, v) + hAt(x, v - 2) + hAt(x, v + 2)) * 0.25;
+      const cav = clamp((h - avg) * (o.cav ?? 0.06), -0.3, 0.3);
+      const hgt = o.hMax ? clamp(h / o.hMax, 0, 1) * (o.hgtK ?? 0.12) : 0;
+      const flat = o.flatK ? o.flatK * clamp(1 - Math.hypot(dx, dv) * 1.6, 0, 1) : 0;
+      return [clamp((o.t0 ?? 0.5) + (I - 0.62) * (o.contrast ?? 1.55) + cav + hgt + flat, 0, 0.999), dx, dv, h];
+    };
+    const SH = o.shadeHue ? U(o.shadeHue) : 0, shK = o.shadeK ?? 0.3;
+    for (let x = x0; x < x1; x++) {
+      let yt = Math.min(pb.h, Math.round(yBase) + 1);
+      for (let v = 0; v < nv; v++) {
+        const h = hAt(x, v);
+        if (h <= 0 && v > 0) continue;
+        const sy = Math.round(yBase - v * dvy - h);
+        if (sy >= yt) continue;
+        const [t, dx, dv] = tAt(x, v);
+        const R = ramps[Math.min(nB - 1, Math.floor(v / nv * nB))];
+        const y0 = Math.max(0, sy);
+        for (let y = y0; y < yt; y++) {
+          const j = (hash2((x / 2) | 0, (y / 2) | 0, seed + 3) - 0.5) * tex * 2;
+          let tt = t + j - (y - sy) * (o.spanDark ?? 0.012), sl = null;
+          if (S && h > 2) { sl = strataDt(h - (y - sy), x); tt += sl[0]; }
+          const k = V.band(clamp(tt, 0, 0.999), n, x, y, 0.05, seed);
+          let c = R[k];
+          if (SH && k < n * 0.45) c = V.mixU(c, SH, shK * (1 - k / (n * 0.45)));
+          if (sl && SALT && sl[1] % (S.salt.every || 5) === 2 && sl[2] > 0 && sl[2] < sl[3] - 1) c = V.mixU(c, SALT, S.salt.k ?? 0.3);
+          if (y < pb.h) pb.data[y * w + x] = c;
+        }
+        if (v === 0 || surf[x] === 32767) surf[x] = sy;
+        if (o.veg && Math.abs(dx) < (o.veg.maxSlope ?? 0.9) && dv > -0.2 && sy > (o.veg.minY ?? 0) && hash2(x, v, seed + 11) < (o.veg.density ?? 0.05)) veg.push([x, sy, t, v]);
+        yt = y0;
+      }
+      top[x] = yt;
+    }
+    if (o.rim) {
+      const RU = U(o.rim);
+      for (let x = x0 + 1; x < x1 - 1; x++) { const y = top[x]; if (y >= pb.h || y < 0) continue; if (top[x + 1] <= y || top[x - 1] > y) { const i = y * w + x; pb.data[i] = V.mixU(pb.data[i], RU, o.rimK ?? 0.6); } }
+    }
+    if (o.mist) {
+      const MU = U(o.mist.col), mh = o.mist.h || 12, mk = o.mist.k ?? 0.5;
+      for (let y = Math.max(0, Math.round(yBase - mh)); y <= Math.min(pb.h - 1, yBase); y++) { const k = mk * Math.pow(1 - (yBase - y) / mh, 1.4); for (let x = x0; x < x1; x++) { const i = y * w + x; if (pb.data[i] >>> 24) pb.data[i] = V.mixU(pb.data[i], MU, k); } }
+    }
+    if (o.veg && veg.length) {
+      const VR = V.P32(o.veg.ramp || V.hz(RAMP.foliageR, 0.3)), nv_ = VR.length, big = o.veg.size ?? 2.2;
+      for (const [x, y, t] of veg) {
+        const s = 1 + (hash2(x, y, 5) * big | 0), cy = y - Math.round(s * 0.4);
+        for (let yy = -s; yy <= s; yy++) for (let xx = -s - 1; xx <= s + 1; xx++) {
+          const d = (xx * xx) / ((s + 1) * (s + 1)) + (yy * yy) / (s * s + 0.5);
+          if (d > 1 || (d > 0.6 && hash2(x + xx, cy + yy, 7) < 0.35)) continue;
+          const px = x + xx, py = cy + yy + 1; if (px < 0 || px >= w || py < 0 || py >= pb.h) continue;
+          const sh = clamp(0.55 - xx / (s + 1) * 0.3 - yy / (s + 0.5) * 0.4 + (t - 0.5) * 0.3 + (hash2(px, py, 9) - 0.5) * 0.2, 0, 0.999);
+          pb.data[py * w + px] = VR[Math.floor(sh * nv_)];
+        }
+      }
+    }
+    const yAt = (x, v) => Math.round(yBase - v * dvy - hAt(x, v));
+    const visY = (x, v) => { const y = yAt(x, v); for (let q = 0; q < v; q++) if (yAt(x, q) <= y + 1) return null; return y; };
+    const onSurf = (x, v) => { for (let q = v; q >= 0; q--) { const y = visY(x, q); if (y != null && hAt(x, q) > 0.5) return y; } return null; };
+    return { top, surf, hAt, yAt, visY, onSurf };
+  };
+  /** Chimenea de hadas (hoodoo) esculpida en 3/4 */
+  V.r2baHoodoo = function (pb, x, yb, h, r0, seed, o = {}) {
+    const R = ramp(o.ramp || V.RAMPS.canyonR2, o.k), n = R.length, rr = RNG(seed);
+    const capH = Math.max(3, Math.round(h * rr.range(0.1, 0.15))), capR = r0 * rr.range(1.25, 1.6);
+    const lean = rr.range(-0.06, 0.06), ph = rr.range(0, 6);
+    const prof = new Float32Array(h + 1), hard = new Uint8Array(h + 1);
+    let acc = 0, layer = 0, lh = rr.int(3, 6);
+    for (let q = 0; q <= h; q++) {
+      if (++acc > lh) { acc = 0; layer++; lh = rr.int(3, 7); }
+      hard[q] = layer % 2;
+      const t = q / h;
+      let rad;
+      if (q >= h - capH) { const c = (q - (h - capH)) / capH; rad = capR * (1 - Math.pow(c, 2.4) * 0.55); }
+      else {
+        rad = r0 * (1.55 - t * 0.75) * (1 + (fbm1(q * 0.09 + ph, 3, seed) - 0.5) * 0.5);
+        if (q > h - capH - 4) rad *= 0.72 + 0.07 * (h - capH - q);
+        rad *= hard[q] ? 1.035 : 0.965;
+      }
+      prof[q] = Math.max(1, rad);
+    }
+    const WARM = U(V.hzc('#ffd8a0', o.k || 0)), SHV = U(V.hzc('#2a1852', o.k || 0));
+    // sombra arrojada sobre el suelo (derecha, banda sólida en el tono más oscuro)
+    const sl = Math.round(h * 0.5);
+    for (let q = 0; q < sl; q++) for (let yy = 0; yy < 2; yy++) { const px = Math.round(x + r0 + q), py = yb - yy + Math.round(q * 0.08); const c = V.get(pb, px, py); if (c >>> 24) V.put(pb, px, py, V.mixU(c, R[1], 0.5 * (1 - q / sl))); }
+    let topY = yb - h;
+    for (let q = 0; q <= h; q++) {
+      const rad = prof[q], y = yb - q, cx = x + lean * q + Math.sin(q * 0.08 + ph) * 0.8;
+      const dr = (prof[Math.min(h, q + 1)] - prof[Math.max(0, q - 1)]) * 0.5;
+      const isCapTop = q >= h - 1;
+      const aL = 1 + (fbm1(q * 0.11, 2, seed + 4) - 0.5) * 0.45, aR = 1 + (fbm1(q * 0.11, 2, seed + 8) - 0.5) * 0.45;
+      for (let xx = Math.floor(cx - rad * aL); xx <= Math.ceil(cx + rad * aR); xx++) {
+        const nx = (xx + 0.5 - cx) / (rad * (xx + 0.5 < cx ? aL : aR)); if (Math.abs(nx) > 1) continue;
+        const nz = Math.sqrt(Math.max(0, 1 - nx * nx)), ny = clamp(dr * 1.4, -0.9, 0.9);
+        const inv = 1 / Math.hypot(nx, ny, nz);
+        let I = (nx * -0.62 + ny * -0.48 + nz * 0.62) * inv;
+        if (q >= h - capH && q < h - capH + 2) I -= 0.25;                     // sombra bajo el borde del sombrero
+        if (!hard[q]) I -= 0.06;
+        let t = clamp(0.3 + I * 0.66 - (1 - q / h) * 0.12 + (hash2(Math.round(xx) >> 1, y >> 1, seed + 2) - 0.5) * 0.1 - (q >= h - capH ? 0.08 : 0), 0, 0.999);
+        let c = R[V.band(t, n, xx, y, 0.05, seed)];
+        if (t < 0.42) c = V.mixU(c, SHV, 0.35 * (1 - t / 0.42));
+        if (Math.abs(nx) > 0.9) c = R[clamp(Math.floor(t * (n - 1)) - 2, 0, n - 1)];  // sel-out con la propia rampa
+        if (isCapTop) c = V.mixU(R[n - 2], WARM, 0.5);
+        else if (hard[q] && !hard[Math.min(h, q + 1)] && nx < 0.3) c = V.mixU(c, WARM, 0.32);  // canto de estrato al sol
+        V.put(pb, Math.round(xx), y, c);
+      }
+    }
+    // cara superior del sombrero (elipse 3/4 iluminada)
+    const tcx = x + lean * h, tr = prof[h - 1] * 0.9;
+    for (let yy = -1; yy <= 1; yy++) for (let xx = Math.floor(-tr); xx <= tr; xx++) { const e = (xx * xx) / (tr * tr) + yy * yy; if (e > 1) continue; V.put(pb, Math.round(tcx + xx), yb - h - 1 + yy, V.mixU(R[n - 1], WARM, xx < 0 ? 0.6 : 0.25)); }
+    topY = yb - h - 2;
+    // talud de derrubios al pie (grumos)
+    for (let q = 0; q < r0 * 2 + 6; q++) { const px = Math.round(x - r0 - 3 + q), hh = Math.round((1 - Math.abs(q - r0 - 3) / (r0 + 3)) * 3); for (let yy = 0; yy < hh; yy++) V.put(pb, px, yb - yy, R[clamp(4 + (q < r0 + 3 ? 2 : 0) - yy + (hash2(px, yy, seed) < 0.3 ? -1 : 0), 0, n - 1)]); }
+    if (o.veg) V.r2baTufts(pb, (xx) => yb, x - r0 - 6, x + r0 + 8, seed + 5, { k: o.k, gap: 6 });
+    return { top: [Math.round(tcx), topY] };
+  };
+  /** Matas oscuras de matorral salino (2–4 px) con punta iluminada */
+  V.r2baTufts = function (pb, surf, x0, x1, seed, o = {}) {
+    const R = ramp(o.ramp || V.RAMPS.canyonVegR2, o.k), n = R.length, r = RNG(seed), gap = o.gap || 10;
+    for (let x = x0 + r.int(0, gap); x < x1; x += Math.max(2, Math.round(gap * r.range(0.5, 1.5)))) {
+      const y = surf(x); if (y == null || y < 0 || y >= pb.h) continue;
+      const s = r.int(1, o.big || 3);
+      for (let yy = -s; yy <= 0; yy++) for (let xx = -s - 1; xx <= s + 1; xx++) {
+        const d = (xx * xx) / ((s + 1.2) * (s + 1.2)) + (yy * yy) / ((s + 0.4) * (s + 0.4)); if (d > 1 || (d > 0.55 && hash2(x + xx, y + yy, seed) < 0.4)) continue;
+        const t = clamp(0.5 - xx / (s + 1) * 0.3 + yy / (s + 0.5) * 0.35 + (hash2(x + xx, y + yy, seed + 1) - 0.5) * 0.25, 0, 0.999);
+        V.put(pb, x + xx, y + yy, R[Math.floor(t * (n - 1))]);
+      }
+      if (r.chance(0.25)) { V.put(pb, x, y - s - 1, R[n - 1]); V.put(pb, x - 1, y - s, R[n - 2]); }
+    }
+  };
+  /**
+   * Salinas en mosaico (vista 3/4 rasante): filas de balsas cada vez más altas hacia el espectador,
+   * separadas por diques de 1 px con cara superior clara y sombra debajo; el grupo es un paralelogramo
+   * de bordes irregulares. El color de cada balsa sigue la concentración (izquierda → derecha:
+   * turquesa → verde → oliva → ámbar → coral → costra blanca), con ondas, reflejo del cielo y
+   * cristalización blanca en el borde. o: {x0, x1, y0, rows, seed, k, sky, skew}
+   */
+  V.r2baPans = function (pb, o) {
+    const r = RNG(o.seed || 5), k = o.k || 0, ponds = [], glints = [];
+    const BER = ramp(['#3a2c4e', '#5e4c70', '#8a7896', '#b8a6bc', '#dccede', '#f6eef4'], k), nB = BER.length;
+    const sky = U(V.hzc(o.sky || '#f8c8a0', k));
+    const STG = V.RAMPS.saltPanR2.map(s => ramp(s, k)), nS = STG.length;
+    const rows = o.rows || 4, skew = o.skew ?? 2;
+    let y = o.y0;
+    for (let row = 0; row < rows; row++) {
+      const ph = 3 + row + (row > 2 ? 1 : 0), sh = row * skew;
+      const xs = o.x0 - sh + r.int(-6, 6), xe = o.x1 - sh + r.int(-6, 6);
+      // dique trasero (línea clara continua) para toda la fila
+      for (let x = xs; x < xe; x++) V.put(pb, x, y, BER[nB - 2 - (hash2(x >> 2, row, 3) < 0.2 ? 1 : 0)]);
+      for (let x = xs; x < xe;) {
+        const pw = Math.round(r.int(8, 20) * (1 + row * 0.18));
+        const xb = Math.min(xe, x + pw);
+        const u0 = clamp((x - xs) / Math.max(1, xe - xs) + r.range(-0.18, 0.18), 0, 0.999);
+        const si = Math.min(nS - 1, Math.floor(u0 * nS)), C = STG[si];
+        for (let yy = 1; yy <= ph; yy++) for (let px = x + 1; px < xb; px++) {
+          let c;
+          if (yy === 1) c = C[0];                                                     // sombra del dique trasero
+          else {
+            const tt = yy / ph;
+            c = C[tt < 0.6 ? 2 : 1];
+            if ((yy + Math.floor(hash1(px >> 2, row * 7 + si) * 3)) % 3 === 0 && hash2(px >> 1, yy + row * 9, 6 + si) < 0.45) c = C[3];
+            if (((px * 3 + yy * 7 + row * 5) % 37) < 2) c = V.mixU(c, sky, 0.55);
+            if (si >= nS - 2 && hash2(px, yy + row * 13, 9) < 0.3) c = C[4];            // costra que cristaliza
+            else if ((yy === ph || px === x + 1) && hash2(px, yy, 11) < 0.35) c = C[4];
+          }
+          V.put(pb, px, y + yy, c);
+        }
+        // dique entre balsas (1 px claro) y su sombra
+        for (let yy = 1; yy <= ph; yy++) V.put(pb, x, y + yy, BER[nB - 3]);
+        ponds.push({ x, y, w: xb - x, h: ph, si });
+        if (si < nS - 1 && xb - x > 8) glints.push({ x: x + 2, y: y + 2 + (ph >> 1), len: xb - x - 4, ph: r.range(0, 1.6), sp: 0.12, col: '#fff0e0', w: 2 });
+        x = xb;
+      }
+      // dique delantero: cara superior clara + talud en sombra
+      for (let x = xs; x < xe; x++) { V.put(pb, x, y + ph + 1, BER[nB - 3]); V.put(pb, x, y + ph + 2, BER[1]); }
+      y += ph + 2;
+    }
+    return { ponds, glints, y1: y };
+  };
 })();
