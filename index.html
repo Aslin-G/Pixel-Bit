@@ -7340,8 +7340,11 @@ function drawPEye(pb, cx, cy, side, kind, look, pal, opt = {}) {
 const PEYE_MINI = {
   near: {
     // r2-chars: pestaña gruesa en arco + brillo en L arriba-izquierda del iris (como el HUD de la referencia)
-    open: ['.KKKK.', 'KKKKKK', '.whhDD', '.whPPD', '.wDPPD', '.wMPLD', '.wMLLD', '..ss..'],
-    look: ['.KKKK.', 'KKKKKK', '.wwhhD', '.wwhPD', '.wwDPD', '.wwMPD', '.wwMLD', '..ss..'],
+    // r3: el iris oscuro arranca justo bajo la pestaña (antes el blanco y el brillo arriba separaban la
+    // pestaña del iris y la pestaña se leía como una ceja gruesa sobre un ojo pequeño); brillo 2×2 dentro
+    // del iris, destello de 1 px abajo y blanco solo en el rabillo (ojo grande y oscuro de la referencia)
+    open: ['.KKKK.', 'KKKKKK', '.DhhDD', 'wDhhPD', 'wDPPPD', 'wMPPlD', '.MLLM.', '..ss..'],
+    look: ['.KKKK.', 'KKKKKK', '.wDhhD', 'wwDhhP', 'wwDPPD', 'wwMPlD', '..MLM.', '..ss..'],
     half: ['......', 'KKKKKK', '.whDD.', '.wDPD.', '.wMMD.', '..LL..'],
     soft: ['......', '......', 'KKKKK.', '.wMMD.', '..ss..', '......'],
     tired: ['......', '......', '......', 'KKKKKK', '.wMMD.', '.ssss.'],
@@ -7356,8 +7359,8 @@ const PEYE_MINI = {
     blink: ['......', '......', '......', '......', 'KKKKKK', '..ss..'],
   },
   far: {
-    open: ['.KKK.', 'KKKKK', 'whhDw', 'whPD.', 'wDPD.', 'wMPD.', 'wMLD.', '.ss..'],
-    look: ['.KKK.', 'KKKKK', 'wwhh.', 'wwhP.', 'wwDP.', 'wwMP.', 'wwML.', '.ss..'],
+    open: ['.KKK.', 'KKKKK', 'DhhD.', 'DhhPw', 'DPPDw', 'MPlDw', '.LM..', '.ss..'],
+    look: ['.KKK.', 'KKKKK', 'wDhh.', 'wDhhP', 'wDPPD', 'wMPlD', '.MLM.', '.ss..'],
     half: ['.....', 'KKKKK', 'whDD.', 'wDPD.', 'wMMD.', '.LL..'],
     soft: ['.....', '.....', 'KKKK.', 'wMMD.', '.ss..', '.....'],
     tired: ['.....', '.....', '.....', 'KKKKK', 'wMMD.', 'ssss.'],
@@ -7571,8 +7574,9 @@ PDEFS.amaya = () => {
   };
   return {
     // r2-chars: iris castaño legible (pupila oscura, iris que aclara hacia abajo con ámbar)
-    M, iris: { R: '#120302', D: '#32100a', P: '#0c0201', M: '#5e2610', L: '#985224', l: '#d88e4c' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
-    lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff7a6a', blushAlways: 0.5, rimColor: '#ffc89a', rimK: 0.16,
+    // r3: iris más oscuro (la referencia: ojos casi negros con brillo; el castaño claro dominaba la mitad baja)
+    M, iris: { R: '#120302', D: '#2a0c08', P: '#0c0201', M: '#4a1c0e', L: '#743818', l: '#b4683a' }, white2: '#c8c4dc', browOverHair: true, browDY: 2,
+    lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff6e66', blushAlways: 0.75, rimColor: '#ffc89a', rimK: 0.16,
     build(P, A) {
       // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
       P.box(10, 92, 14, 14, 3, { mat: M.pack, z: 4, group: 'pack', base: 3, bevel: 5 }, -0.1);
