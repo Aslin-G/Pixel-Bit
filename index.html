@@ -7742,6 +7742,31 @@ const PHAIR = {
     });
   },
 };
+/**
+ * r3-chars: textura de pelo en racimos de mechones (referencia c_hud): sectores angulares desde el
+ * remolino (o.whorl) de anchura variable; cada racimo se sombrea como un cilindro (surco oscuro → lado en
+ * sombra → base → lado iluminado → reflejo) y la banda de brillo («angel ring», o.ringC/ringR) solo
+ * aclara el lado iluminado de cada racimo. Devuelve índice de rampa (5–6 tonos visibles por mechón).
+ */
+function R3CHARS_hairClusters(M, o = {}) {
+  const wx = o.whorl, step = o.step ?? 0.2, n = M.hair.ramp.length;
+  const rc = o.ringC, rr = o.ringR || [20, 16], a0 = o.ring0 ?? -2.6, a1 = o.ring1 ?? -0.5, rw = o.ringW ?? 0.08;
+  return (x, y, idx) => {
+    const ang = Math.atan2(y - wx[1], x - wx[0]), dist = Math.hypot(x - wx[0], y - wx[1]);
+    // anchura de racimo variable (hash por sector) y leve ondulación a lo largo del mechón
+    const a = ang / step + Math.sin(dist * 0.18) * 0.18, cid = Math.floor(a), j = hash1(cid & 1023, 37);
+    const f = (a - cid) * (0.8 + j * 0.4) % 1;
+    let k = idx;
+    if (f < 0.1) k = idx - 2;            // surco entre racimos
+    else if (f < 0.3) k = idx - 1;       // lado en sombra
+    else if (f > 0.62 && f < 0.84) k = idx + 1; // lado iluminado
+    if (rc) {
+      const dx = (x - rc[0]) / rr[0], dy = (y - rc[1]) / rr[1], dr = Math.sqrt(dx * dx + dy * dy), ra = Math.atan2(dy, dx);
+      if (ra > a0 && ra < a1 && Math.abs(dr - 1) < rw * (0.8 + j * 0.5)) k = f > 0.5 ? idx + 3 : f > 0.25 ? idx + 2 : idx;
+    }
+    return Math.max(1, Math.min(n - 1, k));
+  };
+}
 const PH_BANG_GROUPS = ['hair', 'bang0', 'bang1', 'bang2', 'bang3', 'bang4', 'bang5', 'bang6', 'bang7', 'bang8', 'bang9', 'side0', 'side1', 'side2', 'side3', 'face'];
 
 /* =====================================================================
@@ -7760,7 +7785,8 @@ function pdef(id) {
 PDEFS.amaya = () => {
   const R = RAMP, C = RAMP_CH;
   const M = {
-    skin: PK.mat(R.skinAm, '#602316', R.skinAm[2]), hair: PK.mat(['#1c0503', '#33100a', '#4e1c10', '#6e2c18', '#8e4022', '#b05a30', '#d07c46', '#eaa064'], '#1a0405', '#33100a'),
+    // r3-chars: castaño rojizo más cálido y saturado (referencia c_hud): 8 tonos, brillos naranja melocotón
+    skin: PK.mat(R.skinAm, '#602316', R.skinAm[2]), hair: PK.mat(['#1c0503', '#3a1208', '#5a1e0c', '#7e3014', '#a2441c', '#c4602a', '#e08440', '#f4aa62'], '#1a0405', '#3a1208'),
     jacket: PK.mat(R.jacketAm, '#4b0706', R.jacketAm[2]), top: PK.mat(R.topAm, '#2a1a20', R.topAm[2]),
     pack: PK.mat(C.packSlateAm, '#0a0c1c', C.packSlateAm[1]), flap: PK.mat(C.flapAm, '#1e0a04', C.flapAm[1]), leather: PK.mat(R.leatherAm, '#1e0a04', R.leatherAm[1]),
     strap: PK.mat(C.strapNavy, '#070813', C.strapNavy[0]), frame: PK.mat(R.gogFrame, '#0e0a14', R.gogFrame[1]), lens: PK.mat(R.gogLens, '#06202e', R.gogLens[1]),
@@ -7769,7 +7795,7 @@ PDEFS.amaya = () => {
   return {
     // r2-chars: iris castaño legible (pupila oscura, iris que aclara hacia abajo con ámbar)
     // r3: iris más oscuro (la referencia: ojos casi negros con brillo; el castaño claro dominaba la mitad baja)
-    M, iris: { R: '#120302', D: '#2a0c08', P: '#0c0201', M: '#4a1c0e', L: '#743818', l: '#b4683a' }, white2: '#c8c4dc', browOverHair: true, browDY: 2, eyeOpt: { geom: 'big' },
+    M, iris: { R: '#120302', D: '#2a0c08', P: '#0c0201', M: '#4a1c0e', L: '#743818', l: '#b4683a' }, white2: '#c8c4dc', browOverHair: true, browDY: 2, eyeOpt: { geom: 'big' }, turn: 8,
     lash: '#1a0604', lashSoft: '#4a1a10', brow: '#2e0a05', mouthInk: '#5a160c', mouthIn: '#8a2a20', tongue: '#e0706a', blush: '#ff6e66', blushAlways: 0.75, rimColor: '#ffc89a', rimK: 0.16,
     build(P, A) {
       // mochila tras el hombro cercano (cuerpo de acero + solapa de cuero con hebilla y LED)
@@ -7782,7 +7808,7 @@ PDEFS.amaya = () => {
       }, 2);
       // coleta alta voluminosa: masa redonda + mechones curvos con puntas abajo-izquierda
       const sm = P.S < 1;
-      const ptx = PHAIR.tex(M, { whorl: [30, 17], step: sm ? 0.32 : 0.2, streak: !sm, ringC: [18, 26], ringR: [13, 14], ring0: -2.9, ring1: -1.2, ringW: 0.07 });
+      const ptx = R3CHARS_hairClusters(M, { whorl: [30, 17], step: sm ? 0.3 : 0.17, ringC: [18, 26], ringR: [13, 14], ring0: -2.9, ring1: -1.2, ringW: sm ? 0.1 : 0.08 });
       P.ellipse(18, 28, 15, 19, { mat: M.hair, z: 8, group: 'ponyM', base: 3, bevel: 8, shiny: true, tex: ptx }, 0.3);
       PHAIR.clumps(P, M, [
         [[30, 15], [20, 6], [9, 8], [2, 17], [0, 30], 8],
@@ -7816,12 +7842,12 @@ PDEFS.amaya = () => {
     hair(P, A) {
       const sm = P.S < 1;
       // casquete peinado hacia atrás (los mechones convergen en el lazo de la coleta)
-      const tx = PHAIR.tex(M, { whorl: [30, 17], step: sm ? 0.3 : 0.16, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: 0.06, streak: !sm });
+      const tx = R3CHARS_hairClusters(M, { whorl: [30, 17], step: sm ? 0.16 : 0.1, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: sm ? 0.09 : 0.07 });
       const mass = SDF.ellipse(58, 38, 30, 30), win = SDF.ellipse(64, 57, 25.5, 24.5);
       // borde frontal en dientes (puntas cortas del flequillo sobre la línea del pelo)
       const teeth = (x, y) => { const k = (x - 46) / 6.2; const ph = k - Math.floor(k); const tip = 35 + Math.abs(ph - 0.5) * -7 + (x > 70 ? (x - 70) * 0.35 : 0); return y - tip; };
       const capS = SDF.sub(mass, SDF.inter(win, (x, y) => (x > 44 && x < 86 ? -teeth(x, y) : -1)));
-      P.custom(capS, [26, 5, 92, 70], { mat: M.hair, z: 32, group: 'hair', base: 3, bevel: 8, shiny: true, hiT: 0.6, tex: tx, cast: { on: ['face', 'ear', 'neck'], dx: -1, dy: 3, k: 1 } });
+      P.custom(capS, [26, 5, 92, 70], { mat: M.hair, z: 32, group: 'hair', base: 3, bevel: 8, shiny: true, hiT: 0.55, tex: tx, cast: { on: ['face', 'ear', 'neck'], dx: -1, dy: 3, k: 1 } });
       // lazo amarillo de la coleta (con cuentas)
       P.ellipse(31, 17, 2.6, 6, { mat: M.tie, z: 34, group: 'tie', base: 4, bevel: 1.5, shiny: true }, 0.7);
       P.stamp((pb, c) => { if (c.S < 1) return; const X = c.X, Y = c.Y; for (const [x, y] of [[29, 20], [31, 17], [33, 14]]) pb.set(X(x), Y(y), C.tieAm[1]); }, 4);
@@ -7830,7 +7856,7 @@ PDEFS.amaya = () => {
         [[27, 10], [20, 3], [12, 1], 1.6], [[24, 24], [12, 30], [5, 40], 1.5], [[86, 30], [93, 38], [95, 46], 1.3],
       ], { z: 9.5, group: 'fly', base: 4, tex: null, cast: false, taper: 1, tip: 0.3 });
       // mechones que cruzan la frente (barrido hacia la izquierda) + mechones laterales largos
-      const btx = PHAIR.tex(M, { whorl: [66, 8], step: sm ? 0.32 : 0.22, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: 0.06, ringMin: 3, streak: !sm });
+      const btx = R3CHARS_hairClusters(M, { whorl: [66, 8], step: sm ? 0.3 : 0.2, ringC: [57, 31], ringR: [24, 17], ring0: -2.75, ring1: -0.45, ringW: sm ? 0.09 : 0.07 });
       // r2-chars: flequillo barrido en diagonal hacia el lado cercano (referencia), puntas que asoman sobre la frente
       PHAIR.clumps(P, M, sm ? [
         [[74, 23], [62, 31], [48, 41], 5.2],
@@ -7841,11 +7867,16 @@ PDEFS.amaya = () => {
         [[81, 24], [76, 31], [69, 38], 4],
         [[58, 23], [52, 28], [46, 32], 3.2],
         [[87, 27], [84, 34], [80, 40], 3],
-      ], { z: 40, group: 'bang', base: 3, tex: btx });
+      ], { z: 40, group: 'bang', base: 4, tex: btx });
       PHAIR.clumps(P, M, [
         [[80, 25], [86, 35], [88, 47], [89, 58], [86, 68], 4.8],
         [[84, 28], [91, 40], [94, 52], [93, 62], 3.4],
-      ], { z: 41, group: 'side', base: 3, tex: btx, taper: 1.2, castDy: 2 });
+      ], { z: 41, group: 'side', base: 4, tex: btx, taper: 1.2, castDy: 2 });
+      // r3-chars: mechón ondulado del lado cercano, delante de la oreja hasta la mandíbula (referencia c_hud)
+      PHAIR.clumps(P, M, sm ? [[[44, 30], [40, 40], [42, 50], [39, 58], 3.6]] : [
+        [[45, 29], [40, 38], [42, 47], [38, 55], [40, 62], 3.8],
+        [[48, 31], [45, 39], [47, 46], 2.4],
+      ], { z: 42, group: 'side', base: 4, tex: btx, taper: 1.1, castDy: 2 });
       // mechón de la sien cercana (detrás de la oreja) y nuca
       PHAIR.clumps(P, M, [
         [[43, 30], [38, 42], [36, 54], [38, 63], 4.2],
@@ -7902,7 +7933,9 @@ function stampHumanFace(base, scale, E, talk, blink) {
     h: '#ffffff', s: sk[2],
   };
   const sm = scale === 'B';
-  const ek = blink ? (E.eye === 'happy' ? 'happy' : 'blink') : E.eye;
+  // r3-chars: blink 2 = cuadro intermedio del parpadeo (párpado a media altura)
+  const halfOk = ['open', 'look', 'wide', 'worried', 'determined', 'angry'].includes(E.eye);
+  const ek = blink === 2 ? (halfOk ? 'half' : E.eye === 'happy' ? 'happy' : 'blink') : blink ? (E.eye === 'happy' ? 'happy' : 'blink') : E.eye;
   const enx = X(A.eyeN[0]), eny = Y(A.eyeN[1]), efx = X(A.eyeF[0]), efy = Y(A.eyeF[1]);
   const isFace = (x, y) => c.group(x, y) === 'face';
   // rubor (antes de los ojos): óvalo suave mezclado hacia el color de rubor, sin tramado
@@ -7993,10 +8026,11 @@ const Portraits = {
   },
   /** Retrato de diálogo 96×96 (transparente, sin marco) */
   get(id, expr = 'neutral', talk = 0, blink = false) {
-    const k = id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + (blink ? 1 : 0);
+    const bk = blink === 2 ? 2 : blink ? 1 : 0;
+    const k = id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + bk;
     let c = this.cache.get(k);
     if (c) return c;
-    c = this._make(id, expr, talk ? 1 : 0, !!blink, 'P').toCanvas();
+    c = this._make(id, expr, talk ? 1 : 0, bk === 2 ? 2 : !!bk, 'P').toCanvas();
     this.anchor(c, id, 'P');
     this.cache.set(k, c);
     if (this.cache.size > 400) this.cache.delete(this.cache.keys().next().value);
@@ -8004,10 +8038,11 @@ const Portraits = {
   },
   /** Busto del HUD 48×46 (re-rasterizado a escala 0,5 con plantillas propias) */
   bust(id, expr = 'smile', talk = 0, blink = false) {
-    const k = 'B|' + id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + (blink ? 1 : 0);
+    const bk = blink === 2 ? 2 : blink ? 1 : 0;
+    const k = 'B|' + id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + bk;
     let c = this.cache.get(k);
     if (c) return c;
-    c = this._make(id, expr, talk ? 1 : 0, !!blink, 'B').toCanvas();
+    c = this._make(id, expr, talk ? 1 : 0, bk === 2 ? 2 : !!bk, 'B').toCanvas();
     this.anchor(c, id, 'B');
     this.cache.set(k, c);
     if (this.cache.size > 400) this.cache.delete(this.cache.keys().next().value);
@@ -8022,6 +8057,21 @@ const Portraits = {
   },
   /** alias del análisis (02_personajes §5.5) */
   mini(id, expr) { return this.bust(id, expr); },
+  /**
+   * r3-chars: parpadeo vivo. Devuelve 0 (abierto), 2 (medio) o 1 (cerrado) para el retrato `key` en el
+   * instante t (s): un parpadeo cada 3–5 s (intervalo pseudoaleatorio estable por clave y ciclo) en 2
+   * cuadros: medio → cerrado → medio (≈ 0,2 s). Pásese como 4.º argumento de get()/bust().
+   */
+  blinkAt(key, t) {
+    let h = 7; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+    const ph = ((h >>> 0) % 1000) / 1000 * 4;
+    // bloques de 4 s con el parpadeo en [1,5 ; 2,5] s → intervalos entre parpadeos de 3 a 5 s
+    const tt = t + ph, c = Math.floor(tt / 4), d = tt - c * 4 - (1.5 + hash1((c + (h & 255)) & 1023, 53));
+    return d < 0 || d >= 0.2 ? 0 : d < 0.05 ? 2 : d < 0.15 ? 1 : 2;
+  },
+  /** r3-chars: expresión de «momento de guion» para el busto del HUD (id, expr, segundos); null la quita */
+  beat(id, expr, secs = 3) { this._beats = this._beats || {}; this._beats[id] = expr ? { expr, until: (typeof Game !== 'undefined' ? Game.time : 0) + secs } : null; },
+  beatOf(id) { const b = this._beats && this._beats[id]; return b && typeof Game !== 'undefined' && Game.time < b.until ? b.expr : null; },
   /** precalienta retratos frecuentes (llamar en carga de nivel) */
   warm(ids, exprs = ['neutral', 'smile']) { for (const id of ids) for (const e of exprs) { this.get(id, e, 0); this.get(id, e, 1); } },
 };
@@ -8936,6 +8986,52 @@ PDEFS.beta9 = () => {
     },
   };
 };
+
+/* =====================================================================
+   r3-chars — busto VIVO del HUD (los jueces: «el retrato del HUD no cambió
+   en 60 muestras»). UIK.hudPortraitBlock (06c_ui_widgets.js) compone y
+   cachea el marco con el busto estático; aquí se envuelve SIN tocar ese
+   fichero: tras dibujarlo, si toca parpadear, hablar o cambiar de gesto,
+   se re-dibuja el busto animado en la ventana 48×46 (mismo encaje).
+   · Parpadeo: Portraits.blinkAt('hud:<id>', Game.time) — cada 3–5 s, 2 cuadros.
+   · Boca: mientras el diálogo abierto (DialogueScene) teclea una línea de ese
+     personaje, la boca alterna a 9 Hz (igual que el retrato de diálogo).
+   · Gesto de guion: la expresión de la línea que dice (L.expr) sustituye a la
+     del HUD mientras habla; Portraits.beat(id, expr, s) fuerza un gesto durante
+     s segundos (API documentada; P.hudExpr de GameplayScene sigue funcionando).
+   ===================================================================== */
+const R3CHARS_HUD = {
+  /** {talk, expr} si la línea abierta del diálogo la dice `id`; si no, null */
+  speaking(id) {
+    try {
+      if (typeof Game === 'undefined' || typeof DialogueScene === 'undefined' || !Game.scenes) return null;
+      if (!Game.scenes.includes(DialogueScene)) return null;
+      const L = DialogueScene.lines && DialogueScene.lines[DialogueScene.i];
+      if (!L || L.who !== id) return null;
+      return { talk: !DialogueScene.done && !(DialogueScene.silence > 0) && (Math.floor(DialogueScene.t * 9) % 2 === 0), expr: L.expr || null };
+    } catch (e) { return null; }
+  },
+};
+if (typeof UIK !== 'undefined' && typeof UIK.hudPortraitBlock === 'function' && !UIK._r3charsLive) {
+  const R3CHARS_hudBase = UIK.hudPortraitBlock;
+  UIK._r3charsLive = true;
+  UIK.hudPortraitBlock = function (g, x = 4, y = 4, d = {}) {
+    const r = R3CHARS_hudBase.call(this, g, x, y, d);
+    try {
+      const id = d.id || 'amaya', base = d.expr || 'smile';
+      const sp = R3CHARS_HUD.speaking(id), beat = Portraits.beatOf(id);
+      const expr = (sp && sp.expr) || beat || base;
+      const talk = sp && sp.talk ? 1 : 0, blink = typeof Game !== 'undefined' ? Portraits.blinkAt('hud:' + id, Game.time) : 0;
+      if (expr !== base || talk || blink) {
+        const b = Portraits.bust(id, expr, talk, blink);
+        g.save(); g.beginPath(); g.rect(x + 3, y + 4, 48, 45); g.clip();
+        g.drawImage(b, x + 3 + Math.round((48 - b.width) / 2), y + 3 + (46 - b.height));
+        g.restore();
+      }
+    } catch (e) { /* el busto estático ya está dibujado */ }
+    return r;
+  };
+}
 
 /* ===== 15_tech.js ===== */
 /* =====================================================================
@@ -36679,7 +36775,8 @@ const DialogueScene = {
     let fw = 0;
     if (hasP) {
       const talking = !this.done && (Math.floor(this.t * 9) % 2 === 0);
-      const pc = Portraits.get(sp.portrait, L.expr || 'neutral', talking ? 1 : 0, (Math.floor(Game.time * 0.4) % 7 === 0) && (Game.time % 2.5) < 0.12);
+      // r3-chars: parpadeo cada 3–5 s en 2 cuadros (Portraits.blinkAt, 14_portraits.js)
+      const pc = Portraits.get(sp.portrait, L.expr || 'neutral', talking ? 1 : 0, Portraits.blinkAt ? Portraits.blinkAt('dlg:' + sp.portrait, Game.time) : false);
       const pw = pc.width, ph = pc.height;
       fw = pw + 8; const fh = ph + 8;
       const fx = side === 'left' ? 6 : W - 6 - fw, fy = H - 6 - fh;

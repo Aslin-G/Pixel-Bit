@@ -132,7 +132,8 @@ const DialogueScene = {
     let fw = 0;
     if (hasP) {
       const talking = !this.done && (Math.floor(this.t * 9) % 2 === 0);
-      const pc = Portraits.get(sp.portrait, L.expr || 'neutral', talking ? 1 : 0, (Math.floor(Game.time * 0.4) % 7 === 0) && (Game.time % 2.5) < 0.12);
+      // r3-chars: parpadeo cada 3–5 s en 2 cuadros (Portraits.blinkAt, 14_portraits.js)
+      const pc = Portraits.get(sp.portrait, L.expr || 'neutral', talking ? 1 : 0, Portraits.blinkAt ? Portraits.blinkAt('dlg:' + sp.portrait, Game.time) : false);
       const pw = pc.width, ph = pc.height;
       fw = pw + 8; const fh = ph + 8;
       const fx = side === 'left' ? 6 : W - 6 - fw, fy = H - 6 - fh;
