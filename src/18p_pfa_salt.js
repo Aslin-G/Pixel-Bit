@@ -411,6 +411,291 @@ const PFASalt = (() => {
     if (Math.floor(t * 2 + x) % 2) { fpx(g, x, yy - 11, col); PFK.drawGlow(g, x, yy - 11, 4, col, 0.5); }
   }
 
+  /* =====================================================================
+     r3-desert · DIORAMA SALINO DEL N3 (bandas inferiores)
+     r3sDiorama(pb, world, zones) pinta sobre la cara ya horneada, bajo el talud (d ≥ e1):
+       E  borde (dique de costra / repisa de roca) con labio cálido
+       T  terraza vista desde arriba (gy + e1 + GH … e2): salinas por etapas · repisa del cañón con
+          charcas de salmuera · marisma de salicornia y manglar · bahía en corte con emisario
+       C  corte frontal (d ≥ e2): estratos con cuevas de cristales de sal luminosos, rezumes de salmuera
+     zones = [{x0, x1, kind:'pans'|'ledge'|'dikes'|'marsh'|'bay'|'caves', …}]
+     Devuelve anclas dinámicas {cry:[[x,y,col]], seeps:[[x,y,w]], pans:[{x0,x1,y0,y1}], birds:[[x,y,f]],
+       plume:{x,y,x1,yb}, fish:[{x0,x1,y}], lamps:[[x,y,col,r]], spill:[[x,y,h]], grass:[[x,y,h]]}.
+     Paleta sin rosas/malvas (la guarda de tono del nivel los vira): coral, melocotón, lavanda azulada,
+     turquesa, verde y blanco de sal. Sin tramado.
+     ===================================================================== */
+  const R3S_ROCK = ['#1e0a1e', '#341230', '#461a3a', '#6e2c40', '#8e4248', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
+  const R3S_W = {
+    sea: ['#0c2a5a', '#14468a', '#1e6aa8', '#2a92c4', '#4ab8d8', '#8adcea', '#d8f6fa'],
+    tq: ['#0a3a4a', '#106070', '#18888e', '#2aaea6', '#56cab8', '#9ae4d0', '#e0fbf2'],
+    lav: ['#24286a', '#343a8a', '#4a52a8', '#6670c2', '#8a94d8', '#b8c0ec', '#e8ecfc'],
+    cor: ['#5a1a1a', '#8a2e2a', '#b44a3a', '#d66a4a', '#ec8c62', '#f8b48a', '#fde0c8'],
+  };
+  const R3S_CRY = ['#1a1450', '#2e2a8a', '#4c4ac0', '#7a7ae0', '#aab0f4', '#dce4ff', '#ffffff'];
+  const R3S_CYA = ['#06304a', '#0e5a7a', '#1a8eae', '#3ac2d8', '#7ee8f0', '#c4fbff', '#ffffff'];
+  const R3S_CAVE = ['#07040e', '#0c0618', '#140a24', '#1e1032', '#2a1840', '#382050'];
+  const R3S_MUD = ['#160c1c', '#24142a', '#361e38', '#4c2c44', '#663c4e', '#82525a', '#9c6a66', '#b4846e'];
+  const R3S_GH = 6, R3S_SH = U('#2a1040');
+  function r3sGeom(world) {
+    if (world._r3s) return world._r3s;
+    const wd = world.w + 1, gs = new Float32Array(wd), e1 = new Int16Array(wd), e2 = new Int16Array(wd);
+    for (let x = 0; x < wd; x++) { let a = 0, n = 0; for (let k = -28; k <= 28; k += 4) { const xx = clamp(x + k, 0, world.w); a += world.ground[xx]; n++; } gs[x] = a / n; }
+    for (let x = 0; x < wd; x++) {
+      const gy = world.ground[x], v = PFK.vn(x * 0.011, 0.4, 611);
+      e1[x] = Math.max(gy + 12, Math.round(gs[x] + 17 + (v - 0.5) * 6));
+      e2[x] = Math.round(e1[x] + R3S_GH + (world.h - e1[x]) * 0.5 + (PFK.vn(x * 0.007, 0.9, 613) - 0.5) * 8);
+    }
+    return (world._r3s = { e1, e2 });
+  }
+  function r3sAt(world, x) { const G = r3sGeom(world), i = clamp(Math.round(x), 0, world.w); return { gy: world.ground[i], e1: G.e1[i], top: G.e1[i] + R3S_GH, e2: G.e2[i] }; }
+  /** Sombra arrojada abajo-derecha (elipse violeta) */
+  function r3sShadow(pb, x, yb, rx, ry, k = 0.4) {
+    for (let yy = Math.round(yb - ry * 0.4); yy <= Math.round(yb + ry); yy++) for (let xx = Math.round(x - rx * 0.3); xx <= Math.round(x + rx * 1.7); xx++) {
+      const nx = (xx - (x + rx * 0.7)) / (rx * 1.05), ny = (yy - (yb + ry * 0.25)) / ry; if (nx * nx + ny * ny > 1) continue;
+      const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, R3S_SH, k * (1 - Math.max(0, nx) * 0.35)));
+    }
+  }
+  /** Racimo de cristales de sal: prismas con faceta iluminada (izq.), canto blanco, cara en sombra; halo horneado suave */
+  function r3sCrystals(pb, x, yb, h, seed = 1, ramp = R3S_CRY, glow = true) {
+    const C = P32(ramp), r = RNG(seed), n = 3 + r.int(0, 3), out = [];
+    if (glow) for (let yy = yb - h - 6; yy < yb + 3; yy++) for (let xx = x - h; xx < x + h; xx++) { const d = Math.hypot((xx - x) / h, (yy - yb + h * 0.5) / (h * 0.8)); if (d > 1) continue; const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, C[4], (1 - d) * 0.32)); }
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n - 0.5, cx = Math.round(x + t * h * 0.9 + r.int(-1, 1)), ch = Math.round(h * (0.45 + (1 - Math.abs(t) * 1.6) * 0.5 + r() * 0.15)), cw = 2 + r.int(0, 2), lean = t * 0.5;
+      for (let k = 0; k < ch; k++) for (let q = 0; q < cw; q++) {
+        const tip = k > ch - cw; if (tip && Math.abs(q - (cw - 1) / 2) > (ch - k) * 0.6) continue;
+        const xx = Math.round(cx + q + lean * k), yy = yb - k;
+        put(pb, xx, yy, C[clamp(q === 0 ? 5 : q === cw - 1 ? 2 : 4 - (k % 5 === 0 ? 1 : 0) + (tip ? 2 : 0), 0, 6)]);
+      }
+      out.push([Math.round(cx + lean * ch), yb - ch]);
+    }
+    return out;
+  }
+  /** Salina (estanque de evaporación) vista desde arriba en 3/4: dique de costra, lámina por etapa y reflejo del cielo */
+  function r3sPan(pb, x0, x1, y0, y1, stage, seed = 1) {
+    const Wt = P32(stage === 0 ? R3S_W.sea : stage === 1 ? R3S_W.tq : stage === 2 ? R3S_W.lav : R3S_W.cor), Sl = P32(SALT), r = RNG(seed);
+    const sk = 0.35, h = y1 - y0;
+    for (let y = y0; y < y1; y++) {
+      const off = Math.round((y1 - y) * sk), a = x0 + off, b = x1 + off, v = (y - y0) / h;
+      for (let x = a; x < b; x++) {
+        const ex = Math.min(x - a, b - 1 - x), ey = Math.min(y - y0, y1 - 1 - y);
+        let c;
+        if (ey === 0 && y === y0) c = Sl[8]; else if (ey === 0) c = Sl[2];
+        else if (ex <= 1) c = Sl[ex === 0 ? (x === a ? 7 : 3) : 5];
+        else if (y === y0 + 1) c = Sl[6];
+        else if (stage === 4) { const cr = PFK.cl(x, y, 3, 621 + seed); c = Sl[clamp(6 + Math.round((cr - 0.5) * 2) + (hash2(x >> 1, y, 623) < 0.08 ? -2 : 0), 3, 8)]; }
+        else {
+          let k = 2 + Math.round(v * 2.4 + (PFK.cl(x, y, 3, 625 + seed) - 0.5) * 0.9);
+          if (y === y0 + 2) k = 1;                                                                               // sombra del dique trasero
+          const rf = ((x - a) * 0.5 + y * 1.3 + seed * 7) % 23; if (rf < 1.2 && v > 0.25) k += 2;              // reflejo del cielo en franjas
+          if (stage === 3 && hash2(x >> 1, y >> 1, 627 + seed) < 0.06) { c = Sl[7]; put(pb, x, y, c); continue; } // balsas de cristales flotando
+          c = Wt[clamp(k, 0, 6)];
+        }
+        put(pb, x, y, c);
+      }
+    }
+    // costra en el borde de la lámina (la sal precipita en la orilla)
+    if (stage >= 2) for (let y = y0 + 2; y < y1 - 1; y++) { const off = Math.round((y1 - y) * sk); put(pb, x0 + off + 2, y, Sl[7]); if (r() < 0.5) put(pb, x0 + off + 3, y, Sl[6]); }
+    return { x0, x1, y0, y1, sk };
+  }
+  /** Casa de bombas en 3/4: muro encalado, lateral violeta, tejado de teja con plano visible y labio cálido */
+  function r3sPumpHouse(pb, x, yb, w = 30, h = 20, o = {}) {
+    const Wl = P32(A.WHITE), RF = P32(['#3a1410', '#5e2218', '#8a3422', '#b44a2e', '#d86a3e', '#f08e58', '#fbc371']), d = 9, sk = 0.7, dx = Math.round(d * sk);
+    r3sShadow(pb, x + w * 0.6, yb + 1, w * 0.6, 6, 0.42);
+    I.box3q(pb, x, yb, w, h, d, { ramp: A.WHITE, skew: sk,
+      side: (xx, yy, u, v) => K.mixU(Wl[clamp(4 - Math.round(v * 1.5), 1, 6)], U('#4a2a6a'), 0.45),
+      front: (xx, yy, u, v) => { const lx = xx - x, ly = yy - (yb - h); if (lx === 0) return U('#fbc371'); if (ly < 3) return K.mixU(Wl[5], U('#24183e'), 0.42 - ly * 0.1); if (ly > h - 3) return Wl[3]; return Wl[clamp(6 - (PFK.cl(xx, yy, 3, 631) < 0.08 ? 1 : 0) - (lx > w - 3 ? 1 : 0), 0, 7)]; } });
+    // tejado a un agua con plano visible (teja) y alero
+    const ry = yb - h;
+    for (let r = 0; r < d + 3; r++) { const off = Math.round(r * sk) - 2; for (let xx = x - 2 + off; xx < x + w + 2 + off; xx++) put(pb, xx, ry - r, r === d + 2 ? RF[6] : ((xx - off) % 4 === 0) ? RF[2] : RF[r < 2 ? 3 : 4 + ((r >> 1) & 1)]); }
+    for (let xx = x - 2; xx < x + w + 2; xx++) { put(pb, xx, ry + 1, RF[1]); put(pb, xx - 2, ry, RF[6]); }
+    for (let r = 0; r < d + 3; r++) put(pb, x - 2 + Math.round(r * sk) - 2, ry - r, RF[6]);
+    // puerta, ventanuco con luz, tubería de salida y placa
+    for (let yy = yb - 12; yy < yb; yy++) for (let xx = x + 4; xx < x + 11; xx++) put(pb, xx, yy, (xx === x + 4 || yy === yb - 12) ? Wl[1] : U(((xx - x) % 3) ? '#4a2a1a' : '#6e4226'));
+    for (let yy = yb - h + 5; yy < yb - h + 9; yy++) for (let xx = x + w - 10; xx < x + w - 4; xx++) put(pb, xx, yy, U(yy === yb - h + 5 ? '#ffe8a0' : '#f0b860'));
+    if (o.label) K.text(pb, o.label, x + 13, yb - 11, U('#2a1c3a'), { font: 'tiny' });
+    return { lamp: [x + w - 7, yb - h + 7], door: [x + 7, yb - 6] };
+  }
+  /** Compuerta (tajadera) entre salinas: marco de hormigón, tablero de acero medio alzado, volante y chorro */
+  function r3sSluice(pb, x, yb, w = 10) {
+    const C = P32(PFTerrain.CONC), St = P32(I.STEEL);
+    for (const px of [x, x + w]) { for (let yy = yb - 16; yy < yb + 2; yy++) { put(pb, px, yy, C[6]); put(pb, px + 1, yy, C[3]); } }
+    for (let xx = x; xx <= x + w + 1; xx++) { put(pb, xx, yb - 17, C[7]); put(pb, xx, yb - 16, C[4]); }
+    for (let yy = yb - 14; yy < yb - 6; yy++) for (let xx = x + 2; xx < x + w; xx++) put(pb, xx, yy, St[(xx === x + 2) ? 6 : (yy % 3 === 0) ? 2 : 4]);
+    K.ellipseFn(pb, x + w / 2 + 1, yb - 20, 3, 2, (nx, ny, dd) => dd > 0.6 ? U('#c8562a') : 0);
+    for (let yy = yb - 22; yy < yb - 17; yy++) put(pb, x + Math.round(w / 2) + 1, yy, St[3]);
+    return [x + 2, yb - 6, w - 2];
+  }
+  /** Cueva de sal en el corte: boca irregular, interior oscuro con fondo de luz violeta, cristales luminosos y charca de salmuera */
+  function r3sCave(pb, cx, cy, rw, rh, seed = 1) {
+    const r = RNG(seed), CV = P32(R3S_CAVE), out = { cry: [], seep: null };
+    const rad = (a) => 1 + (PFK.vn(Math.cos(a) * 2 + seed, Math.sin(a) * 2, 641) - 0.5) * 0.5;
+    for (let yy = Math.round(cy - rh * 1.4); yy <= Math.round(cy + rh * 0.9); yy++) for (let xx = Math.round(cx - rw * 1.4); xx <= Math.round(cx + rw * 1.4); xx++) {
+      const nx = (xx - cx) / rw, ny = (yy - cy) / rh, a = Math.atan2(ny, nx), d = Math.hypot(nx, ny) / rad(a);
+      if (ny > 0.7) continue;                                                                                    // suelo plano de la cueva
+      if (d > 1.08) continue;
+      if (d > 1) { const c = get(pb, xx, yy); put(pb, xx, yy, ny < 0 ? K.mixU(c, U('#fde0c8'), 0.45) : K.mixU(c, U('#140818'), 0.5)); continue; }  // labio: arriba claro, abajo oscuro
+      const depth = 1 - d, glow = Math.max(0, 1 - Math.hypot(nx * 0.8, (ny - 0.5) * 1.4));
+      put(pb, xx, yy, K.mixU(CV[clamp(Math.round(1 + depth * 3 - (ny < -0.3 ? 1 : 0)), 0, 5)], U('#6a5ad8'), glow * 0.45));
+    }
+    // estalactitas de sal en el techo
+    for (let i = 0; i < Math.round(rw / 3); i++) { const sx = Math.round(cx - rw * 0.8 + r() * rw * 1.6), top = Math.round(cy - rh * 0.95 * Math.sqrt(Math.max(0, 1 - ((sx - cx) / rw) ** 2))), L = 2 + r.int(0, 5); for (let k = 0; k < L; k++) put(pb, sx, top + k, U(k === L - 1 ? '#ffffff' : '#c8d0f4')); }
+    // charca de salmuera luminosa en el suelo
+    const py = Math.round(cy + rh * 0.62), pw = Math.round(rw * 1.1);
+    for (let xx = Math.round(cx - pw / 2); xx < Math.round(cx + pw / 2); xx++) { const e = Math.min(xx - (cx - pw / 2), cx + pw / 2 - xx); put(pb, xx, py, U(e < 2 ? '#b8c0ec' : '#7ee8f0')); put(pb, xx, py + 1, U(e < 2 ? '#4a52a8' : '#3ac2d8')); if (e > 2 && (xx % 5 === 0)) put(pb, xx, py, U('#ffffff')); }
+    out.seep = [Math.round(cx - pw / 2), py, pw];
+    // cristales en el suelo y las paredes
+    const n = 2 + r.int(0, 2);
+    for (let i = 0; i < n; i++) { const t = (i + 0.5) / n - 0.5, x = Math.round(cx + t * rw * 1.4), h = Math.round(rh * (0.5 + r() * 0.5)); const ramp = i % 3 === 1 ? R3S_CYA : R3S_CRY; out.cry.push(...r3sCrystals(pb, x, py - 1, h, seed * 7 + i, ramp).map(p => [p[0], p[1], ramp === R3S_CYA ? '#7ee8f0' : '#aab0f4'])); }
+    return out;
+  }
+  /** Banda de pasto salado / salicornia densa a lo largo de una línea (un grupo cada ~gap px) */
+  function r3sMarsh(pb, x0, x1, yf, gap = 9, seed = 1) {
+    const r = RNG(seed);
+    for (let x = x0 + r.int(0, gap); x < x1; x += Math.round(gap * (0.6 + r() * 0.8))) {
+      const y = Math.round(yf(x)), k = r();
+      if (k < 0.5) salicornia(pb, x, y, 10 + r.int(0, 8), x * 3 + seed);
+      else if (k < 0.8) PFFlora.tuft(pb, x, y, 7, 6 + r.int(0, 4), x + seed, PFFlora.DRY, { wind: 1 });
+      else PFFlora.cluster(pb, x, y - 3, 4, 3, ['#1a2a10', '#2e4a1a', '#4a6a22', '#6a8a2e', '#94b040', '#c4d670'], x + seed, { leaf: [2, 3], density: 0.8 });
+    }
+  }
+  /** Diorama completo (ver cabecera de la sección) */
+  function r3sDiorama(pb, world, zones) {
+    const G = r3sGeom(world), Rk = P32(R3S_ROCK), Sl = P32(SALT), M = P32(R3S_MUD), FA = { cry: [], seeps: [], pans: [], birds: [], fish: [], lamps: [], spill: [], plume: null, glints: [] };
+    const zoneAt = (x) => zones.find(z => x >= z.x0 && x < z.x1) || zones[zones.length - 1];
+    const H_ = world.h;
+    /* --- 1. borde, terraza y corte por columnas --- */
+    for (let x = 0; x <= world.w && x < pb.w; x++) {
+      const z = zoneAt(x), e1 = G.e1[x], top = e1 + R3S_GH, e2 = G.e2[x];
+      for (let y = e1; y < H_ && y < pb.h; y++) {
+        let c;
+        if (z.kind === 'bay' && y >= z.wl) {                                                                      // bahía en corte: agua con degradado y fondo arenoso
+          const sb = z.bed + Math.round((PFK.vn(x * 0.02, 0, 651) - 0.5) * 10 + Math.sin(x * 0.03) * 2);
+          const hd = z.x0 + 40 + Math.round((y - z.wl) * 0.9 + (PFK.vn(y * 0.1, 2, 657) - 0.5) * 8);              // cabo rocoso que entra en el agua
+          if (x < hd) { put(pb, x, y, Rk[clamp(5 - Math.round((y - z.wl) / 14) + Math.round((PFK.cl(x, y, 3, 659) - 0.5) * 1.6) + (x === hd - 1 ? -2 : 0) + (hash2(x >> 1, y >> 1, 661) < 0.05 ? 2 : 0), 0, 8)]); continue; }
+          if (y === z.wl) c = U(((x + Math.floor(x / 7)) % 9) < 2 ? '#ffffff' : '#9ae4f0');
+          else if (y < sb) {
+            const v = (y - z.wl) / Math.max(1, sb - z.wl), Wt = P32(R3S_W.sea);
+            let k = 5.4 - v * 4.6 + (PFK.cl(x, y, 4, 653) - 0.5) * 0.6;
+            const sh = ((x + (y - z.wl) * 0.55) % 90 + 90) % 90; if (sh < 14) k += 0.9 * (1 - v) * Math.sin(sh / 14 * Math.PI);   // haces de luz oblicuos
+            c = Wt[clamp(Math.round(k), 0, 6)]; if (v < 0.3 && ((x * 0.4 + y * 1.7 + Math.sin(x * 0.05) * 3) % 19) < 1) c = Wt[6];
+          }
+          else { const v = y - sb; c = v < 1 ? U('#e8c890') : P32(['#3a2418', '#5a3a26', '#7a5636', '#9a7448', '#b8925c', '#d0aa70'])[clamp(5 - Math.round(v / 3) + Math.round((PFK.cl(x, y, 2, 655) - 0.5) * 1.4), 0, 5)]; }
+          put(pb, x, y, c); continue;
+        }
+        if (y < top) {                                                                                             // borde: dique de costra o repisa de roca
+          const yy = y - e1;
+          if (z.kind === 'pans' || z.kind === 'dikes') c = yy === 0 ? Sl[8] : yy === 1 ? Sl[7] : yy === R3S_GH - 1 ? U('#2a1838') : Sl[clamp(5 - (yy > 3 ? 1 : 0) + Math.round((PFK.cl(x, y, 2, 657) - 0.5) * 1.2), 2, 7)];
+          else if (z.kind === 'marsh') c = yy === 0 ? U('#c4d670') : yy === R3S_GH - 1 ? M[0] : M[clamp(5 - yy + (x % 7 === 0 ? -1 : 0), 1, 7)];
+          else c = yy === 0 ? U('#ffd8b0') : yy === 1 ? Rk[8] : yy === R3S_GH - 1 ? Rk[0] : Rk[clamp(6 - yy + Math.round((PFK.cl(x, y, 3, 659) - 0.5) * 1.4), 1, 7)];
+        } else if (y < e2) {                                                                                       // terraza vista desde arriba
+          const q = y - top, span = e2 - top, v = q / Math.max(1, span), ao = q < 2 ? (q === 0 ? -2 : -1) : 0;
+          if (z.kind === 'pans' || z.kind === 'dikes') c = Sl[clamp(5 + Math.round((PFK.cl(x, y, 3, 661) - 0.5) * 1.6 + (PFK.vn(x * 0.05, y * 0.1, 663) - 0.5) * 1.2) + ao + (v > 0.8 ? 1 : 0), 2, 8)];
+          else if (z.kind === 'marsh') { const MG = P32(['#16200e', '#24341a', '#364a22', '#4e6630', '#6e8a44', '#8eaa52', '#b4c86a']); c = MG[clamp(3 + Math.round((PFK.cl(x, y, 2, 665) - 0.5) * 2 + (PFK.vn(x * 0.06, y * 0.12, 667) - 0.5) * 1.6) + ao + (v > 0.8 ? 1 : 0), 0, 6)]; }
+          else c = Rk[clamp(5 + Math.round((PFK.cl(x, y, 3, 669) - 0.5) * 1.6 + (PFK.vn(x * 0.04, y * 0.08, 671) - 0.5) * 1.6) + ao + (v > 0.75 ? 1 : 0) - (hash2(x, y, 673) < 0.03 ? 2 : 0), 1, 8)];
+        } else {                                                                                                   // corte frontal
+          const c0 = y - e2;
+          if (c0 === 0) c = U((x & 3) ? '#ffe0c0' : '#f8c894');
+          else if (c0 === 1) c = U('#e8a07a');
+          else {
+            const w1 = (PFK.vn(x * 0.04, 1, 675) - 0.5) * 5, zz = c0 + w1 + PFK.vn(x * 0.02, c0 * 0.1, 677) * 3, L = Math.floor(zz / 6) % 4, edge = (zz % 6) < 1, ao = Math.round(c0 / Math.max(20, H_ - e2) * 2.4);
+            if (z.kind === 'marsh') c = M[clamp(5 - ao + Math.round((PFK.cl(x, y, 2, 679) - 0.5) * 1.4) - (edge ? 2 : 0), 0, 7)];
+            else if (L === 2 && z.kind !== 'ledge' && z.kind !== 'caves') c = Sl[clamp(6 - ao + Math.round((PFK.cl(x, y, 2, 681) - 0.5) * 1.2) - (edge ? 2 : 0), 1, 8)];   // estrato de sal
+            else c = Rk[clamp(6 - ao - (L === 1 ? 1 : 0) + Math.round((PFK.cl(x, y, 2, 683) - 0.5) * 1.4) - (edge ? 2 : 0), 0, 8)];
+            if (hash2(x >> 1, y >> 1, 685) < 0.02) c = Sl[8];
+          }
+        }
+        put(pb, x, y, c);
+      }
+    }
+    const at = (x) => r3sAt(world, x), qy = (x, q) => { const A2 = at(x); return Math.round(A2.top + (A2.e2 - A2.top) * q); };
+    const items = [], add = (y, fn) => items.push({ y, fn });
+    /* --- 2. contenido por zona --- */
+    for (const z of zones) {
+      const rr = RNG(z.seed || (z.x0 + 7));
+      if (z.kind === 'pans' || z.kind === 'dikes') {
+        // filas de salinas por etapas (concentración creciente hacia el fondo y hacia el oeste)
+        const rows = z.kind === 'pans' ? [[0.1, 0.42], [0.52, 0.9]] : [[0.12, 0.5], [0.58, 0.92]];
+        let st0 = z.stage0 ?? 0;
+        for (const [qa, qb] of rows) {
+          for (let x = z.x0 + 6; x < z.x1 - 20;) {
+            const pw = rr.int(z.pw ? z.pw[0] : 42, z.pw ? z.pw[1] : 74), xe = Math.min(z.x1 - 8, x + pw);
+            if (z.skip && z.skip.some(([a, b]) => x < b && xe > a)) { x = xe + 6; continue; }
+            const px0 = x, y0 = qy(x + pw / 2, qa), y1 = qy(x + pw / 2, qb), stage = (st0 + Math.floor((x - z.x0) / 70)) % 5;
+            add(y0, () => { const P_ = r3sPan(pb, px0, xe, y0, y1, stage, px0); FA.pans.push(P_); });
+            if (rr() < 0.45) add(y1 + 1, () => FA.spill.push(r3sSluice(pb, xe - 2, y1 - 1, 8)));
+            x = xe + rr.int(5, 9);
+          }
+          st0 += 2;
+        }
+        for (const [x, q, lab] of (z.houses || [])) { const yb = qy(x + 15, q); add(yb, () => { const h = r3sPumpHouse(pb, x, yb, 30, 18, { label: lab }); FA.lamps.push([h.lamp[0], h.lamp[1], '#ffd890', 9]); }); }
+        // montones de sal cosechada y salicornia en los diques
+        for (let x = z.x0 + rr.int(10, 30); x < z.x1 - 10; x += rr.int(60, 110)) { const y = qy(x, 0.47); add(y, () => saltPile(pb, x, y + 2, 16 + rr.int(0, 8), 7 + rr.int(0, 4), x)); }
+        add(9998, () => r3sMarsh(pb, z.x0, z.x1, (x) => at(x).top + 2, 11, z.x0));
+        add(9999, () => r3sMarsh(pb, z.x0, z.x1, (x) => at(x).e2 - 2, 10, z.x0 + 3));
+      } else if (z.kind === 'ledge' || z.kind === 'caves') {
+        // repisa del cañón: charcas de salmuera, cristales, peñas, salicornia; tubería grafito por la repisa
+        // gours (represas de travertino salino) escalonados con salmuera luminosa: 2 filas a lo largo de la repisa
+        for (const qg of [0.3, 0.68]) for (let x = z.x0 + rr.int(10, 40); x < z.x1 - 40; x += rr.int(70, 120)) {
+          const gx = x, gw = 26 + rr.int(0, 18), y = qy(gx, qg);
+          add(y, () => {
+            for (let st = 0; st < 3; st++) { const sx = gx + st * Math.round(gw * 0.3), sw = gw - st * 6, sy = y + st * 3;
+              for (let xx = sx; xx < sx + sw; xx++) { const e = Math.min(xx - sx, sx + sw - 1 - xx), arc = Math.round(Math.sqrt(Math.max(0, 1 - ((xx - sx - sw / 2) / (sw / 2)) ** 2)) * 2);
+                put(pb, xx, sy - arc - 1, Sl[8]); put(pb, xx, sy - arc, U(e < 2 ? '#b8c0ec' : (xx % 7 === 0 ? '#ffffff' : '#7ee8f0'))); put(pb, xx, sy - arc + 1, U(e < 2 ? '#6670c2' : '#3ac2d8')); put(pb, xx, sy + 2, Sl[6]); put(pb, xx, sy + 3, Sl[3]); }
+              FA.seeps.push([sx + 2, sy - 1, sw - 4]); }
+          });
+        }
+        for (let x = z.x0 + rr.int(4, 14); x < z.x1 - 8; x += rr.int(14, 24)) {
+          const q = 0.06 + rr() * 0.9, y = qy(x, q), k = rr(), px = x;
+          if (k < 0.3) add(y, () => FA.cry.push(...r3sCrystals(pb, px, y, 6 + rr.int(0, 7), px, rr() < 0.3 ? R3S_CYA : R3S_CRY).map(p => [p[0], p[1], '#aab0f4'])));
+          else if (k < 0.5) add(y, () => boulder(pb, px, y, 9 + rr.int(0, 9), 5 + rr.int(0, 4), R3S_ROCK, px, { speck: '#f2e4ea' }));
+          else if (k < 0.72) add(y, () => { salicornia(pb, px, y, 14, px); PFFlora.tuft(pb, px + 6, y, 7, 7, px, PFFlora.DRY, { wind: 1 }); });
+          else if (k < 0.86) add(y, () => saltScrub(pb, px, y, 10 + rr.int(0, 6), px));
+          else add(y, () => halite(pb, px, y, 1 + rr.int(0, 1), px));
+        }
+        if (z.pipe) add(z.pipeQ ? qy(z.x0, z.pipeQ) : 1, () => { const pts = z.pipe.map(([px, q]) => [px, qy(px, q)]); I.pipe(pb, pts, 3, 'brine', { flange: 24, supports: 34, supportTo: (x) => qy(x, z.pipe[0][1]) + 6 }); FA.brinePipe = pts; });
+        // cuevas de cristales en el corte frontal
+        for (const [cx, rw, rh] of (z.caves || [])) { const A2 = at(cx), cy = Math.round(A2.e2 + (H_ - A2.e2) * 0.45); const cv = r3sCave(pb, cx, cy, rw, rh, cx); FA.cry.push(...cv.cry); FA.seeps.push(cv.seep); }
+      } else if (z.kind === 'marsh') {
+        // canal mareal serpenteante, manglar, salicornia y garzas
+        const mq = (x) => 0.5 + (PFK.vn(x * 0.012, 3, 691) - 0.5) * 0.7 + Math.sin(x * 0.021) * 0.08;
+        add(1, () => { const Wt = P32(R3S_W.tq), Mu = P32(R3S_MUD); for (let x = z.x0; x < z.x1; x++) { const yc = qy(x, mq(x)), hw = 2 + Math.round(PFK.vn(x * 0.05, 1, 693) * 3); for (let k = -hw - 2; k <= hw + 1; k++) put(pb, x, yc + k, k < -hw ? Mu[6 + (k === -hw - 2 ? 1 : 0)] : k > hw ? Mu[3] : k === -hw ? U('#e0fbf2') : k === hw ? Wt[1] : Wt[clamp(3 + (k < 0 ? 1 : 0) + (((x + k * 3) % 17) < 1 ? 2 : 0), 0, 6)]); } FA.glints.push({ x0: z.x0, x1: z.x1, y: (x) => qy(x, mq(x)) }); });
+        for (let x = z.x0 + 8; x < z.x1 - 8; x += rr.int(22, 36)) { const mx = x, y = qy(x, rr() < 0.5 ? 0.12 + rr() * 0.2 : 0.78 + rr() * 0.18); add(y, () => mangrove(pb, mx, y, 30 + rr.int(0, 16), mx)); }
+        add(9999, () => { r3sMarsh(pb, z.x0, z.x1, (x) => at(x).top + 3, 7, z.x0); r3sMarsh(pb, z.x0, z.x1, (x) => qy(x, 0.95), 8, z.x0 + 1); });
+        for (const [x, q, f] of (z.birds || [])) FA.birds.push([x, qy(x, q), f]);
+      } else if (z.kind === 'bay') {
+        // fondo marino: pradera de fanerógamas, rocas, emisario apoyado en el fondo y difusor con boquillas
+        const sb = (x) => z.bed + Math.round((PFK.vn(x * 0.02, 0, 651) - 0.5) * 10 + Math.sin(x * 0.03) * 2);
+        for (let x = z.x0 + 4; x < z.x1 - 4; x += 3 + ((x * 7) % 4)) { if (z.diff && x > z.diff[0] - 30 && x < z.diff[0] + 70) continue; const y = sb(x), hh = 5 + ((x * 13) % 9); for (let k = 0; k < hh; k++) put(pb, x + Math.round(Math.sin(k * 0.4 + x) * 0.6), y - k, U(k > hh - 3 ? '#9ac458' : k % 2 ? '#3e7a3a' : '#2a5a2e')); }
+        for (let x = z.x0 + 20; x < z.x1; x += 60 + ((x * 3) % 40)) boulder(pb, x, sb(x) + 1, 14, 7, R3S_ROCK, x);
+        if (z.pipeX) {
+          // emisario: baja por el acantilado en corte y corre por el fondo hasta el difusor
+          const px = z.pipeX, dx = z.diff[0], BR = P32(I.PIPES.brine.ramp), rP = 3;
+          const pts = [[px, at(px).e1 - 2], [px, z.wl + 6], [px + 18, sb(px + 18) - 4], [dx, sb(dx) - 4]];
+          I.pipe(pb, pts, rP, 'brine', { flange: 20 });
+          FA.brinePipe2 = pts;
+          // difusor: tramo con 4 elevadores y boquillas inclinadas
+          const dy = sb(dx) - 4;
+          for (let k = 0; k < 4; k++) { const rx = dx + 8 + k * 14; for (let q = 0; q < 8; q++) { put(pb, rx, dy - 3 - q, BR[4]); put(pb, rx + 1, dy - 3 - q, BR[2]); } put(pb, rx + 1, dy - 11, BR[6]); put(pb, rx + 2, dy - 12, BR[6]); put(pb, rx + 2, dy - 11, BR[3]); }
+          for (let xx = dx; xx < dx + 58; xx++) for (let j = -rP; j <= rP; j++) put(pb, xx, dy + j, BR[clamp(Math.round((j + rP) / (2 * rP) * 6), 0, 6)]);
+          for (let xx = dx + 2; xx < dx + 58; xx += 12) PFInfra.box3q(pb, xx, dy + rP + 3, 6, 3, 3, { ramp: PFTerrain.CONC });
+          K.text(pb, 'DIFUSOR', dx + 4, dy + 8, U('#e8ecfc'), { font: 'tiny' });
+          FA.plume = { x: dx + 8, y: dy - 12, n: 4, step: 14, bed: (x) => sb(x) - 1, x1: Math.min(z.x1, dx + 170) };
+          // límite de la zona de mezcla (trazos discontinuos) y rótulo
+          const zx0 = dx - 6, zx1 = Math.min(z.x1 - 4, dx + 150), zy0 = dy - 30;
+          for (let xx = zx0; xx < zx1; xx++) if ((xx >> 2) % 2 === 0) put(pb, xx, zy0, U('#e8ecfc'));
+          for (const xx of [zx0, zx1]) for (let yy = zy0; yy < sb(xx) - 1; yy++) if ((yy >> 2) % 2 === 0) put(pb, xx, yy, U('#e8ecfc'));
+          K.text(pb, 'ZONA DE MEZCLA', zx0 + 34, zy0 + 2, U('#e8ecfc'), { font: 'tiny' });
+        }
+        for (const f of (z.fish || [])) FA.fish.push(f);
+        // roca de la costa sobre la línea de agua: cueva con cristales
+        for (const [cx, rw, rh] of (z.caves || [])) { const cy = Math.round((at(cx).top + z.wl) / 2 + 2); const cv = r3sCave(pb, cx, cy, rw, rh, cx); FA.cry.push(...cv.cry); FA.seeps.push(cv.seep); }
+      }
+    }
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.fn();
+    return FA;
+  }
+
   /* ---------- oclusor frontal: cristales de sal violetas y salicornia oscura ---------- */
   function fgSalt(o) {
     const w = o.w || 140, h = o.h || 70, pb = new PixelBuffer(w, h), r = RNG(o.seed || 1);
@@ -425,5 +710,7 @@ const PFASalt = (() => {
   }
   if (typeof PFStage !== 'undefined' && PFStage.FG) PFStage.FG.aSalt = fgSalt;
 
-  return { build, renderBack, renderFront, outfall, boulder, halite, saltScrub, saltPile, saltPillar, hoodoo, weir, pond, mangrove, salicornia, reeds, boardwalk, station, emissary, drawBuoy, SALT, BRW, WET, MANG };
+  return { build, renderBack, renderFront, outfall, boulder, halite, saltScrub, saltPile, saltPillar, hoodoo, weir, pond, mangrove, salicornia, reeds, boardwalk, station, emissary, drawBuoy, SALT, BRW, WET, MANG,
+    // r3-desert: diorama salino del N3
+    r3sDiorama, r3sAt, r3sCrystals, r3sPan, r3sPumpHouse, r3sSluice, r3sCave, r3sMarsh, r3sShadow, R3S_CRY, R3S_CYA, R3S_W };
 })();
