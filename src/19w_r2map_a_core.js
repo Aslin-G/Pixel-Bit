@@ -50,6 +50,27 @@ const R2MAP = (() => {
     }
     return out;
   };
+  /** Reducción por un factor no entero (f ≥ 1): remuestreo por área con pesos fraccionarios */
+  M.downF = function (pb, f, o = {}) {
+    if (Math.abs(f - Math.round(f)) < 1e-6) return M.down(pb, Math.round(f), o);
+    const w = Math.floor(pb.w / f), h = Math.floor(pb.h / f), out = new PixelBuffer(w, h), d = pb.data, cut = o.cut ?? 0.45;
+    const tmp = new PixelBuffer(w, h); const A = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const x0 = x * f, x1 = x0 + f, y0 = y * f, y1 = y0 + f;
+      let r = 0, g = 0, b = 0, wt = 0, tot = 0;
+      for (let yy = Math.floor(y0); yy < Math.ceil(y1); yy++) for (let xx = Math.floor(x0); xx < Math.ceil(x1); xx++) {
+        const wx = Math.min(xx + 1, x1) - Math.max(xx, x0), wy = Math.min(yy + 1, y1) - Math.max(yy, y0), ww = wx * wy;
+        if (ww <= 0 || xx >= pb.w || yy >= pb.h) continue;
+        tot += ww; const u = d[yy * pb.w + xx]; if ((u >>> 24) < 128) continue;
+        r += (u & 255) * ww; g += ((u >>> 8) & 255) * ww; b += ((u >>> 16) & 255) * ww; wt += ww;
+      }
+      const i = y * w + x; A[i] = tot ? wt / tot : 0;
+      if (wt) tmp.data[i] = ((255 << 24) | (Math.round(b / wt) << 16) | (Math.round(g / wt) << 8) | Math.round(r / wt)) >>> 0;
+    }
+    // reutiliza el realce de M.down sobre la imagen ya reducida (f = 1) respetando la cobertura
+    for (let i = 0; i < w * h; i++) if (A[i] < cut) tmp.data[i] = 0;
+    return M.down(tmp, 1, o);
+  };
   /** Ilustración a f× reducida a w×h */
   M.mini = function (w, h, f, draw, o = {}) {
     const pb = new PixelBuffer(w * f, h * f);

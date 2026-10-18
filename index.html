@@ -28061,6 +28061,27 @@ const R2MAP = (() => {
     }
     return out;
   };
+  /** Reducción por un factor no entero (f ≥ 1): remuestreo por área con pesos fraccionarios */
+  M.downF = function (pb, f, o = {}) {
+    if (Math.abs(f - Math.round(f)) < 1e-6) return M.down(pb, Math.round(f), o);
+    const w = Math.floor(pb.w / f), h = Math.floor(pb.h / f), out = new PixelBuffer(w, h), d = pb.data, cut = o.cut ?? 0.45;
+    const tmp = new PixelBuffer(w, h); const A = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const x0 = x * f, x1 = x0 + f, y0 = y * f, y1 = y0 + f;
+      let r = 0, g = 0, b = 0, wt = 0, tot = 0;
+      for (let yy = Math.floor(y0); yy < Math.ceil(y1); yy++) for (let xx = Math.floor(x0); xx < Math.ceil(x1); xx++) {
+        const wx = Math.min(xx + 1, x1) - Math.max(xx, x0), wy = Math.min(yy + 1, y1) - Math.max(yy, y0), ww = wx * wy;
+        if (ww <= 0 || xx >= pb.w || yy >= pb.h) continue;
+        tot += ww; const u = d[yy * pb.w + xx]; if ((u >>> 24) < 128) continue;
+        r += (u & 255) * ww; g += ((u >>> 8) & 255) * ww; b += ((u >>> 16) & 255) * ww; wt += ww;
+      }
+      const i = y * w + x; A[i] = tot ? wt / tot : 0;
+      if (wt) tmp.data[i] = ((255 << 24) | (Math.round(b / wt) << 16) | (Math.round(g / wt) << 8) | Math.round(r / wt)) >>> 0;
+    }
+    // reutiliza el realce de M.down sobre la imagen ya reducida (f = 1) respetando la cobertura
+    for (let i = 0; i < w * h; i++) if (A[i] < cut) tmp.data[i] = 0;
+    return M.down(tmp, 1, o);
+  };
   /** Ilustración a f× reducida a w×h */
   M.mini = function (w, h, f, draw, o = {}) {
     const pb = new PixelBuffer(w * f, h * f);
@@ -28290,7 +28311,7 @@ const R2MAP = (() => {
       const [ax, ay] = R[s], [bx, by] = R[s + 1], L = Math.ceil(Math.hypot(bx - ax, by - ay));
       for (let k = 0; k <= L; k++) {
         const x = Math.round(lerp(ax, bx, k / L) + (fbm(k * 0.2, s, 2, 4) - 0.5) * 2), yw = Math.round(lerp(ay, by, k / L));
-        for (let dx = -1; dx <= 1; dx++) { const X = x + dx + PAD; if (X < 0 || X >= MW || yw >= WR) continue; const i = yw * MW + X; if (LD[i] < 0) WATER[i] = 2; }
+        for (let dx = -1; dx <= 2; dx++) { const X = x + dx + PAD; if (X < 0 || X >= MW || yw >= WR) continue; const i = yw * MW + X; if (LD[i] < 0) WATER[i] = 2; }
       }
     }
     /* ---------------- sombras arrojadas (marcha hacia la luz) ---------------- */
@@ -28389,7 +28410,12 @@ const R2MAP = (() => {
       // crestas de ola paralelas a la costa y trazos de oleaje en mar abierto
       const wv = (d + fbm(X * 0.08, y * 0.12, 2, 5) * 6) % 10;
       if (d > 5 && d < 40 && wv < 1.1 && hash2(X >> 2, y, 6) < 0.7) t += 0.09;
-      else if (d >= 30 && (y % 6 === 0) && Math.sin(X * 0.21 + y * 1.7 + Math.floor(y / 6) * 2.3) > 0.82) t += 0.08;
+      else if (d >= 24) {
+        // oleaje de mar abierto: trazos claros cortos con su seno oscuro debajo, y textura en clusters
+        const row = Math.floor(y / 4), ph = Math.sin(X * 0.23 + row * 2.1 + fbm(X * 0.02, row * 0.3, 2, 8) * 9);
+        if (y % 4 === 0 && ph > 0.7) t += 0.1; else if (y % 4 === 1 && ph > 0.7) t -= 0.05;
+        t += (vnoise(X * 0.22, y * 0.45, 29) - 0.5) * 0.1;
+      }
       // reflejo y sombra de los acantilados en el agua de delante
       const above = (y > 2 && KIND[(y - 2) * MW + X] === 2) || (y > 4 && KIND[(y - 4) * MW + X] === 2);
       if (above && d < 6) t -= 0.12;
@@ -28440,7 +28466,8 @@ const R2MAP = (() => {
       add(x, cy, (X, Y) => V.shrub(pb, X, Y + 1, big ? 2 : 1, X * 7 + Y, { ramp: pal }), 0);
     }
     /* ---------------- parcelas de cultivo en el altiplano (mosaico de huertas) ---------------- */
-    const FIELD = [['#2e6e22', '#5a9e26'], ['#c8962e', '#ecc458'], ['#4c8c1e', '#94c42c'], ['#8a4a2a', '#b06a3a'], ['#2a7a3a', '#62b84a'], ['#d0a83a', '#f2d670']];
+    const FIELD = [['#1c5a24', '#2e7e22', '#4ca022', '#7cc42a', '#b4e03a'], ['#8a5a1e', '#c08a26', '#e8b83a', '#f8d860', '#fff0a0'], ['#5a2a1e', '#8a4a2a', '#b06a3a', '#d0905a', '#f0b878'],
+      ['#185a3a', '#2a7a3a', '#4ca848', '#80d060', '#b8f080'], ['#3a5a12', '#5a8a16', '#8ab820', '#bcd83a', '#e8f070'], ['#1c5a24', '#2e7e22', '#4ca022', '#7cc42a', '#b4e03a']];
     const parcels = [[150, 196, 40, 18], [232, 196, 36, 16], [268, 150, 28, 12], [454, 222, 34, 14], [120, 214, 26, 12], [300, 238, 22, 10], [180, 226, 30, 12], [420, 236, 30, 12]];
     for (const [px0, py0, pw, ph] of parcels) {
       const cols = Math.max(2, Math.round(pw / 11));
@@ -28453,7 +28480,10 @@ const R2MAP = (() => {
         if (nearNode(xs, cy, 12)) continue;
         const ci = Math.floor((x - px0) / (pw / cols)), F = FIELD[(ci * 3 + px0 + py0) % FIELD.length];
         const edge = (x - px0) % Math.round(pw / cols) === 0 || cy === py0;
-        pb.data[i] = U(edge ? '#5a2e2a' : ((cy + ci) % 2 ? F[0] : F[1]));
+        // tono según la luz del terreno debajo (la parcela sigue el relieve) y surcos alternos
+        const o = pb.data[i], lum = ((o & 255) * 0.3 + ((o >>> 8) & 255) * 0.59 + ((o >>> 16) & 255) * 0.11) / 255;
+        const ti = clamp(Math.round(lum * 4.6 - 0.1) - ((cy + ci) % 2), 1, 4);
+        pb.data[i] = edge ? U(hash2(x, cy, 3) < 0.5 ? '#5a2e2a' : '#86c23a') : U(F[ti]);
       }
     }
     /* ---------------- rocas y peñascos en 3/4 sobre la arena ---------------- */
@@ -28501,7 +28531,7 @@ const R2MAP = (() => {
       add(x, cy, (X, Y) => house(X, Y, w, h, seed), 1);
     }
     add(CITY.x, CITY.y, (X, Y) => {
-      const dc = V.domeCity(pb, X, Y, { k: 0, s: 0.36, label: false, seed: 5 });
+      const dc = V.domeCity(pb, X, Y, { k: 0, s: 0.44, label: false, seed: 5 });
       M._city = dc;
     }, 2);
     // torre SYNARA en el altiplano (Núcleo, nodo 10)
@@ -28516,8 +28546,8 @@ const R2MAP = (() => {
     const rotors = [];
     const tpos = [[392, 104], [414, 92], [436, 82], [460, 76], [486, 80], [510, 84], [532, 98], [552, 112]];
     for (const [tx, ty] of tpos) {
-      const gy = groundY(tx, ty); const h = 15 + (tx % 3) * 2;
-      add(tx, gy, (X, Y) => { const T = V.turbineTower(pb, X, Y, h, { k: 0.02, w: 2 }); rotors.push({ x: T.hx - PAD, y: T.hy, rot: V.rotor(7, { k: 0.02 }), ph: tx * 0.37 }); pb.hline(X - 2, X + 2, Y + 1, '#5a2e36'); }, 3);
+      const gy = groundY(tx, ty); const h = 19 + (tx % 3) * 2;
+      add(tx, gy, (X, Y) => { const T = V.turbineTower(pb, X, Y, h, { k: 0.02, w: 2 }); rotors.push({ x: T.hx - PAD, y: T.hy, rot: V.rotor(9, { k: 0.02 }), ph: tx * 0.37 }); pb.hline(X - 2, X + 2, Y + 1, '#5a2e36'); }, 3);
     }
     /* ---------------- campo FV en las dunas ---------------- */
     for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) {
@@ -28537,16 +28567,15 @@ const R2MAP = (() => {
     add(480, groundY(480, 182), (X, Y) => V.cylV(pb, X, Y, 3, 22, ['#4b5b4a', '#727c63', '#8b878b', '#c0bfb1', '#ebeee4'], { dome: 0.6, bands: [[6, 2], [15, 2]] }), 2);
     /* ---------------- salinas: espejos de evaporación por etapas ---------------- */
     const PANS = [['#0a8aa0', '#14c4c8', '#7af4e8'], ['#0a8aa0', '#20d0d0', '#a0f4f0'], ['#14946c', '#2cd08a', '#a0f4b8'], ['#c8904a', '#f0c070', '#ffe8b0'], ['#b07aa8', '#e8b0d8', '#ffe0f0'], ['#d8d0e0', '#f4eef6', '#ffffff']];
-    for (let row = 0; row < 4; row++) for (let col = 0; col < 8; col++) {
-      if (hash2(row, col, 77) < 0.3) continue;
-      const x = 176 + col * 12 + row * 5 + r.int(-2, 2), cy = 262 + row * 6;
-      if (nearNode(x + 5, cy, 12)) continue;
-      const z = worldAt(x + 5, cy); if (z == null || KIND[cy * MW + P(x + 5)] !== 1) continue; { const bn = BIO[BI[z * MW + P(x + 5)]]; if (bn !== 'salt' && bn !== 'sand') continue; }
-      const st = PANS[(col + row) % PANS.length];
-      const pw = r.int(7, 10);
+    // estanques irregulares (elipses deformadas) con costra blanca arriba y murete en sombra abajo
+    for (let k = 0; k < 40; k++) {
+      const x = r.int(176, 296), cy = r.int(256, 290);
+      if (nearNode(x, cy, 13)) continue;
+      const z = worldAt(x, cy); if (z == null || KIND[cy * MW + P(x)] !== 1 || WATER[z * MW + P(x)]) continue; { const bn = BIO[BI[z * MW + P(x)]]; if (bn !== 'salt' && bn !== 'sand') continue; }
+      const st = PANS[k % PANS.length], rx = r.int(4, 8), ry = r.range(1.6, 2.6), sd = k;
       add(x, cy, (X, Y) => {
-        pb.rect(X, Y - 2, pw, 3, st[1]); pb.hline(X + 1, X + pw - 2, Y - 2, st[2]); pb.hline(X, X + pw - 1, Y - 3, '#fff6fa'); pb.hline(X, X + pw - 1, Y + 1, '#9a7ca8');
-        pb.vline(X + pw, Y - 2, Y, '#c4b0cc'); pb.set(X + 2 + (X % 3), Y - 1, '#ffffff');
+        V.ellipse(pb, X, Y - ry, rx + 1, ry + 1, (nx, ny) => U(ny < -0.3 ? '#fffaf6' : '#b08a92'));
+        V.ellipse(pb, X, Y - ry, rx, ry, (nx, ny, d, px, py) => U(ny < -0.45 ? st[0] : (hash2(px >> 1, py, sd) < 0.12 ? '#ffffff' : d < 0.35 ? st[2] : st[1])));
       }, 0);
     }
     // pila de sal blanca
@@ -28563,10 +28592,10 @@ const R2MAP = (() => {
     /* ---------------- planta SYNARA en la costa (miniatura del héroe R2PLANT reducida 3:1) ---------------- */
     let plant = null;
     try {
-      const f = 3, wB = 150 * f, hB = 76 * f;
+      const f = 2.5, wB = Math.round(150 * f), hB = Math.round(76 * f);
       const big = new PixelBuffer(wB, hB);
       const info = R2PLANT.hero(big, wB - 8, hB - 12, { s: 0.72, k: 0, from: 'pretrat', workers: false, lights: false });
-      const sm = M.down(big, f, { sharp: 0.45, sat: 0.15 });
+      const sm = M.downF(big, f, { sharp: 0.45, sat: 0.15 });
       // recorte a la caja de la planta (en px reducidos)
       const bx0 = Math.max(0, Math.floor(info.x0 / f) - 1), bx1 = Math.min(sm.w, Math.ceil(info.x1 / f) + 1), by0 = Math.max(0, Math.floor(info.y0 / f) - 2), by1 = sm.h;
       const cut = new PixelBuffer(bx1 - bx0, by1 - by0);
@@ -28651,7 +28680,7 @@ const R2MAP = (() => {
     if (V.drawLights && I.leds.length) for (const [x, y, col] of I.leds) { if (Math.sin(t * 4 + x) > 0) { g.drawImage(M.glow(col, 5, 0.6), x + ox - 5, y + oy - 5); fpx(g, x + ox, y + oy, '#ffffff'); } }
     V.drawFauna(g, I.fauna, ox, oy, t);
     // cúmulos blancos que derivan por encima del mapa
-    for (let i = 0; i < I.puffs.length; i++) { const c = I.puffs[i]; const x = ((t * (3 + i) + i * 260) % (W + 200)) - 120, y = [6, 250, 120][i % 3]; g.drawImage(c, Math.round(x), y); }
+    for (let i = 0; i < I.puffs.length; i++) { const c = I.puffs[i]; const x = ((t * (3 + i) + i * 300) % (W + 260)) - 150, y = [2, 18, 8][i % 3]; g.drawImage(c, Math.round(x), y); }
   };
 })();
 
