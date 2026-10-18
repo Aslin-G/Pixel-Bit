@@ -677,17 +677,6 @@ const PFASalt = (() => {
             r3sShadow(pb, hx + 2, y + 1, 5, 2, 0.3);
           });
         }
-        // cuevas de cristales en el corte frontal
-        for (const [cx, rw, rh] of (z.caves || [])) { const A2 = at(cx), cy = Math.round(A2.e2 + (H_ - A2.e2) * 0.45); const cv = r3sCave(pb, cx, cy, rw, rh, cx); FA.cry.push(...cv.cry); FA.seeps.push(cv.seep); }
-        // rezumes de salmuera en el corte: regueros húmedos violeta oscuro con costra blanca y gota luminosa; raíces arriba
-        for (let x = z.x0 + rr.int(10, 30); x < z.x1 - 10; x += rr.int(26, 46)) {
-          const A2 = at(x); if ((z.caves || []).some(([cx, rw]) => Math.abs(x - cx) < rw * 1.6)) continue;
-          const y0 = A2.e2 + 3, L = 10 + rr.int(0, Math.max(4, H_ - A2.e2 - 18));
-          for (let k = 0; k < L; k++) { const xx = x + Math.round(Math.sin(k * 0.3 + x) * 0.8); const c0 = get(pb, xx, y0 + k); put(pb, xx, y0 + k, K.mixU(c0, U('#2a1040'), 0.55)); const c1 = get(pb, xx + 1, y0 + k); put(pb, xx + 1, y0 + k, K.mixU(c1, U('#2a1040'), 0.3)); if (k % 6 === 0) put(pb, xx - 1, y0 + k, Sl[8]); }
-          put(pb, x, y0 + L, U('#c4fbff')); put(pb, x, y0 + L + 1, U('#7ee8f0'));
-          FA.drips = FA.drips || []; FA.drips.push([x, y0 + L, 6]);
-          PFASolar.roots(pb, x + 9, A2.e2 + 2, 6 + rr.int(0, 12), x);
-        }
       } else if (z.kind === 'marsh') {
         // canal mareal serpenteante, manglar, salicornia y garzas
         const mq = (x) => 0.5 + (PFK.vn(x * 0.012, 3, 691) - 0.5) * 0.7 + Math.sin(x * 0.021) * 0.08;
@@ -723,6 +712,22 @@ const PFASalt = (() => {
         // roca de la costa sobre la línea de agua: cueva con cristales
         for (const [cx, rw, rh] of (z.caves || [])) { const cy = Math.round((at(cx).top + z.wl) / 2 + 2); const cv = r3sCave(pb, cx, cy, rw, rh, cx); FA.cry.push(...cv.cry); FA.seeps.push(cv.seep); }
       }
+    }
+    /* --- 3. corte frontal común (salinas, diques, repisa, cuevas): cuevas de cristales y rezumes --- */
+    for (const z of zones) {
+      if (z.kind === 'bay' || z.kind === 'marsh') continue;
+      const rr = RNG((z.seed || (z.x0 + 7)) + 501);
+          // cuevas de cristales en el corte frontal
+          for (const [cx, rw, rh] of (z.caves || [])) { const A2 = at(cx), cy = Math.round(A2.e2 + (H_ - A2.e2) * 0.45); const cv = r3sCave(pb, cx, cy, rw, rh, cx); FA.cry.push(...cv.cry); FA.seeps.push(cv.seep); }
+          // rezumes de salmuera en el corte: regueros húmedos violeta oscuro con costra blanca y gota luminosa; raíces arriba
+          for (let x = z.x0 + rr.int(10, 30); x < z.x1 - 10; x += rr.int(26, 46)) {
+            const A2 = at(x); if ((z.caves || []).some(([cx, rw]) => Math.abs(x - cx) < rw * 1.6)) continue;
+            const y0 = A2.e2 + 3, L = 10 + rr.int(0, Math.max(4, H_ - A2.e2 - 18));
+            for (let k = 0; k < L; k++) { const xx = x + Math.round(Math.sin(k * 0.3 + x) * 0.8); const c0 = get(pb, xx, y0 + k); put(pb, xx, y0 + k, K.mixU(c0, U('#2a1040'), 0.55)); const c1 = get(pb, xx + 1, y0 + k); put(pb, xx + 1, y0 + k, K.mixU(c1, U('#2a1040'), 0.3)); if (k % 6 === 0) put(pb, xx - 1, y0 + k, Sl[8]); }
+            put(pb, x, y0 + L, U('#c4fbff')); put(pb, x, y0 + L + 1, U('#7ee8f0'));
+            FA.drips = FA.drips || []; FA.drips.push([x, y0 + L, 6]);
+            PFASolar.roots(pb, x + 9, A2.e2 + 2, 6 + rr.int(0, 12), x);
+          }
     }
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.fn();
