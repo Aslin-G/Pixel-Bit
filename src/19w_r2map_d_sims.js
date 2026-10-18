@@ -150,13 +150,20 @@
     const live = { rotors: [], leds: [], glints: [] };
     const pb = new PixelBuffer(W, H);
     // muro técnico: dos bandas navy con paneles, juntas y rejilla de 16 px tenue
-    const WALL = V.P32(['#030c20', '#051430', '#071a3a', '#0a2246', '#0e2a52']);
+    const WALL = V.P32(['#020a1c', '#041027', '#061632', '#081c3c', '#0a2246', '#0d2850', '#11305c']);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      let t = 0.55 - y / H * 0.3 + (hash2(x >> 4, y >> 4, 5) - 0.5) * 0.12;
-      if (x % 80 === 0 || y % 48 === 0) t -= 0.25; else if (x % 80 === 1 || y % 48 === 1) t += 0.12;
-      if ((x % 16 === 8 || y % 16 === 8) && t > 0.2) t += 0.12;
-      pb.data[y * W + x] = WALL[clamp(Math.round(t * 4), 0, 4)];
+      // planchas de 80×48 con degradado propio, vetas de cepillado horizontales en clusters y juntas
+      const px = x % 80, py = y % 48;
+      let t = 0.58 - y / H * 0.28 + (hash2(x / 80 | 0, y / 48 | 0, 5) - 0.5) * 0.1 - py / 48 * 0.12 + px / 80 * 0.04;
+      const streak = hash2((x + (hash2(0, y, 8) * 40 | 0)) >> 3, y, 6);
+      if (streak < 0.18) t -= 0.08; else if (streak > 0.86) t += 0.07;
+      if (px === 0 || py === 0) t -= 0.3; else if (px === 1 || py === 1) t += 0.14;
+      if ((x % 16 === 8 || y % 16 === 8) && t > 0.25) t += 0.08;
+      pb.data[y * W + x] = WALL[clamp(Math.round(t * 6), 0, 6)];
     }
+    // haces de cables verticales y rejillas de ventilación entre planchas
+    for (let k = 0; k < 9; k++) { const cx = 40 + k * 72 + (k % 2) * 9; for (let y = 0; y < WIN_Y0 - 7; y++) { pb.set(cx, y, '#0a1a34'); pb.set(cx + 1, y, ['#1e3a6a', '#2a1a4a', '#0e3a3a'][k % 3]); pb.set(cx + 2, y, '#050c1e'); if (y % 24 === 12) { pb.set(cx - 1, y, '#3a5a8a'); pb.set(cx + 3, y, '#3a5a8a'); } } }
+    for (let k = 0; k < 8; k++) { const vx = 12 + k * 80, vy = 20 + (k % 3) * 48; for (let j = 0; j < 4; j++) { V.rect(pb, vx, vy + j * 3, 14, 1, U('#020818')); V.rect(pb, vx, vy + j * 3 + 1, 14, 1, U('#16305a')); } }
     // remaches de los paneles del muro
     for (let y = 6; y < H; y += 48) for (let x = 6; x < W; x += 80) { pb.set(x, y, '#2a4a7a'); pb.set(x + 68, y, '#2a4a7a'); }
     // ventanal: escena del capítulo
@@ -180,7 +187,20 @@
     // consola bajo el ventanal: tablero inclinado con pantallas, botones y LED
     const cons = [];
     const DESK = ['#06102a', '#0a1a3e', '#10264e', '#1a3664', '#2a4c82', '#5a86c0'];
-    for (let y = WIN_Y1; y < H; y++) for (let x = 0; x < W; x++) { const k = (y - WIN_Y1) / (H - WIN_Y1); pb.data[y * W + x] = U(DESK[clamp(Math.round((y === WIN_Y1 ? 5 : y === WIN_Y1 + 1 ? 4 : 3 - k * 2.4) + (hash2(x >> 2, y >> 1, 9) - 0.5) * 0.4), 0, 5)]); }
+    const DU = V.P32(DESK);
+    for (let y = WIN_Y1; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = (y - WIN_Y1) / (H - WIN_Y1), front = y >= H - 12;
+      let t = y === WIN_Y1 ? 5 : y === WIN_Y1 + 1 ? 4 : front ? 1.2 - (y - (H - 12)) / 12 : 3.2 - k * 2.2;
+      const st = hash2((x + (hash2(1, y, 4) * 30 | 0)) >> 2, y, 13);              // vetas de cepillado en clusters
+      if (st < 0.2) t -= 0.6; else if (st > 0.85) t += 0.5;
+      if (front && (x % 12 === 0)) t -= 1;                                         // rejilla del frontal
+      if (y === H - 12) t = 4;
+      pb.data[y * W + x] = DU[clamp(Math.round(t), 0, 5)];
+    }
+    // botonera: filas de pulsadores de colores y deslizadores entre las pantallas
+    const BTN = ['#3fe0a0', '#ffd23a', '#ff6b6b', '#22dbe7', '#8d6bff'];
+    for (let x = 6; x < W - 6; x += 7) { const by = WIN_Y1 + 22 + ((x / 7 | 0) % 2) * 4; if ((x % 46) < 26) continue; V.rect(pb, x, by, 3, 2, U('#000633')); V.rect(pb, x, by, 2, 1, U(BTN[(x / 7 | 0) % 5])); }
+    for (let x = 30; x < W; x += 92) { V.rect(pb, x, H - 20, 18, 1, U('#000633')); V.rect(pb, x + 4 + (x % 9), H - 22, 3, 4, U('#86a8d0')); }
     for (let x = 12; x < W - 20; x += 46) {
       const sx = x + (x % 3), sy = WIN_Y1 + 8;
       V.rect(pb, sx, sy, 22, 10, U('#000633')); V.rect(pb, sx + 1, sy + 1, 20, 8, U(['#063a4a', '#0a2a5a', '#2a1a4a'][(x / 46 | 0) % 3]));
