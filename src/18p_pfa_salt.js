@@ -28,10 +28,12 @@ const PFASalt = (() => {
   const WET = ['#06222a', '#0a3a42', '#0f4a5a', '#146a6a', '#1c8a7a', '#20b8a0', '#5cd8b4', '#9cf0d0'];
   const MANG = ['#0a160c', '#142a14', '#1e3e1a', '#2c5622', '#3e702a', '#548c34', '#74a842', '#9cc458'];
   const BARK = ['#1a0e08', '#2e1a0e', '#462a16', '#5e3c20', '#7a5230', '#987046'];
+  const PILLAR_ROCK = ['#1e0a1e', '#341230', '#461a3a', '#6e2c40', '#8c3e52', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
 
   /* ---------- agua en 3/4: canal de salmuera y humedal ---------- */
   function build(world, w) {
-    const P = P32(w.style === 'wetA' ? WET : BRW), x0 = w.x0, x1 = w.x1, wy = w.y, wd = x1 - x0 + 1;
+    const wet = w.style === 'wetA', P = P32(wet ? WET : BRW), x0 = w.x0, x1 = w.x1, wy = w.y, wd = x1 - x0 + 1;
+    const BANK = wet ? P32(['#16200e', '#24341a', '#364a22', '#4e6630', '#6e8a44', '#a8c070']) : P32(['#2a1e3a', '#46345a', '#6a5280', '#ae96ba', '#e2d0dc', '#fdf6f6']);
     const top = 12, hg = Math.max(4, Math.round(Math.max(...Array.from({ length: 12 }, (_, i) => world.ground[Math.round(x0 + i * wd / 12)] || wy + 10))) - wy + 2);
     const pb = new PixelBuffer(wd, top + hg);
     for (let x = 0; x < wd; x++) {
@@ -52,10 +54,37 @@ const PFASalt = (() => {
         const dz = (Y - wy) / Math.max(1, gy - wy);
         let u = P[clamp(Math.round(5 - dz * 4 + (PFK.cl(X, Y, 2, 13) - 0.5)), 0, 7)];
         if (Y >= gy - 1) u = w.style === 'wetA' ? U('#2a3a1a') : U(hash2(X, Y, 15) < 0.4 ? '#f2e4ea' : '#cab4cc');
+        // orillas en talud dentro del corte (el lecho sube hacia los extremos: cubeta, no caja)
+        const bw = 4 + (Y - wy) * 1.4 + PFK.vn(X * 0.3, Y * 0.3, 47) * 3;
+        if (edge < bw) { const lit = x > wd / 2, f = edge / bw; u = BANK[clamp(Math.round((lit ? 3.4 : 1.6) + f * 1.2 - (Y - wy) * 0.08 + (hash2(X >> 1, Y, 49) < 0.25 ? 1 : 0)), 0, 5)]; if (edge >= bw - 1) u = BANK[lit ? 5 : 4]; }
         pb.data[y * wd + x] = u;
       }
     }
-    return { brineA: true, w, x0, x1, wy, top, c: pb.toCanvas() };
+    // orillas (r2-biomes-a): costra de sal irregular en el borde trasero y bancos redondeados en los extremos
+    // (la lámina deja de leerse como un rectángulo de bordes duros); en el humedal, limo verde y juncos bajos
+    const CR = wet ? P32(['#2a3a1a', '#3e5a24', '#5a7a2e', '#86a04a', '#c8d890']) : P32(['#6a5280', '#ae96ba', '#e2d0dc', '#f2e4ea', '#fdf6f6']);
+    for (let x = 0; x < wd; x++) {
+      const X = x0 + x, edge = Math.min(x, wd - 1 - x);
+      const bh = 1 + Math.round(PFK.vn(X * 0.18, 1, 31) * 2);
+      for (let y = 0; y < bh; y++) if (edge >= (top - y) * 0.5 - 1) pb.data[y * wd + x] = CR[clamp(3 - y + (hash2(X, y, 33) < 0.3 ? 1 : 0), 0, 4)];
+      // banco en los extremos: rampa de costra que entra en la lámina
+      const bank = Math.round(7 + PFK.vn(X * 0.2, 2, 35) * 5);
+      if (edge < bank) for (let y = 0; y < top; y++) {
+        const lim = (top - y) * 0.5; if (edge < lim - 1) continue;
+        if (edge - lim < bank * 0.6 * (1 - y / top) + 1) pb.data[y * wd + x] = CR[clamp(Math.round(1 + (edge - lim) * 0.4 + (y < 3 ? 1 : 0) + (hash2(X, y, 37) < 0.25 ? 1 : 0)), 0, 4)];
+      }
+    }
+    for (let i = 0; i < Math.round(wd / 14); i++) { const x = Math.floor(hash1(i, x0 + 39) * wd), y = 2 + Math.floor(hash1(i, x0 + 41) * (top - 4)), X = x0 + x; if (Math.min(x, wd - 1 - x) < (top - y) * 0.5 + 2) continue; if (wet) { for (let k = 0; k < 4; k++) if (y - k >= 0) pb.data[(y - k) * wd + x] = U(k > 2 ? '#c8a050' : '#3e7a3a'); } else { pb.data[y * wd + x] = CR[4]; if (x + 1 < wd) pb.data[y * wd + x + 1] = CR[3]; if (y > 0) pb.data[(y - 1) * wd + x] = CR[4]; } void X; }
+    // velo frontal prehorneado (lo que vadea): extremos redondeados y borde superior roto, no un rectángulo
+    const ov = new PixelBuffer(wd, 11), cA = U(wet ? '#146a6a' : '#3a2a80'), cB = U(wet ? '#0a3a42' : '#18206a'), cL = U(wet ? '#9cf0d0' : '#e5c8f6');
+    for (let y = 0; y < 11; y++) for (let x = 0; x < wd; x++) {
+      const edge = Math.min(x, wd - 1 - x), ins = Math.round(6 * (1 - Math.sqrt(Math.max(0, 1 - Math.pow((y + 1) / 11, 2)))) + PFK.vn((x0 + x) * 0.3, y, 43) * 3);
+      if (edge < ins) continue;
+      if (y === 0) { if (hash2(x0 + x, 0, 45) < 0.82) ov.data[x] = cL; continue; }
+      const a = y >= 6 ? 0.55 : 0.42 - (edge < ins + 3 ? 0.18 : 0);
+      ov.data[y * wd + x] = (((Math.round(a * 255)) << 24) | ((y >= 6 ? cB : cA) & 0xffffff)) >>> 0;
+    }
+    return { brineA: true, w, x0, x1, wy, top, c: pb.toCanvas(), ov: ov.toCanvas() };
   }
   function renderBack(g, sc, Wt) {
     const ox = sc.cam.ox, oy = sc.cam.oy, sx = Wt.x0 - ox;
@@ -66,10 +95,9 @@ const PFASalt = (() => {
     const ox = sc.cam.ox, oy = sc.cam.oy, t = Game.time, w = Wt.w, xa = Math.max(0, Wt.x0 - ox), xb = Math.min(W, Wt.x1 - ox), y = Wt.wy - oy;
     if (xb <= xa) return;
     const wet = w.style === 'wetA';
-    // lámina translúcida sobre lo que vadea (pies de los personajes) y línea de superficie brillante
-    g.globalAlpha = 0.42; g.fillStyle = wet ? '#146a6a' : '#3a2a80'; g.fillRect(xa, y + 1, xb - xa, 9);
-    g.globalAlpha = 0.3; g.fillStyle = wet ? '#0a3a42' : '#18206a'; g.fillRect(xa, y + 5, xb - xa, 5);
-    g.globalAlpha = 1; g.fillStyle = wet ? '#9cf0d0' : '#e5c8f6'; g.fillRect(xa, y, xb - xa, 1);
+    // lámina translúcida sobre lo que vadea (pies de los personajes) y línea de superficie brillante (prehorneadas)
+    if (Wt.ov) g.drawImage(Wt.ov, Wt.x0 - ox, y);
+    else { g.globalAlpha = 0.42; g.fillStyle = wet ? '#146a6a' : '#3a2a80'; g.fillRect(xa, y + 1, xb - xa, 9); g.globalAlpha = 1; }
     // rizos que avanzan y brillos de cristal
     g.fillStyle = '#ffffff';
     for (let x = xa + ((Math.floor(t * 12)) % 9); x < xb; x += 9) g.fillRect(x, y - 1 + ((x >> 3) & 1), 3, 1);
@@ -101,30 +129,60 @@ const PFASalt = (() => {
     for (let yy = 0; yy < h; yy++) { const hw = Math.round((w / 2) * Math.sqrt(1 - yy / h)); for (let k = -hw; k <= hw; k++) { const f = (k + hw) / (2 * hw + 0.01); let kk = f < 0.3 ? 8 : f < 0.55 ? 7 : f < 0.8 ? 6 : 4; if (hash2(x + k, yy, seed) < 0.06) kk = 8; if (yy === 0) kk -= 2; put(pb, x + k, yb - yy, S[clamp(kk, 0, 8)]); } }
     put(pb, x, yb - h, S[8]);
   }
-  /** Pilar de bloques cristalinos de sal (bajo las plataformas de sal): bloques en 3/4 con cara superior,
-   *  faceta iluminada a la izquierda, arista central, lado en sombra lila, oclusión en la base y destellos en grumo */
+  /** Pilar de sal esculpido (r2-biomes-a): columna de halita en capas de crecimiento con silueta orgánica
+   *  (cintura, repisas que vuelan 1–2 px, talud ensanchado), sombreado cilíndrico con luz arriba-izquierda,
+   *  facetas cúbicas en grumos 3×3, labio de cada capa al sol y base socavada en sombra lila, goterones
+   *  de sal bajo el labio, manchas de salmuera en la base y cara superior en 3/4 (donde apoya la plataforma). */
   function saltPillar(pb, x, yTop, yb, w = 28, seed = 1) {
-    const S = P32(SALT), r = RNG(seed), sk = 3;
-    A.castShadow(pb, x, yb, w + 6, 8, -0.24);
-    let y = yTop, first = true;
-    while (y < yb) {
-      const bh = 6 + r.int(0, 6), off = r.int(-2, 2), mid = Math.round(w * (0.35 + r() * 0.2));
-      for (let yy = y; yy < Math.min(yb, y + bh); yy++) for (let i = 0; i < w; i++) {
-        const xx = x + i + off, ly = yy - y, ao = (yb - yy) < 8 ? 1 : 0;
-        let k = ly === 0 ? 8 : ly === bh - 1 ? 2 : ly === bh - 2 ? 4 : i < 2 ? 8 : i < mid ? 7 : i === mid ? 5 : i > w - 4 ? 3 : 5;
-        if (i === mid + 1 && ly > 0 && ly < bh - 2) k = 6;                       // arista del prisma
-        k -= ao;
-        put(pb, xx, yy, S[clamp(k, 0, 8)]);
+    const S = P32(SALT), n = S.length, r = RNG(seed), H = Math.max(4, yb - yTop);
+    const SHV = U('#3a2a6a'), WARM = U('#ffe6d0'), STN = U('#b88aa0'), PR = P32(PILLAR_ROCK);
+    A.castShadow(pb, x, yb, w + 10, 9, -0.26);
+    // capas de crecimiento (5–9 px) con saliente propio
+    const lay = []; for (let q = 0; q <= H;) { const th = 4 + r.int(0, 8); lay.push([q, th, r.range(-1.5, 2.2), r.range(-1.6, 1.6), r.chance(0.6)]); q += th; }
+    const cx0 = x + w / 2;
+    for (const [q0, th, bulge, sh, lip] of lay) for (let k = 0; k < th; k++) {
+      const q = q0 + k; if (q > H) break;
+      const t = q / H, y = yTop + q, lt = k / Math.max(1, th - 1);
+      let hw = w / 2 * (0.94 - 0.12 * Math.sin(t * Math.PI * 0.9)) + (t > 0.8 ? (t - 0.8) * w * 0.55 : 0);
+      hw += bulge * (1 - lt * 0.8) - (lt > 0.8 ? 1 : 0) + (fbm1(q * 0.21, 2, seed) - 0.5) * 1.8;
+      const cx = cx0 + sh + (fbm1(q * 0.06, 2, seed + 3) - 0.5) * 2.4;
+      const xl = Math.round(cx - hw), xr = Math.round(cx + hw);
+      for (let px = xl; px <= xr; px++) {
+        const nx = (px + 0.5 - cx) / Math.max(1, hw), nz = Math.sqrt(Math.max(0, 1 - nx * nx));
+        let I = 0.46 - nx * 0.56 + nz * 0.12;
+        if (lip && k === 0) I += 0.24; else if (lip && k === 1) I += 0.08;   // labio de la capa al sol
+        if (lip && lt > 0.8 && th > 5) I -= 0.18;                            // base socavada
+        const fc = hash2(Math.floor((px - x + (y >> 2)) / 3), Math.floor(y / 3), seed + 7);
+        I += (fc - 0.5) * 0.22 + (PFK.vn(px * 0.15, y * 0.1, seed) - 0.5) * 0.25;                                               // facetas cúbicas
+        if ((px - x) % 3 === 2 && fc > 0.6) I -= 0.08;
+        I -= (1 - t) * 0.02 + (t > 0.85 ? (t - 0.85) * 0.8 : 0);              // oclusión al pie
+        // costra de sal arriba (con chorreones que bajan por el lado al sol); debajo, roca del cañón estratificada
+        const capH = 5 + Math.round(fbm1(px * 0.4, 2, seed + 5) * 4) + (hash2(px, 1, seed + 6) < 0.3 ? Math.round(hash2(px, 2, seed + 6) * H * 0.45) : 0) + (q > H * 0.75 ? 99 : 0);
+        const salt = q < capH || (t > 0.9 && hash2(px >> 1, y, seed + 8) < 0.35);
+        const RR = salt ? S : PR, nn = RR.length;
+        if (!salt) I -= 0.1;
+        let kk = clamp(Math.round(I * (nn - 1)), 1, nn - 1);
+        let u = RR[kk];
+        if (kk < nn * 0.45) u = K.mixU(u, SHV, 0.3 * (1 - kk / (nn * 0.45)));
+        if (px === xl) u = RR[Math.min(nn - 1, kk + 1)];                       // canto iluminado
+        else if (px === xr) u = RR[Math.max(1, kk - 2)];
+        if (salt && q === capH - 1 && q < H * 0.7) u = S[3];                  // borde de la costra en sombra
+        if (t > 0.86 && hash2(px, y, seed + 9) < 0.18) u = K.mixU(u, STN, 0.5); // manchas de salmuera seca
+        put(pb, px, y, u);
       }
-      // destello cristalino en grumo (2×2 con píxel blanco)
-      if (r.chance(0.6)) { const gx = x + off + r.int(2, Math.max(3, mid - 2)), gy = y + r.int(2, Math.max(2, bh - 3)); put(pb, gx, gy, S[8]); put(pb, gx + 1, gy, S[7]); put(pb, gx, gy + 1, S[7]); }
-      if (first) {
-        // cara superior en 3/4 (sobre la que se apoya la plataforma)
-        for (let q = 1; q <= sk; q++) for (let i = 0; i < w; i++) put(pb, x + off + i + q, y - q, S[q === sk ? 6 : i < 3 ? 8 : 7]);
-        first = false;
-      }
-      y += bh;
+      // goterones de sal bajo el labio (lado al sol)
+      if (k === 0 && q > 4) for (let gx = xl + 1; gx < cx; gx += 3 + ((gx * 7) % 3)) if (hash2(gx, q, seed + 11) < 0.45) { const dl = 1 + Math.floor(hash2(gx, q, seed + 12) * 3); for (let d = 1; d <= dl; d++) put(pb, gx, y + d, S[d === dl ? 6 : 8]); }
     }
+    // cara superior en 3/4 con canto y destellos (aquí apoya la plataforma)
+    const tw = w / 2 + 1, tcx = cx0 + lay[0][3] + 1;
+    for (let yy = -3; yy <= 0; yy++) for (let xx = Math.floor(-tw); xx <= tw; xx++) {
+      const e = (xx * xx) / (tw * tw) + ((yy + 1.5) * (yy + 1.5)) / 2.6; if (e > 1) continue;
+      put(pb, Math.round(tcx + xx), yTop + yy, S[e > 0.75 ? (xx < 0 ? 7 : 5) : yy === 0 ? 6 : xx < -tw * 0.3 ? 8 : 7]);
+    }
+    for (let i = 0; i < 3; i++) { const gx = Math.round(tcx - tw * 0.6 + r() * tw), gy = yTop - 2 + r.int(0, 1); put(pb, gx, gy, U('#ffffff')); }
+    put(pb, Math.round(tcx - tw * 0.5), yTop - 2, WARM);
+    // cristales cúbicos caídos al pie
+    for (let i = 0; i < 5; i++) { const cx = Math.round(x - 4 + r() * (w + 10)), cy = yb - r.int(0, 1), s = 1 + r.int(0, 1); for (let a = 0; a <= s; a++) for (let b = 0; b <= s; b++) put(pb, cx + a, cy - b, S[b === s ? 8 : a === 0 ? 7 : 4]); }
   }
   /** Chimenea de roca con vetas de sal y cara superior */
   function hoodoo(pb, x, yb, w, h, ramp, seed = 1) {
@@ -161,14 +219,52 @@ const PFASalt = (() => {
     I.box3q(pb, x + 66, yb - 4, 10, 16, 4, { ramp: PFInfra.STEEL });
     return { gates, led: [x + 70, yb - 16] };
   }
-  /** Laguna de contingencia revestida (lámina de HDPE con borde) en 3/4 */
+  /** Laguna de contingencia excavada en 3/4 (r2-biomes-a): dique de tierra con canto iluminado y costra
+   *  de sal, talud interior revestido de HDPE con soldaduras diagonales, extremos redondeados (no es un
+   *  rectángulo), rampa de servicio, rebosadero y balizas. Devuelve surf [x,y,w,h] y rows[r] = [xl, xr]
+   *  (fila r contada desde abajo, y = surf.y + surf.h - 1 - r) para la lámina dinámica. */
   function pond(pb, x0, x1, yb) {
-    const S = P32(SALT), d = 14;
-    A.castShadow(pb, x0, yb, x1 - x0, 6, -0.2);
-    for (let r = 0; r <= d; r++) { const yy = yb - r, off = Math.round(r * 0.7); for (let x = x0 + off; x < x1 + off; x++) { let u; if (r === 0 || r === d) u = U('#1c1c24'); else if (r === 1 || r === d - 1) u = U('#3a3a44'); else u = U(r < 4 ? '#2a2440' : '#3a2a60'); put(pb, x, yy, u); } }
-    for (let x = x0; x < x1; x++) { put(pb, x, yb + 1, S[6]); if (hash2(x, 5, 3) < 0.3) put(pb, x, yb + 2, S[8]); }
-    for (let k = 0; k < 4; k++) { const px = x0 + 10 + k * Math.round((x1 - x0 - 20) / 3); vline(pb, px, yb - 26, yb, U('#c8d8e0')); put(pb, px, yb - 27, U('#ff6a5a')); }
-    return { surf: [x0 + 2, yb - d + 2, x1 - x0 - 4, d - 3] };
+    const S = P32(SALT), d = 14, sk = 0.7, wd = x1 - x0;
+    const LIN = P32(['#10122a', '#181a3a', '#22244c', '#2e305e', '#3c3e72', '#545890']);
+    const BER = P32(['#2a1a2a', '#46303c', '#644650', '#86605e', '#a87e6c', '#c89e80', '#e6c09a']);
+    A.castShadow(pb, x0 - 6, yb + 2, wd + 14, 7, -0.22);
+    const R = 9;                                                         // radio de los extremos redondeados
+    const ins = (r, R0) => { const v = Math.abs((r - d / 2) / (d / 2 + 2)); return Math.round(R0 * (1 - Math.sqrt(Math.max(0, 1 - Math.pow(v, 2.2))))); };
+    const rows = [];
+    for (let r = -3; r <= d + 3; r++) {
+      const yy = yb - r, off = Math.round(r * sk), ii = ins(clamp(r, -2, d + 2), R + 3) - 3;
+      const xa = x0 + off + ii + Math.round((PFK.vn(r * 0.4, 1, 5) - 0.5) * 2), xb = x1 + off - ii + Math.round((PFK.vn(r * 0.4, 2, 6) - 0.5) * 2);
+      for (let x = xa - 3; x <= xb + 3; x++) {
+        const e = Math.min(x - (xa - 3), xb + 3 - x);
+        const inner = r >= 0 && r <= d && x > xa + 1 && x < xb - 1;
+        let u;
+        if (inner) {
+          const back = r / d, nearRim = Math.min(r, d - r, x - xa, xb - x);
+          let k = nearRim <= 1 ? 4 : nearRim <= 3 ? 3 : back > 0.55 ? 3 : 2;   // talud trasero visible y fondo oscuro
+          if (((x - x0) + r * 3) % 23 === 0 && nearRim > 1) k += 1;                // soldaduras del HDPE
+          if (back > 0.75 && hash2(x, r, 13) < 0.08) k = 5;                        // reflejo del cielo en el plástico
+          u = LIN[clamp(k, 0, 5)];
+        } else {
+          // dique de tierra: canto superior iluminado (detrás), cara frontal en sombra (delante), costra de sal
+          const front = r < 0, kk = front ? 2 + (r === -1 ? 1 : 0) : r > d ? (r === d + 1 ? 6 : 4) : e < 2 ? 5 : 4;
+          u = BER[clamp(kk + (hash2(x >> 1, r, 17) < 0.2 ? -1 : 0), 0, 6)];
+          if (!front && hash2(x, r, 19) < 0.22) u = S[hash2(x, r, 21) < 0.5 ? 8 : 6];
+          if (e === 0 && r > 0 && r < d) u = BER[1];
+        }
+        put(pb, x, yy, u);
+      }
+    }
+    // filas de lámina (desde abajo) que siguen el contorno redondeado
+    const sy = yb - d + 2, sh = d - 3;
+    for (let r = 0; r < sh; r++) { const rr = r + 2, ii = ins(rr, R + 3) - 3 + 2, xa = x0 + Math.round(rr * sk) + ii, xb = x1 + Math.round(rr * sk) - ii; rows[r] = [xa, xb]; }
+    rows.length = sh;
+    // rampa de servicio (izquierda) y rebosadero de hormigón (derecha)
+    for (let k = 0; k < 10; k++) for (let q = 0; q < 4; q++) put(pb, x0 + 6 + k + q, yb - 2 - Math.round(k * 0.9), BER[k === 9 ? 6 : q === 0 ? 5 : 3]);
+    I.box3q(pb, x1 - 2, yb - 1, 10, 6, 4, { ramp: PFTerrain.CONC });
+    // balizas de nivel (postes con tope rojo) y regla graduada
+    for (let k = 0; k < 4; k++) { const px = x0 + 14 + k * Math.round((wd - 28) / 3); vline(pb, px, yb - 26, yb - 2, U('#c8d8e0')); vline(pb, px + 1, yb - 26, yb - 2, U('#6a7a88')); put(pb, px, yb - 27, U('#ff6a5a')); put(pb, px + 1, yb - 27, U('#c83a3a')); }
+    const gx = x0 + Math.round(wd * 0.62) + 8; for (let q = 0; q < d; q++) put(pb, gx + Math.round(q * sk), yb - q, q % 3 ? U('#f0f0f0') : U('#e2404a'));
+    return { surf: [x0 + 2, sy, wd - 4, sh], rows };
   }
   /** Manglar con raíces zancudas y copa de racimos */
   function mangrove(pb, x, yb, h = 56, seed = 1) {

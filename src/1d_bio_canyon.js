@@ -35,7 +35,7 @@ BIOMES.canyon = function (L) {
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, {
       horizonY: HZ, sun: SUN, curve: 0.95,
-      stops: ['#0a1046', '#121a5a', '#1c226c', '#2a287c', '#3a2e88', '#4e3690', '#664096', '#824a94', '#a0607e', '#c86c7e', '#e4846e', '#f6a272'],
+      stops: ['#0a1046', '#121a5a', '#1c226c', '#2a287c', '#3a2e88', '#4e3690', '#624098', '#74489a', '#b4646c', '#d0707a', '#e4846e', '#f6a272'],
       haze: ['#f0a07c', '#f8b480', '#fcc888', '#ffdca0'],
     });
     V.sunDisc(pb, SUN.x, SUN.y, SUN.r, SUN.halo, 'dusk');
@@ -44,7 +44,7 @@ BIOMES.canyon = function (L) {
   });
   B.vdyn(0, (g) => { const t = T(); V.drawStars(g, 46, t, 31, { y1: 96, a: 0.85 }); V.drawBloom(g, SUN.x, SUN.y, 64, '#ff9a70', 0.24, t); }, { tag: 'stars+bloom' });
   const CIR = ['#6a4c94', '#a06a90', '#e09a8a', '#ffd8bc'];
-  const DUSK = ['#2e2462', '#46307a', '#66408a', '#8a5288', '#b2667a', '#d87a7c', '#f0987e', '#fcb88a', '#ffd6a0', '#fff0c8'];
+  const DUSK = ['#2e2462', '#46307a', '#5e3e8c', '#7a5292', '#b2667a', '#d87a7c', '#f0987e', '#fcb88a', '#ffd6a0', '#fff0c8'];
   B.cloudDeck({ kind: 'cirrus', n: 8, seed: 91, f: [0.01, 0.03], y: [16, 96], w: [90, 190], speed: [1, 2], pal: CIR });
   B.cloudDeck({ n: 9, seed: 93, f: [0.03, 0.07], y: [4, 84], w: [56, 140], bias: 0.6, speed: [1.5, 3], sunX: SUN.x, pal: DUSK });
   const skyFauna = [{ kind: 'eagle', x: 360, y: 46, r: 120 }, { kind: 'gull', x: 200, y: 70, r: 260, sp: 7 }, { kind: 'gull', x: 214, y: 76, r: 250, sp: 6 }, { kind: 'gull', x: 760, y: 58, r: 300, sp: -8 }, { kind: 'drone', x: 980, y: 64, r: 30 }];
@@ -59,7 +59,7 @@ BIOMES.canyon = function (L) {
     });
   }, { tag: 'far' });
   /* ---------------- mar del ocaso (0,08) ---------------- */
-  P(0.08, HZ, 70, (pb) => V.seaFar(pb, 0, pb.h, { seed: 99, stops: ['#f8b49a', '#c87a8e', '#8a5a9a', '#5a4a98', '#3a4290', '#2e3c88', '#2a3a80', '#26367a'], horizonCol: '#ffd0b0' }), {
+  P(0.08, HZ, 70, (pb) => V.seaFar(pb, 0, pb.h, { seed: 99, stops: ['#f8b49a', '#c87a8e', '#7c5a9e', '#5a4a98', '#3a4290', '#2e3c88', '#2a3a80', '#26367a'], horizonCol: '#ffd0b0' }), {
     tag: 'sea', dyn: (g, cam, Ly) => { const [, oy] = B.vofs(Ly, cam); V.drawSeaFx(g, 0, oy, W, 60, T(), { sunX: SUN.x, density: 0.6 }); },
   });
   B.cloudDeck({ n: 4, seed: 95, f: [0.08, 0.1], y: [76, 120], w: [90, 150], speed: [1, 2], sunX: SUN.x, tall: true, haze: 0.1, hazeCol: '#c890a0', pal: DUSK });
@@ -115,9 +115,14 @@ BIOMES.canyon = function (L) {
       for (let q = 0; q < 4; q++) { const cx = x + q * 11, cy = 34 + q * 2, rr = 6 + (q % 2) * 2; V.poly(pb, [[cx - rr - 2, cy], [cx, cy - rr], [cx + rr, cy]], (px, py) => CR[px < cx - 1 ? 5 : px < cx + 2 ? 3 : 1 + ((py + px) % 5 === 0 ? 1 : 0)]); }
       V.line(pb, x - 14, 44, x + 44, 20, () => U('#3a3448')); V.line(pb, x - 14, 43, x + 44, 19, () => U('#8a8aa0'));
       for (let q = 0; q < 6; q++) V.put(pb, x - 14 + q * 10, 46 - q * 4, U('#2a2438'));
-      V.box3q(pb, x + 46, 26, 22, 10, 7, { ramp: V.ARCH.WHITE, k });
-      V.box3q(pb, x + 70, 30, 14, 7, 5, { ramp: V.ARCH.WHITE, k });
-      for (let q = 0; q < 3; q++) V.put(pb, x + 52 + q * 5, 22, U('#ffd890'));
+      // naves de la salinera: muros encalados con sombra lateral, tejado a dos aguas de teja y puerta
+      const ROOF = V.P32(V.hz(['#4a1e1e', '#7a2e24', '#a8462e', '#d06a3e', '#f0985a'], k));
+      for (const [bx, by, bw, bh] of [[x + 46, 30, 22, 8], [x + 71, 33, 14, 6]]) {
+        V.box3q(pb, bx, by, bw, bh, 5, { ramp: V.ARCH.WHITE, k });
+        for (let q = 0; q <= 4; q++) for (let xx = bx - 1 + q; xx <= bx + bw + 1 - q; xx++) V.put(pb, xx + 2, by - bh - 1 - q, ROOF[q === 4 ? 4 : xx < bx + bw / 2 ? 3 - (q & 1) : 1 + (q & 1)]);
+        for (let yy = by - 4; yy < by; yy++) { V.put(pb, bx + 3, yy, U('#3a2a3a')); V.put(pb, bx + 4, yy, U('#3a2a3a')); }
+        V.put(pb, bx + bw - 5, by - bh + 3, U('#ffd890')); V.put(pb, bx + bw - 4, by - bh + 3, U('#ffd890'));
+      }
     }
     V.r2baTufts(pb, (x) => info.top[x] < h - 2 ? info.top[x] + 1 : null, 0, w, 119, { k, gap: 12, big: 3 });
     // emisario: tubería grafito hacia el mar con difusor y boyas de vigilancia

@@ -10,7 +10,7 @@ const BRINE_TINT = { tint: '#c86aa8', deep: '#621a66', caustic: '#f888b8', foam:
 /* ---------- anclas del plano jugable (kit PF + PFASalt) ---------- */
 const LV3_ANCH = { lamps: [], leds: [], screens: [] };
 /** Roca del cañón al atardecer: granate-magenta en sombra, melocotón en luz */
-const LV3_ROCK = ['#1e0a1e', '#341230', '#4e1c40', '#6a2a4c', '#8c3e52', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
+const LV3_ROCK = ['#1e0a1e', '#341230', '#461a3a', '#6e2c40', '#8c3e52', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
 const LV3_FLOWS = [];
 
 LEVELS[3] = {
@@ -103,7 +103,7 @@ LEVELS[3] = {
     flow([[1290, gy(1290) - 10], [1326, gy(1290) - 10]], 'brine', (sc) => sc.state.diverted ? 1 : 0);
     I.pipe(pb, [[1290, gy(1290) - 24], [1540, gy(1290) - 24]], 2, 'brine', { flange: 30, supports: 40, supportTo: (x) => gy(x) - 4 });
     flow([[1290, gy(1290) - 24], [1540, gy(1290) - 24]], 'brine', (sc) => sc.state.diverted ? 0 : (sc.state.gateOpen ? 1 : 0.2));
-    const pd = S.pond(pb, 1328, 1494, gy(1328) - 6); N.pond = pd.surf;
+    const pd = S.pond(pb, 1328, 1494, gy(1328) - 6); N.pond = pd.surf; N.pondRows = pd.rows;
     PFSigns.post(pb, 1500, gy(1500) - 2, [{ text: 'CONTINGENCIA' }], 31, { font: 'tiny' });
     for (let x = 1120; x < 1520; x += 22 + r.int(0, 14)) S.salicornia(pb, x, back(x) + 4, 16, x);
     /* ===== 4. HUMEDAL SALINO CON MANGLAR (1530–1840) ===== */
@@ -146,7 +146,18 @@ LEVELS[3] = {
     const jx = 1220 - ox, jy = gy(1220);
     if (S.crystals > 0) for (let i = 0; i < 10 * S.crystals; i++) { const cx = jx + 4 + (i * 13) % 60, cy = jy - 2 - ((i * 7) % 12); frect(g, cx, cy - 4, 2, 5, i % 2 ? '#c4fbff' : '#7ee8f0'); fpx(g, cx, cy - 5, '#ffffff'); }
     // nivel de la laguna de contingencia (lámina rosada que crece)
-    if (N.pond) { const [px, py, pw, ph] = N.pond, lv = clamp(S.pond || 0.22, 0, 1); g.globalAlpha = 0.85; for (let r = 0; r < ph; r++) frect(g, Math.round(px + r * 0.7 - ox), py + ph - 1 - r - oy, Math.round(pw * lv), 1, r % 3 ? '#c86aa8' : '#e5a0c8'); g.globalAlpha = 1; if (S.diverted) fpx(g, Math.round(px + pw * lv * ((t * 0.3) % 1) - ox), py + 4 - oy, '#ffffff'); }
+    if (N.pond) {
+      // lámina que sigue el contorno redondeado de la laguna; la fracción llena se lee en anchura (como antes)
+      const [px, py, pw, ph] = N.pond, lv = clamp(S.pond || 0.22, 0, 1), R = N.pondRows;
+      g.globalAlpha = 0.88;
+      for (let r = 0; r < ph; r++) {
+        const xa = R && R[r] ? R[r][0] : px + r * 0.7, xb = R && R[r] ? R[r][1] : px + r * 0.7 + pw, ww = Math.round((xb - xa) * lv);
+        if (ww <= 0) continue;
+        frect(g, Math.round(xa - ox), py + ph - 1 - r - oy, ww, 1, r === ph - 1 ? '#f0b8dc' : r % 3 ? '#b05aa0' : '#d68cc0');
+        fpx(g, Math.round(xa - ox + ww - 1), py + ph - 1 - r - oy, '#ffe0f2');
+      }
+      g.globalAlpha = 1; if (S.diverted) fpx(g, Math.round(px + pw * lv * ((t * 0.3) % 1) - ox), py + 4 - oy, '#ffffff');
+    }
     // flamencos en el humedal
     for (let i = 0; i < 4; i++) { const fx = 1596 + i * 50 + Math.sin(t * 0.3 + i) * 6; ART.flamingo(g, fx - ox, 300 - oy, t + i * 1.3, i % 2 ? 1 : -1); }
     // boyas de salinidad

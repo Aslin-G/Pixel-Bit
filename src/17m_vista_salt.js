@@ -264,7 +264,7 @@
        VISTA.r2baTufts(pb, surf, x0, x1, seed, {k, gap, ramp})   matas oscuras cada ~gap px
      Las rampas evitan el magenta (tono 295–345°) salvo en emisivos de salmuera.
      ================================================================= */
-  V.RAMPS.canyonR2 = ['#120c30', '#1c1242', '#2a1852', '#3c2062', '#52296c', '#6a3870', '#86506a', '#a8605e', '#c87a62', '#e29c6c', '#f6c080', '#ffe2a6'];
+  V.RAMPS.canyonR2 = ['#120c30', '#1c1242', '#2a1852', '#3c2062', '#4e2a6c', '#5a3476', '#8a5262', '#a8605e', '#c87a62', '#e29c6c', '#f6c080', '#ffe2a6'];
   V.RAMPS.canyonVegR2 = ['#0a1424', '#102a36', '#18403e', '#225842', '#357046', '#4f8a4a', '#74a452', '#a0bc5e'];
   V.RAMPS.saltPanR2 = [
     ['#063a5a', '#0a6c8a', '#12a2b4', '#38d2d2', '#a6f4ec'],   // agua de mar: turquesa
@@ -272,7 +272,7 @@
     ['#3e4a12', '#6a7a1a', '#9aa82a', '#cad04a', '#f0f0a0'],   // algas: oliva
     ['#6a3a0c', '#a8620e', '#e09422', '#f8c04a', '#fff0b0'],   // salmuera densa: ámbar
     ['#6a1e22', '#a8382e', '#da5a40', '#f4886a', '#ffd0b8'],   // halobacterias: coral (no magenta)
-    ['#9a8aa8', '#c4b8cc', '#e4dcea', '#f6f2f8', '#ffffff'],   // cosecha: costra blanca
+    ['#6e3a4a', '#b0606e', '#dc8c96', '#f6c4c4', '#ffffff'],   // cristalizador: salmuera rosada bajo la costra (islas blancas)
   ];
   /** Mesetas estratificadas: huella de superelipse deformada, techo plano, paredes escalonadas, talud */
   V.r2baMesaH = function (list, o = {}) {
@@ -481,42 +481,54 @@
   V.r2baPans = function (pb, o) {
     const r = RNG(o.seed || 5), k = o.k || 0, ponds = [], glints = [];
     const BER = ramp(['#3a2c4e', '#5e4c70', '#8a7896', '#b8a6bc', '#dccede', '#f6eef4'], k), nB = BER.length;
-    const sky = U(V.hzc(o.sky || '#f8c8a0', k));
+    const WALL = ramp(['#2a1838', '#3e2446', '#583450', '#784a58', '#9a6662', '#bc8670'], k);
+    const sky = U(V.hzc(o.sky || '#f8c8a0', k)), CRU = U(V.hzc('#fff6fa', k));
     const STG = V.RAMPS.saltPanR2.map(s => ramp(s, k)), nS = STG.length;
     const rows = o.rows || 4, skew = o.skew ?? 2;
     let y = o.y0;
+    // terrazas que siguen curvas de nivel (borde ondulado), muro de contención sombreado bajo cada fila,
+    // balsas de anchura variable con degradado y reflejo; la costra blanca cristaliza en islas, no en bloques
     for (let row = 0; row < rows; row++) {
-      const ph = 3 + row + (row > 2 ? 1 : 0), sh = row * skew;
-      const xs = o.x0 - sh + r.int(-6, 6), xe = o.x1 - sh + r.int(-6, 6);
-      // dique trasero (línea clara continua) para toda la fila
-      for (let x = xs; x < xe; x++) V.put(pb, x, y, BER[nB - 2 - (hash2(x >> 2, row, 3) < 0.2 ? 1 : 0)]);
-      for (let x = xs; x < xe;) {
-        const pw = Math.round(r.int(8, 20) * (1 + row * 0.18));
-        const xb = Math.min(xe, x + pw);
-        const u0 = clamp((x - xs) / Math.max(1, xe - xs) + r.range(-0.18, 0.18), 0, 0.999);
-        const si = Math.min(nS - 1, Math.floor(u0 * nS)), C = STG[si];
-        for (let yy = 1; yy <= ph; yy++) for (let px = x + 1; px < xb; px++) {
-          let c;
-          if (yy === 1) c = C[0];                                                     // sombra del dique trasero
-          else {
-            const tt = yy / ph;
-            c = C[tt < 0.6 ? 2 : 1];
-            if ((yy + Math.floor(hash1(px >> 2, row * 7 + si) * 3)) % 3 === 0 && hash2(px >> 1, yy + row * 9, 6 + si) < 0.45) c = C[3];
-            if (((px * 3 + yy * 7 + row * 5) % 37) < 2) c = V.mixU(c, sky, 0.55);
-            if (si >= nS - 2 && hash2(px, yy + row * 13, 9) < 0.3) c = C[4];            // costra que cristaliza
-            else if ((yy === ph || px === x + 1) && hash2(px, yy, 11) < 0.35) c = C[4];
+      const ph = 3 + row + (row > 2 ? 1 : 0), sh = row * skew, wallH = 2 + (row >> 1);
+      const xs = o.x0 - sh + r.int(-10, 10), xe = o.x1 - sh + r.int(-10, 10);
+      const f1 = r.range(0.008, 0.016), f2 = r.range(0.03, 0.05), p1 = r.range(0, 6), p2 = r.range(0, 6);
+      const yo = (x) => Math.round(Math.sin(x * f1 + p1) * 1.6 + Math.sin(x * f2 + p2) * 0.7);
+      // cortes entre balsas
+      const cuts = []; for (let x = xs; x < xe;) { const pw = Math.round(r.int(9, 22) * (1 + row * 0.2)); cuts.push(x); x += pw; } cuts.push(xe);
+      for (let c = 0; c < cuts.length - 1; c++) {
+        const a = cuts[c], b = Math.min(xe, cuts[c + 1]);
+        const u0 = clamp((a - xs) / Math.max(1, xe - xs) + r.range(-0.2, 0.2), 0, 0.999);
+        const si = Math.min(nS - 1, Math.floor(u0 * nS)), C = STG[si], crust = si >= nS - 2;
+        const dry = !crust && r.chance(0.08);
+        for (let x = a; x < b; x++) {
+          const yt = y + yo(x), end = Math.min(x - xs, xe - 1 - x), cut = end < 3 ? 3 - end : 0;
+          // dique trasero (canto claro)
+          V.put(pb, x, yt + cut, BER[nB - 2 - (hash2(x >> 2, row, 3) < 0.2 ? 1 : 0)]);
+          for (let yy = 1 + cut; yy <= ph; yy++) {
+            let col;
+            if (x === a) col = yy === 1 ? BER[nB - 2] : BER[nB - 3];                          // dique entre balsas
+            else if (x === a + 1) col = C[0];                                                  // sombra del dique
+            else if (yy === 1) col = C[0];
+            else if (dry) col = BER[(hash2(x, yy, 5) < 0.3 ? 3 : 2)];
+            else {
+              const tt = yy / ph;
+              col = C[tt < 0.45 ? 1 : 2];
+              if (((x * 3 + yy * 7 + row * 5) % 31) < 2) col = V.mixU(col, sky, 0.6);         // reflejo del cielo
+              else if (yy >= ph - 1 && hash2(x >> 1, row, 6 + si) < 0.5) col = C[3];
+              if (crust) { const n0 = vnoise(x * 0.35, (y + yy) * 0.6, 40 + si); if (n0 > 0.52) col = n0 > 0.68 ? CRU : C[4]; }
+              else if (hash2(x, yy + row * 13, 11) < 0.05) col = C[4];
+            }
+            V.put(pb, x, yt + yy, col);
           }
-          V.put(pb, px, y + yy, c);
+          // muro de contención delantero: canto iluminado + cara en sombra con mampuestos
+          V.put(pb, x, yt + ph + 1, BER[nB - 3]);
+          for (let q = 0; q < wallH; q++) V.put(pb, x, yt + ph + 2 + q, WALL[clamp(2 - q + (hash2((x + q * 3) >> 2, row * 5 + q, 9) < 0.3 ? 1 : 0), 0, 5)]);
+          V.put(pb, x, yt + ph + 2 + wallH, WALL[0]);
         }
-        // dique entre balsas (1 px claro) y su sombra
-        for (let yy = 1; yy <= ph; yy++) V.put(pb, x, y + yy, BER[nB - 3]);
-        ponds.push({ x, y, w: xb - x, h: ph, si });
-        if (si < nS - 1 && xb - x > 8) glints.push({ x: x + 2, y: y + 2 + (ph >> 1), len: xb - x - 4, ph: r.range(0, 1.6), sp: 0.12, col: '#fff0e0', w: 2 });
-        x = xb;
+        ponds.push({ x: a, y, w: b - a, h: ph, si });
+        if (!crust && !dry && b - a > 8) glints.push({ x: a + 2, y: y + 2 + (ph >> 1), len: b - a - 4, ph: r.range(0, 1.6), sp: 0.12, col: '#fff0e0', w: 2 });
       }
-      // dique delantero: cara superior clara + talud en sombra
-      for (let x = xs; x < xe; x++) { V.put(pb, x, y + ph + 1, BER[nB - 3]); V.put(pb, x, y + ph + 2, BER[1]); }
-      y += ph + 2;
+      y += ph + 1 + wallH;
     }
     return { ponds, glints, y1: y };
   };
