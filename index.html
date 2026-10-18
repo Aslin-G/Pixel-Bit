@@ -28913,6 +28913,255 @@ const R2MAP_THUMBTEST = {
   },
 };
 
+/* ===== 19w_r2map_d_sims.js ===== */
+/* =====================================================================
+   19w_r2map_d_sims.js — ASPECTO DE LOS SIMULADORES (R2MAP).
+   El gemelo digital se abre en una sala de control con un ventanal
+   panorámico que deja ver la maquinaria real del capítulo dibujada en
+   pixel art con los kits VISTA/R2PLANT (planta de captación, bastidores
+   de membranas, emisario y salinas, campo FV, aerogeneradores, bastidores
+   BESS, electrolizadores y tanques de H₂, bancales, plaza del consejo,
+   calima sobre la ciudad), con marco de acero, reflejos del cristal,
+   consola con LED y rejilla técnica tenue en el muro. KIRU flota entero
+   junto a su globo. Los paneles del simulador ganan pozo interior (sombra
+   interior 1 px), rejilla de 8 px muy tenue, remaches y franja de
+   cabecera, sin tocar su contenido ni su geometría.
+   API:
+     R2MAP.simKey(sim) → id de capítulo del simulador (0–10) o null
+     R2MAP.simBackdrop(key) → {c, live:{rotors, leds, glints}} (cacheado)
+     R2MAP.drawSimLive(g, B, t)     rotores, LED y destellos (≤ 40 fillRect + ≤ 8 drawImage)
+     R2MAP.simPanels(on)            activa la textura de paneles durante sim.draw
+     R2MAP.drawGuide(g, x, y, t, who) KIRU (o el guía) entero, flotando junto al globo
+   ===================================================================== */
+(() => {
+  const M = R2MAP, V = VISTA;
+  const cache = new Map();
+  M.simKey = function (sim) {
+    const names = ['NexusSim', 'Sim01', 'Sim02', 'Sim03', 'Sim04', 'Sim05', 'Sim06', 'Sim07', 'Sim08', 'Sim09', 'Sim10'];
+    for (let i = 0; i < names.length; i++) { let o = null; try { o = eval(names[i]); } catch (e) { o = null; } if (o && o === sim) return i; }
+    return null;
+  };
+  const WIN_Y0 = 196, WIN_Y1 = 320, BW = 640, BH = WIN_Y1 - WIN_Y0;
+  const SKY_DAY = ['#2a5ab8', '#3470c8', '#4686d4', '#5c9ade', '#78aee4', '#96c0e8', '#b4cce8'];
+  const SKY_DUSK = ['#1a1a4a', '#2a2a6a', '#4a3486', '#7a4096', '#b4508e', '#e06a7a', '#f6905e', '#fcb45a'];
+  const FARM = ['#4a4a7a', '#5a5a8a', '#6e6a98', '#8478a4', '#9a86aa', '#b494a8'];
+  const GRASS = ['#123a30', '#1c5228', '#2e6e22', '#4c8c1e', '#76aa22', '#a4c62a', '#d0de44'];
+  const SAND = ['#7a3a32', '#a85a34', '#cc7c3e', '#e49e50', '#f2be6a', '#fad88e'];
+  const CONC = ['#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#f5e5c3'];
+  function bandSky(pb, stops, sun) {
+    const R = V.P32(V.expand(stops, 16));
+    for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
+      let t = y / (BH * 0.7);
+      if (sun) { const d = Math.hypot((x - sun[0]) * 0.7, y - sun[1]); t += Math.max(0, 1 - d / 90) ** 2 * 0.35; }
+      pb.data[y * BW + x] = R[V.band(clamp(t, 0, 0.999), 16, x, y, 0.04, 3)];
+    }
+    if (sun) V.sun(pb, sun[0], sun[1], sun[2] || 9, (sun[2] || 9) * 2);
+  }
+  const range = (pb, yBase, peaks, rp, o = {}) => V.relief(pb, Object.assign({ yBase, nv: 40, dvy: 0.5, H: V.massif(peaks, { seed: o.seed || 3, rough: 0.6, scale: 0.04 }), ramp: rp, seed: o.seed || 3, rim: o.rim || '#f4c8b0', contrast: 1.5 }, o));
+  const ground = (pb, yFn, rp, o = {}) => {
+    const R = V.P32(rp), n = R.length;
+    for (let x = 0; x < BW; x++) { const top = Math.round(yFn(x)); for (let y = Math.max(0, top); y < BH; y++) { const t = clamp((o.t0 ?? 0.78) - (y - top) / (o.depth || 50) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.16, 0, 0.999); pb.data[y * BW + x] = R[V.band(t, n, x, y, 0.05, 7)]; } if (o.rim && top >= 0 && top < BH) pb.data[top * BW + x] = U(o.rim); }
+  };
+  /* ---------- maquinaria por capítulo (en el búfer del ventanal, 640×124) ---------- */
+  const SCENES = {
+    0(pb, L) { // vista general del Nexo: ciudad de la cúpula, torre SYNARA, FV y turbinas
+      bandSky(pb, SKY_DAY, [80, 22, 8]);
+      range(pb, 72, [{ x: 120, v: 20, h: 30, w: 120, d: 20 }, { x: 460, v: 22, h: 36, w: 140, d: 22 }], FARM);
+      ground(pb, x => 86 - Math.sin(x * 0.01) * 6, SAND, { rim: '#fff0c0' });
+      V.domeCity(pb, 320, 92, { s: 0.7, k: 0.05, label: true, seed: 5 });
+      V.synaraTower(pb, 480, 96, 70, {});
+      V.pvArray(pb, 40, 112, { tables: 3, cols: 10, rows: 2, cw: 6, ch: 3 });
+      for (const [x, h] of [[560, 50], [600, 44], [620, 38]]) { const T = V.turbineTower(pb, x, 92, h, { w: 3 }); L.rotors.push({ x: T.hx, y: T.hy, rot: V.rotor(Math.round(h * 0.4), {}), ph: x }); }
+    },
+    1(pb) { // captación: mar, espigón con torre de toma y pretratamiento
+      bandSky(pb, SKY_DAY, [560, 20, 8]);
+      range(pb, 60, [{ x: 520, v: 20, h: 26, w: 140, d: 20 }], FARM);
+      V.seaFar(pb, 60, BH, { seed: 3 });
+      R2PLANT.hero(pb, 430, 104, { s: 0.8, k: 0, from: 'intake', workers: true, lights: true });
+    },
+    2(pb) { // ósmosis inversa: la planta con sus bastidores de membranas en primer plano
+      bandSky(pb, SKY_DAY, [80, 18, 8]);
+      range(pb, 58, [{ x: 140, v: 20, h: 24, w: 160, d: 20 }, { x: 520, v: 22, h: 30, w: 120, d: 20 }], FARM);
+      V.seaFar(pb, 58, BH, { seed: 5 });
+      R2PLANT.hero(pb, 470, 110, { s: 1.0, k: 0, from: 'pretrat', workers: true, lights: true });
+    },
+    3(pb, L) { // salmuera: bahía al atardecer, emisario con boyas, salinas por etapas
+      bandSky(pb, SKY_DUSK.slice().reverse(), [520, 40, 10]);
+      range(pb, 56, [{ x: 80, v: 20, h: 40, w: 90, d: 20 }, { x: 330, v: 22, h: 30, w: 120, d: 20 }], ['#3a1a3a', '#5a2440', '#843a3e', '#b05a3e', '#d47e46', '#f0a85a'], { rim: '#ffd8a0' });
+      if (V.bay) V.bay(pb, 56, BH, { glowX: 520 }); else V.seaFar(pb, 56, BH, {});
+      if (V.r2baPans) V.r2baPans(pb, { x0: 0, x1: 330, y0: 52, rows: 4, seed: 4, k: 0, sky: '#f8c0a0', skew: 3 });
+      V.pipe(pb, [[300, 96], [470, 96], [470, 104]], 3, ['#080e26', '#212846', '#3a405d', '#555a78', '#787a9b'], {});
+      for (let k = 0; k < 6; k++) L.leds.push([360 + k * 40, 92 + (k % 2) * 6, '#ff5ad8']);
+    },
+    4(pb) { // fotovoltaica: campo de seguidores en las dunas, inversores y línea de alta tensión
+      bandSky(pb, SKY_DUSK.slice().reverse(), [470, 34, 12]);
+      range(pb, 60, [{ x: 160, v: 20, h: 22, w: 160, d: 20 }, { x: 520, v: 22, h: 18, w: 120, d: 20 }], ['#3a2a6a', '#5a3480', '#8a4a96', '#b45a8a', '#d0707a'], { rim: '#ffc890' });
+      ground(pb, x => 50 + Math.sin(x * 0.02) * 4, ['#5a2630', '#94462e', '#c66e36', '#e4924a', '#f4b25e', '#fcd07c'], { rim: '#ffe6a8' });
+      V.pvField(pb, { x0: 0, x1: 640, y0: 54, y1: 84, rows: 5, k: 0.1, seed: 4 });
+      for (let k = 0; k < 5; k++) V.tracker(pb, 8 + k * 128, 100 + (k % 2) * 4, 104, { rows: 3, ch: 6, cw: 9, tilt: 14 });
+      for (let k = 0; k < 3; k++) V.inverter(pb, 116 + k * 128, 108, { s: 0.8 });
+      V.pylon(pb, 610, 74, 44, {});
+    },
+    5(pb, L) { // eólica: crestas verdes con cinco aerogeneradores (rotores animados)
+      bandSky(pb, SKY_DAY, [90, 22, 8]);
+      range(pb, 70, [{ x: 200, v: 20, h: 36, w: 160, d: 20 }, { x: 520, v: 22, h: 44, w: 140, d: 22 }], FARM);
+      ground(pb, x => 92 - Math.sin(x * 0.012 + 1) * 14, GRASS, { rim: '#efd83f', depth: 40 });
+      for (const [x, h] of [[70, 74], [200, 62], [330, 80], [450, 66], [575, 72]]) {
+        const gy = Math.round(92 - Math.sin(x * 0.012 + 1) * 14);
+        const T = V.turbineTower(pb, x, gy, h, { w: 4 }); L.rotors.push({ x: T.hx, y: T.hy, rot: V.rotor(Math.round(h * 0.42), {}), ph: x * 0.1 });
+      }
+      if (V.metMast) V.metMast(pb, 262, 88, 34, {});
+    },
+    6(pb, L) { // baterías: contenedores BESS en fila, transformador y subestación
+      bandSky(pb, SKY_DUSK.slice().reverse(), [100, 30, 9]);
+      range(pb, 60, [{ x: 320, v: 20, h: 26, w: 220, d: 20 }], ['#1e1a4a', '#2e2a5e', '#463a76', '#64508e', '#8a6aa4']);
+      ground(pb, () => 66, CONC, { rim: '#f5e5c3', depth: 50 });
+      for (let k = 0; k < 6; k++) { const R = V.bessRack(pb, 10 + k * 104, 102 - (k % 2) * 3, 88, 44, 16, { accent: k % 2 ? '#b6f05a' : '#2c63c0' }); if (R && R.leds) for (const l of R.leds.slice(0, 3)) L.leds.push([l[0], l[1], '#7cff9a']); }
+      V.pylon(pb, 616, 70, 44, {});
+    },
+    7(pb, L) { // hidrógeno: nave de electrolizadores, tanques esmeralda, torre blanca y venteo
+      bandSky(pb, SKY_DAY, [560, 18, 8]);
+      range(pb, 64, [{ x: 300, v: 20, h: 26, w: 220, d: 20 }], FARM);
+      ground(pb, () => 84, CONC, { rim: '#f5e5c3', depth: 40 });
+      const E = V.electroHall(pb, 230, 104, 170, 40, { k: 0 });
+      V.whiteTower(pb, 430, 108, 20, 96, 3, { k: 0 });
+      for (let k = 0; k < 5; k++) V.h2Tank(pb, 30 + k * 40, 116, 15, 64 + (k % 2) * 10, { label: k % 2 === 0 });
+      for (let k = 0; k < 3; k++) V.h2Tank(pb, 490 + k * 50, 114, 18, 56, { white: k === 1 });
+      if (V.ventStack) V.ventStack(pb, 412, 104, 70, {});
+      if (E && E.cells) for (const c of E.cells.slice(0, 6)) L.leds.push([c[0], c[1], '#4cd48e']);
+    },
+    8(pb) { // agroecología: bancales en curva, cultivos, invernadero, molino y palmeras
+      bandSky(pb, SKY_DAY, [80, 18, 8]);
+      range(pb, 52, [{ x: 400, v: 20, h: 26, w: 200, d: 20 }], FARM);
+      ground(pb, () => 54, ['#3a2210', '#5a3618', '#7a4a22', '#9a5e2e', '#b8743a'], { depth: 70 });
+      if (V.orchard) V.orchard(pb, 0, 640, 58, 74, { seed: 8, rows: 2, r0: 4, r1: 6, gap: 6 });
+      if (V.cropRows) V.cropRows(pb, 0, 640, 78, BH, { seed: 8, channelEvery: 3 });
+      V.greenhouse(pb, 380, 72, 110, 34, { k: 0 });
+      if (V.windPump) V.windPump(pb, 540, 88, 46, {});
+      for (const x of [30, 300, 610]) V.palm(pb, x, 92, 40, 4, x, {});
+    },
+    9(pb) { // la Mesa: plaza de Aridia con edificios cívicos y la torre SYNARA
+      bandSky(pb, SKY_DUSK.slice().reverse(), [560, 34, 10]);
+      range(pb, 60, [{ x: 200, v: 20, h: 30, w: 200, d: 20 }], ['#2a2a5a', '#3e3a74', '#5a4a8a', '#7a5a9a', '#a06aa0']);
+      ground(pb, x => 84, ['#5a2e36', '#86503e', '#b07a50', '#d0a066', '#e8c286', '#f6dcaa'], { rim: '#fff0d0', depth: 40 });
+      V.domeCity(pb, 330, 86, { s: 0.6, k: 0.02, label: true, seed: 6 });
+      for (let k = 0; k < 6; k++) V.townHouse(pb, 20 + k * 36, 112 - (k % 2) * 4, 28, 26, 70 + k, { k: 0, s: 1 });
+      for (let k = 0; k < 4; k++) V.townHouse(pb, 470 + k * 42, 112 - (k % 2) * 4, 32, 28, 90 + k, { k: 0, s: 1 });
+      V.synaraTower(pb, 230, 98, 64, {});
+    },
+    10(pb) { // la Gran Calima avanza sobre la ciudad y sus sistemas
+      bandSky(pb, ['#3a1408', '#6a2410', '#9a3a16', '#c8602a', '#e08a3a', '#f0b060'], [520, 40, 10]);
+      const DUST = ['#2a0c06', '#4a1a0c', '#6e2a12', '#94401a', '#b85a24', '#d47a32', '#eaa04a', '#f8c46a'];
+      V.blit(pb, V.cumulus(360, 110, 12, { pal: DUST, sun: 0.6, tower: true }), 280, -10);
+      ground(pb, () => 86, ['#1a0804', '#2a0c04', '#3a1408', '#5a2210', '#7a3416'], { depth: 40 });
+      V.domeCity(pb, 180, 90, { s: 0.6, k: 0.3, label: false, seed: 5 });
+      for (const [x, h] of [[420, 50], [470, 44]]) V.turbineTower(pb, x, 90, h, { w: 3, k: 0.4 });
+      V.pvArray(pb, 520, 112, { tables: 2, cols: 8, rows: 2, cw: 5, ch: 3, k: 0.3 });
+      for (let i = 0; i < 160; i++) V.put(pb, (i * 53) % BW, (i * 29) % BH, U(i % 3 ? '#f0c070' : '#fff0c0'));
+    },
+  };
+  /** Sala de control con ventanal panorámico (640×360), cacheada por capítulo */
+  M.simBackdrop = function (key) {
+    if (cache.has(key)) return cache.get(key);
+    const live = { rotors: [], leds: [], glints: [] };
+    const pb = new PixelBuffer(W, H);
+    // muro técnico: dos bandas navy con paneles, juntas y rejilla de 16 px tenue
+    const WALL = V.P32(['#030c20', '#051430', '#071a3a', '#0a2246', '#0e2a52']);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let t = 0.55 - y / H * 0.3 + (hash2(x >> 4, y >> 4, 5) - 0.5) * 0.12;
+      if (x % 80 === 0 || y % 48 === 0) t -= 0.25; else if (x % 80 === 1 || y % 48 === 1) t += 0.12;
+      if ((x % 16 === 8 || y % 16 === 8) && t > 0.2) t += 0.12;
+      pb.data[y * W + x] = WALL[clamp(Math.round(t * 4), 0, 4)];
+    }
+    // remaches de los paneles del muro
+    for (let y = 6; y < H; y += 48) for (let x = 6; x < W; x += 80) { pb.set(x, y, '#2a4a7a'); pb.set(x + 68, y, '#2a4a7a'); }
+    // ventanal: escena del capítulo
+    const band = new PixelBuffer(BW, BH);
+    try { (SCENES[key] || SCENES[0])(band, live); } catch (e) { console.warn('R2MAP.simBackdrop', key, e); bandSky(band, SKY_DAY, null); }
+    // bruma de cristal: un poco de azul frío arriba y reflejos diagonales
+    const GL = U('#9ad6f2');
+    for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
+      const i = y * BW + x; let u = band.data[i]; if (!(u >>> 24)) u = U('#2a5ab8');
+      const diag = ((x + y * 0.8) % 160);
+      if (diag < 18) u = V.mixU(u, GL, diag < 6 ? 0.16 : 0.08);
+      u = V.mixU(u, U('#0a1a3a'), 0.12 + (1 - y / BH) * 0.1);
+      pb.data[(y + WIN_Y0) * W + x] = u;
+    }
+    // marco de acero del ventanal: travesaño superior, montantes y alféizar
+    const STEEL = ['#0a1226', '#1a2a46', '#2e4468', '#4a6a94', '#86a8d0', '#cfe4ff'];
+    const bar = (x, y, w, h, vert) => { for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const k = vert ? xx / Math.max(1, w - 1) : yy / Math.max(1, h - 1); pb.set(x + xx, y + yy, STEEL[clamp(Math.round(vert ? 4.6 - k * 4 : 4.6 - k * 4.2), 0, 5)]); } };
+    bar(0, WIN_Y0 - 6, W, 6, false);
+    for (let x = 0; x <= W; x += 160) bar(Math.min(W - 5, Math.max(0, x - 2)), WIN_Y0, 5, BH, true);
+    for (let x = 0; x < W; x++) { pb.set(x, WIN_Y0 - 7, '#000633'); pb.set(x, WIN_Y0 - 1, '#cfe4ff'); }
+    // consola bajo el ventanal: tablero inclinado con pantallas, botones y LED
+    const cons = [];
+    const DESK = ['#06102a', '#0a1a3e', '#10264e', '#1a3664', '#2a4c82', '#5a86c0'];
+    for (let y = WIN_Y1; y < H; y++) for (let x = 0; x < W; x++) { const k = (y - WIN_Y1) / (H - WIN_Y1); pb.data[y * W + x] = U(DESK[clamp(Math.round((y === WIN_Y1 ? 5 : y === WIN_Y1 + 1 ? 4 : 3 - k * 2.4) + (hash2(x >> 2, y >> 1, 9) - 0.5) * 0.4), 0, 5)]); }
+    for (let x = 12; x < W - 20; x += 46) {
+      const sx = x + (x % 3), sy = WIN_Y1 + 8;
+      V.rect(pb, sx, sy, 22, 10, U('#000633')); V.rect(pb, sx + 1, sy + 1, 20, 8, U(['#063a4a', '#0a2a5a', '#2a1a4a'][(x / 46 | 0) % 3]));
+      for (let k = 0; k < 4; k++) V.rect(pb, sx + 3 + k * 4, sy + 7 - ((x + k * 3) % 5), 2, (x + k * 3) % 5 + 1, U(['#22dbe7', '#3fe0a0', '#ffd23a', '#ff6b6b'][k]));
+      cons.push([sx + 26, sy + 2, ['#3fe0a0', '#ffd23a', '#22dbe7'][(x / 46 | 0) % 3]]);
+    }
+    // los LED y rotores de la escena vienen en coordenadas del ventanal: pásalos a pantalla
+    for (const l of live.leds) l[1] += WIN_Y0;
+    for (const r of live.rotors) r.y += WIN_Y0;
+    live.leds.push(...cons);
+    const out = { c: pb.toCanvas(), live, key };
+    cache.set(key, out);
+    return out;
+  };
+  /** Capa viva: rotores de los aerogeneradores, LED que laten y un destello que recorre el cristal */
+  M.drawSimLive = function (g, B, t) {
+    if (!B || !B.live) return;
+    for (const R of B.live.rotors) V.drawRotor(g, R.rot, R.x, R.y, t * 2.4 + R.ph);
+    for (let i = 0; i < B.live.leds.length; i++) { const [x, y, col] = B.live.leds[i]; if (Math.sin(t * 3 + i * 1.7) > -0.2) { g.drawImage(M.glow(col, 3, 0.7), x - 3, y - 3); fpx(g, x, y, '#ffffff'); } }
+    const gx = ((t * 40) % 900) - 130;
+    g.globalAlpha = 0.1; g.fillStyle = '#cfe4ff';
+    for (let k = 0; k < 4; k++) g.fillRect(Math.round(gx + k * 3), WIN_Y0, 2, BH);
+    g.globalAlpha = 1;
+  };
+  /* ---------- textura de paneles durante el dibujo del simulador ---------- */
+  const _tex = new Map();
+  let _orig = null;
+  function panelTex(w, h, style) {
+    const key = w + '|' + h + '|' + style;
+    let c = _tex.get(key); if (c) return c;
+    c = makeCanvas(w, h); const g = c.g;
+    const fx = 3, fy = 3, fw = w - 6, fh = h - 6;
+    // pozo interior: sombra de 1 px arriba e izquierda y luz de 1 px abajo
+    g.globalAlpha = 0.55; g.fillStyle = '#000633'; g.fillRect(fx + 2, fy, fw - 4, 1); g.fillRect(fx, fy + 2, 1, fh - 4);
+    g.globalAlpha = 0.18; g.fillStyle = '#6d9be8'; g.fillRect(fx + 2, fy + fh - 1, fw - 4, 1);
+    // rejilla técnica de 8 px en la banda inferior (muy tenue: no compite con el texto)
+    g.globalAlpha = 0.14; g.fillStyle = '#3a64b0';
+    const y0 = fy + Math.round(fh * 0.42);
+    for (let x = fx + 8; x < fx + fw - 2; x += 8) g.fillRect(x, y0, 1, fy + fh - 2 - y0);
+    for (let y = y0 + 6; y < fy + fh - 2; y += 8) g.fillRect(fx + 2, y, fw - 4, 1);
+    // franja de cabecera con un brillo suave
+    g.globalAlpha = 0.12; g.fillStyle = '#a8c8ff'; g.fillRect(fx + 3, fy + 1, fw - 6, 2);
+    g.globalAlpha = 1;
+    // remaches en las cuatro esquinas del pozo
+    for (const [x, y] of [[fx + 3, fy + 3], [fx + fw - 5, fy + 3], [fx + 3, fy + fh - 5], [fx + fw - 5, fy + fh - 5]]) { g.fillStyle = '#000633'; g.fillRect(x, y, 2, 2); g.fillStyle = '#5a86c0'; g.fillRect(x, y, 1, 1); }
+    _tex.set(key, c);
+    return c;
+  }
+  M.simPanels = function (on) {
+    if (on && !_orig) {
+      _orig = UIK.panel;
+      UIK.panel = function (g, x, y, w, h, style = 'tech', accent = null, o = {}) {
+        _orig.call(UIK, g, x, y, w, h, style, accent, o);
+        if (w >= 64 && h >= 40 && !(o && o.alpha != null && o.alpha < 1)) g.drawImage(panelTex(Math.round(w), Math.round(h), style), Math.round(x), Math.round(y));
+      };
+    } else if (!on && _orig) { UIK.panel = _orig; _orig = null; }
+  };
+  /** Guía entero (KIRU flotando con su estela) junto al globo de diálogo */
+  M.drawGuide = function (g, x, y, t, who) {
+    if (who && who !== 'kiru') return false;
+    try { drawChar(g, 'kiru', 'idle', t, x, y + Math.round(Math.sin(t * 2.6) * 2), 1, { shadow: false, expr: 'esperanzado' }); } catch (e) { return false; }
+    return true;
+  };
+})();
+
 /* ===== 19z_r2light.js ===== */
 /* =====================================================================
    19z_r2light.js — ILUMINACIÓN DEL PLANO JUGABLE (ronda 2 · r2-light)
@@ -36376,7 +36625,10 @@ function makeSim(def) {
       this.ps = new Particles(600);
       // fondo: el nivel de donde se abrió el simulador, atenuado (o la rejilla si no hay nivel debajo)
       const below = Game.scenes[Game.scenes.length - 2];
-      this.bgC = FIXUI_simBackdrop(p.gameplay || (typeof GameplayScene !== 'undefined' && below === GameplayScene ? GameplayScene : null));
+      // R2MAP (19w): sala de control con ventanal sobre la maquinaria real del capítulo; si no, el nivel atenuado
+      this.r2bg = null;
+      try { const k = typeof R2MAP !== 'undefined' ? R2MAP.simKey(this) : null; if (k != null) this.r2bg = R2MAP.simBackdrop(k); } catch (e) { this.r2bg = null; }
+      this.bgC = this.r2bg ? this.r2bg.c : FIXUI_simBackdrop(p.gameplay || (typeof GameplayScene !== 'undefined' && below === GameplayScene ? GameplayScene : null));
       Audio2.sfx('power', { vol: 0.5 });
       this.init && this.init(p);
       this.enterPhase(this.phase);
@@ -36424,7 +36676,11 @@ function makeSim(def) {
     render(g) {
       // fondo de laboratorio: azul noche plano con rejilla de 16 px (prerenderizado, sin tramado)
       g.drawImage(this.bgC || simBackdrop(), 0, 0);
-      this.draw && this.draw(g);
+      if (this.r2bg) R2MAP.drawSimLive(g, this.r2bg, this.t);
+      // paneles con pozo interior, rejilla tenue y remaches (R2MAP) solo mientras dibuja el simulador
+      const tex = !!this.r2bg && typeof R2MAP !== 'undefined';
+      if (tex) R2MAP.simPanels(true);
+      try { this.draw && this.draw(g); } finally { if (tex) R2MAP.simPanels(false); }
       this.ps.render(g);
       // cabecera: insignia + título en negrita + fase + puntos de fase + RA
       UIK.panel(g, 4, 4, W - 8, 22, def.style || 'hud', null, { chamfer: 2, key: false });
@@ -36441,15 +36697,19 @@ function makeSim(def) {
       if (this.msg && !this.verdict) {
         const m = this.msg, sp = SPEAKERS[m.who] || SPEAKERS.kiru;
         const bx = 6, by = H - 44;
-        UIK.frame(g, bx, by, 38, 38, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
-        const pid = sp.portrait || 'kiru', bust = UIK.bust(pid, 'smile');
-        // recorte 1:1 centrado en la cara (sin reescalar el arte): el visor y los ojos de KIRU, la cara de un humano
-        const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
-        const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
-        g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
+        // KIRU entero flotando junto a su globo (R2MAP); otros guías, en su marco de retrato
+        const whole = this.r2bg && typeof R2MAP !== 'undefined' && R2MAP.drawGuide(g, bx + 25, H - 4, this.t, m.who || 'kiru');
+        if (!whole) {
+          UIK.frame(g, bx, by, 38, 38, 'hud', { bg: mixHex('#0a2450', sp.color, 0.2) });
+          const pid = sp.portrait || 'kiru', bust = UIK.bust(pid, 'smile');
+          // recorte 1:1 centrado en la cara (sin reescalar el arte): el visor y los ojos de KIRU, la cara de un humano
+          const fx = pid === 'kiru' ? bust.width * 0.62 : bust.width / 2, fy = pid === 'kiru' ? bust.height * 0.6 : bust.height * 0.42;
+          const cx0 = clamp(Math.round(fx - 15), 0, Math.max(0, bust.width - 30)), cy0 = clamp(Math.round(fy - 15), 0, Math.max(0, bust.height - 30));
+          g.drawImage(bust, cx0, cy0, 30, 30, bx + 4, by + 4, 30, 30);
+        }
         // globo acoplado a la derecha del busto, con la base a ras del marco: ocupa la franja inferior y no la
         // columna izquierda del simulador (allí suelen estar los valores y etiquetas que el guía menciona)
-        UIK.speechBubble(g, bx + 39, by + 24, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['sl'], minY: 30 });
+        UIK.speechBubble(g, bx + (whole ? 47 : 39), by + 24, { name: sp.name ? sp.name.toUpperCase() : null, nameCol: sp.color, text: m.text, max: Math.floor(m.t * 60), w: 340, place: ['sl'], minY: 30 });
       }
       if (this.safeErr) this.renderSafeErr(g);
       Gui.renderTooltip(g);
