@@ -147,7 +147,7 @@ BIOMES.vault = function (L) {
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx < -40 || sx > W + 40) continue; g.drawImage(cone, Math.round(sx - 35), Math.round(y + oy)); }
         g.globalCompositeOperation = 'source-over';
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx > -10 && sx < W + 10) V.drawGlow(g, sx, y + oy, 5, '#fff2d0', 0.6); }
-        for (const [x, y] of hallFx.warm || []) { const sx = x + ox; if (sx > -14 && sx < W + 14) V.drawGlow(g, sx, y + oy, 9, '#ffb460', 0.5); }
+        for (const [x, y] of hallFx.warm || []) { const sx = x + ox; if (sx > -16 && sx < W + 16) { V.drawGlow(g, sx, y + oy, 13, '#ffa850', 0.5); V.drawGlow(g, sx, y + oy, 4, '#ffe8b0', 0.8); } }
         // LED de estado: verde (SOC sano), rojo (bajo), parpadeo de actividad
         const col = S.soc < 0.3 ? '#ff6b6b' : '#b6f05a';
         g.fillStyle = col;

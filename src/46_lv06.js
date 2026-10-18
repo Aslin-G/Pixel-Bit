@@ -268,7 +268,9 @@ function R2BB_workLamp(pb, D, x, yb, dir, gyx) {
   // cabezal: carcasa naranja con rejilla y cara encendida
   for (let yy = -4; yy <= 4; yy++) for (let k = -5; k <= 5; k++) { const e = Math.abs(yy) === 4 || Math.abs(k) === 5; K.put(pb, x + k, hy - 2 + yy, U(e ? '#3a1a08' : (k * dir > 2 ? '#fff4c8' : yy < -1 ? '#ff9a2a' : '#c8601a'))); }
   K.put(pb, x - 5 * dir, hy + 3, U('#ffd060'));
-  D.glows.push({ x: x + 4 * dir, y: hy - 2, r: 22, col: '#ffb860', a: 0.5, mode: 'flicker', ph: x });
+  D.glows.push({ x: x + 4 * dir, y: hy - 2, r: 30, col: '#ffa850', a: 0.42, mode: 'flicker', ph: x }, { x: x + 3 * dir, y: hy - 2, r: 9, col: '#ffe0a0', a: 0.7, mode: 'steady' });
+  // charco cálido horneado en el suelo bajo el foco (3 bandas, sin tramado)
+  for (let yy = -3; yy <= 3; yy++) for (let k = -26; k <= 26; k++) { const d = Math.hypot(k / 26, yy / 3.5); if (d >= 1) continue; const px = x + 10 * dir + k, py = gyx - 6 + yy, u = K.get(pb, px, py); if (!(u >>> 24)) continue; K.put(pb, px, py, K.mixU(u, U('#ffc070'), d < 0.4 ? 0.36 : d < 0.7 ? 0.22 : 0.1)); }
   D.cones.push([x + 8 * dir, hy + 2, 6, 64, Math.max(20, gyx - hy - 4), '#ffc878', 0.24]);
 }
 /* r2-biomes-b: luz de los arcos eléctricos — halo radial en anillos (sin rectángulo duro), charco elíptico en el suelo
