@@ -74,6 +74,21 @@ LEVELS[5] = {
       for (let x = x0 + r.int(10, 40); x < x1 - 20; x += r.int(40, 90)) { if (hash2(x, 1, sd) < 0.5) Wn.windBush(pb, x, back(x) + 6, 20 + r.int(0, 10), 12 + r.int(0, 6), x); else Wn.thrift(pb, x, back(x) + 6, x); }
     };
     veg(0, 410, 501); veg(640, 1290, 503); veg(1580, 3000, 505);
+    /* ===== r2-biomes-a: densidad del plano medio — peñas con liquen, muretes de piedra seca y matas cada ~30 px ===== */
+    const SB = PFASalt, skip5 = [[96, 124], [410, 640], [646, 676], [1290, 1580], [1680, 1860], [2320, 2480], [2910, 2940]];
+    const DSW = PFK.P32(['#2a1a1a', '#4a2e26', '#6e4632', '#946240', '#b88456', '#dcae7a']);
+    for (let x = 20; x < 2980; x += 22 + r.int(0, 16)) {
+      if (skip5.some(([a, b]) => x > a && x < b) || WIND_TURBINES.some((tx) => Math.abs(tx - x) < 26)) continue;
+      const yb = back(x) + 5, h = hash2(x, 11, 5);
+      if (h < 0.4) SB.boulder(pb, x, yb, 8 + (x % 9), 5 + (x % 5), LV5_ROCK, x, { speck: h < 0.2 ? '#c8d070' : '#e8e0c8' });
+      else if (h < 0.62) Wn.thrift(pb, x, yb + 1, x);
+      else if (h < 0.8) {
+        // murete de piedra seca (12–22 px): mampuestos redondeados con canto superior al sol
+        const ww = 12 + (x % 11);
+        for (let i = 0; i < ww; i++) for (let q = 0; q < 4; q++) { const st = ((i + (q & 1) * 2) % 5 === 0) || q === 3; K.put(pb, x + i, yb - q, DSW[st ? 1 : q === 2 ? 5 - ((i * 7) % 3 === 0 ? 1 : 0) : 3 + ((i >> 1) % 2)]); }
+        F.tuft(pb, x + ww - 2, yb - 3, 6, 5, x);
+      } else Wn.windBush(pb, x, yb + 1, 14 + (x % 6), 9 + (x % 4), x);
+    }
     /* ===== 1. ESTACIÓN DEL CAPITÁN NIMBO (0–420) ===== */
     const ks = Wn.kiteStation(pb, 212, gy(212) - 6); N.ks = ks;
     for (let k = 0; k < 4; k++) { const kx = 150 + k * 9, ky = gy(150) - 30; K.polyFill(pb, [[kx, ky], [kx + 4, ky + 6], [kx, ky + 14], [kx - 4, ky + 6]], U(['#e34ad8', '#56e5ff', '#ffe14d', '#ff8a3a'][k])); for (let q = 0; q < 10; q++) K.put(pb, kx + (q % 2), ky + 14 + q, U('#fffaf0')); }

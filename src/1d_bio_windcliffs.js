@@ -41,6 +41,19 @@ BIOMES.windcliffs = function (L) {
   B.cloudDeck({ kind: 'cirrus', n: 8, seed: 81, f: [0.01, 0.03], y: [6, 56], w: [90, 190], speed: [3, 5] });
   B.cloudDeck({ n: 9, seed: 83, f: [0.03, 0.07], y: [-6, 58], w: [50, 130], bias: 0.6, speed: [5, 9], sunX: SUN.x });
   B.vdyn(0.02, (g) => V.drawWind(g, 14, T(), 3, { y0: 20, y1: 140, speed: 150 * WND(), len: 30, a: 0.35 }), { tag: 'windHigh' });
+  /* ---------------- islas montañosas lejanas en el horizonte (0,08): rompen la línea del mar y el cielo vacío ---------------- */
+  P(0.08, HZ - 46, 47, (pb, w, h) => {
+    const env = (u) => clamp((fbm1(u * 0.0035, 2, 61) - 0.38) * 3.2, 0, 1);
+    V.r2baRelief(pb, {
+      yBase: h - 1, nv: 14, dvy: 0.4, seed: 63, hMax: 44,
+      H: (u, v) => { const e = env(u); if (e <= 0) return 0; const rd = 1 - Math.abs(fbm(u * 0.022, v * 0.08, 3, 65) * 2 - 1); return e * (rd * 26 + fbm(u * 0.05, v * 0.1, 2, 67) * 14) * (1 - v / 18); },
+      ramp: V.RAMPS.cliffWarm, contrast: 1.7, t0: 0.5, facet: 0.3, flatK: 0.06, tex: 0.03,
+      haze: { col: '#9cb8e0', k0: 0.5, k: 0.06 }, mist: { col: '#c8dcf0', h: 12, k: 0.7 }, rim: '#fff4e0', rimK: 0.45,
+      veg: { ramp: V.hz(V.RAMPS.meadowR2, 0.55, '#9cb8e0'), density: 0.04, maxSlope: 0.4, minY: 8, size: 1.2 },
+    });
+    // pueblo blanco y faro diminutos en una de las islas
+    for (let x = 40; x < w; x += 330) for (let q = 0; q < 4; q++) { const hx = x + q * 5 + (q % 2) * 2; for (let yy = 0; yy < 3; yy++) for (let xx = 0; xx < 3; xx++) { const c = V.get(pb, hx + xx, h - 6 - yy); if (c >>> 24) V.put(pb, hx + xx, h - 6 - yy, U(xx === 2 ? '#c8d0e0' : '#f4f6fa')); } }
+  }, { tag: 'isles' });
   /* ---------------- mar con parque eólico marino (0,08) ---------------- */
   const seaT = [];
   P(0.08, HZ, H - HZ + 10, (pb, w, h) => {
