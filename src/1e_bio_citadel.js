@@ -39,7 +39,7 @@ function buildCitadel(L) {
   B.sky = V.timed('sky', () => {
     const pb = V.sky(W, H, {
       horizonY: HZ, sun: SUN, curve: 1.05, bands: 26,
-      stops: ['#0a1440', '#10204e', '#18305e', '#22406e', '#30527e', '#46628c', '#66709a', '#8e7ca4', '#b88aa8', '#e09ea4', '#f8b89a'],
+      stops: ['#120e40', '#1a164e', '#241e5e', '#30286c', '#423278', '#5a3c82', '#7a4888', '#a6568c', '#d06a8a', '#f08c80', '#ffbc7c'],
       haze: ['#f0b4a0', '#f8c49a', '#ffd4a0', '#ffe0b0'],
     });
     V.stars(pb, { n: 150, y1: 96, seed: 71 });
@@ -91,7 +91,7 @@ function buildCitadel(L) {
     },
   });
   /* ---------------- llanura con eólica, FV y pueblo (0,16) ---------------- */
-  const plainFx = { turb: [], beacons: [], lights: [] };
+  const plainFx = { turb: [], beacons: [], lights: [], flocks: [] };
   B.vplane(0.16, at(0.16, 120), 92, (pb, w, h) => {
     const r = RNG(771), k = 0.3;
     const info = V.relief(pb, {
@@ -114,12 +114,19 @@ function buildCitadel(L) {
     for (const x0 of [180, 520, 1000]) if (x0 < w - 70) V.pvArray(pb, x0, h - 10, { tables: 3, cols: 12, rows: 2, cw: 4, ch: 2, gap: 2, skew: 2, k: 0.45, shift: 3 });
     // pueblo con luces
     for (const [x0, x1] of [[380, 470], [760, 880], [1150, 1260]]) if (x0 < w) { const S = V.skyline(pb, x0, Math.min(w, x1), h - 6, { k: 0.2, seed: x0, hMin: 4, hMax: 12, lit: 0.45 }); plainFx.lights.push(...S.lights); }
+    // r3-int-b: bancales verdes en las lomas (cultivo al atardecer), arboledas y palmeras; bandadas al ocaso
+    const CROPD = ['#10201a', '#18301e', '#224424', '#2e5a2a', '#3e7030', '#568838', '#74a040', '#9ab850'];
+    for (const [x0, x1] of [[40, 170], [560, 700], [960, 1100], [1320, 1440]]) if (x1 < w) V.carveTerraces(pb, info, { x0, x1, yTop: 26, yBot: h - 10, stepH: [6, 9], wallK: 0.42, k: 0.18, seed: 7790 + x0, kinds: ['rows', 'orchard', 'vine', 'rows'], crop: CROPD, wall: ['#2a2238', '#3a2e48', '#5a4458', '#80606a', '#a87e78', '#d0a088'], falls: [] });
+    V.scatterVeg(pb, (x) => info.top[x] + 1, 0, w, 7801, { k: 0.18, gap: 9, mix: { tree: 3, shrub: 3, palm: 3 }, ramp: ['#0e1c18', '#16281e', '#1e3624', '#28462a', '#365a32', '#4a6e3a'] });
+    V.rim(pb, U('#ffa878'), 0.42, -1, 0); V.rim(pb, U('#ffc090'), 0.3, 0, -1);
+    for (let x = 120; x < w; x += r.int(260, 420)) plainFx.flocks.push({ x, y: r.int(-60, -20), n: r.int(5, 9), sp: r.pick([9, 12, -10]), span: 900, ph: x, col: '#2a2040' });
   }, {
     tag: 'plain', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
       drawTurbines(g, cam, Ly, plainFx.turb);
       for (let i = 0; i < plainFx.beacons.length; i++) { const [x, y] = plainFx.beacons[i]; if ((Math.floor(t * 1.2 + i * 0.37) % 2) === 0) { g.fillStyle = '#ff5040'; g.fillRect(x + ox, y + oy, 1, 1); V.drawGlow(g, x + ox, y + oy, 3, '#ff4030', 0.5); } }
       V.drawLights(g, plainFx.lights, ox, oy, t, { blink: 0 });
+      for (const fl of plainFx.flocks) V.drawFlock(g, fl, ox, oy, t);
     },
   });
   /* ---------------- la ciudadela (0,28) ---------------- */
@@ -175,7 +182,7 @@ function buildCitadel(L) {
     V.scatterVeg(pb, (x) => info.top[x] > base + 8 ? info.top[x] + 1 : null, 0, w, 7801, { k: 0.2, gap: 10, mix: { tree: 2, shrub: 3, palm: 2 }, ramp: ['#0e1a14', '#16261c', '#1e3424', '#28422c', '#345234', '#44663e'] });
     V.rim(pb, U('#ffb890'), 0.55, -1, 0); V.rim(pb, U('#ffc8a0'), 0.4, 0, -1);
     const tk0 = 500;
-    labels.push({ x: tk0 + 10, y: lyOf(0.28, CIT_YS) + base - 76, f: 0.28, title: 'H₂ VERDE', sub: 'Almacenamiento', kind: 'green', ax: tk0, ay: lyOf(0.28, CIT_YS) + base - 56 });
+    labels.push({ x: tk0 + 10, y: lyOf(0.28, CIT_YS) + base - 46, f: 0.28, title: 'H₂ VERDE', sub: 'Almacenamiento', kind: 'green', ax: tk0, ay: lyOf(0.28, CIT_YS) + base - 34 }); // r3-int-b: bajo el rótulo de la nave (el tallo no lo cruza)
   }, {
     tag: 'cit', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
@@ -232,6 +239,10 @@ function buildCitadel(L) {
         x += 60 + r.int(26, 40);
       }
     }
+    // r3-int-b: azoteas verdes (sedum y matas) en la banda de edificios bajos y palmeras delante de la losa
+    { const SED = V.P32(['#1a3018', '#24421e', '#2e5624', '#3c6a2a', '#4e7e32', '#6a9640']);
+      for (let x = 0; x < w; x += 70) { if (hash2(x, 1, 7811) > 0.6) continue; const bh = 24 + ((x / 70) % 3) * 4, y0 = base - 10 - bh - 1; for (let xx = x + 1; xx < x + 72; xx++) for (let q = 0; q < 3; q++) { const yy = y0 - q - Math.round(hash2(xx >> 1, q, 7812) * 1.4); if (V.get(pb, xx, yy + q + 1) >>> 24 || q === 0) V.put(pb, xx, yy, SED[clamp(3 - q + (hash2(xx, q, 7813) < 0.3 ? 1 : 0), 0, 5)]); } }
+      for (let x = r.int(10, 40); x < w; x += r.int(60, 120)) V.palm(pb, x, base - 9, r.int(30, 46), r.range(-5, 5), 7900 + x, { k: 0.16 }); }
     V.rim(pb, U('#ffb890'), 0.5, -1, 0); V.rim(pb, U('#ffd0b0'), 0.35, 0, -1);
     // tubería colectora de H₂ a lo largo de la losa
     const P = [[0, base - 14], [w - 1, base - 14]]; V.pipe(pb, P, 2, K.H2G, { k, flange: 24 }); nearFx.flowsG = [P];
@@ -248,6 +259,74 @@ function buildCitadel(L) {
       V.drawMotes(g, 12, t, 23, { y0: 120, y1: 280, col: '#c8f8ff' });
     },
   });
+  /* ---------------- r3-int-b: terraza ajardinada trasera (0,7) ----------------
+     Muro de contención de piedra con seto, anexos blancos con azotea verde y ventanas encendidas,
+     hiedra en las fachadas, palmeras, cipreses, pérgola con parra, farolas cálidas; borde de ocaso desde
+     la izquierda. Huecos amplios para no tapar la ciudadela ni la ciencia del plano jugable. */
+  const gardenFx = { lamps: [], lights: [], bats: [] };
+  B.vplane(0.7, at(0.7, 150), 140, (pb, w, h) => {
+    const r = RNG(7951), k = 0.1, base = 118;
+    const STN = V.P32(['#1e1a30', '#2c2440', '#3e3250', '#56445c', '#725866', '#94706e', '#b88a78', '#d8a886']);
+    const HED = V.P32(['#0e1a16', '#16261c', '#1e3422', '#28442a', '#345634', '#46683c', '#5e7e44']);
+    const IVY = ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438'];
+    // muro de contención con seto recortado encima
+    for (let x = 0; x < w; x++) {
+      for (let y = base - 12; y < h; y++) { const c = Math.floor((y - base + 12) / 5), off = (c & 1) * 7, j = ((x + off) % 14 === 0) || ((y - base + 12) % 5 === 0); V.put(pb, x, y, STN[clamp((j ? 1 : 4) + (hash2(x >> 1, y >> 1, 7952) < 0.3 ? -1 : 0) - (y > base ? 1 : 0), 0, 7)]); }
+      const hh = 5 + Math.round(hash2(x >> 2, 0, 7953) * 2);
+      for (let q = 0; q < hh; q++) V.put(pb, x, base - 12 - q, HED[clamp(2 + (q > hh - 3 ? 2 : 0) + (hash2(x, q, 7954) < 0.3 ? 1 : 0), 0, 6)]);
+    }
+    let x = r.int(10, 40);
+    const kinds = ['annex', 'palms', 'gap', 'pergola', 'annex', 'gap', 'cypress', 'annex', 'palms', 'gap'];
+    let ki = 0;
+    while (x < w - 40) {
+      const kind = kinds[ki++ % kinds.length];
+      if (kind === 'annex') {
+        const bw = r.int(60, 100), bh = r.int(34, 56), y0 = base - 16;
+        V.box3q(pb, x, y0, bw, bh, 12, { ramp: K.WHT, k, front: 6, side: 3, top: 8 });
+        // ventanas encendidas en filas y puerta con farol
+        for (let yy = y0 - bh + 6; yy < y0 - 12; yy += 10) for (let xx = x + 6; xx < x + bw - 8; xx += 12) { const lit = hash2(xx, yy, 7955) < 0.65; V.rect(pb, xx, yy, 6, 6, U(lit ? '#ffd890' : '#24304e')); if (lit) { V.rect(pb, xx, yy + 4, 6, 2, U('#ffb060')); gardenFx.lights.push([xx + 2, yy + 1, '#fff0c0']); } V.rect(pb, xx, yy + 6, 6, 1, U('#d8d0e0')); }
+        const dx = x + Math.round(bw / 2) - 4; V.rect(pb, dx, y0 - 12, 9, 12, U('#3a2a3a')); V.rect(pb, dx + 1, y0 - 11, 7, 11, U('#ffb868'));
+        gardenFx.lamps.push([dx + 4, y0 - 15]);
+        // azotea verde: sedum, matas y una palmera joven
+        const SED = V.P32(['#1e3a1c', '#2a4e22', '#386428', '#4a7a30', '#62903a', '#7ea648']);
+        for (let xx = x; xx < x + bw + 6; xx++) for (let q = 0; q < 4; q++) { const yy = y0 - bh - 6 - q + (xx > x + bw ? Math.round((xx - x - bw) * 0.9) : 0); if (q < 2 || hash2(xx, q, 7956) < 0.5) V.put(pb, xx, yy, SED[clamp(4 - q + (hash2(xx >> 1, q, 7957) < 0.3 ? 1 : -1), 0, 5)]); }
+        for (let q = 0; q < 3; q++) V.shrub(pb, x + 10 + q * Math.round(bw / 3), y0 - bh - 7, r.int(3, 5), 7960 + x + q, { ramp: ['#142a16', '#1e3c1e', '#2a5226', '#386830', '#4e8038', '#6c9a44'] });
+        if (r.chance(0.6)) V.palm(pb, x + bw - 10, y0 - bh - 7, r.int(20, 28), r.range(-3, 3), 7970 + x, { k: 0.08 });
+        // hiedra que trepa por la fachada
+        for (let q = 0; q < 2; q++) R3INTB_ivy(pb, x + 3 + q * (bw - 8), y0 - 1, r.int(18, bh), 7980 + x + q, IVY, -1);
+        x += bw + 18 + r.int(10, 30);
+      } else if (kind === 'palms') {
+        const n = r.int(2, 3);
+        for (let i = 0; i < n; i++) V.palm(pb, x + i * 22, base - 16, r.int(50, 76), r.range(-7, 7), 7990 + x + i, { k: 0.06 });
+        x += n * 22 + r.int(30, 60);
+      } else if (kind === 'cypress') {
+        for (let i = 0; i < 3; i++) V.cypress(pb, x + i * 12, base - 16, r.int(36, 54), 8000 + x + i, { k: 0.1 });
+        x += 50 + r.int(20, 50);
+      } else if (kind === 'pergola') {
+        const pw = r.int(70, 100), py = base - 52;
+        const WD = V.P32(['#2a1a14', '#4a2e1c', '#6e4428', '#946038', '#b88050']);
+        for (const px of [x, x + Math.round(pw / 2), x + pw]) for (let yy = py; yy < base - 14; yy++) { V.put(pb, px, yy, WD[3]); V.put(pb, px + 1, yy, WD[1]); }
+        for (let xx = x - 4; xx < x + pw + 6; xx++) { V.put(pb, xx, py, WD[4]); V.put(pb, xx, py + 1, WD[2]); if ((xx - x) % 9 === 0) V.put(pb, xx, py - 1, WD[3]); }
+        for (let xx = x - 4; xx < x + pw + 6; xx += r.int(3, 6)) { R3INTB_ivy(pb, xx, py + 1, r.int(6, 20), 8010 + xx, IVY, 1); }
+        for (let q = 0; q < 6; q++) { const gx = x + r.int(4, pw - 4); V.put(pb, gx, py + 4 + r.int(0, 6), U('#8a3a7a')); }
+        gardenFx.lamps.push([x + Math.round(pw / 2), py + 6]);
+        x += pw + r.int(30, 60);
+      } else x += r.int(70, 130);
+    }
+    // farolas cálidas a lo largo del seto
+    for (let lx = 60; lx < w; lx += r.int(120, 200)) { const lp = V.lamp(pb, lx, base - 14, 22, { k }); gardenFx.lamps.push([lp.x, lp.y]); }
+    V.rim(pb, U('#ffb080'), 0.55, -1, 0); V.rim(pb, U('#ffc8a0'), 0.4, 0, -1);
+    for (let i = 0; i < 4; i++) gardenFx.bats.push({ x: 200 + i * 470, y: 20 + i * 7, r: 60 });
+  }, {
+    tag: 'garden', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      for (let i = 0; i < gardenFx.lamps.length; i++) { const [x, y] = gardenFx.lamps[i], sx = x + ox; if (sx < -24 || sx > W + 24) continue; const fl = 0.9 + 0.1 * Math.sin(t * 7 + i * 1.9); V.drawGlow(g, sx, y + oy, 12, '#ffa860', 0.4 * fl); V.drawGlow(g, sx, y + oy, 4, '#fff0c0', 0.8 * fl); }
+      V.drawLights(g, gardenFx.lights, ox, oy, t, { blink: -0.85, speed: 0.4 });
+      // vencejos al ocaso que cruzan sobre la terraza
+      g.fillStyle = '#1a1430';
+      for (const b of gardenFx.bats) { const u = t * 0.6 + b.x * 0.01, bx = b.x + ox + Math.sin(u) * b.r + Math.sin(u * 2.7) * 14, by = b.y + oy + Math.sin(u * 1.9) * 10; if (bx < -6 || bx > W + 6) continue; const up = Math.floor(t * 8 + b.x) % 2; g.fillRect(Math.round(bx) - 2, Math.round(by) - up, 2, 1); g.fillRect(Math.round(bx) + 1, Math.round(by) - up, 2, 1); g.fillRect(Math.round(bx), Math.round(by), 1, 1); }
+    },
+  });
   function drawTurbines(g, cam, Ly, list) {
     const [ox, oy] = B.vofs(Ly, cam), t = T();
     for (const tb of list) {
@@ -257,10 +336,23 @@ function buildCitadel(L) {
       V.drawRotor(g, tb.rot, x, y, t * tb.sp + tb.ph);
     }
   }
-  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc);
+  // r3-int-b: la etiqueta lejana (y su tallo) no cruza los rótulos horneados del nivel (def.labelAvoid)
+  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc) && !R3INTB_stemHitsAvoid(Lb, sc);
   BIOME_LABELS.citadel = labels;
   B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
   return B;
 }
 
 BIOME_LABELS.citadel = BIOME_LABELS.citadel || [];
+
+/** ¿La caja de la etiqueta lejana L o su tallo (columna x = ax, del pie de la caja al ancla) tocan un rótulo de def.labelAvoid? */
+function R3INTB_stemHitsAvoid(L, sc) {
+  const A = sc && sc.def && sc.def.labelAvoid; if (!A || !A.length || !sc.cam) return false;
+  const cam = { x: sc.cam.ox ?? sc.cam.x ?? 0, y: sc.cam.oy ?? sc.cam.y ?? 0 };
+  const R = VISTA.labelRect(L, cam, sc); if (!R) return false;
+  const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+  const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
+  const boxes = [{ x: R[0], y: R[1], w: R[2], h: R[3] }, { x: Math.min(Math.max(ax, R[0] + 4), R[0] + R[2] - 3) - 2, y: R[1] + R[3], w: 5, h: Math.max(0, ay - R[1] - R[3] + 2) }];
+  for (const a of A) { const x = a.x - cam.x, y = a.y - cam.y; for (const b of boxes) if (b.x < x + a.w + 2 && x - 2 < b.x + b.w && b.y < y + a.h + 2 && y - 2 < b.y + b.h) return true; }
+  return false;
+}

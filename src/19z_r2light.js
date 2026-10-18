@@ -78,7 +78,9 @@ const R2LIGHT_CFG = {
     grade: { mul: '#fff0e4', mulK: 0.1, shade: '#1e1a4a', shadeK: 0.2, lift: '#ffe0b0', liftK: 0.1, sat: 1.32, vgrad: [0.0, -0.05] },
     rim: { col: '#fbc371', k: 0.4, side: 0.8, terrain: 0.35 },
     char: { shade: '#1e1a4a', shadeK: 0.12, lift: '#ffd8a8', liftK: 0.08, rim: '#ffd08a', rimK: 0.6, shadowCol: '#100c28', shadowA: 0.62, cast: 0.3, castA: 0.3 } },
-  7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.28, sat: 1.16, warmMag: 0.3, vgrad: [0.03, -0.07] } },
+  7: { tod: 'dusk', env: 'dusk', // r3-int-b: luz de ocaso cálida en las caras al sol (mapa de gradiente activo, más realce)
+    grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b86a5a', '#ffa468', '#ffe2b4'], mapK: 0.2, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.34, sat: 1.22, warmMag: 0.45, vgrad: [0.03, -0.07] },
+    rim: { col: '#ffb070', k: 0.7, side: 1, terrain: 0.65 } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk', glowKinds: [],
     shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },

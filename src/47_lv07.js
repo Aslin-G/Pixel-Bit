@@ -28,6 +28,36 @@ const H2_BATCHES = [
 ];
 const H2_CLASSES = ['Verde (hora a hora)', 'No verde', 'Depende de la frontera'];
 
+/* r3-int-b: oclusor frontal (f≈1,3) de frondas de palmera colgando desde arriba, en silueta índigo con borde de ocaso */
+function R3INTB_frond(o) {
+  const w = o.w || 200, h = o.h || 90, pb = new PixelBuffer(w, h), r = RNG(o.seed || 1), side = o.side || -1;
+  const C = ['#03040a', '#070a16', '#0c1222', '#121a30', '#1a2640', '#24324e'].map(U), RIM = U('#c07a64');
+  const put = (x, y, u) => { if (x >= 0 && y >= 0 && x < w && y < h) PFK.put(pb, x, y, u); };
+  for (let f = 0; f < (o.n || 4); f++) {
+    const ax = side < 0 ? r.int(-10, Math.round(w * 0.2)) : r.int(Math.round(w * 0.8), w + 10), ay = r.int(-6, 6);
+    const len = r.int(Math.round(w * 0.5), Math.round(w * 0.92)), dir = side < 0 ? 1 : -1, ang = r.range(0.0, 0.45), droop = r.range(0.45, 0.9);
+    const Lmax = r.int(16, 24);
+    for (let i = 0; i < len; i++) {
+      const u = i / len, x = Math.round(ax + dir * Math.cos(ang) * i), y = Math.round(ay + Math.sin(ang) * i * 0.4 + droop * u * u * h * 0.7);
+      // foliolos colgando a ambos lados del raquis (2 px de ancho), más cortos hacia la punta
+      const L = Math.round((1 - u * 0.7) * Lmax * (0.8 + 0.2 * Math.sin(i * 0.9 + f)));
+      for (const sg of [-1, 1]) {
+        if ((i + (sg > 0 ? 1 : 0)) % 2) continue;
+        const sx = sg * 0.55 + dir * 0.25;
+        for (let q = 1; q < L; q++) {
+          const lx = Math.round(x + sx * q), ly = Math.round(y + q * 0.85);
+          const k = clamp(4 - Math.floor(q / 5) - (sg === dir ? 1 : 0), 0, 5);
+          put(lx, ly, C[k]); put(lx + 1, ly, C[Math.max(0, k - 1)]);
+        }
+      }
+      put(x, y, C[5]); put(x, y + 1, C[3]);
+      if (u < 0.6 && hash2(x, y, 7171) < 0.6) put(x, y - 1, RIM);
+    }
+  }
+  return pb;
+}
+if (typeof PFStage !== 'undefined') PFStage.FG.r3intbFrond = R3INTB_frond;
+
 LEVELS[7] = {
   id: 7, title: 'La Ciudadela del Hidrógeno', chapter: 'CAPÍTULO 07', biome: 'citadel', music: 'citadel', width: 2700, height: 360, metalFloor: true,
   ambience: { hum: 0.6, wind: 0.2, bubbles: 0.5 },
@@ -47,6 +77,7 @@ LEVELS[7] = {
      los aerorrefrigeradores → baldosa pulida ante el portal del núcleo. La línea de paso es la misma. */
   pf: {
     kitB: true,
+    decorateFace(pb, world, segs) { R3INTB_L7face(pb, world, segs); }, // r3-int-b: tramos variados (válvulas, manómetros, nichos, musgo, placas, charcos)
     terrain: [
       { x0: 0, x1: 330, surf: 'street', face: 'steps', depth: 20, steps: 4, stepH: 7, ramp: ['#181a28', '#22263a', '#2e334a', '#3c425a', '#4c536c', '#5e6680', '#727a94', '#8a92aa', '#a6acc0'], drains: true, pools: [{ x: 228, r: 30, col: '#ffe0b0', k: 0.28 }, { x: 54, r: 26, col: '#ffe0b0', k: 0.22 }] },
       { x0: 330, x1: 760, surf: 'metal', face: 'gallery', depth: 20, pipes: [[14, 3, 'upw'], [24, 2, 'perm'], [33, 2, 'cool']], bay: 64, pools: [{ x: 520, r: 34, col: '#fff0d0', k: 0.24 }] },
@@ -67,6 +98,13 @@ LEVELS[7] = {
       { kind: 'rail', x: 2500, w: 220, h: 40 },
       { kind: 'cables', x: 2900, y: 0, w: 300, h: 38, seed: 77, n: 4 },
       { kind: 'pillar', x: 3270, w: 30, h: 360, ramp: ['#03040a', '#070a16', '#0c1222', '#141c32', '#1e2a44', '#2c3a58', '#ffb08a'], lit: true },
+      // r3-int-b: encuadre de follaje oscuro y frío (ramas de palmera colgando y matas al pie de los bordes)
+      { kind: 'r3intbFrond', x: 150, y: -16, w: 230, h: 104, seed: 701, side: -1, n: 4, top: true },
+      { kind: 'clump', x: 600, y: 8, w: 120, h: 64, seed: 703, spikes: 2 },
+      { kind: 'r3intbFrond', x: 1460, y: -16, w: 220, h: 100, seed: 705, side: 1, n: 4, top: true },
+      { kind: 'clump', x: 1980, y: 8, w: 130, h: 66, seed: 707, spikes: 3 },
+      { kind: 'r3intbFrond', x: 2640, y: -16, w: 240, h: 106, seed: 709, side: -1, n: 5, top: true },
+      { kind: 'clump', x: 3080, y: 8, w: 120, h: 64, seed: 711, spikes: 2 },
     ],
   },
   /** Etiquetas científicas en el mundo */
@@ -91,7 +129,7 @@ LEVELS[7] = {
     const segs = PFBGround.surface(pb, world);
     const back = (x) => PFBGround.backEdge(PFBGround.segAt(segs, x), Math.round(x), gy(x));
     const H2 = PFBH2, B = PFB, I = PFInfra, F = PFFlora, D = LV7;
-    D.flows.length = 0; D.glows.length = 0; D.leds.length = 0; D.screens.length = 0; D.stacks.length = 0; D.fans.length = 0; D.cones.length = 0;
+    D.flows.length = 0; D.glows.length = 0; D.leds.length = 0; D.screens.length = 0; D.stacks.length = 0; D.fans.length = 0; D.cones.length = 0; D.puddles.length = 0; D.gauges.length = 0;
     const yb = back(400) + 2; // pie de los equipos (borde trasero del suelo)
     const on = (sc) => sc.state.stacks > 0 && !sc.state.leak;
     const lampG = (x, y, r = 8, a = 0.34) => D.glows.push({ x, y, r, col: '#fff0d0', a, mode: 'flicker', ph: x });
@@ -221,6 +259,7 @@ LEVELS[7] = {
     for (const [x, y] of sh.lamps) D.cones.push([x, y, 10, 56, yb + 8 - y]);
     for (const [x, y] of cr.lamps) D.cones.push([x, y, 12, 44, 212 - y]);
     for (const [x, y] of cg.lights) D.cones.push([x, y, 6, 30, yb + 10 - y]);
+    R3INTB_L7floor(pb, world, gy, back, D); // r3-int-b: charcos con reflejo del ocaso y matas en las juntas
     { const all = LV7.flows.splice(0); for (const r of all) LV7.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[7]._propsMs = Math.round(nowMs() - t0);
   },
@@ -240,6 +279,7 @@ LEVELS[7] = {
     for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#fff0c8', 0.16), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
     g.globalCompositeOperation = 'source-over';
     PFInfra.drawFlows(g, sc, D.flows);
+    R3INTB_L6puddles(g, sc, cam, D); R3INTB_L7gauges(g, sc, cam, D);
     // stacks: burbujas en las mirillas de los separadores y torre de señales
     D.stacks.forEach((st, k) => {
       const x = st.cells[0] - ox; if (x < -170 || x > W + 30) return;
@@ -334,7 +374,106 @@ LEVELS[7] = {
 };
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
-const LV7 = { flows: [], glows: [], leds: [], screens: [], stacks: [], fans: [], cones: [], upwScreen: null };
+const LV7 = { flows: [], glows: [], leds: [], screens: [], stacks: [], fans: [], cones: [], upwScreen: null, puddles: [], gauges: [] };
+/* ---------------- r3-int-b: canto del suelo con tramos variados ----------------
+   Cada vano del canto (zanja o galería) recibe una variante distinta: volante de válvula, manómetros
+   (agujas animadas en renderMid), nicho iluminado con maceta, placa de señal, tapa de rejilla con LED o
+   musgo con helechos y goteo; además musgo en cornisas, hiedra que cuelga del labio y charcos al pie. */
+function R3INTB_L7face(pb, world, segs) {
+  const K = PFK, D = LV7, IVY = ['#0c160e', '#142414', '#1c341a', '#264620', '#325828', '#446c30', '#5c8438'];
+  const MOSS = [U('#1c3418'), U('#2a4a1e'), U('#3c6426'), U('#5a8432'), U('#86a83e')];
+  const put = (x, y, u) => K.put(pb, x, y, u), get = (x, y) => K.get(pb, x, y);
+  const rect = (x, y, w, h, u) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) put(xx, yy, typeof u === 'function' ? u(xx, yy) : u); };
+  const SIGNS = [['H₂', '#0a3e2a', '#52d090', '#e4fff0'], ['O₂', '#18305a', '#a0c0ea', '#ffffff'], ['AGUA UP', '#064866', '#6ae2f8', '#ffffff'], ['ALTA PRESIÓN', '#3a2604', '#e8b830', '#ffe890'], ['VENTEO ↑', '#2a0608', '#ff6a50', '#ffd0c0']];
+  let bayN = 0;
+  const bay = (x0, x1, y0, y1, gy, solid) => {
+    const w = x1 - x0, i = bayN++, cx = Math.round((x0 + x1) / 2), v = solid ? [2, 3, 5][i % 3] : (i * 5 + 3) % 6;
+    if (w < 24) return;
+    if (v === 0) {
+      // válvula de compuerta con volante rojo y etiqueta
+      const vx = x0 + Math.round(w * 0.38);
+      rect(vx - 3, y0 + 12, 7, 9, (xx, yy) => U(xx === vx - 3 ? '#b0b8d6' : xx === vx + 3 ? '#24283e' : '#525a7a'));
+      for (let yy = y0 + 4; yy < y0 + 12; yy++) { put(vx, yy, U('#d4daee')); put(vx + 1, yy, U('#525a7a')); }
+      K.ellipseFn(pb, vx + 0.5, y0 + 4.5, 5, 2.6, (nx, ny, d) => d > 0.55 ? U(ny < 0 ? '#ff6a50' : '#a01c22') : (Math.abs(nx) < 0.15 || Math.abs(ny) < 0.2) ? U('#d83a32') : 0);
+      rect(vx + 5, y0 + 15, 8, 5, U('#ffd860')); put(vx + 7, y0 + 17, U('#3a2604')); put(vx + 9, y0 + 17, U('#3a2604'));
+    } else if (v === 1) {
+      // dos manómetros sobre un colector
+      for (const [gx, rr] of [[x0 + Math.round(w * 0.3), 4], [x0 + Math.round(w * 0.62), 3]]) {
+        const gy0 = y0 + 8;
+        for (let yy = gy0 + rr; yy < y0 + 20; yy++) put(gx, yy, U('#8e96b8'));
+        K.ellipseFn(pb, gx + 0.5, gy0 + 0.5, rr + 1.2, rr + 1.2, (nx, ny, d) => d > 0.7 ? U(nx + ny < 0 ? '#d4daee' : '#383e5a') : U(ny > 0.35 && nx > 0.2 ? '#ff6a50' : '#f2f0e6'));
+        put(gx - rr + 1, gy0, U('#383e5a')); put(gx + rr - 1, gy0, U('#383e5a')); put(gx, gy0 - rr + 1, U('#383e5a'));
+        D.gauges.push([gx, gy0, rr, i * 1.7 + gx * 0.01]);
+      }
+    } else if (v === 2) {
+      // nicho iluminado con maceta de helecho
+      const nx0 = x0 + w - 22, ny0 = y0 + 2, nw = 14, nh = Math.min(20, y1 - y0 - 3);
+      rect(nx0 - 1, ny0 - 1, nw + 2, nh + 2, U('#2a3148'));
+      rect(nx0, ny0, nw, nh, (xx, yy) => { const q = (yy - ny0) / nh, e = Math.abs(xx - nx0 - nw / 2) / (nw / 2); return U(q < 0.12 ? '#fff0c8' : e > 0.8 ? '#8a5a3a' : q < 0.5 ? '#ffc070' : '#d88a4a'); });
+      rect(nx0 + 4, ny0 + nh - 6, 6, 6, (xx, yy) => U(yy === ny0 + nh - 6 ? '#e08a50' : xx === nx0 + 4 ? '#c46634' : '#8e3e1c'));
+      PFFlora.fern ? PFFlora.fern(pb, nx0 + 7, ny0 + nh - 6, 6, i * 13 + 7) : null;
+      for (let k = 0; k < 10; k++) put(nx0 + 3 + (k * 7) % 9, ny0 + nh - 7 - (k % 4), [U('#2a5226'), U('#4e8038'), U('#6c9a44')][k % 3]);
+      D.glows.push({ x: nx0 + nw / 2, y: ny0 + 3, r: 11, col: '#ffb060', a: 0.5, mode: 'flicker', ph: nx0 });
+    } else if (v === 3) {
+      // placa de señal en el vano
+      const S = SIGNS[i % SIGNS.length], tw = K.measure(S[0], { font: 'tiny' }) + 8, sx = cx - Math.round(tw / 2), sy = y0 + 4;
+      rect(sx - 1, sy - 1, tw + 2, 11, U(S[2])); rect(sx, sy, tw, 9, U(S[1]));
+      K.text(pb, S[0], sx + 4, sy + 1, U(S[3]), { font: 'tiny' });
+      put(sx + 1, sy + 1, U(S[2])); put(sx + tw - 2, sy + 1, U(S[2]));
+    } else if (v === 4) {
+      // tapa de rejilla con lamas, franja de aviso y LED
+      rect(x0 + 2, y0 + 1, w - 4, Math.min(24, y1 - y0 - 2), (xx, yy) => { const ry = yy - y0 - 1; if (ry < 2) return U(((xx >> 2) & 1) ? '#e8b830' : '#1c1c26'); return U(ry % 3 === 0 ? '#1a2030' : xx === x0 + 2 ? '#8690ac' : ry % 3 === 1 ? '#5a6380' : '#48506a'); });
+      put(x0 + w - 8, y0 + 5, U('#3fe0a0')); put(x0 + w - 6, y0 + 5, U('#ffd860'));
+      D.glows.push({ x: x0 + w - 7, y: y0 + 5, r: 3, col: '#3fe0a0', a: 0.7, mode: 'blink', hz: 0.9, ph: x0, core: '#ffffff' });
+    } else {
+      // musgo, helechos que cuelgan y goteo con mancha de humedad
+      for (let k = 0; k < w * 2; k++) { const xx = x0 + 1 + ((k * 37) % (w - 2)), yy = y0 + Math.floor(hash2(xx, k, 7101) * 6); if (get(xx, yy) >>> 24) put(xx, yy, MOSS[(xx + yy) % 5]); }
+      for (let q = 0; q < 3; q++) R3INTB_ivy(pb, x0 + 6 + q * Math.round(w / 3.2), y0, 8 + ((q * 5 + i) % 10), 7110 + x0 + q, IVY, 1);
+      const dx = x0 + Math.round(w * 0.7);
+      for (let yy = y0 + 2; yy < y1 + 6; yy++) { const c = get(dx, yy); if (c >>> 24) put(dx, yy, K.mixU(c, U('#0a0e1c'), 0.35)); if (yy % 5 === 0) put(dx, yy, U('#a8f0ff')); }
+    }
+    // musgo en las cornisas del vano y manchas bajo él (siempre, en dosis variables)
+    for (let xx = x0; xx < x1; xx++) { const h = hash2(xx >> 1, i, 7121); if (h < 0.35) { put(xx, y0 - 1, MOSS[1 + ((xx + i) % 3)]); if (h < 0.15) put(xx, y0 - 2, MOSS[3 + (xx & 1)]); } if (hash2(xx, i, 7122) < 0.2) { const c = get(xx, y1 + 1); if (c >>> 24) put(xx, y1 + 1, MOSS[(xx + i) % 4]); } }
+  };
+  for (const s of segs) {
+    const gyAt = (x) => world.ground[clamp(Math.round(x), 0, world.w - 1)];
+    if (s.face === 'trench') { const tw = s.tw || 96; for (let bx = s.x0 + 18; bx < s.x1 - 20; bx += tw) { const gy = gyAt(bx); bay(bx + 1, Math.min(s.x1 - 2, bx + tw - 19), gy + 13, gy + 37, gy); } }
+    else if (s.face === 'gallery') { const b = s.bay || 64; for (let bx = s.x0 + 6; bx < s.x1 - 12; bx += b) { const gy = gyAt(bx); bay(bx + 1, Math.min(s.x1 - 2, bx + b - 2), gy + 16, gy + 44, gy); } }
+    else {
+      // caras macizas (escalones, bordillo, hormigón): nichos y placas cada ~90 px
+      for (let bx = s.x0 + 30; bx < s.x1 - 40; bx += 90) { const gy = gyAt(bx); bay(bx, bx + 34, gy + 12, gy + 34, gy, true); }
+    }
+    // hiedra que cuelga del labio de la línea de paso, de vez en cuando
+    for (let x = s.x0 + 20; x < s.x1 - 10; x += 46 + ((x * 7) % 40)) if (hash2(x, 3, 7131) < 0.55) { const gy = gyAt(x); for (let q = 0; q < 2; q++) R3INTB_ivy(pb, x + q * 4, gy + 5, 6 + ((x + q * 11) % 14), 7140 + x + q, IVY, 1); }
+  }
+}
+/** Superficie: charcos con el ocaso reflejado y matas en las juntas del borde trasero */
+function R3INTB_L7floor(pb, world, gy, back, D) {
+  const K = PFK, paint = (x, y, u, a) => { const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, u, a)); };
+  const SKY = [U('#3a3a7a'), U('#8a6aa8'), U('#f0a080'), U('#ffe0a8')];
+  for (const [px, rx] of [[120, 14], [292, 12], [612, 16], [1200, 14], [1452, 12], [1812, 18], [2240, 14], [2600, 16]]) {
+    const cy = Math.round((back(px) + gy(px)) / 2) + 1, ry = 3;
+    for (let y = cy - ry - 1; y <= cy + ry + 1; y++) for (let x = px - rx - 2; x <= px + rx + 2; x++) {
+      const nx = (x - px) / rx, ny = (y - cy) / ry, d = nx * nx + ny * ny;
+      if (d > 1.25) continue;
+      if (d > 1) { paint(x, y, U('#0a0e1c'), 0.35); continue; }
+      paint(x, y, Math.abs(nx + ny * 0.6) < 0.12 ? SKY[3] : SKY[ny < -0.3 ? 2 : ny < 0.3 ? 1 : 0], 0.55);
+    }
+    D.puddles.push([px, cy, rx]);
+  }
+  const G = [U('#1e3a1c'), U('#2e5424'), U('#46702c'), U('#6a9038')];
+  for (let x = 4; x < world.w - 4; x += 3) { if (hash2(x, 1, 7151) > 0.18) continue; const y = back(x) + 1; const h = 1 + Math.floor(hash2(x, 2, 7152) * 3); for (let q = 0; q < h; q++) K.put(pb, x + (q === h - 1 && hash2(x, 3, 7153) < 0.5 ? 1 : 0), y - q, G[clamp(q + 1, 0, 3)]); }
+}
+/** Agujas de los manómetros del canto (oscilan con la presión de los stacks) */
+function R3INTB_L7gauges(g, sc, cam, D) {
+  const t = Game.time, S = sc.state, run = (S.stacks || 0) > 0 && !S.leak;
+  g.fillStyle = '#c8202a';
+  for (const [x, y, rr, ph] of D.gauges) {
+    const sx = Math.round(x - cam.x); if (sx < -8 || sx > W + 8) continue;
+    const a = -2.4 + (run ? 1.9 : 0.9) + 0.35 * Math.sin(t * 1.7 + ph) + (S.leak ? 0.4 * Math.sin(t * 13 + ph) : 0);
+    for (let q = 0; q < rr; q++) g.fillRect(sx + Math.round(Math.cos(a) * q), Math.round(y - cam.y + Math.sin(a) * q), 1, 1);
+  }
+}
 
 /* ---------------- piezas del guion del nivel 07 ---------------- */
 async function prepareWater(sc, st) {
