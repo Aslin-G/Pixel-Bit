@@ -72,9 +72,12 @@ const R2LIGHT_CFG = {
   4: { tod: 'day', cast: { col: '#4a2a6a', a: 0.36, len: 0.3, maxLen: 40 } },
   5: { tod: 'day' },
   6: { tod: 'interior', env: 'tech',
-    // la luz entra por la boca del túnel (plano 'far', PORTAL cx 360 ± 105): solo los arcos que la dejan ver
-    shafts: { layer: 'wall', x0: 52, step: 200, w: 136, y0: 44, y1: 244, from: 0.3, slant: 0.22, wTop: 0.5, wBot: 0.8, col: '#a8e4ff', a: 0.12, soft: 1, pool: { col: '#b8ecff', a: 0.6 }, src: { layer: 'far', x0: 255, x1: 465, gain: 1.6 }, on: (sc) => !sc.state.blackout },
-    lampPools: { a: 0.32, wk: 4.5, reach: 210 }, arcs: { top: 198, col: '#a6e6ff', a: 0.85 } },
+    // r3-int-b: el sol de la tarde entra por los ventanales en arco del muro de sillería (capa 'wall', R3INTB_VWIN)
+    shafts: { layer: 'wall', x0: 58, step: 176, w: 116, y0: 28, y1: 226, from: 0.32, slant: 0.34, wTop: 0.5, wBot: 0.82, col: '#fbc371', a: 0.11, soft: 1, pool: { col: '#ffd49a', a: 0.6 }, moteCol: '#fff0c8', on: (sc) => !sc.state.blackout },
+    lampPools: { a: 0.32, wk: 4.5, reach: 210 }, arcs: { top: 198, col: '#a6e6ff', a: 0.85 },
+    grade: { mul: '#fff0e4', mulK: 0.1, shade: '#1e1a4a', shadeK: 0.2, lift: '#ffe0b0', liftK: 0.1, sat: 1.14, vgrad: [0.0, -0.05] },
+    rim: { col: '#fbc371', k: 0.4, side: 0.8, terrain: 0.35 },
+    char: { shade: '#1e1a4a', shadeK: 0.12, lift: '#ffd8a8', liftK: 0.08, rim: '#ffd08a', rimK: 0.6, shadowCol: '#100c28', shadowA: 0.62, cast: 0.3, castA: 0.3 } },
   7: { tod: 'dusk', env: 'dusk', grade: { map: ['#120f3a', '#2e2860', '#5a4472', '#b06c66', '#ffa870', '#ffe4c0'], mapK: 0, shade: '#24205e', shadeK: 0.18, lift: '#ffb070', liftK: 0.28, sat: 1.16, warmMag: 0.3, vgrad: [0.03, -0.07] } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk', glowKinds: [],
