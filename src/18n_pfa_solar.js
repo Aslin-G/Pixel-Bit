@@ -74,6 +74,13 @@ const PFASolar = (() => {
         const gd = (u * 1.2 + v * 0.9 + (o.seed || 1) * 0.13) % 1.4;
         if (gd > 0.62 && gd < 0.68) k += 3; else if (gd > 0.58 && gd < 0.72) k += 1;
         let c = C[clamp(k, 0, 8)];
+        // r3-desert: reflejo del cielo en el vidrio (azul claro arriba, cian en la franja media) y de un cúmulo
+        if (o.sky !== false) {
+          const sv = clamp((v - 0.35) / 0.65, 0, 1), cloudR = Math.abs(u - (0.3 + hash1(o.seed || 1, 77) * 0.4)) < 0.16 && v > 0.55 && v < 0.85;
+          if (sv > 0) c = K.mixU(c, U(sv > 0.7 ? '#8ccaf6' : '#4aa0ea'), 0.18 + sv * 0.3);
+          else if (v > 0.16 && v < 0.32) c = K.mixU(c, U('#22c8e0'), 0.34);
+          if (cloudR) c = K.mixU(c, U('#e8f4ff'), 0.32);
+        }
         // suciedad: polvo de arena en clusters, más en el borde inferior
         const soil = o.soil || 0;
         if (soil > 0) { const d = PFK.cl(xx, yy, 3, 41 + (o.seed || 0)) * (1.2 - v * 0.8); if (d < soil * 1.6) c = K.mixU(c, U('#c89a5c'), clamp(soil * 1.6 - d + 0.25, 0, 0.72)); }
@@ -596,7 +603,7 @@ const PFASolar = (() => {
      Primitivas: tabaiba · cardon · grassWind · cropRow · agriPV · invSkid · robotRail · canal ·
      cableTray · trenchPit · trenchSection · pipeSection · roots · r3Shadow (sombra arrojada abajo-derecha).
      ===================================================================== */
-  const R3TAB = ['#1a2414', '#2a3a1e', '#3c5226', '#526a2e', '#6c8438', '#8ca04a', '#b0bc64', '#d4da8a'];
+  const R3TAB = ['#1a2a0e', '#2a4214', '#3e5c1a', '#567a20', '#729828', '#94b42e', '#bcd040', '#e2e474'];
   const R3LET = ['#0e2a0e', '#164414', '#22601a', '#347e22', '#4e9c2a', '#74ba38', '#a2d65a', '#d0ee8a'];
   const R3ALOE = ['#142a2c', '#20403e', '#305a54', '#46766a', '#62927e', '#86ae96', '#b2ccb2'];
   const R3SOIL = ['#22100a', '#381c0e', '#502a14', '#6a3c1c', '#845026', '#9e6632', '#b47e44', '#ca9a5c'];
@@ -785,8 +792,8 @@ const PFASolar = (() => {
     const C = P32(PFTerrain.CONC), Wt = P32(R3WAT), Y = typeof yy0 === 'function' ? yy0 : () => yy0, y = Math.round(Y(x0));
     for (let x = x0; x < x1; x++) {
       const y = Math.round(Y(x));
-      put(pb, x, y - 4, C[6]); put(pb, x, y - 3, C[3]);
-      for (let k = 0; k < 3; k++) { let c = Wt[[3, 4, 5][k] + (PFK.cl(x, y + k, 3, 571) < 0.25 ? -1 : 0)]; if (((x * 3 + k * 7) % 23) === 0) c = Wt[7]; put(pb, x, y - 2 + k, c); }
+      put(pb, x, y - 5, C[6]); put(pb, x, y - 4, C[3]);
+      for (let k = 0; k < 4; k++) { let c = Wt[[3, 4, 5, 6][k] + (PFK.cl(x, y + k, 3, 571) < 0.25 ? -1 : 0)]; if (((x * 3 + k * 7) % 23) === 0) c = Wt[7]; put(pb, x, y - 3 + k, c); }
       put(pb, x, y + 1, C[7]); put(pb, x, y + 2, C[5]); put(pb, x, y + 3, C[2]); put(pb, x, y + 4, U('#2a1c14'));
     }
     return { x0, x1, y: y - 1 };
@@ -895,17 +902,29 @@ const PFASolar = (() => {
   }
   /** Zoco de La Geria: media luna de piedra volcánica seca que abriga una higuera/parra sobre picón negro */
   function zoco(pb, x, yb, s = 1, seed = 1) {
-    const r = RNG(seed), rx = 12 * s, ry = 5 * s, BS = P32(['#0e0c12', '#1c1820', '#2e2830', '#443c44', '#5e545a', '#7e7276', '#a89a98']);
-    K.ellipseFn(pb, x, yb - ry * 0.4, rx * 1.05, ry * 1.1, (nx, ny, d, xx, yy) => P32(['#141218', '#221e26', '#2e2a32', '#3c363e'])[clamp(Math.round(2 - ny + (PFK.cl(xx, yy, 2, seed) - 0.5) * 1.5), 0, 3)]);
-    // planta (higuera: hojas anchas verde intenso) en el centro
-    PFFlora.cluster(pb, x, yb - ry - 4 * s, 7 * s, 5 * s, R3LET, seed, { leaf: [3, 5], density: 0.6 });
-    for (let k = 0; k < 4; k++) put(pb, Math.round(x - 2 + k), yb - Math.round(ry * 0.6), U('#3a2a1a'));
-    // muro en media luna (detrás y a barlovento): piedras redondeadas con techo iluminado
-    for (let a = Math.PI * 1.02; a < Math.PI * 2.12; a += 0.16 / s) {
-      const cx = x + Math.cos(a) * rx, cy = yb - ry * 0.5 + Math.sin(a) * ry, st = 2.2 + r() * 1.2;
-      for (let lay = 0; lay < 3; lay++) K.ellipseFn(pb, cx + (r() - 0.5), cy - lay * 2.4 * s, st, st * 0.75, (nx, ny) => BS[clamp(Math.round(4 - nx * 1.2 - ny * 1.8 + (lay === 2 ? 1 : 0)), 0, 6)]);
+    const r = RNG(seed), rx = 12 * s, ry = 5 * s, BS = P32(['#120c22', '#20183a', '#302650', '#423666', '#5a4a7a', '#7a6488', '#a88a8c', '#d8b49a']);
+    K.ellipseFn(pb, x, yb - ry * 0.4, rx * 1.05, ry * 1.1, (nx, ny, d, xx, yy) => P32(['#140e1c', '#20182a', '#2c2238', '#3a2e46'])[clamp(Math.round(2 - ny + (PFK.cl(xx, yy, 2, seed) - 0.5) * 1.5), 0, 3)]);
+    // muro en media luna detrás (a barlovento): piedras de basalto con techo cálido
+    for (let a = Math.PI * 1.0; a < Math.PI * 2.0; a += 0.17 / s) {
+      const cx = x + Math.cos(a) * rx, cy = yb - ry * 0.45 + Math.sin(a) * ry, st = 2.3 + r() * 1.2;
+      for (let lay = 0; lay < 3; lay++) K.ellipseFn(pb, cx + (r() - 0.5), cy - lay * 2.3 * s, st, st * 0.75, (nx, ny) => BS[clamp(Math.round(3.2 - nx * 1.2 - ny * 1.8 + lay * 0.9), 0, 7)]);
     }
-    r3Shadow(pb, x + 2, yb, rx * 0.8, 3, 0.3);
+    // higuera o parra en el centro (hojas anchas verde intenso) con tronco
+    for (let k = 0; k < Math.round(5 * s); k++) { put(pb, Math.round(x + k * 0.3), yb - Math.round(ry * 0.4) - k, U('#5a3a22')); put(pb, Math.round(x + 1 + k * 0.3), yb - Math.round(ry * 0.4) - k, U('#3a2414')); }
+    PFFlora.cluster(pb, x + 1, yb - ry - 5 * s, 8 * s, 6 * s, R3LET, seed, { leaf: [3, 5], density: 0.7 });
+    r3Shadow(pb, x + 3, yb, rx * 0.8, 3, 0.3);
+  }
+  /** Pared de piedra seca (linde de bancales) a lo largo de una polilínea: piedras volcánicas con techo iluminado */
+  function dryWall(pb, pts, seed = 1) {
+    const r = RNG(seed), BS = P32(['#120c22', '#20183a', '#302650', '#423666', '#5a4a7a', '#7a6488', '#a88a8c', '#d8b49a']);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [xa, ya] = pts[i], [xb, yb2] = pts[i + 1], n = Math.max(1, Math.round(Math.hypot(xb - xa, yb2 - ya) / 3));
+      for (let q = 0; q <= n; q++) {
+        const t = q / n, cx = lerp(xa, xb, t), cy = lerp(ya, yb2, t);
+        for (let lay = 0; lay < 2; lay++) { const st = 2 + r() * 1.3; K.ellipseFn(pb, cx + (r() - 0.5) * 1.5, cy - lay * 2.6, st, st * 0.72, (nx, ny) => BS[clamp(Math.round(3 - nx * 1.2 - ny * 1.8 + lay * 1.2), 0, 7)]); }
+        if (q % 2 === 0) { const c = get(pb, Math.round(cx + 3), Math.round(cy + 2)); if (c >>> 24) put(pb, Math.round(cx + 3), Math.round(cy + 2), K.mixU(c, R3SHC, 0.4)); }
+      }
+    }
   }
   /** Cuadrícula de paja (fijación de dunas) en perspectiva con plantones en algunas celdas */
   function strawGrid(pb, x0, x1, y0, y1, seed = 1) {
@@ -1037,5 +1056,5 @@ const PFASolar = (() => {
 
   return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV,
     // r3-desert: diorama de la ladera
-    r3At, r3Shadow, r3VaultE1, r3VaultWall, tabaiba, cardon, grassWind, cropRow, agriPV, invSkid, robotRail, canal, cableTray, trenchPit, trenchSection, pipeSection, roots, basin, zoco, strawGrid, hubara, substation, hangar, cableDrum, modulePallet, shadeHouse, R3TAB, R3LET, R3ALOE, R3SOIL, R3WAT, R3GH, R3CONW };
+    r3At, r3Shadow, r3VaultE1, r3VaultWall, tabaiba, cardon, grassWind, cropRow, agriPV, invSkid, robotRail, canal, cableTray, trenchPit, trenchSection, pipeSection, roots, basin, zoco, dryWall, strawGrid, hubara, substation, hangar, cableDrum, modulePallet, shadeHouse, R3TAB, R3LET, R3ALOE, R3SOIL, R3WAT, R3GH, R3CONW };
 })();

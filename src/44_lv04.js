@@ -72,7 +72,7 @@ LEVELS[4] = {
     { x: 2124, y: 178, title: 'SUBESTACIÓN', sub: 'Eleva la tensión', kind: 'tech', ax: 2122, ay: 198 },
     { x: 2224, y: 148, title: 'DESPACHO SOLAR', sub: (sc) => fmt0(LEVELS[4].fieldPower(sc.state, sc)) + ' kW', kind: 'solar', ax: 2224, ay: 164 },
     { x: 2580, y: 200, title: 'CERCAS DE ARENA', sub: 'Fijan las dunas', kind: 'green', ax: 2580, ay: 236 },
-    { x: 700, y: 328, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 700, ay: 334 },
+    { x: 712, y: 311, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 712, ay: 324 },
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
@@ -87,6 +87,7 @@ LEVELS[4] = {
     /* ===== 1. ENTRADA Y ESTACIÓN METEOROLÓGICA (0–340) ===== */
     S.fence(pb, 0, 300, (x) => back(x) + 3);
     F.scatter(pb, (x) => back(x) + 2, 0, 320, 401, { gap: 14, mix: { dry: 4, tuft: 1, agave: 1 }, ramp: PFFlora.DRY });
+    { const r3 = RNG(4474); for (let x = 4; x < 300; x += 11 + r3.int(0, 9)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.45) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1 }); else if (k < 0.75) S.tabaiba(pb, x, y, 0.5 + r3() * 0.25, x); } }
     const met = S.meteo(pb, 76, gy(76) - 8); N.met = met;
     S.cactus(pb, 22, gy(22) - 6, 42, 11); S.opuntia(pb, 140, gy(140) - 5, 1, 12); S.dryBush(pb, 180, gy(180) - 4, 22, 12, 13);
     S.stones(pb, 110, gy(110) - 3, 18, 14); S.stones(pb, 262, gy(262) - 3, 14, 15);
@@ -95,6 +96,13 @@ LEVELS[4] = {
     for (const gx of [300, 330]) { for (let y = gy(gx) - 44; y < gy(gx) - 4; y++) { K.put(pb, gx, y, U('#d2d6dc')); K.put(pb, gx + 1, y, U('#6c7280')); } }
     for (let x = 302; x < 330; x++) { K.put(pb, x, gy(x) - 40, U('#b2b6c0')); K.put(pb, x, gy(x) - 22, U('#8e94a2')); if ((x - 302) % 6 === 0) for (let y = gy(x) - 40; y < gy(x) - 22; y++) K.put(pb, x, y, U('#8e94a2')); }
     /* ===== 2. CAMPO FV: 6 STRINGS DE MESAS FIJAS (340–1160) ===== */
+    // r3-desert: cubierta vegetal agrivoltaica bajo las mesas (gramíneas verdes al viento, tabaibas, aloe, aulagas)
+    { const r3 = RNG(4471); for (let x = 344; x < 1156; x += 7 + r3.int(0, 7)) { const y = Math.round(back(x) + 5 + r3.int(0, 9)), k = r3();
+      if (k < 0.42) F.tuft(pb, x, y, 7 + r3.int(0, 3), 6 + r3.int(0, 4), x, RAMP.grassR, { wind: 0.9 });
+      else if (k < 0.58) S.tabaiba(pb, x, y, 0.42 + r3() * 0.2, x);
+      else if (k < 0.7) F.agave(pb, x, y, 5 + r3.int(0, 2), x, S.R3ALOE);
+      else if (k < 0.8) F.cluster(pb, x, y - 3, 4, 3, ['#2a3a10', '#46601a', '#6a8a22', '#94b02e', '#c4d640', '#eee870'], x, { leaf: [2, 3], density: 0.8 });
+      else if (k < 0.88) F.tuft(pb, x, y, 6, 5, x, PFFlora.DRY, { wind: 0.9 }); } }
     for (const s of PV_STRINGS) {
       const tabs = [];
       for (let k = 0; k < 2; k++) { const tx = s.x - 64 + k * 64, yb = Math.round(Math.max(back(tx), back(tx + 60)) + 10); tabs.push(Object.assign(S.pvTable(pb, tx, yb, 60, { low: 14, ph: 40, sk: 12, seed: s.x + k }), { x: tx, yb })); }
@@ -126,6 +134,7 @@ LEVELS[4] = {
     K.text(pb, '150 L', 1488, 224, U('#0c2650'), { font: 'tiny' });
     /* ===== 4. CRESTAS CON SEGUIDORES Y PASARELAS (1520–1920) ===== */
     F.scatter(pb, (x) => back(x) + 2, 1520, 1940, 451, { gap: 16, mix: { dry: 4, agave: 1 }, ramp: PFFlora.DRY });
+    { const r3 = RNG(4472); for (let x = 1524; x < 1936; x += 10 + r3.int(0, 9)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.45) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1 }); else if (k < 0.7) S.tabaiba(pb, x, y, 0.5 + r3() * 0.25, x); else if (k < 0.8) S.cardon(pb, x, y, 16 + r3.int(0, 8), x); } }
     N.trackers = [];
     for (const [x, y] of [[1610, 236], [1720, 214], [1830, 230]]) {
       for (let k = 0; k < 2; k++) { const tx = x - 6 + k * 46, tb = Math.round(back(tx + 20) + 8); N.trackers.push(S.tracker(pb, tx, tb, 42, { ang: 0.1, h: tb - (y - 40), seed: tx })); }
@@ -145,6 +154,7 @@ LEVELS[4] = {
     S.sandFence(pb, 2310, 2470, (x) => back(x) + 5, { seed: 31, bury: 0.35 });
     S.sandFence(pb, 2520, 2700, (x) => back(x) + 4, { seed: 33, bury: 0.2 });
     F.scatter(pb, (x) => back(x) + 2, 2300, 2800, 461, { gap: 12, mix: { dry: 4, tuft: 2, agave: 2 }, ramp: PFFlora.DRY });
+    { const r3 = RNG(4473); for (let x = 2304; x < 2796; x += 11 + r3.int(0, 10)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.4) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1.2 }); else if (k < 0.7) S.tabaiba(pb, x, y, 0.5 + r3() * 0.3, x); else if (k < 0.78) S.cardon(pb, x, y, 18 + r3.int(0, 10), x); } }
     for (const [x, h, sd] of [[2336, 46, 1], [2498, 36, 2], [2652, 52, 3], [2740, 30, 4]]) S.cactus(pb, x, back(x) + 8, h, sd);
     for (const [x, s] of [[2390, 1], [2560, 0.8], [2706, 1.1]]) S.opuntia(pb, x, back(x) + 10, s, x);
     for (const x of [2440, 2610]) S.dryBush(pb, x, gy(x) - 4, 24, 13, x);
@@ -209,17 +219,19 @@ LEVELS[4] = {
       const rr = RNG(seed);
       for (let x = x0 + rr.int(2, gap); x < x1 - 4; x += Math.round(gap * (0.6 + rr() * 0.8))) {
         const A = at(x), y = Math.round(A.gy + 6 + rr() * Math.max(2, A.e1 - A.gy - 6)), k = rr();
-        add(y, () => k < 0.32 ? veg('grass', x, y, 0.85, x + seed) : k < 0.5 ? veg('stones', x, y, 0.9, x + seed) : k < 0.78 ? S.tabaiba(pb, x, y, 0.6 + rr() * 0.25, x + seed) : k < 0.9 ? S.dryBush(pb, x, y, 13, 8, x + seed) : F.agave(pb, x, y, 7, x + seed));
+        add(y, () => k < 0.3 ? veg(k < 0.15 ? 'green' : 'grass', x, y, 0.95, x + seed) : k < 0.42 ? veg('stones', x, y, 0.9, x + seed) : k < 0.76 ? S.tabaiba(pb, x, y, 0.62 + rr() * 0.3, x + seed) : k < 0.84 ? S.dryBush(pb, x, y, 13, 8, x + seed) : k < 0.92 ? F.agave(pb, x, y, 7, x + seed, S.R3ALOE) : F.agave(pb, x, y, 8, x + seed));
       }
     };
     /* ===== A · JARDÍN DE TABAIBAS, ZOCOS Y ALJIBE (0–340) ===== */
-    slope(0, 340, 13, 11);
+    slope(0, 340, 10, 11);
     { const y = qy(150, 0.42); add(y, () => { const b = S.basin(pb, 118, y - 13, 64, 15); FA.water.push(b.water); K.text(pb, 'ALJIBE', 130, y + 5, U('#fbe6c0'), { font: 'tiny' }); S.r3Shadow(pb, 170, y + 2, 16, 3, 0.3); }); }
     { const y = qy(206, 0.36); add(y, () => { I.cylV(pb, 208, y, 9, 28, { ramp: ['#063a52', '#0a5a7a', '#0e7ea6', '#16a6cc', '#3ac8e6', '#8ae6f6', '#e0fbff'] }); S.r3Shadow(pb, 214, y, 11, 4); for (let k = 0; k < 30; k++) put4(pb, 199 - Math.round(k * 0.9), y - 6 + Math.round(Math.sin(k * 0.2) * 2), '#1e7a8a'); FA.leds.push({ x: 212, y: y - 24, col: '#56e5ff', hz: 0.8, ph: 2 }); }); }
     for (const [x, q] of [[40, 0.55], [86, 0.82], [262, 0.7], [300, 0.3]]) { const y = qy(x, q); add(y, () => S.zoco(pb, x, y, 1.05, x)); }
+    add(qy(60, 0.3), () => S.dryWall(pb, [[8, qy(8, 0.12)], [60, qy(60, 0.45)], [104, qy(104, 0.95)]], 13));
+    add(qy(240, 0.3), () => S.dryWall(pb, [[226, qy(226, 0.08)], [244, qy(244, 0.5)], [236, qy(236, 0.96)]], 17));
     flora(0, 340, 0.08, 0.96, 15, { tab: 6, card: 2, agave: 2, grass: 1, opu: 1, green: 1 }, 101, (x, y) => x > 112 && x < 222 && y < qy(150, 0.5));
     /* ===== B · FRANJA AGRIVOLTAICA (340–1160) ===== */
-    slope(340, 1160, 15, 21);
+    slope(340, 1160, 10, 21);
     const kinds = ['lettuce', 'aloe', 'tomato', 'herb'];
     const fanSkip = (yy) => (x) => at(x).top > yy - 2;
     const path = (x) => Math.abs(x - 836) < 7;
@@ -292,7 +304,7 @@ LEVELS[4] = {
     add(9001, () => { for (const x of [1414, 1446]) { const y = at(x).e2 - 3; S.robot(pb, x, y); S.r3Shadow(pb, x + 14, y, 15, 4); } });
     flora(1160, 1520, 0.25, 0.95, 18, { tab: 3, grass: 3, stones: 2, agave: 1, aloe: 1 }, 131, (x) => x > 1176 && x < 1214 || x > 1405 && x < 1480);
     /* ===== D · SKIDS DE INVERSORES BAJO LOS SEGUIDORES (1520–1920) ===== */
-    slope(1520, 1920, 13, 41);
+    slope(1520, 1920, 10, 41);
     for (const [x, lab, tx] of [[1566, 'INV-5', 1604], [1744, 'INV-6', 1834]]) {
       const yb = qy(x + 30, 0.62);
       add(yb, () => { const k = S.invSkid(pb, x, yb, { label: lab }); FA.skids.push(k); FA.fans.push(k.fan); FA.leds.push({ x: k.led[0], y: k.led[1], col: '#3fe0a0', hz: 1.3, ph: x }); FA.ins.push(k.hv); });
@@ -302,17 +314,19 @@ LEVELS[4] = {
     { const y = qy(1690, 0.85); add(y, () => S.cableDrum(pb, 1690, y, 9)); }
     flora(1520, 1920, 0.05, 0.98, 14, { tab: 5, card: 2, grass: 1, agave: 1, aloe: 1 }, 141, (x, y) => (x > 1556 && x < 1640 && y < qy(x, 0.75) && y > qy(x, 0.15)) || (x > 1734 && x < 1818 && y < qy(x, 0.75) && y > qy(x, 0.15)));
     /* ===== E · PATIO DE SUBESTACIÓN Y HANGAR (1920–2300) ===== */
-    slope(1920, 2300, 14, 51);
+    slope(1920, 2300, 10, 51);
     { const yb = qy(2010, 0.72); add(yb, () => { const s2 = S.substation(pb, 1934, yb, 150); FA.ins.push(...s2.ins, ...s2.hv); FA.sub = s2; K.text(pb, 'SUBESTACIÓN 20/66 kV', 1950, yb + 3, U('#fbe6c0'), { font: 'tiny' }); }); }
     { const yb = qy(2210, 0.86); add(yb, () => { const h = S.hangar(pb, 2150, yb, 104, 40, { label: 'HANGAR' }); FA.lamps.push([h.lamp[0], h.lamp[1], '#ffd890', 12]); FA.hangar = h; }); }
     for (const [x, q, kind] of [[2098, 0.5, 'drum'], [2120, 0.62, 'drum2'], [2104, 0.86, 'pallet'], [1996, 0.2, 'pallet']]) { const y = qy(x, q); add(y, () => kind === 'pallet' ? S.modulePallet(pb, x, y, 5) : S.cableDrum(pb, x, y, kind === 'drum' ? 10 : 8, kind === 'drum' ? '#1c1c24' : '#a8202a')); }
     flora(1920, 2300, 0.05, 0.98, 16, { tab: 3, grass: 2, card: 1, agave: 1 }, 151, (x, y) => (x > 1926 && x < 2094 && y > qy(x, 0.2)) || (x > 2140 && x < 2290 && y > qy(x, 0.3)));
     /* ===== F · VIVERO DE DUNAS: CUADRÍCULA DE PAJA, ZOCOS Y CARDONAL (2300–2800) ===== */
-    slope(2300, 2800, 12, 61);
+    slope(2300, 2800, 9, 61);
     { const y0 = qy(2420, 0.12), y1 = qy(2420, 0.6); add(y0, () => S.strawGrid(pb, 2340, 2560, y0, y1, 71)); }
     for (const [x, q] of [[2600, 0.4], [2680, 0.75], [2760, 0.35]]) { const y = qy(x, q); add(y, () => S.zoco(pb, x, y, 1.1, x)); }
     for (const [x, q, f] of [[2470, 0.82, 1], [2520, 0.9, -1]]) { const y = qy(x, q); add(y, () => S.hubara(pb, x, y, f)); }
     { const yb = qy(2700, 0.62); add(yb, () => S.shadeHouse(pb, 2652, yb, 100, 30)); }
+    add(qy(2580, 0.2), () => S.sandFence(pb, 2566, 2648, (x) => qy(x, 0.12 + (x - 2566) / 82 * 0.8), { seed: 37, bury: 0.25 }));
+    add(qy(2300, 0.2), () => S.dryWall(pb, [[2304, qy(2304, 0.1)], [2330, qy(2330, 0.6)], [2310, qy(2310, 0.97)]], 19));
     { const y = qy(2622, 0.9); add(y, () => { I.cylV(pb, 2622, y, 8, 22, { ramp: ['#063a52', '#0a5a7a', '#0e7ea6', '#16a6cc', '#3ac8e6', '#8ae6f6', '#e0fbff'] }); S.r3Shadow(pb, 2628, y, 9, 3); for (let k = 0; k < 24; k++) put4(pb, 2631 + k, y - 3, '#1e7a8a'); }); }
     flora(2300, 2800, 0.05, 0.98, 14, { tab: 5, card: 3, grass: 2, agave: 2, opu: 1, green: 2 }, 161, (x, y) => (x > 2336 && x < 2564 && y < qy(x, 0.62)) || (x > 2644 && x < 2768 && y > qy(x, 0.2) && y < qy(x, 0.66)));
     // orden por profundidad (lo más lejano primero)
