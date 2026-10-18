@@ -30,7 +30,7 @@ BIOMES.vault = function (L) {
   const st = () => B.vault || { soc: 0.5, charging: 0, blackout: false };
   /** plano cuya parte superior queda en ys de pantalla con cam.y = 0 (cámara de la bóveda) */
   const P = (f, ys, h, draw, opts) => B.vplane(f, ys - Math.round(V.CAMY * f * 0.3), h, draw, opts);
-  const HZ = 168;
+  const HZ = 150;
   const SUN = { x: 150, y: 46, r: 11, halo: 26 };
   B.horizon = HZ; B.sun = SUN;
   B.weather.wind = 0.2;
@@ -50,11 +50,11 @@ BIOMES.vault = function (L) {
   B.cloudDeck({ kind: 'cirrus', n: 5, seed: 603, f: [0.01, 0.03], y: [12, 60], w: [70, 150], speed: [1, 2] });
   B.cloudDeck({ n: 8, seed: 605, f: [0.03, 0.08], y: [24, 104], w: [50, 124], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
   /* ---------------- cordillera ocre con sombras violeta (0,12) ---------------- */
-  P(0.12, HZ - 64, 66, (pb, w, h) => {
+  P(0.12, HZ - 76, 78, (pb, w, h) => {
     const r = RNG(607), peaks = [];
-    for (let x = 30; x < w + 60;) { const ww = r.int(60, 130); peaks.push({ x: x + ww * 0.5, v: r.int(14, 28), h: r.int(26, 60), w: ww, d: r.int(16, 26) }); x += r.int(46, 104); }
+    for (let x = 30; x < w + 60;) { const ww = r.int(60, 130); peaks.push({ x: x + ww * 0.5, v: r.int(14, 28), h: r.int(30, 72), w: ww, d: r.int(16, 26) }); x += r.int(46, 104); }
     V.relief(pb, {
-      yBase: h - 1, nv: 36, dvy: 0.3, seed: 609, hMax: 62,
+      yBase: h - 1, nv: 36, dvy: 0.3, seed: 609, hMax: 74,
       H: V.massif(peaks, { seed: 609, rough: 0.55, scale: 0.05, apron: 4, spurs: 7, spurW: 0.4 }),
       ramp: ['#4e3c6c', '#6a5288', '#8e7daa', '#a0707a', '#b4603a', '#a24a1f', '#c86a30', '#de8c44', '#eeac5a', '#fbc371', '#ffe0a8'], contrast: 2.1, t0: 0.5, facet: 0.3,
       haze: { col: '#c8b4cc', k0: 0.08, k: 0.14 }, mist: { col: '#e8ccc4', h: 12, k: 0.45 }, rim: '#ffe4b8', rimK: 0.7, tex: 0.05,
@@ -62,11 +62,11 @@ BIOMES.vault = function (L) {
   }, { tag: 'ridge' });
   /* ---------------- lomas verdes: bancales, casas blancas y eólica (0,3) ---------------- */
   const hillFx = { turb: [], fauna: [] };
-  P(0.3, 112, 100, (pb, w, h) => {
+  P(0.3, 88, 124, (pb, w, h) => {
     const r = RNG(621), k = 0.1, peaks = [];
-    for (let x = 60; x < w + 80;) { const ww = r.int(120, 220); peaks.push({ x, v: r.int(10, 16), h: r.int(40, 76), w: ww, d: r.int(18, 24), k: r.range(0.8, 1.1) }); x += r.int(110, 200); }
+    for (let x = 60; x < w + 80;) { const ww = r.int(120, 220); peaks.push({ x, v: r.int(10, 16), h: r.int(50, 96), w: ww, d: r.int(18, 24), k: r.range(0.8, 1.1) }); x += r.int(110, 200); }
     const info = V.relief(pb, {
-      yBase: h - 1, nv: 34, dvy: 0.3, seed: 623, hMax: 80,
+      yBase: h - 1, nv: 34, dvy: 0.3, seed: 623, hMax: 100,
       H: V.massif(peaks, { seed: 623, rough: 0.45, scale: 0.05, apron: 4, spurs: 6, spurW: 0.4 }),
       ramp: V.RAMPS.hill, contrast: 2.0, t0: 0.55, facet: 0.3, cav: 0.1,
       haze: { col: '#b8acd0', k0: 0.04, k: 0.08 }, mist: { col: '#d8c8d4', h: 14, k: 0.3 }, rim: '#fcd8ae', tex: 0.06,
@@ -96,7 +96,7 @@ BIOMES.vault = function (L) {
   });
   /* ---------------- pueblo de azoteas verdes con palmeras (0,4) ---------------- */
   const townFx = { flags: [], fauna: [] };
-  P(0.4, 150, 80, (pb, w, h) => {
+  P(0.4, 124, 104, (pb, w, h) => {
     const r = RNG(631), k = 0.04, yB = h - 4;
     const GR = V.P32(V.hz(['#2a3a0c', '#3b5312', '#597611', '#7b981a', '#9cb42c'], k));
     for (let x = 0; x < w; x++) for (let y = yB; y < h; y++) V.put(pb, x, y, GR[1 + (hash2(x >> 1, y >> 1, 9) < 0.4 ? 1 : 0)]);
@@ -117,7 +117,7 @@ BIOMES.vault = function (L) {
     }
     for (const [x, y] of town.tops) if (hash2(x, y, 7) < 0.07) { const PL = U(V.hzc('#e8e4de', k)); for (let q = 0; q < 9; q++) V.put(pb, x, y - q, PL); townFx.flags.push({ x, y: y - 9, col: ['#e83b41', '#11bedd', '#f5dc5a', '#3fe0a0', '#8d6bff'][(x >> 3) % 5] }); }
     // palmeras y buganvillas delante del pueblo (asoman por la parte baja de los ventanales)
-    for (let x = r.int(0, 30); x < w; x += r.int(30, 64)) V.palm(pb, x, h - 1, r.int(26, 40), r.range(-6, 6), 6400 + x, { k: 0 });
+    for (let x = r.int(0, 30); x < w; x += r.int(30, 64)) V.palm(pb, x, h - 1, r.int(34, 56), r.range(-6, 6), 6400 + x, { k: 0 });
     const BG = V.P32(RAMP.bougainR);
     for (let x = 0; x < w; x += r.int(8, 16)) { V.shrub(pb, x, h - 1, r.int(3, 5), 6500 + x, { k: 0, ramp: V.RAMPS.vegLow }); for (let q = 0; q < 5; q++) V.put(pb, x + r.int(-3, 3), h - 1 - r.int(1, 6), r.chance(0.7) ? BG[r.int(0, BG.length - 1)] : U('#ffd84a')); }
     for (let x = 60; x < w; x += r.int(140, 240)) townFx.fauna.push({ kind: 'gull', x, y: r.int(-24, 8), r: r.int(80, 160), sp: r.pick([7, -8, 9]) });
@@ -134,7 +134,7 @@ BIOMES.vault = function (L) {
   P(0.55, 0, 300, (pb, w, h) => {
     const r = RNG(641);
     // sillería: piedra arenisca cálida (sombra violeta arriba, bajo el techo)
-    const ST = V.P32(['#24182a', '#342236', '#4a2e3c', '#663e44', '#82524c', '#9c6a56', '#b48262', '#c89a72', '#dab486', '#eacc9e', '#f6e0b8']);
+    const ST = V.P32(['#22162a', '#381e34', '#542a3a', '#743c40', '#945244', '#b06a4a', '#c48452', '#d69e60', '#e6b874', '#f2d090', '#fae6b4']);
     const nS = ST.length;
     for (let y = 0; y < h; y++) {
       const course = Math.floor(y / 10), cy = y % 10, off = (course & 1) ? 13 : 0;
@@ -231,8 +231,21 @@ BIOMES.vault = function (L) {
       wallFx.bugs.push([cx - 10 + r.int(0, 20), jy - 16, i]);
       wallFx.sills.push([cx, jy - 8]);
       // hiedra que cuelga sobre la clave del arco y trepa por la pilastra
-      if (i % 3 !== 1) R3INTB_ivy(pb, Math.round(cx - hw - 6 + r.int(0, 8)), WN.top - 2, r.int(26, 60), 6800 + i, LEAF, 1);
-      if (i % 2 === 0) R3INTB_ivy(pb, Math.round(cx + hw + 10 + r.int(0, 6)), 300, r.int(80, 150), 6900 + i, LEAF, -1);
+      for (let q = 0; q < 3; q++) if (i % 3 !== 1 || q === 0) R3INTB_ivy(pb, Math.round(cx - hw - 8 + q * 4 + r.int(0, 8)), WN.top - 4 + q * 2, r.int(24, 70), 6800 + i * 5 + q, LEAF, 1);
+      for (let q = 0; q < 2; q++) if (i % 2 === 0 || q === 0) R3INTB_ivy(pb, Math.round(cx + hw + 8 + q * 7 + r.int(0, 6)), 300, r.int(70, 170), 6900 + i * 3 + q, LEAF, -1);
+    }
+    // cortinas de hiedra bajo la cornisa y cestas colgantes con buganvilla sobre ventanales alternos
+    for (let x = r.int(0, 30); x < w; x += r.int(26, 70)) { const n = r.int(2, 5); for (let q = 0; q < n; q++) R3INTB_ivy(pb, x + q * r.int(3, 6), 22, r.int(10, 44), 7000 + x + q, LEAF, 1); }
+    const BGU = V.P32(RAMP.bougainR);
+    for (let i = 0; WN.x0 + i * WN.step < w; i++) {
+      if (i % 2 === 0) continue;
+      const cx = Math.round(WN.x0 + i * WN.step + WN.w / 2), by = 58 + (i % 3) * 6;
+      for (let y = 22; y < by - 6; y++) { V.put(pb, cx - 4 + Math.round((y - 22) * 4 / (by - 28)), y, GR[2]); V.put(pb, cx + 4 - Math.round((y - 22) * 4 / (by - 28)), y, GR[2]); }
+      for (let q = -7; q <= 7; q++) for (let y = 0; y < 6; y++) { if (Math.abs(q) > 7 - y) continue; V.put(pb, cx + q, by - 6 + y, U(['#3a1a0e', '#6e3418', '#a4542a', '#c87440'][y === 0 ? 3 : q < -3 ? 3 : q > 3 ? 0 : 2])); }
+      V.shrub(pb, cx - 3, by - 6, 5, 7100 + i, { ramp: LEAF }); V.shrub(pb, cx + 4, by - 6, 4, 7150 + i, { ramp: LEAF });
+      for (let n = 0; n < 16; n++) { const x = cx - 8 + r.int(0, 16), y = by - 12 + r.int(0, 8); if (V.get(pb, x, y) >>> 24) V.put(pb, x, y, BGU[r.int(0, BGU.length - 1)]); }
+      for (const dx of [-6, -1, 5]) R3INTB_ivy(pb, cx + dx, by - 1, r.int(10, 26), 7200 + i * 7 + dx, LEAF, 1);
+      wallFx.bugs.push([cx, by - 14, i + 11]);
     }
     // zócalo: tira de luz ámbar, conducto y rótulos de sector bajo los alféizares (lejos de la franja del HUD)
     wallFx.strips.push(V.lightStrip(pb, 0, w - 1, WN.bot + 26, '#56e5ff'));

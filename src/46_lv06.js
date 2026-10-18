@@ -39,6 +39,7 @@ LEVELS[6] = {
      potencia ante la barra principal → rellano del ascensor. Geometría intacta. */
   pf: {
     kitB: true,
+    decorateFace(pb, world) { R3INTB_L6face(pb, world); }, // r3-int-b: cables en catenaria, cajas de registro y señales en el canto
     terrain: [
       { x0: 0, x1: 290, surf: 'grate', face: 'gallery', depth: 16, stripe: true, pipes: [[13, 3, 'cool'], [23, 2, 'power'], [32, 3, 'cool']], bay: 48 },
       { x0: 290, x1: 880, surf: 'metal', face: 'gallery', depth: 16, pipes: [[13, 3, 'power'], [22, 2, 'cool'], [31, 3, 'cool']], bay: 80, refl: [{ x: 392, w: 3, col: '#b6f05a', k: 0.2 }, { x: 472, w: 3, col: '#b6f05a', k: 0.2 }, { x: 552, w: 3, col: '#b6f05a', k: 0.2 }, { x: 632, w: 3, col: '#b6f05a', k: 0.2 }, { x: 712, w: 3, col: '#b6f05a', k: 0.2 }, { x: 792, w: 3, col: '#b6f05a', k: 0.2 }] },
@@ -127,6 +128,7 @@ LEVELS[6] = {
     const hv3 = V.hvacUnit(pb, 2526, yb(2540), 40, 30); D.fans.push(hv3.fan);
     // balizas de emergencia (las únicas que quedan en el apagón)
     for (const x of [140, 870, 1310, 1760, 2140, 2404]) D.glows.push({ x, y: 120, r: 5, col: '#ff4e5d', a: 0.75, mode: 'blink', hz: 0.7, ph: x, on: (sc) => !!sc.state.blackout, core: '#ffb0a0' });
+    R3INTB_L6floor(pb, world, gy, back, D); // r3-int-b: marcas viales, charcos con reflejo, carros de mantenimiento
     { const all = LV6.flows.splice(0); for (const r of all) LV6.flows.push(...PFB.chunkFlow(r)); }
     LEVELS[6]._propsMs = Math.round(nowMs() - t0);
   },
@@ -150,6 +152,7 @@ LEVELS[6] = {
     }
     // flujos: bandeja (carga/descarga), barra de cobre (hacia el electrolizador o cargas críticas), refrigeración
     PFInfra.drawFlows(g, sc, D.flows);
+    R3INTB_L6puddles(g, sc, cam, D);
     // arcos eléctricos temporizados (peligro no letal)
     for (let i = 0; i < ARCS.length; i++) {
       const a = ARCS[i], hz = w.hazards[i];
@@ -247,7 +250,7 @@ LEVELS[6] = {
 };
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
-const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [] };
+const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [], puddles: [] };
 /* r2-biomes-b: bastidores variados — misma x, tamaño y serie distintos, estados de color y dos en mantenimiento */
 const R2BB_L6RACK = [
   { v: 0, w: 64, h: 100, st: 'ok' }, { v: 1, w: 60, h: 108, st: 'ok' }, { v: 3, w: 62, h: 100 }, { v: 0, w: 62, h: 98, st: 'ok' }, { v: 2, w: 62, h: 112, st: 'cold' }, { v: 1, w: 58, h: 104, st: 'ok' },
@@ -290,6 +293,86 @@ function R2BB_arcLight(g, cx, top, bot, k) {
   VISTA.drawGlow(g, cx, mid, 44, '#56c8ff', 0.3 * k);
   VISTA.drawGlow(g, cx, mid, 18, '#c8f4ff', 0.4 * k);
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * k; g.drawImage(R2BB_arcPool(), Math.round(cx - 48), Math.round(bot - 9)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
+
+/* ---------------- r3-int-b: suelo vivo de la bóveda ----------------
+   Superficie: líneas de carril amarillas, chevrones verdes de paso peatonal, estarcidos, charcos de
+   condensación que reflejan el cielo de los ventanales y la luz cálida, carros de mantenimiento con
+   módulos de batería, bobinas y cajas de herramientas. Canto: cables en catenaria por colores, cajas de
+   registro con LED y placas de aviso. Todo horneado; los charcos titilan en renderMid. */
+function R3INTB_L6floor(pb, world, gy, back, D) {
+  const K = PFK, H2 = PFBH2, B = PFB, I = PFInfra;
+  const YL = U('#f0c030'), GRN = U('#3fe08a'), WHT = U('#e8eef6');
+  const paint = (x, y, u, a) => { const c = K.get(pb, x, y); if (c >>> 24) K.put(pb, x, y, K.mixU(c, u, a)); };
+  for (let x = 300; x < 2396; x++) {
+    const g = gy(x), b = back(x); if (g - b < 8) continue;
+    const wear = hash2(x >> 1, 3, 661) < 0.12 ? 0.25 : 0.62;
+    if ((x % 22) < 14) paint(x, b + 2, YL, wear);
+    paint(x, g - 3, YL, wear * 0.9);
+    // chevrones verdes de paso cada 150 px
+    const cx = ((x - 360) % 150 + 150) % 150;
+    if (cx < 18) { const yy = Math.round((b + g) / 2), off = Math.abs(cx % 6 - 3); for (let q = -3; q <= 3; q++) if (Math.abs(q) === 3 - off || Math.abs(q) === 2 - off) paint(x, yy + q, GRN, 0.55); }
+  }
+  for (const [x, t, c] of [[600, 'BESS', '#e8b830'], [1060, 'ARCO · ESPERA', '#ff6a50'], [1870, 'BESS', '#e8b830'], [2250, 'CRÍTICO', '#ff6a50']]) H2.stencil(pb, x, back(x) + 5, t, c, 0.5);
+  // charcos con reflejo del cielo (azul), destello cálido de los ventanales y orilla oscura
+  const SKY = [U('#3a6ab8'), U('#5a96dc'), U('#8cc4f0'), U('#ffe0a8')];
+  for (const [px, rx] of [[478, 16], [742, 12], [1336, 18], [1846, 14], [2088, 12], [2364, 16]]) {
+    const cy = Math.round((back(px) + gy(px)) / 2) + 1, ry = 3;
+    for (let y = cy - ry - 1; y <= cy + ry + 1; y++) for (let x = px - rx - 2; x <= px + rx + 2; x++) {
+      const nx = (x - px) / rx, ny = (y - cy) / ry, d = nx * nx + ny * ny;
+      if (d > 1.25) continue;
+      if (d > 1) { paint(x, y, U('#0a0e1c'), 0.35); continue; }
+      const k = ny < -0.3 ? 2 : ny < 0.3 ? 1 : 0;
+      paint(x, y, (Math.abs(nx + ny * 0.6) < 0.12) ? SKY[3] : SKY[k], 0.55);
+    }
+    D.puddles.push([px, cy, rx]);
+  }
+  // carros de mantenimiento con módulos de batería, bobinas, cajas y conos junto al borde trasero
+  const wy = (x) => back(x) + 7;
+  const cart = (x) => {
+    const y = wy(x);
+    I.box3q(pb, x, y - 5, 30, 4, 8, { ramp: ['#141626', '#24283e', '#383e5a', '#525a7a', '#6e769a', '#8e96b8', '#b0b8d6'] });
+    for (let i = 0; i < 3; i++) I.box3q(pb, x + 2 + i * 9, y - 9, 8, 7, 5, { ramp: ['#0e1630', '#18244a', '#243462', '#34487e', '#4c62a0', '#7088c0', '#a0b6e0'] });
+    for (let i = 0; i < 3; i++) { K.put(pb, x + 4 + i * 9, y - 13, U('#3fe08a')); K.put(pb, x + 5 + i * 9, y - 13, U('#b6f05a')); }
+    for (let yy = y - 24; yy < y - 5; yy++) { K.put(pb, x + 31, yy, U('#8e96b8')); K.put(pb, x + 32, yy, U('#383e5a')); }
+    for (let k = 0; k < 4; k++) K.put(pb, x + 28 + k, y - 24, U('#d4daee'));
+    for (const wx of [x + 4, x + 26]) K.ellipseFn(pb, wx, y - 1, 2.2, 2.2, (nx, ny, d) => U(d < 0.3 ? '#8e96b8' : '#141418'));
+    B.contact(pb, x + 16, y, 18, 1.6);
+  };
+  cart(1286); cart(2122);
+  H2.reel(pb, 820, wy(820)); H2.toolbox(pb, 1318, wy(1318)); H2.toolbox(pb, 1792, wy(1792)); H2.pallet(pb, 1744, wy(1744), 22, 7);
+  H2.cone(pb, 958, wy(958)); H2.cone(pb, 1246, wy(1246));
+}
+/** Canto bajo la línea de paso: cables de colores en catenaria entre pilares, cajas de registro y placas */
+function R3INTB_L6face(pb, world) {
+  const K = PFK, cols = [U('#ff8a2a'), U('#3fe08a'), U('#2c8cff'), U('#e8384a')];
+  for (let x0 = 300; x0 < 2380; x0 += 80) {
+    const span = 80, g = world.ground[x0]; if (Math.abs(world.ground[x0 + span] - g) > 2) continue;
+    cols.forEach((c, i) => {
+      const y0 = g + 20 + i * 2, sag = 5 + i * 2;
+      for (let q = 0; q <= span; q++) { const u = q / span, y = Math.round(y0 + sag * 4 * u * (1 - u)); K.put(pb, x0 + q, y, c); if ((q + i) % 9 === 0) K.put(pb, x0 + q, y + 1, U('#1a1a22')); }
+    });
+    // caja de registro con LED y placa de aviso
+    if ((x0 / 80) % 3 === 1) {
+      const bx = x0 + 36, by = g + 14;
+      for (let yy = 0; yy < 10; yy++) for (let xx = 0; xx < 12; xx++) K.put(pb, bx + xx, by + yy, U(yy === 0 || xx === 0 ? '#9ca8b8' : yy === 9 || xx === 11 ? '#1c222c' : '#48536a'));
+      K.put(pb, bx + 3, by + 3, U('#3fe08a')); K.put(pb, bx + 6, by + 3, U('#ffd84a'));
+      for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 7; xx++) { const e = Math.abs(xx - 3) > yy * 0.6 + 0.5; if (!e) K.put(pb, bx + 16 + xx, by + 2 + yy, U(yy === 5 ? '#3a2a04' : '#f0c020')); }
+      K.put(pb, bx + 19, by + 4, U('#1a1a1a')); K.put(pb, bx + 19, by + 6, U('#1a1a1a'));
+    }
+  }
+}
+/** Charcos: destellos que recorren el reflejo y ondas al pasar */
+function R3INTB_L6puddles(g, sc, cam, D) {
+  const t = Game.time;
+  for (let i = 0; i < D.puddles.length; i++) {
+    const [px, cy, rx] = D.puddles[i], sx = Math.round(px - cam.x); if (sx < -30 || sx > W + 30) continue;
+    const y = Math.round(cy - cam.y), u = ((t * 0.35 + i * 0.29) % 1) * 2 - 1;
+    g.fillStyle = '#ffffff'; g.globalAlpha = 0.7; g.fillRect(sx + Math.round(u * (rx - 3)), y - 1, 2, 1);
+    g.fillStyle = '#ffe0a8'; g.globalAlpha = 0.5; g.fillRect(sx + Math.round(-u * (rx - 5)), y + 1, 3, 1);
+    if (Math.floor(t * 0.5 + i) % 3 === 0) { const r = ((t * 2) % 1) * rx * 0.6; g.fillStyle = '#c8ecff'; g.globalAlpha = 0.45 * (1 - r / rx); g.fillRect(sx - Math.round(r), y, 1, 1); g.fillRect(sx + Math.round(r), y, 1, 1); }
+    g.globalAlpha = 1;
+  }
 }
 
 /* ---------------- piezas del guion del nivel 06 ---------------- */
