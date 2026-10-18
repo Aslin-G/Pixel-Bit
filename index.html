@@ -8247,6 +8247,7 @@ const Portraits = {
   },
   /** Retrato de diálogo 96×96 (transparente, sin marco) */
   get(id, expr = 'neutral', talk = 0, blink = false) {
+    id = R3CHARS_pid(id);
     const bk = blink === 2 ? 2 : blink ? 1 : 0;
     const k = id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + bk;
     let c = this.cache.get(k);
@@ -8259,6 +8260,7 @@ const Portraits = {
   },
   /** Busto del HUD 48×46 (re-rasterizado a escala 0,5 con plantillas propias) */
   bust(id, expr = 'smile', talk = 0, blink = false) {
+    id = R3CHARS_pid(id);
     const bk = blink === 2 ? 2 : blink ? 1 : 0;
     const k = 'B|' + id + '|' + expr + '|' + (talk ? 1 : 0) + '|' + bk;
     let c = this.cache.get(k);
@@ -8742,6 +8744,30 @@ PDEFS.dante = phMake({
   lash: '#1a0806', brow: '#6e2614', browDY: -1, head: { jawW: 2.5, cheek: 1.2, chinY: 33.5, chinX: 5 }, neck: { w: 9.5 }, browOverHair: true,
   eyeShape: 'upturned', nose: 'button', browStyle: 'bushy',
 });
+/* r3-chars: retratos de Dante con el vestuario del nivel (mismo rostro; ver R3CHARS_DANTE_LOOK en
+   11_chars.js). Portraits.get/bust sustituyen 'dante' por 'dante_<variante>' según CHARS.dante.levelVariant. */
+{
+  const base = { sprite: 'dante', male: true, hair: 'spiky', freckles: true, iris: ['#0e2a16', '#2a6a3a', '#6aa86a'], lash: '#1a0806', brow: '#6e2614', browDY: -1, head: { jawW: 2.5, cheek: 1.2, chinY: 33.5, chinX: 5 }, neck: { w: 9.5 }, browOverHair: true, eyeShape: 'upturned', nose: 'button', browStyle: 'bushy' };
+  const mats = (extra) => () => Object.assign({ skin: PK.mat(RAMP.skinD, '#3a160e', RAMP.skinD[2]), hair: PK.mat(RAMP.hairD, '#1c0604', RAMP.hairD[1]), top: MAT.tshirtW, over: PK.mat(MAT.danteOver, '#060a1c'), scarf: MAT.bandana }, extra);
+  PDEFS.dante_coast = phMake(Object.assign({}, base, { outfit: 'hivis', hat: 'bucket', mats: mats({ vest: PK.mat(RAMP_CH.hivisO, '#3a1004'), hat: PK.mat(RAMP_CH.khaki, '#241a08'), band: PK.mat(RAMP_CH.khaki, '#241a08') }) }));
+  PDEFS.dante_tech = phMake(Object.assign({}, base, { outfit: 'overalls', hat: 'hardhat', mats: mats({ hat: PK.mat(R3CHARS_HAT_WHITE, '#20222e'), visor: PK.mat(['#0a2a3a', '#14506a', '#1f7a96', '#3aa6c0', '#7ad4e6', '#c8f4ff', '#ffffff'], '#06202c') }),
+    acc(P, A, M) { P.box(64, 27.5, 26, 2.6, 1.2, { mat: M.visor, z: 72, group: 'visorF', base: 4, bevel: 1.4, shiny: true }, -0.05); } }));
+  PDEFS.dante_council = phMake(Object.assign({}, base, { outfit: 'jacket', mats: mats({ jacket: PK.mat(RAMP_CH.mustard, '#221804') }) }));
+  PDEFS.dante_fiesta = phMake(Object.assign({}, base, { outfit: 'tee', mats: mats({ top: RAMP_CH.teal, band: PK.mat(MAT.bandana, '#3a0606') }),
+    acc(P, A, M) {
+      // cinta roja anudada en la frente, con las puntas del nudo cayendo por la nuca
+      P.capsule(31, 33, 86, 26, 2.6, 2.4, { mat: M.band, z: 72, group: 'hband', base: 4, bevel: 1.6, cast: { on: ['face', 'hair', 'bang0', 'bang1', 'bang2'], dx: -1, dy: 3, k: 1 } });
+      P.strand([[31, 34], [25, 42], [23, 50]], 2.4, 1.2, { mat: M.band, z: 72.5, group: 'hknot', base: 3, bevel: 1 });
+      P.strand([[32, 33], [23, 36], [18, 41]], 2.2, 1, { mat: M.band, z: 72.4, group: 'hknot2', base: 4, bevel: 1 });
+      P.stamp((pb, c) => { const X = c.X, Y = c.Y; if (c.S < 1) return; for (const [x, y] of [[44, 30], [58, 28], [72, 26]]) pb.set(X(x), Y(y), '#ffe8c8'); }, 7);
+    } }));
+}
+/** r3-chars: id de retrato según el vestuario del nivel (hoy solo Dante) */
+function R3CHARS_pid(id) {
+  if (id !== 'dante' || typeof GameplayScene === 'undefined' || typeof CHARS === 'undefined' || !CHARS.dante || !CHARS.dante.levelVariant) return id;
+  const v = CHARS.dante.levelVariant[GameplayScene.levelId];
+  return v && PDEFS['dante_' + v] ? 'dante_' + v : id;
+}
 /* ---------- Dra. Eliana Rojas — mentora ---------- */
 PDEFS.eliana = phMake({
   sprite: 'eliana', outfit: 'labcoat', hair: 'bun', pencil: true, glasses: '#8a5e14', glassHi: '#ffd84a', roundGlasses: true, wrinkles: true, iris: ['#1a0e06', '#4a3020', '#8a6a4a'],
