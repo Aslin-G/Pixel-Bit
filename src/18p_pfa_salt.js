@@ -591,7 +591,11 @@ const PFASalt = (() => {
           const q = y - top, span = e2 - top, v = q / Math.max(1, span), ao = q < 2 ? (q === 0 ? -2 : -1) : 0;
           if (z.kind === 'pans' || z.kind === 'dikes') c = Sl[clamp(5 + Math.round((PFK.cl(x, y, 3, 661) - 0.5) * 1.6 + (PFK.vn(x * 0.05, y * 0.1, 663) - 0.5) * 1.2) + ao + (v > 0.8 ? 1 : 0), 2, 8)];
           else if (z.kind === 'marsh') { const MG = P32(['#16200e', '#24341a', '#364a22', '#4e6630', '#6e8a44', '#8eaa52', '#b4c86a']); c = MG[clamp(3 + Math.round((PFK.cl(x, y, 2, 665) - 0.5) * 2 + (PFK.vn(x * 0.06, y * 0.12, 667) - 0.5) * 1.6) + ao + (v > 0.8 ? 1 : 0), 0, 6)]; }
-          else c = Rk[clamp(5 + Math.round((PFK.cl(x, y, 3, 669) - 0.5) * 1.6 + (PFK.vn(x * 0.04, y * 0.08, 671) - 0.5) * 1.6) + ao + (v > 0.75 ? 1 : 0) - (hash2(x, y, 673) < 0.03 ? 2 : 0), 1, 8)];
+          else {
+            c = Rk[clamp(5 + Math.round((PFK.cl(x, y, 3, 669) - 0.5) * 1.6 + (PFK.vn(x * 0.04, y * 0.08, 671) - 0.5) * 1.6) + ao + (v > 0.75 ? 1 : 0) - (hash2(x, y, 673) < 0.03 ? 2 : 0), 1, 8)];
+            const ef = PFK.vn(x * 0.07, y * 0.16, 695);                                                         // eflorescencias de sal en manchas
+            if (ef > 0.66) c = Sl[clamp(6 + Math.round((ef - 0.66) * 8) + (PFK.cl(x, y, 2, 697) < 0.3 ? -1 : 0) + ao, 4, 8)];
+          }
         } else {                                                                                                   // corte frontal
           const c0 = y - e2;
           if (c0 === 0) c = U((x & 3) ? '#ffe0c0' : '#f8c894');
@@ -599,7 +603,7 @@ const PFASalt = (() => {
           else {
             const w1 = (PFK.vn(x * 0.04, 1, 675) - 0.5) * 5, zz = c0 + w1 + PFK.vn(x * 0.02, c0 * 0.1, 677) * 3, L = Math.floor(zz / 6) % 4, edge = (zz % 6) < 1, ao = Math.round(c0 / Math.max(20, H_ - e2) * 2.4);
             if (z.kind === 'marsh') c = M[clamp(5 - ao + Math.round((PFK.cl(x, y, 2, 679) - 0.5) * 1.4) - (edge ? 2 : 0), 0, 7)];
-            else if (L === 2 && z.kind !== 'ledge' && z.kind !== 'caves') c = Sl[clamp(6 - ao + Math.round((PFK.cl(x, y, 2, 681) - 0.5) * 1.2) - (edge ? 2 : 0), 1, 8)];   // estrato de sal
+            else if (L === 2 && (z.kind !== 'ledge' && z.kind !== 'caves' || (zz % 6) > 3.6)) c = Sl[clamp(6 - ao + Math.round((PFK.cl(x, y, 2, 681) - 0.5) * 1.2) - (edge ? 2 : 0), 1, 8)];   // estrato (o veta) de sal
             else c = Rk[clamp(6 - ao - (L === 1 ? 1 : 0) + Math.round((PFK.cl(x, y, 2, 683) - 0.5) * 1.4) - (edge ? 2 : 0), 0, 8)];
             if (hash2(x >> 1, y >> 1, 685) < 0.02) c = Sl[8];
           }

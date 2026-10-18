@@ -49,13 +49,13 @@ LEVELS[3] = {
     // r3-desert: plano frontal f = 1,3 colocado para quedar en los bordes del encuadre en las posiciones de juego
     // (x = 1,3·cámara − ancho/2 a la izquierda, 1,3·cámara + 560 a la derecha); altura ≤ 92 → nunca tapa a la jugadora
     fg: [
-      { kind: 'r3sFrame', x: -70, w: 130, h: 88, seed: 1, side: -1 },
+      { kind: 'r3sFrame', x: -35, w: 130, h: 88, seed: 1, side: -1 },
       { kind: 'aSalt', x: 499, w: 130, h: 70, seed: 2 },
-      { kind: 'r3sFrame', x: 1119, w: 130, h: 92, seed: 3, side: 1 },
-      { kind: 'r3sFrame', x: 1409, w: 130, h: 86, seed: 4, side: -1 },
+      { kind: 'r3sFrame', x: 1099, w: 130, h: 92, seed: 3, side: 1 },
+      { kind: 'r3sFrame', x: 1440, w: 130, h: 86, seed: 4, side: -1 },
       { kind: 'clump', x: 2029, w: 130, h: 84, seed: 4, spikes: 4, leaves: 9 },
-      { kind: 'r3sFrame', x: 2560, w: 130, h: 80, seed: 5, side: -1 },
-      { kind: 'r3sFrame', x: 3199, w: 130, h: 90, seed: 6, side: 1 },
+      { kind: 'r3sFrame', x: 2600, w: 130, h: 80, seed: 5, side: -1 },
+      { kind: 'r3sFrame', x: 3179, w: 130, h: 90, seed: 6, side: 1 },
     ],
     /** r2-biomes-a: guarda de tono sobre el talud (malvas del lodo y del yeso → violeta/granate; la salmuera emisiva se respeta) */
     decorateFace(pb, world) {
@@ -70,7 +70,7 @@ LEVELS[3] = {
       { x0: 600, x1: 1110, kind: 'ledge', caves: [[668, 22, 12], [846, 30, 15], [1012, 24, 12]], pipe: [[604, 0.16], [1108, 0.16]], seed: 32 },
       { x0: 1110, x1: 1530, kind: 'dikes', stage0: 2, houses: [[1300, 0.5, 'BOMBA 2']], seed: 33, pw: [38, 60] },
       { x0: 1530, x1: 1840, kind: 'marsh', birds: [[1590, 0.36, 1], [1668, 0.72, -1], [1760, 0.4, 1], [1804, 0.8, -1]], seed: 34 },
-      { x0: 1840, x1: 2660, kind: 'bay', wl: 314, bed: 374, pipeX: 2292, diff: [2338], caves: [[1902, 14, 7], [2580, 16, 7]], fish: [{ x0: 1870, x1: 2360, y: 346, n: 4 }, { x0: 1990, x1: 2640, y: 372, n: 5 }], seed: 35 },
+      { x0: 1840, x1: 2660, kind: 'bay', wl: 314, bed: 374, pipeX: 2292, diff: [2372], caves: [[1902, 14, 7], [2580, 16, 7]], fish: [{ x0: 1870, x1: 2360, y: 346, n: 4 }, { x0: 1990, x1: 2640, y: 372, n: 5 }], seed: 35 },
       { x0: 2660, x1: 2801, kind: 'caves', caves: [[2722, 26, 13]], seed: 36 },
     ],
     fauna: { gulls: [{ x: 300, y: 128, n: 3 }, { x: 900, y: 120, n: 3 }, { x: 1420, y: 116, n: 2 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
@@ -738,17 +738,22 @@ function R3DESERT_l3front(g, sc, cam) {
   if (Pl && vis(Pl.x, 200)) {
     for (let k = 0; k < Pl.n; k++) {
       const nx = Pl.x + k * Pl.step, ny = Pl.y;
-      for (let i = 0; i < 14; i++) {
-        const p = (t * 0.16 + i / 14 + k * 0.17) % 1;
+      for (let i = 0; i < 18; i++) {
+        const p = (t * 0.14 + i / 18 + k * 0.17) % 1;
         let x, y;
-        if (p < 0.22) { const q = p / 0.22; x = nx + q * 8; y = ny - Math.sin(q * Math.PI * 0.5) * 9; }
-        else { const q = (p - 0.22) / 0.78, xb = nx + 8 + q * (Pl.x1 - nx - 8) * (0.55 + k * 0.12); x = xb + Math.sin(t * 1.3 + i) * 1.5; y = Math.min(Pl.bed(xb) - 1 - (1 - q) * 2, ny - 9 + q * q * 60); }
-        const a = p < 0.22 ? 0.9 : Math.max(0, 0.85 - (p - 0.22) * 1.05);
+        if (p < 0.2) { const q = p / 0.2; x = nx + q * 7; y = ny - Math.sin(q * Math.PI * 0.5) * 10; }                       // chorro inclinado: sube
+        else { const q = (p - 0.2) / 0.8, xb = nx + 7 + q * (Pl.x1 - nx - 7) * (0.5 + k * 0.14); x = xb + Math.sin(t * 1.3 + i) * 1.5; y = Math.min(Pl.bed(xb) - 2 - (i % 3), ny - 10 + q * q * 70); }  // se dobla y se hunde
+        const a = p < 0.2 ? 0.95 : Math.max(0, 0.9 - (p - 0.2) * 1.1);                                                       // se diluye
         if (a <= 0.05) continue;
-        g.globalAlpha = a; frect(g, Math.round(x - ox), Math.round(y - oy), p < 0.4 ? 2 : 1, 1, p < 0.3 ? '#e07ecf' : p < 0.55 ? '#c08ad8' : '#9aa4e0');
+        g.globalAlpha = a; frect(g, Math.round(x - ox), Math.round(y - oy), p < 0.45 ? 2 : 1, p < 0.3 ? 2 : 1, p < 0.3 ? '#f07ed8' : p < 0.55 ? '#c08ad8' : '#9aa4e0');
       }
     }
-    g.globalAlpha = 0.18; for (let i = 0; i < 6; i++) { const x = Pl.x + 20 + i * 18 + Math.sin(t * 0.8 + i) * 3; if (x > Pl.x1) break; frect(g, Math.round(x - ox), Math.round(Pl.bed(x) - 3 - oy), 14 - i, 2, '#b08ad8'); }
+    // lengua densa que se arrastra por el fondo y se aclara (dilución) dentro de la zona de mezcla
+    for (let i = 0; i < 12; i++) {
+      const u = ((t * 6 + i * 13) % 130), x = Pl.x + 10 + u; if (x > Pl.x1) continue;
+      const a = 0.5 * (1 - u / 130); g.globalAlpha = a;
+      frect(g, Math.round(x - ox), Math.round(Pl.bed(x) - 2 - (i % 2) - oy), 6 + (i % 3) * 2, 2, u < 40 ? '#d070c8' : u < 85 ? '#a88ad8' : '#9ab4e8');
+    }
     g.globalAlpha = 1;
   }
   // peces
