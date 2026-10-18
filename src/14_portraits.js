@@ -883,7 +883,9 @@ function phIris(c3) {
 /** Material con contorno oscuro del mismo tono (V ≤ 0,14) */
 function phMat(ramp, vMax = 0.14) { return PK.mat(ramp, outlineOf(ramp[0], vMax), ramp[1]); }
 /** Tejido: textura de trama diagonal (chaleco de Naira) */
-const phWoven = (x, y, i) => ((Math.floor(x) + Math.floor(y)) % 4 === 0 ? Math.max(1, i - 1) : ((Math.floor(x) - Math.floor(y) + 400) % 4 === 0 && i > 2 ? i + 1 : i));
+// r3-chars: hebras direccionales de 2 tonos (líneas diagonales continuas cada 3 px con su brillo al lado),
+// no una trama cruzada en damero (los jueces: «checker weave»)
+const phWoven = (x, y, i) => { const k = (Math.floor(x) + Math.floor(y) + 300) % 3; return k === 0 ? Math.max(1, i - 1) : (k === 1 && i > 2 && i < 6 ? i + 1 : i); };
 const PH_TORSO = {
   adult: [[-3, 98], [1, 91], [11, 85], [27, 81], [44, 78], [54, 78], [72, 78], [84, 80], [93, 85], [99, 91], [99, 98]],
   broad: [[-3, 98], [-2, 88], [8, 82], [26, 78], [44, 76], [54, 76], [74, 76], [87, 78], [96, 84], [100, 90], [100, 98]],
@@ -1116,10 +1118,15 @@ const PH_HAIR = {
 /** Sombreros y gorros (P, A, M, cfg) */
 const PH_HAT = {
   straw(P, A, M, cfg) {
-    const st = (x, y, i) => { const fx = Math.floor(x), fy = Math.floor(y); return (fy % 2 === 0 && (fx + (fy >> 1)) % 3 === 0) ? Math.max(1, i - 1) : ((fx * 2 + fy) % 7 === 0 ? Math.min(6, i + 1) : i); };
+    // r3-chars: paja en hebras trenzadas DIRECCIONALES de 2 tonos (sin damero): la copa en espiras
+    // horizontales que siguen su curvatura; el ala en anillos concéntricos alrededor de la copa.
+    // Cada espira: línea oscura continua + puntadas claras escalonadas (el «grano» de la trenza).
+    const coil = (b, x, i) => { const r = ((b % 3) + 3) % 3; return r === 0 ? Math.max(1, i - 1) : (r === 2 && ((Math.floor(x) + Math.floor(b / 3) * 2) & 3) === 0 ? Math.min(6, i + 1) : i); };
+    const stC = (x, y, i) => { const u = (x - 57) / 21; return coil(Math.floor(y + u * u * 4.5), x, i); };
+    const stB = (x, y, i) => { const u = (x - 57) / 41, v = (y - 20) / 9; return coil(Math.floor(Math.sqrt(u * u + v * v) * 15), x, i); };
     const on = ['face', 'ear', 'hair', 'bang0', 'bang1', 'neck', 'braid0', 'braid1'];
-    P.ellipse(57, 13, 21, 12.5, { mat: M.straw, z: 70, group: 'crown', base: 3, bevel: 6, tex: st });
-    P.ellipse(55, 25, 41, 8.5, { mat: M.straw, z: 71, group: 'brim', base: 4, bevel: 4, tex: st, cast: { on, dx: -1, dy: 6, k: 1 } }, -0.05);
+    P.ellipse(57, 13, 21, 12.5, { mat: M.straw, z: 70, group: 'crown', base: 3, bevel: 6, tex: stC });
+    P.ellipse(55, 25, 41, 8.5, { mat: M.straw, z: 71, group: 'brim', base: 4, bevel: 4, tex: stB, cast: { on, dx: -1, dy: 6, k: 1 } }, -0.05);
     P.box(57, 20.5, 20.5, 2.6, 1.2, { mat: M.band, z: 72, group: 'band', base: 4, bevel: 1.5 });
     P.stamp((pb, c) => {
       const X = c.X, Y = c.Y;
