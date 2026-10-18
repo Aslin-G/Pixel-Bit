@@ -105,23 +105,44 @@ const PFBE = (() => {
   }
   /** Armario BESS de interior a escala de personaje (≈100 px): 7 filas de módulos con asa y ranura de LED,
       cabecera BMS con pantalla, prensaestopas y cables a la bandeja. Devuelve {leds:[[x,y]], soc:[x,y,w], screen, top} */
+  /* r2-biomes-b: variantes de bastidor (o.variant): 0 módulos azul marino (clásico) · 1 armario marfil con franja
+     turquesa · 2 grafito con cantos naranja (serie antigua) · 3 puerta abierta en mantenimiento (hoja abatida,
+     mazos de cables y módulo extraído). o.state: 'ok' | 'service' | 'fault' | 'cold' → barra de estado de color
+     arriba (out.status = [x, y, col]). Altura libre ≥ 98: lo que sobra es rejilla de ventilación al pie. */
+  const R2BB_RACKV = [
+    { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'] },
+    { frame: ['#2a2622', '#4a443c', '#7a7266', '#a49a8a', '#c8bfae', '#e2dacb', '#f2ece0', '#fffbf2'], mod: ['#0a2a2e', '#0f4448', '#16605e', '#20807a', '#34a49a', '#5cc8bc', '#9ae6da', '#d4fbf2'], stripe: '#20b8a8' },
+    { frame: ['#0c0c10', '#18181e', '#26262e', '#363640', '#4a4a56', '#62626e', '#80808c', '#a8a8b2'], mod: ['#141418', '#202026', '#2e2e36', '#40404a', '#565662', '#72727e', '#9a9aa6', '#cacad2'], stripe: '#ff8a2a' },
+    { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'], open: true },
+  ];
+  const R2BB_STATE = { ok: '#3fe08a', service: '#ffb02a', fault: '#ff4e5d', cold: '#48b8ff' };
   function bessRack(pb, x, yb, w = 64, h = 100, d = 14, o = {}) {
-    const N = P(NAVY), Mo = P(o.module || ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2']), out = { leds: [] };
+    const VAR = R2BB_RACKV[o.variant | 0] || R2BB_RACKV[0];
+    const N = P(o.frame || VAR.frame), Mo = P(o.module || VAR.mod), out = { leds: [] };
     I.box3q(pb, x - 2, yb, w + 4, 4, d + 2, { ramp: PFTerrain.CONC });
-    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14;
+    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14, rEnd = r0 + rows * rh;
+    const open = !!(o.open ?? VAR.open);
     I.box3q(pb, x, by, w, h, d, {
-      ramp: NAVY,
+      ramp: o.frame || VAR.frame,
       front: (xx, yy, u, v) => {
         const lx = xx - x, ly = yy - top;
         if (lx < 3 || lx > w - 4) return N[lx < 1 ? 6 : lx < 3 ? 4 : lx > w - 2 ? 0 : 2];
         if (ly < 13) return N[ly < 1 ? 7 : ly === 12 ? 1 : 3];
+        if (yy >= rEnd) { const g = yy - rEnd; if (g === 0) return N[0]; return (g % 3 === 1 && lx > 6 && lx < w - 7) ? N[1] : N[clamp(3 - Math.round(v), 0, 7)]; } // rejilla al pie
         const ry = yy - r0, ri = Math.floor(ry / rh), rr = ry - ri * rh;
-        if (ri >= rows) return N[clamp(2 - Math.round(v), 0, 7)];
+        if (open && lx > 3 && lx < w - 4) { // interior: módulos sin tapa, mazos de cables a la izquierda
+          if (lx >= 6 && lx < 10) return U(['#ecc030', '#c8384a', '#2a2a32', '#4a90e8'][(lx - 6)] );
+          if (open && ri === 3 && lx > 12) return U(rr < 2 ? '#06080e' : '#0a0e18'); // módulo extraído: hueco oscuro
+          if (rr >= 10) return U('#05070e');
+          let k = 3 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : 0) + ((lx - 12) % 9 === 0 ? -2 : 0);
+          return Mo[clamp(k, 0, 7)];
+        }
         if (rr >= 10) return N[0];
         if (lx >= 5 && lx < 14 && rr >= 2 && rr < 6) return U('#060a14');
         if (lx > w - 14 && lx < w - 7 && rr === 4) return Mo[7];
         if (lx > w - 14 && lx < w - 7 && rr === 5) return Mo[2];
         if (lx >= 18 && lx < 34 && rr === 7) return Mo[6];
+        if (VAR.stripe && rr === 9 && lx > 3 && lx < w - 4) return U(VAR.stripe);
         let k = 4 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : rr === 1 ? 1 : 0) + Math.round((K.cl(xx, yy, 2, 31) - 0.5) * 0.6);
         return Mo[clamp(k, 0, 7)];
       },
@@ -132,9 +153,27 @@ const PFBE = (() => {
     B.rect(pb, x + 5, top + 3, w - 10, 7, U('#021018'));
     out.screen = [x + 6, top + 4, w - 12, 5];
     out.soc = [x + 8, top - 14, w - 16];
-    // prensaestopas y cables que suben a la bandeja
-    if (o.cablesTo != null) for (const [cx, col] of [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']]) for (let yy = o.cablesTo; yy < top - d; yy++) { K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col)); }
-    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 9, screws: false });
+    if (open) {
+      // hoja abatida hacia el pasillo (paralelogramo en 3/4) con cerradura y rejilla
+      const lw = 9;
+      for (let k = 0; k < lw; k++) for (let yy = top + 2 + Math.round(k * 0.5); yy < by - 1 + Math.round(k * 0.2); yy++) K.put(pb, x + w + 1 + k, yy, N[k === 0 ? 1 : k === lw - 1 ? 6 : ((yy - top) % 14 < 2 ? 2 : 4)]);
+      for (let yy = top + 40; yy < top + 48; yy++) K.put(pb, x + w + 6, yy, U('#d4daee'));
+      // módulo extraído apoyado en el suelo delante del bastidor, con etiqueta de servicio
+      I.box3q(pb, x + 14, yb + 1, 24, 9, 6, { ramp: o.module || VAR.mod });
+      B.rect(pb, x + 18, yb - 6, 8, 3, U('#ffb02a'));
+      // mazo de cables que cuelga suelto en lazo
+      for (let k = 0; k < 18; k++) { const cx = x + 8 + Math.round(Math.sin(k / 17 * Math.PI) * 6), cy = r0 + 30 + k * 2; K.put(pb, cx, cy, U('#ecc030')); K.put(pb, cx + 1, cy, U('#c8384a')); }
+    }
+    // barra de estado de color sobre la cabecera
+    const st = o.state || (open ? 'service' : null);
+    if (st && R2BB_STATE[st]) { const c = R2BB_STATE[st]; B.rect(pb, x + 4, top + 1, w - 8, 1, U(c)); B.rect(pb, x + w - 12, top + 3, 6, 7, U('#06080e')); B.rect(pb, x + w - 11, top + 4, 4, 5, U(c)); out.status = [x + w - 9, top + 6, c]; }
+    // prensaestopas y cables que suben a la bandeja (mazos más gruesos en las variantes)
+    if (o.cablesTo != null) {
+      const C3 = [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']];
+      if (o.variant) C3.push([x + 12, '#2a2a32'], [x + w - 14, '#3fe08a']);
+      for (const [cx, col] of C3) for (let yy = o.cablesTo; yy < top - d; yy++) K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col));
+    }
+    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: o.variant === 1 ? '#0a3a3a' : o.variant === 2 ? '#3a1e0a' : '#0e2848', border: o.variant === 1 ? '#5cc8bc' : o.variant === 2 ? '#ff9a4a' : '#78b0e2', col: '#f4fbff', h: 9, screws: false });
     B.castR(pb, x, x + w + Math.round(d * 0.45), yb - 1, 14, { amt: -0.22, yMin: yb - 18 });
     out.top = top;
     return out;

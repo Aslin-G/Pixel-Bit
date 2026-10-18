@@ -111,6 +111,19 @@ BIOMES.vault = function (L) {
     for (const yy of [24, 34]) { const T1 = V.cableTray(pb, 0, w - 1, yy, { k, hang: 24, cols: yy === 24 ? ['#c8861a', '#e8a838', '#3a3a4a'] : ['#2c63c0', '#56e5ff', '#3a3a4a'] }); hallFx.flows.push([T1.flow, yy === 24 ? '#ffd27a' : '#a8f4ff']); }
     // lámparas de techo (campanas) sobre los pasillos
     for (let lx = 40; lx < w; lx += 110) { V.rect(pb, lx - 4, 40, 9, 3, U('#3a4060')); V.rect(pb, lx - 3, 43, 7, 1, U('#fff2d0')); for (let yy = 26; yy < 40; yy++) V.put(pb, lx, yy, U('#2a3048')); hallFx.lamps.push([lx, 44]); }
+    // r2-biomes-b: entreplanta (pasarela de rejilla con barandilla amarilla, montantes, escaleras de tramo
+    // y apliques cálidos de sodio bajo el forjado): otra capa de profundidad sobre las filas
+    {
+      const DY = 66, GR = V.P32(['#10131e', '#1a1e2e', '#262c40', '#343c56', '#46506e', '#5e6a8a']), YL = V.P32(['#5a3a0a', '#9a6a10', '#d8a020', '#f8d040']);
+      for (let xx = 0; xx < w; xx++) {
+        for (let k = 0; k < 5; k++) V.put(pb, xx, DY + k, GR[k === 0 ? 5 : k === 1 ? 3 : k === 4 ? 0 : ((xx + k) % 3 ? 2 : 1)]);
+        V.put(pb, xx, DY - 12, YL[3]); V.put(pb, xx, DY - 11, YL[1]); V.put(pb, xx, DY - 6, YL[2]);
+        if (xx % 26 === 0) for (let yy = DY - 12; yy < DY; yy++) V.put(pb, xx, yy, YL[yy === DY - 12 ? 3 : 1]);
+      }
+      for (let xx = 18; xx < w; xx += 130) { for (let yy = DY + 5; yy < base; yy++) { V.put(pb, xx, yy, GR[3]); V.put(pb, xx + 1, yy, GR[1]); } }
+      for (let xx = 90; xx < w; xx += 390) for (let q = 0; q < 34; q++) { const sx = xx + q, sy = DY + 5 + Math.round(q * 1.5); V.put(pb, sx, sy, GR[4]); V.put(pb, sx, sy + 1, GR[1]); if (q % 3 === 0) V.put(pb, sx + 1, sy - 1, YL[2]); }
+      for (let lx = 70; lx < w; lx += 150) { V.rect(pb, lx - 3, DY + 5, 7, 2, U('#2a2420')); V.rect(pb, lx - 2, DY + 7, 5, 1, U('#ffd890')); hallFx.warm = hallFx.warm || []; hallFx.warm.push([lx, DY + 8]); }
+    }
     // filas de bastidores con huecos para la sala de control y la climatización
     let x = 10;
     while (x < w - 40) {
@@ -134,6 +147,7 @@ BIOMES.vault = function (L) {
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx < -40 || sx > W + 40) continue; g.drawImage(cone, Math.round(sx - 35), Math.round(y + oy)); }
         g.globalCompositeOperation = 'source-over';
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx > -10 && sx < W + 10) V.drawGlow(g, sx, y + oy, 5, '#fff2d0', 0.6); }
+        for (const [x, y] of hallFx.warm || []) { const sx = x + ox; if (sx > -16 && sx < W + 16) { V.drawGlow(g, sx, y + oy, 13, '#ffa850', 0.5); V.drawGlow(g, sx, y + oy, 4, '#ffe8b0', 0.8); } }
         // LED de estado: verde (SOC sano), rojo (bajo), parpadeo de actividad
         const col = S.soc < 0.3 ? '#ff6b6b' : '#b6f05a';
         g.fillStyle = col;

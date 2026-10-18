@@ -90,7 +90,8 @@ LEVELS[6] = {
     for (const [xa, xb] of [[140, 150], [210, 220], [280, 290]]) { const ya = yb(xa) - 1, yb2 = yb(xb) - 1; PFK.lineFn(pb, xa, ya - 30, xb, yb2 - 30, () => U('#b0b8d6')); PFK.lineFn(pb, xa, ya - 15, xb, yb2 - 15, () => U('#6e769a')); }
     H2.extinguisher(pb, 270, yb(270) - 1);
     /* ===== 2. PRIMER BANCO (340–880): bastidores BESS a escala de personaje ===== */
-    for (const x of VAULT_RACKS.slice(0, 6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    for (const x of VAULT_RACKS.slice(0, 6)) R2BB_L6rack(pb, E, D, x, yb, off); // r2-biomes-b: bastidores variados (tamaño, serie, estado, puerta abierta)
+    R2BB_workLamp(pb, D, 592, yb(592), -1, gy(592)); R2BB_workLamp(pb, D, 1172, yb(1172), -1, gy(1172));
     const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan);
     D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
     /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
@@ -111,7 +112,8 @@ LEVELS[6] = {
     for (const [x, y, col] of ar.leds) D.leds.push({ x, y, col, hz: 0.4, ph: x });
     D.glows.push({ x: ar.lock[0], y: ar.lock[1], r: 8, col: '#e05aa0', a: 0.3, mode: 'pulse', hz: 0.6 });
     /* ===== 5. SEGUNDO BANCO (1760–2140) ===== */
-    for (const x of VAULT_RACKS.slice(6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    for (const x of VAULT_RACKS.slice(6)) R2BB_L6rack(pb, E, D, x, yb, off);
+    R2BB_workLamp(pb, D, 2112, yb(2112), -1, gy(2112));
     const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan);
     /* ===== 6. BARRA PRINCIPAL (2140–2405): celdas de interruptores ===== */
     const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL' });
@@ -139,7 +141,7 @@ LEVELS[6] = {
     const gy = (x) => w.groundAt(x) - oy;
     const soc = S.blackout ? 0 : (S.soc ?? 0.28);
     // conos de luz de las luminarias (apagados en el apagón)
-    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#dcf4ff', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
+    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h, col, a] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, col || '#dcf4ff', a || 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
     // LED de módulos y barra de SOC en cada bastidor
     for (const R of D.racks) {
       const sx = R.x - ox; if (sx < -80 || sx > W + 10) continue;
@@ -155,7 +157,8 @@ LEVELS[6] = {
       hz.on = !S.blackout && ph < 0.8;
       const sx = a.x - ox, top = 198 - oy, bot = gy(a.x);
       frect(g, sx + 4, top, 3, 4, '#c8861a'); frect(g, sx + a.w - 7, bot - 4, 3, 4, '#c8861a');
-      if (hz.on) { let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } VISTA.veil(g, sx - 6, top, a.w + 12, bot - top, '#56e5ff', 0.12); }
+      // r2-biomes-b: halo radial suave (anillos en bandas, en caché) + charco de luz en el suelo + resplandor de los electrodos
+      if (hz.on) { const fl = 0.75 + 0.25 * Math.sin(t * 37 + i * 2.1); R2BB_arcLight(g, sx + a.w / 2, top, bot, fl); let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } }
       else if (ph > 1.8) for (let k = 0; k < 3; k++) fpx(g, sx + 6 + Math.random() * 10, top + 6 + Math.random() * 10, '#a6e6ff');
     }
     // interruptores de la barra principal (arranque en negro por pasos)
@@ -170,7 +173,10 @@ LEVELS[6] = {
   },
   renderGrade(g, sc) {
     const S = sc.state;
-    g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.blackout ? 0.8 : 0.25; frect(g, 0, 0, W, H, S.blackout ? '#2a2050' : '#4a5ab0'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    // r2-biomes-b: sin el multiplicar azul marino a pantalla completa en marcha normal (con r2-light la gradación de interior ya está
+    // horneada en las capas): la bóveda deja de ser monocroma; en el apagón se mantiene la oscuridad
+    const r2l = typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc);
+    if (S.blackout || !r2l) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.blackout ? 0.8 : 0.25; frect(g, 0, 0, W, H, S.blackout ? '#2a2050' : '#4a5ab0'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.blackout) { const p = sc.player; const x = p.x - sc.cam.ox, y = p.y - sc.cam.oy - 30; g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.35; fdisc(g, x, y, 60, '#203060'); fdisc(g, x, y, 34, '#304080'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   },
   lens(g, sc, cam, k) {
@@ -242,6 +248,49 @@ LEVELS[6] = {
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
 const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [] };
+/* r2-biomes-b: bastidores variados — misma x, tamaño y serie distintos, estados de color y dos en mantenimiento */
+const R2BB_L6RACK = [
+  { v: 0, w: 64, h: 100, st: 'ok' }, { v: 1, w: 60, h: 108, st: 'ok' }, { v: 3, w: 62, h: 100 }, { v: 0, w: 62, h: 98, st: 'ok' }, { v: 2, w: 62, h: 112, st: 'cold' }, { v: 1, w: 58, h: 104, st: 'ok' },
+  { v: 2, w: 62, h: 110, st: 'ok' }, { v: 0, w: 64, h: 100, st: 'fault' }, { v: 1, w: 60, h: 106, st: 'ok' }, { v: 3, w: 62, h: 102 },
+];
+function R2BB_L6rack(pb, E, D, x, yb, off) {
+  const i = VAULT_RACKS.indexOf(x), c = R2BB_L6RACK[i] || {};
+  const R = E.bessRack(pb, x, yb(x), c.w || 64, c.h || 100, 14, { cablesTo: 154, label: 'RACK ' + String(i + 1).padStart(2, '0'), variant: c.v | 0, state: c.st });
+  D.racks.push(Object.assign({ x }, R));
+  D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off });
+  if (R.status) { const [sx, sy, col] = R.status, warn = col !== '#3fe08a'; D.glows.push({ x: sx, y: sy, r: warn ? 6 : 4, col, a: warn ? 0.85 : 0.55, mode: warn ? 'blink' : 'steady', hz: col === '#ff4e5d' ? 1.6 : 0.8, ph: x, on: off, core: '#ffffff' }); }
+}
+/** Foco de trabajo en trípode (luz cálida halógena) con cono y halo; dir = hacia dónde mira */
+function R2BB_workLamp(pb, D, x, yb, dir, gyx) {
+  const K = PFK, hy = yb - 52;
+  for (const [dx, k] of [[-8, 0], [8, 1], [2, 2]]) K.lineFn(pb, x, hy + 8, x + dx, yb, () => U(k === 2 ? '#26262e' : '#4a4a56'));
+  for (let yy = hy; yy < hy + 10; yy++) K.put(pb, x, yy, U('#6a6a76'));
+  // cabezal: carcasa naranja con rejilla y cara encendida
+  for (let yy = -4; yy <= 4; yy++) for (let k = -5; k <= 5; k++) { const e = Math.abs(yy) === 4 || Math.abs(k) === 5; K.put(pb, x + k, hy - 2 + yy, U(e ? '#3a1a08' : (k * dir > 2 ? '#fff4c8' : yy < -1 ? '#ff9a2a' : '#c8601a'))); }
+  K.put(pb, x - 5 * dir, hy + 3, U('#ffd060'));
+  D.glows.push({ x: x + 4 * dir, y: hy - 2, r: 30, col: '#ffa850', a: 0.42, mode: 'flicker', ph: x }, { x: x + 3 * dir, y: hy - 2, r: 9, col: '#ffe0a0', a: 0.7, mode: 'steady' });
+  // charco cálido horneado en el suelo bajo el foco (3 bandas, sin tramado)
+  for (let yy = -3; yy <= 3; yy++) for (let k = -26; k <= 26; k++) { const d = Math.hypot(k / 26, yy / 3.5); if (d >= 1) continue; const px = x + 10 * dir + k, py = gyx - 6 + yy, u = K.get(pb, px, py); if (!(u >>> 24)) continue; K.put(pb, px, py, K.mixU(u, U('#ffc070'), d < 0.4 ? 0.36 : d < 0.7 ? 0.22 : 0.1)); }
+  D.cones.push([x + 8 * dir, hy + 2, 6, 64, Math.max(20, gyx - hy - 4), '#ffc878', 0.24]);
+}
+/* r2-biomes-b: luz de los arcos eléctricos — halo radial en anillos (sin rectángulo duro), charco elíptico en el suelo
+   y destellos en los electrodos; lienzos en caché, 3 drawImage por arco encendido */
+const R2BB_ARC = { pool: null };
+function R2BB_arcPool() {
+  if (R2BB_ARC.pool) return R2BB_ARC.pool;
+  const w = 96, h = 18, pb = new PixelBuffer(w, h), col = U('#9ae6ff') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const d = Math.hypot((x - w / 2 + 0.5) / (w / 2), (y - h / 2 + 0.5) / (h / 2)); if (d >= 1) continue;
+    const a = d < 0.35 ? 0.5 : d < 0.62 ? 0.3 : 0.14; pb.data[y * w + x] = ((Math.round(a * 255) << 24) | col) >>> 0;
+  }
+  return (R2BB_ARC.pool = pb.toCanvas());
+}
+function R2BB_arcLight(g, cx, top, bot, k) {
+  const mid = (top + bot) / 2;
+  VISTA.drawGlow(g, cx, mid, 44, '#56c8ff', 0.3 * k);
+  VISTA.drawGlow(g, cx, mid, 18, '#c8f4ff', 0.4 * k);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * k; g.drawImage(R2BB_arcPool(), Math.round(cx - 48), Math.round(bot - 9)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
 
 /* ---------------- piezas del guion del nivel 06 ---------------- */
 async function gridFlow(sc, st) {

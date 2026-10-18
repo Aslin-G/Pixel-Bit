@@ -23443,23 +23443,44 @@ const PFBE = (() => {
   }
   /** Armario BESS de interior a escala de personaje (≈100 px): 7 filas de módulos con asa y ranura de LED,
       cabecera BMS con pantalla, prensaestopas y cables a la bandeja. Devuelve {leds:[[x,y]], soc:[x,y,w], screen, top} */
+  /* r2-biomes-b: variantes de bastidor (o.variant): 0 módulos azul marino (clásico) · 1 armario marfil con franja
+     turquesa · 2 grafito con cantos naranja (serie antigua) · 3 puerta abierta en mantenimiento (hoja abatida,
+     mazos de cables y módulo extraído). o.state: 'ok' | 'service' | 'fault' | 'cold' → barra de estado de color
+     arriba (out.status = [x, y, col]). Altura libre ≥ 98: lo que sobra es rejilla de ventilación al pie. */
+  const R2BB_RACKV = [
+    { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'] },
+    { frame: ['#2a2622', '#4a443c', '#7a7266', '#a49a8a', '#c8bfae', '#e2dacb', '#f2ece0', '#fffbf2'], mod: ['#0a2a2e', '#0f4448', '#16605e', '#20807a', '#34a49a', '#5cc8bc', '#9ae6da', '#d4fbf2'], stripe: '#20b8a8' },
+    { frame: ['#0c0c10', '#18181e', '#26262e', '#363640', '#4a4a56', '#62626e', '#80808c', '#a8a8b2'], mod: ['#141418', '#202026', '#2e2e36', '#40404a', '#565662', '#72727e', '#9a9aa6', '#cacad2'], stripe: '#ff8a2a' },
+    { frame: NAVY, mod: ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2'], open: true },
+  ];
+  const R2BB_STATE = { ok: '#3fe08a', service: '#ffb02a', fault: '#ff4e5d', cold: '#48b8ff' };
   function bessRack(pb, x, yb, w = 64, h = 100, d = 14, o = {}) {
-    const N = P(NAVY), Mo = P(o.module || ['#141c34', '#1e2a4a', '#2c3c64', '#3e5280', '#56709e', '#7890bc', '#a4b8dc', '#d0dcf2']), out = { leds: [] };
+    const VAR = R2BB_RACKV[o.variant | 0] || R2BB_RACKV[0];
+    const N = P(o.frame || VAR.frame), Mo = P(o.module || VAR.mod), out = { leds: [] };
     I.box3q(pb, x - 2, yb, w + 4, 4, d + 2, { ramp: PFTerrain.CONC });
-    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14;
+    const by = yb - 4, top = by - h, rows = 7, rh = 12, r0 = top + 14, rEnd = r0 + rows * rh;
+    const open = !!(o.open ?? VAR.open);
     I.box3q(pb, x, by, w, h, d, {
-      ramp: NAVY,
+      ramp: o.frame || VAR.frame,
       front: (xx, yy, u, v) => {
         const lx = xx - x, ly = yy - top;
         if (lx < 3 || lx > w - 4) return N[lx < 1 ? 6 : lx < 3 ? 4 : lx > w - 2 ? 0 : 2];
         if (ly < 13) return N[ly < 1 ? 7 : ly === 12 ? 1 : 3];
+        if (yy >= rEnd) { const g = yy - rEnd; if (g === 0) return N[0]; return (g % 3 === 1 && lx > 6 && lx < w - 7) ? N[1] : N[clamp(3 - Math.round(v), 0, 7)]; } // rejilla al pie
         const ry = yy - r0, ri = Math.floor(ry / rh), rr = ry - ri * rh;
-        if (ri >= rows) return N[clamp(2 - Math.round(v), 0, 7)];
+        if (open && lx > 3 && lx < w - 4) { // interior: módulos sin tapa, mazos de cables a la izquierda
+          if (lx >= 6 && lx < 10) return U(['#ecc030', '#c8384a', '#2a2a32', '#4a90e8'][(lx - 6)] );
+          if (open && ri === 3 && lx > 12) return U(rr < 2 ? '#06080e' : '#0a0e18'); // módulo extraído: hueco oscuro
+          if (rr >= 10) return U('#05070e');
+          let k = 3 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : 0) + ((lx - 12) % 9 === 0 ? -2 : 0);
+          return Mo[clamp(k, 0, 7)];
+        }
         if (rr >= 10) return N[0];
         if (lx >= 5 && lx < 14 && rr >= 2 && rr < 6) return U('#060a14');
         if (lx > w - 14 && lx < w - 7 && rr === 4) return Mo[7];
         if (lx > w - 14 && lx < w - 7 && rr === 5) return Mo[2];
         if (lx >= 18 && lx < 34 && rr === 7) return Mo[6];
+        if (VAR.stripe && rr === 9 && lx > 3 && lx < w - 4) return U(VAR.stripe);
         let k = 4 - (rr > 7 ? 1 : 0) + (rr === 0 ? 2 : rr === 1 ? 1 : 0) + Math.round((K.cl(xx, yy, 2, 31) - 0.5) * 0.6);
         return Mo[clamp(k, 0, 7)];
       },
@@ -23470,9 +23491,27 @@ const PFBE = (() => {
     B.rect(pb, x + 5, top + 3, w - 10, 7, U('#021018'));
     out.screen = [x + 6, top + 4, w - 12, 5];
     out.soc = [x + 8, top - 14, w - 16];
-    // prensaestopas y cables que suben a la bandeja
-    if (o.cablesTo != null) for (const [cx, col] of [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']]) for (let yy = o.cablesTo; yy < top - d; yy++) { K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col)); }
-    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: '#0e2848', border: '#78b0e2', col: '#f4fbff', h: 9, screws: false });
+    if (open) {
+      // hoja abatida hacia el pasillo (paralelogramo en 3/4) con cerradura y rejilla
+      const lw = 9;
+      for (let k = 0; k < lw; k++) for (let yy = top + 2 + Math.round(k * 0.5); yy < by - 1 + Math.round(k * 0.2); yy++) K.put(pb, x + w + 1 + k, yy, N[k === 0 ? 1 : k === lw - 1 ? 6 : ((yy - top) % 14 < 2 ? 2 : 4)]);
+      for (let yy = top + 40; yy < top + 48; yy++) K.put(pb, x + w + 6, yy, U('#d4daee'));
+      // módulo extraído apoyado en el suelo delante del bastidor, con etiqueta de servicio
+      I.box3q(pb, x + 14, yb + 1, 24, 9, 6, { ramp: o.module || VAR.mod });
+      B.rect(pb, x + 18, yb - 6, 8, 3, U('#ffb02a'));
+      // mazo de cables que cuelga suelto en lazo
+      for (let k = 0; k < 18; k++) { const cx = x + 8 + Math.round(Math.sin(k / 17 * Math.PI) * 6), cy = r0 + 30 + k * 2; K.put(pb, cx, cy, U('#ecc030')); K.put(pb, cx + 1, cy, U('#c8384a')); }
+    }
+    // barra de estado de color sobre la cabecera
+    const st = o.state || (open ? 'service' : null);
+    if (st && R2BB_STATE[st]) { const c = R2BB_STATE[st]; B.rect(pb, x + 4, top + 1, w - 8, 1, U(c)); B.rect(pb, x + w - 12, top + 3, 6, 7, U('#06080e')); B.rect(pb, x + w - 11, top + 4, 4, 5, U(c)); out.status = [x + w - 9, top + 6, c]; }
+    // prensaestopas y cables que suben a la bandeja (mazos más gruesos en las variantes)
+    if (o.cablesTo != null) {
+      const C3 = [[x + 10, '#ecc030'], [x + 16, '#c8384a'], [x + w - 16, '#4a90e8']];
+      if (o.variant) C3.push([x + 12, '#2a2a32'], [x + w - 14, '#3fe08a']);
+      for (const [cx, col] of C3) for (let yy = o.cablesTo; yy < top - d; yy++) K.put(pb, cx + Math.round((top - yy) * 0.45 * (d / Math.max(1, top - o.cablesTo))), yy, U(col));
+    }
+    if (o.label) B.plaque(pb, x + w / 2, top - 4 - d - 0, o.label, { center: true, bg: o.variant === 1 ? '#0a3a3a' : o.variant === 2 ? '#3a1e0a' : '#0e2848', border: o.variant === 1 ? '#5cc8bc' : o.variant === 2 ? '#ff9a4a' : '#78b0e2', col: '#f4fbff', h: 9, screws: false });
     B.castR(pb, x, x + w + Math.round(d * 0.45), yb - 1, 14, { amt: -0.22, yMin: yb - 18 });
     out.top = top;
     return out;
@@ -29684,6 +29723,9 @@ BIOME_LABELS.canyon = BIOME_LABELS.canyon || [];
    Contrato: B.horizon, B.sun, B.seaY(cam).
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+/** r2-biomes-b: acero estructural pintado (no gris): pilares cercanos en minio terracota, cerchas y montantes en turquesa */
+const R2BB_OXIDE = ['#2a0e0a', '#4a1810', '#6e2616', '#94361c', '#b84a26', '#d86a36', '#f09050', '#ffc488'];
+const R2BB_TEALST = ['#06262a', '#0a3c42', '#105a5e', '#18787a', '#2a9896', '#4ab8b0', '#86d8cc', '#d0f4ec'];
 
 BIOMES.plant = function (L) {
   const V = VISTA;
@@ -29772,14 +29814,14 @@ BIOMES.plant = function (L) {
     // techo: bandeja oscura con lucernarios (transparentes) y cercha
     for (let y = 0; y < 26; y++) for (let x = 0; x < w; x++) V.put(pb, x, y, ST[y < 2 ? 1 : (y % 5 === 0) ? 2 : 3]);
     for (let x = 40; x < w; x += BAY) { for (let y = 3; y < 20; y++) for (let xx = x; xx < x + 90; xx++) V.put(pb, xx, y, 0); V.glazing(pb, x, 3, 90, 17, { k, cols: 6, rows: 1, a: 0.1 }); }
-    const tr = V.truss(pb, 0, w, 26, 14, { k, step: 24, lamps: 4 });
+    const tr = V.truss(pb, 0, w, 26, 14, { k, step: 24, lamps: 4, ramp: R2BB_TEALST });
     wallFx.lamps = tr.lights;
     for (const [lx, ly] of tr.lights) { V.rect(pb, lx - 5, ly, 10, 2, ST[1]); V.rect(pb, lx - 4, ly + 2, 8, 1, U('#fff6d8')); }
     // ventanales entre pilares (se ve la costa) con rótulos encima
     for (let x = 18; x < w; x += BAY) {
       for (let y = WIN_Y; y < WIN_Y + WIN_H; y++) for (let xx = x; xx < x + BAY_W; xx++) V.put(pb, xx, y, 0);
       V.glazing(pb, x, WIN_Y, BAY_W, WIN_H, { k, cols: 5, rows: 3, a: 0.12, seed: x });
-      V.ibeam(pb, x + BAY_W + 10, 40, h, 14, { k });
+      V.ibeam(pb, x + BAY_W + 10, 40, h, 14, { k, ramp: R2BB_TEALST });
     }
     const signs = ['SYNARA · PLANTA DE ÓSMOSIS INVERSA', 'AGUA DE MAR → PERMEADO', 'SALA DE TRENES · 3 × 8 TUBOS', 'RECUPERACIÓN DE ENERGÍA'];
     for (let x = 18 + 30, i = 0; x < w - 60; x += BAY * 2, i++) V.sign(pb, x, 42, signs[i % signs.length], { k, bg: '#072248', border: '#6d9be8' });
@@ -29858,11 +29900,12 @@ BIOMES.plant = function (L) {
     const sw = Math.ceil(W + Math.max(0, L.width - W) * 0.22) + 2, pb = new PixelBuffer(sw, 300), list = [];
     for (let x = 18; x < sw; x += BAY) for (let c = 0; c < 5; c++) list.push([x + c * 30 + 4, WIN_Y + 4, 20, 236, 0.55]);
     for (let x = 40; x < sw; x += BAY) list.push([x + 10, 20, 60, 150, 0.35]);
-    V.shafts(pb, list, { col: '#ffe2a8', a: 0.2 });
+    // r2-biomes-b: sol de tarde dorado (acento cálido de la nave), más presente que el blanco frío
+    V.shafts(pb, list, { col: '#ffcf7e', a: 0.3 });
     return pb.toCanvas();
   });
   B.vdyn(0.22, (g, cam) => {
-    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.42 + 0.06 * Math.sin(T() * 0.6);
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5 + 0.06 * Math.sin(T() * 0.6);
     g.drawImage(shaftC, -Math.round(cam.x * 0.22), Math.round(-(cam.y - V.CAMY) * 0.066) - 3);
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }, { tag: 'shafts' });
@@ -29880,7 +29923,7 @@ BIOMES.plant = function (L) {
     nearFx.perm.push([0, 13], [w, 13]);
     // pilares en I con tornapuntas y luminarias colgantes
     for (let x = 120; x < w; x += 300) {
-      V.ibeam(pb, x, 0, h, 18, { k, brace: 30 });
+      V.ibeam(pb, x, 0, h, 18, { k, brace: 30, ramp: R2BB_OXIDE });
       for (let q = 0; q < 30; q++) V.put(pb, x + 60, 17 + q, V.P32(V.STEELW)[1]);
       V.rect(pb, x + 54, 47, 13, 3, V.P32(V.STEELW)[2]); V.rect(pb, x + 55, 50, 11, 1, U('#fff6d8'));
       nearFx.lamps.push([x + 60, 52, 12]);
@@ -30637,17 +30680,19 @@ function buildCalima(L) {
   B.calima = null;
   B.r2storm = R2S; B.r2sf = SF;
   B.sky = R2S.c;
-  B.skyClear = V.timed('skyClear', () => V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas());
+  // cielo despejado: se hornea la primera vez que se pide (al despejar, en el clímax): −30 ms de prerender
+  let skyClearC = null;
+  Object.defineProperty(B, 'skyClear', { configurable: true, get: () => skyClearC || (skyClearC = V.sky(W, H, { horizonY: HZ, stops: D.clear, haze: ['#d8c4b4', '#e0c8b0', '#e8ccb0', '#eed4b8'], sun: { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 } }).toCanvas()) });
   // coloso vivo: halo del sol tras su hombro, ojos y fauces de brasa que respiran, grietas del pecho (se apagan con MOSAICO)
   B.vdyn(SF, (g, cam) => {
     const S = st(), t = T(), ox = -Math.round(cam.x * SF), a = clamp(1 - S.clear * 1.2, 0, 1);
     if (S.clear > 0.02) V.sunBloom(g, { x: SUN.x, y: SUN.y - 20, r: 11, halo: 24 }, t, { a: 0.4 * S.clear, r: 60, col: '#ffe8b0' });
     if (a <= 0.02) return;
-    V.sunBloom(g, { x: S0.x + ox, y: S0.y, r: S0.r, halo: 24 }, t, { a: (0.34 + 0.08 * Math.sin(t * 0.7)) * a, r: 66, col: '#ffc070' });
+    V.sunBloom(g, { x: S0.x + ox, y: S0.y, r: S0.r, halo: 24 }, t, { a: (0.26 + 0.06 * Math.sin(t * 0.7)) * a, r: 56, col: '#ffc070' });
     if (S.transformed) return;
     const p = (0.62 + 0.22 * Math.sin(t * 1.9) + 0.12 * Math.sin(t * 5.3)) * a;
-    for (const [ex, ey] of R2S.eyes) { V.drawGlow(g, ex + ox, ey - 1, 8, '#ff6a1a', p * 0.8); V.drawGlow(g, ex + ox, ey - 1, 3, '#ffe6a0', p); }
-    const m = R2S.maw[11]; V.drawGlow(g, m[0] + ox, m[1], 13, '#ff4a14', (0.32 + 0.22 * Math.sin(t * 1.3)) * a);
+    for (const [ex, ey] of R2S.eyes) { V.drawGlow(g, ex + ox, ey, 5, '#ff6a1a', p * 0.55); V.drawGlow(g, ex + ox, ey - 1, 2, '#ffe6a0', p * 0.8); }
+    const m = R2S.maw[R2S.maw.length >> 1]; V.drawGlow(g, m[0] + ox, m[1] + 1, 12, '#ff5a1a', (0.26 + 0.18 * Math.sin(t * 1.3)) * a);
     for (let i = 0; i < R2S.cracks.length; i++) { const [x, y] = R2S.cracks[i]; V.drawGlow(g, x + ox, y, 4, '#ff8a30', (0.28 + 0.24 * Math.sin(t * 2.2 + i)) * a); }
   }, { tag: 'r2colossus' });
   // cúmulos blancos al despejar (solo aparecen con el cielo azul)
@@ -30737,6 +30782,14 @@ function buildCalima(L) {
       for (const [x, y, rr] of synFx.glows) V.drawGlow(g, x + ox, y + oy, rr, '#4cd48e', 0.3 + 0.15 * Math.sin(t * 2 + x));
     },
   });
+  /* ---------------- r2-biomes-b: haces crepusculares a través del polvo, delante del plano medio (sprite parcial) ---------------- */
+  const R2FAN = V.timed('r2fan', () => R2BB_rayFan(R2S));
+  B.vdyn(SF, (g, cam) => {
+    const S = st(), a = clamp(1 - S.clear * 1.4, 0, 1) * (0.5 + 0.12 * Math.sin(Game.time * 0.45) + 0.1 * (S.gust || 0)); if (a <= 0.02) return;
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, a);
+    g.drawImage(R2FAN.c, Math.round(S0.x - cam.x * SF - R2FAN.ox), Math.round(S0.y - cam.y * 0.05 - R2FAN.oy));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }, { tag: 'r2rays' });
   /* ---------------- pueblo con persianas cerradas (0,32) ---------------- */
   const townFx = { lights: [], beacons: [], crests: [], lit: [] };
   B.vplane(0.32, at(0.32, 132), 156, (pb, w, h) => {
@@ -31662,6 +31715,19 @@ BIOMES.vault = function (L) {
     for (const yy of [24, 34]) { const T1 = V.cableTray(pb, 0, w - 1, yy, { k, hang: 24, cols: yy === 24 ? ['#c8861a', '#e8a838', '#3a3a4a'] : ['#2c63c0', '#56e5ff', '#3a3a4a'] }); hallFx.flows.push([T1.flow, yy === 24 ? '#ffd27a' : '#a8f4ff']); }
     // lámparas de techo (campanas) sobre los pasillos
     for (let lx = 40; lx < w; lx += 110) { V.rect(pb, lx - 4, 40, 9, 3, U('#3a4060')); V.rect(pb, lx - 3, 43, 7, 1, U('#fff2d0')); for (let yy = 26; yy < 40; yy++) V.put(pb, lx, yy, U('#2a3048')); hallFx.lamps.push([lx, 44]); }
+    // r2-biomes-b: entreplanta (pasarela de rejilla con barandilla amarilla, montantes, escaleras de tramo
+    // y apliques cálidos de sodio bajo el forjado): otra capa de profundidad sobre las filas
+    {
+      const DY = 66, GR = V.P32(['#10131e', '#1a1e2e', '#262c40', '#343c56', '#46506e', '#5e6a8a']), YL = V.P32(['#5a3a0a', '#9a6a10', '#d8a020', '#f8d040']);
+      for (let xx = 0; xx < w; xx++) {
+        for (let k = 0; k < 5; k++) V.put(pb, xx, DY + k, GR[k === 0 ? 5 : k === 1 ? 3 : k === 4 ? 0 : ((xx + k) % 3 ? 2 : 1)]);
+        V.put(pb, xx, DY - 12, YL[3]); V.put(pb, xx, DY - 11, YL[1]); V.put(pb, xx, DY - 6, YL[2]);
+        if (xx % 26 === 0) for (let yy = DY - 12; yy < DY; yy++) V.put(pb, xx, yy, YL[yy === DY - 12 ? 3 : 1]);
+      }
+      for (let xx = 18; xx < w; xx += 130) { for (let yy = DY + 5; yy < base; yy++) { V.put(pb, xx, yy, GR[3]); V.put(pb, xx + 1, yy, GR[1]); } }
+      for (let xx = 90; xx < w; xx += 390) for (let q = 0; q < 34; q++) { const sx = xx + q, sy = DY + 5 + Math.round(q * 1.5); V.put(pb, sx, sy, GR[4]); V.put(pb, sx, sy + 1, GR[1]); if (q % 3 === 0) V.put(pb, sx + 1, sy - 1, YL[2]); }
+      for (let lx = 70; lx < w; lx += 150) { V.rect(pb, lx - 3, DY + 5, 7, 2, U('#2a2420')); V.rect(pb, lx - 2, DY + 7, 5, 1, U('#ffd890')); hallFx.warm = hallFx.warm || []; hallFx.warm.push([lx, DY + 8]); }
+    }
     // filas de bastidores con huecos para la sala de control y la climatización
     let x = 10;
     while (x < w - 40) {
@@ -31685,6 +31751,7 @@ BIOMES.vault = function (L) {
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx < -40 || sx > W + 40) continue; g.drawImage(cone, Math.round(sx - 35), Math.round(y + oy)); }
         g.globalCompositeOperation = 'source-over';
         for (const [x, y] of hallFx.lamps) { const sx = x + ox; if (sx > -10 && sx < W + 10) V.drawGlow(g, sx, y + oy, 5, '#fff2d0', 0.6); }
+        for (const [x, y] of hallFx.warm || []) { const sx = x + ox; if (sx > -16 && sx < W + 16) { V.drawGlow(g, sx, y + oy, 13, '#ffa850', 0.5); V.drawGlow(g, sx, y + oy, 4, '#ffe8b0', 0.8); } }
         // LED de estado: verde (SOC sano), rojo (bajo), parpadeo de actividad
         const col = S.soc < 0.3 ? '#ff6b6b' : '#b6f05a';
         g.fillStyle = col;
@@ -31733,12 +31800,18 @@ BIOME_LABELS.vault = BIOME_LABELS.vault || [];
    bulto: coste ∝ área de los bultos), luz de borde desde el sol que tiene
    detrás y haces/sombras crepusculares por oclusión angular desde el sol.
    Sin tramado: bandas con borde en clusters 3×2 (VISTA.band).
-     R2BB_stormSky(w, h, o) → { c, sun, eyes, maw, head, cracks, wallTop }
+     R2BB_stormSky(w, h, o) → { c, sun, eyes, maw, head, cracks, wallTop, occ0, ray, NA }
+       (coloso: mole encorvada de polvo color ciruela, sin cuernos; ojos de brasa rasgados, fauces de horno;
+        R2BB_stormSky.prof = ms por etapa del último horneado)
+     R2BB_rayFan(S, o) → { c, ox, oy }  haces crepusculares (sprite parcial 'lighter')
+     PFStage.FG.r2bbWires(o)  tendido en contraluz (catenarias, sin viga recta)
+     PFStage.FG.r2bbSil(o)    siluetas cercanas: o.what 'palm'|'agave'|'lamp'|'fence', o.sunDx
      R2BB_puffRaster(w, h, puffs, ID, Z, NX, NY)   raster de bultos
      R2BB_chain(out, rng, a, b, ra, rb, mat, zo, n, fest)  cadena de bultos
    ===================================================================== */
 const R2BB_SKYR = ['#14060e', '#1e0912', '#2a0d16', '#381218', '#48161a', '#5a1c1a', '#6e241a', '#84301c', '#9a3c1e', '#b04a20', '#c45a24', '#d66c28', '#e4802e', '#ee9636', '#f6ae44', '#fbc458', '#fed876', '#ffeaa0', '#fff6cc'];
-const R2BB_BODYR = ['#12060c', '#1a0910', '#230c14', '#2e1018', '#3a141c', '#46181e', '#541e20', '#642622', '#763024', '#8a3c26'];
+/** Cuerpo del coloso: ciruela polvorienta (contraste de tono frente al cielo naranja, como la tarjeta de la referencia) */
+const R2BB_BODYR = ['#0c0610', '#130a18', '#1b0e20', '#241228', '#2e172e', '#3a1d34', '#472438', '#562c3c', '#68363e', '#7c4240', '#924e3e', '#aa5e42', '#c47448'];
 const R2BB_WALLR = ['#2a0e12', '#381416', '#481a18', '#5a221a', '#6e2c1c', '#84381e', '#9a4620', '#b05624', '#c46a2a', '#d68032'];
 const R2BB_CLOUDR = ['#1c0a12', '#260e16', '#32121a', '#40181e', '#502020', '#622822', '#783222', '#8e3e24', '#a84e26', '#c2622a'];
 const R2BB_RIMR = ['#a0401e', '#c45a22', '#e07a2a', '#f49a3a', '#ffbe58', '#ffdc86', '#fff2bc'];
@@ -31771,9 +31844,10 @@ function R2BB_chain(out, r, a, b, ra, rb, mat, zo = 0, n = 0, fest = 0.6) {
 }
 function R2BB_stormSky(w, h, o = {}) {
   const V = VISTA, r = RNG(o.seed || 4401), pb = new PixelBuffer(w, h), N = w * h;
-  const SUN = o.sun || { x: 404, y: 70, r: 10 };
-  const HX = o.hx || 470, HY = o.hy || 50; // cabeza del coloso
+  const SUN = o.sun || { x: 352, y: 54, r: 11 };
+  const HX = o.hx || 470, HY = o.hy || 60; // cabeza del coloso
   const P = [];
+  const PROF = [nowMs()];
   /* ---- cúmulos de polvo colgando arriba (mat 2), con hueco sobre el sol ---- */
   for (let x = -30; x < w + 40; x += r.int(22, 40)) {
     const gap = Math.abs(x - SUN.x + 10) < 70 ? 1 : 0;
@@ -31795,47 +31869,50 @@ function R2BB_stormSky(w, h, o = {}) {
     P.push([x + r.range(-6, 6), top + rr * 3.6 + r.range(0, 8), rr * r.range(1.1, 1.5), -12, 1]);
     for (let q = 0; q < 2; q++) P.push([x + r.range(-rr, rr), top + rr * r.range(0.3, 0.8), r.range(4, 8), rr * 0.5, 1]);
   }
-  /* ---- coloso (mat 0) ---- */
+  /* ---- coloso (mat 0): mole encorvada de polvo, cabeza hundida entre hombros enormes, brazos hasta el muro ---- */
   const z0 = 30;
-  // torso, joroba y caderas que se deshacen en el muro
-  R2BB_chain(P, r, [HX, HY + 34], [HX - 2, HY + 112], 30, 40, 0, z0, 6, 0.9);
-  R2BB_chain(P, r, [HX - 44, HY + 60], [HX + 50, HY + 58], 28, 30, 0, z0 + 4, 5, 0.9);
-  R2BB_chain(P, r, [HX - 50, HY + 118], [HX + 52, HY + 116], 24, 26, 0, z0 - 4, 7, 1);
-  for (let q = 0; q < 26; q++) { const a = r.range(0, TAU), d = r.range(0.4, 1); P.push([HX + Math.cos(a) * 46 * d, HY + 82 + Math.sin(a) * 44 * d, r.range(6, 13), z0 + 12, 0]); }
-  // hombros
-  P.push([HX - 52, HY + 44, 27, z0 + 10, 0], [HX + 56, HY + 42, 29, z0 + 10, 0]);
-  R2BB_chain(P, r, [HX - 66, HY + 36], [HX - 30, HY + 30], 14, 16, 0, z0 + 18, 3, 1);
-  R2BB_chain(P, r, [HX + 34, HY + 28], [HX + 72, HY + 34], 16, 14, 0, z0 + 18, 3, 1);
-  // brazos: hombro → codo → puño hundido en el muro
-  R2BB_chain(P, r, [HX - 70, HY + 56], [HX - 104, HY + 96], 22, 18, 0, z0 + 16, 4, 1);
-  R2BB_chain(P, r, [HX - 104, HY + 96], [HX - 118, HY + 132], 18, 21, 0, z0 + 20, 4, 1);
-  R2BB_chain(P, r, [HX + 76, HY + 54], [HX + 108, HY + 92], 23, 19, 0, z0 + 16, 4, 1);
-  R2BB_chain(P, r, [HX + 108, HY + 92], [HX + 124, HY + 128], 19, 22, 0, z0 + 20, 4, 1);
-  // garras de polvo (dedos) en los puños
-  for (const [fx, fy, s] of [[HX - 118, HY + 136, -1], [HX + 124, HY + 132, 1]]) for (let q = 0; q < 4; q++) R2BB_chain(P, r, [fx + s * (q * 7 - 10), fy + 6], [fx + s * (q * 8 - 12), fy + 22], 6, 4, 0, z0 + 26, 3, 0.2);
-  // cabeza: cráneo, cejas, mandíbula y cuernos de polvo
-  P.push([HX, HY, 21, z0 + 26, 0], [HX - 10, HY - 9, 12, z0 + 30, 0], [HX + 10, HY - 10, 12, z0 + 30, 0], [HX, HY + 14, 15, z0 + 24, 0], [HX - 14, HY + 9, 10, z0 + 28, 0], [HX + 14, HY + 8, 10, z0 + 28, 0]);
-  R2BB_chain(P, r, [HX - 14, HY - 14], [HX - 30, HY - 36], 8, 3, 0, z0 + 22, 6, 0.3);
-  R2BB_chain(P, r, [HX - 30, HY - 36], [HX - 26, HY - 50], 3, 1.6, 0, z0 + 22, 4, 0);
-  R2BB_chain(P, r, [HX + 14, HY - 15], [HX + 32, HY - 38], 8, 3, 0, z0 + 22, 6, 0.3);
-  R2BB_chain(P, r, [HX + 32, HY - 38], [HX + 29, HY - 53], 3, 1.6, 0, z0 + 22, 4, 0);
-  // bultos de superficie sobre hombros y espalda (coliflor)
-  for (let q = 0; q < 40; q++) { const a = r.range(-Math.PI, 0), sx = q % 2 ? HX - 52 : HX + 56, sy = HY + 44; P.push([sx + Math.cos(a) * 24, sy + Math.sin(a) * 22, r.range(4, 9), z0 + 24, 0]); }
+  // torso y vientre que se deshacen en el muro
+  R2BB_chain(P, r, [HX, HY + 30], [HX - 4, HY + 128], 36, 48, 0, z0, 6, 0.9);
+  R2BB_chain(P, r, [HX - 50, HY + 64], [HX + 54, HY + 60], 30, 32, 0, z0 + 4, 5, 0.9);
+  R2BB_chain(P, r, [HX - 62, HY + 122], [HX + 64, HY + 118], 26, 28, 0, z0 - 4, 7, 1);
+  for (let q = 0; q < 30; q++) { const a = r.range(0, TAU), d = r.range(0.4, 1); P.push([HX + Math.cos(a) * 52 * d, HY + 84 + Math.sin(a) * 46 * d, r.range(6, 14), z0 + 12, 0]); }
+  // hombros enormes por encima de la nuca (joroba) y trapecios hacia la cabeza
+  P.push([HX - 58, HY + 2, 33, z0 + 8, 0], [HX + 62, HY - 2, 35, z0 + 8, 0], [HX + 4, HY - 6, 26, z0 - 6, 0]);
+  R2BB_chain(P, r, [HX - 76, HY + 10], [HX - 30, HY - 4], 18, 20, 0, z0 + 14, 4, 1);
+  R2BB_chain(P, r, [HX + 32, HY - 6], [HX + 84, HY + 6], 20, 18, 0, z0 + 14, 4, 1);
+  // brazos colgantes: hombro → codo → puño hundido en el muro (como un gorila de polvo)
+  R2BB_chain(P, r, [HX - 84, HY + 22], [HX - 118, HY + 78], 24, 20, 0, z0 + 16, 4, 1);
+  R2BB_chain(P, r, [HX - 118, HY + 78], [HX - 132, HY + 134], 20, 24, 0, z0 + 20, 4, 1);
+  R2BB_chain(P, r, [HX + 90, HY + 18], [HX + 122, HY + 74], 25, 21, 0, z0 + 16, 4, 1);
+  R2BB_chain(P, r, [HX + 122, HY + 74], [HX + 138, HY + 130], 21, 25, 0, z0 + 20, 4, 1);
+  // nudillos de polvo en los puños
+  for (const [fx, fy, s] of [[HX - 132, HY + 140, -1], [HX + 138, HY + 136, 1]]) for (let q = 0; q < 4; q++) P.push([fx + s * (q * 9 - 13), fy + 14 + (q % 2) * 3, r.range(8, 11), z0 + 26, 0]);
+  // cabeza ancha y baja: cráneo, arco ciliar macizo (sombra sobre las cuencas), pómulos y mandíbula
+  P.push([HX, HY + 6, 22, z0 + 22, 0], [HX - 12, HY - 3, 12, z0 + 30, 0], [HX + 12, HY - 4, 12, z0 + 30, 0], [HX, HY - 6, 11, z0 + 31, 0],
+    [HX - 17, HY + 12, 11, z0 + 26, 0], [HX + 17, HY + 11, 11, z0 + 26, 0], [HX - 9, HY + 27, 12, z0 + 24, 0], [HX + 9, HY + 27, 12, z0 + 24, 0], [HX, HY + 31, 12, z0 + 22, 0]);
+  // bultos de superficie (coliflor) sobre hombros, joroba y antebrazos
+  for (let q = 0; q < 56; q++) { const a = r.range(-Math.PI * 1.05, 0.05), side = q % 3, sx = side === 0 ? HX - 58 : side === 1 ? HX + 62 : HX + 4, sy = side === 2 ? HY - 6 : HY; const rr = side === 2 ? 22 : 30; P.push([sx + Math.cos(a) * rr, sy + Math.sin(a) * rr * 0.92, r.range(4, 9), z0 + 24, 0]); }
+  PROF.push(nowMs());
   /* ---- raster ---- */
   const ID = new Int16Array(N).fill(-1), Z = new Float32Array(N).fill(-1e9), NX = new Float32Array(N), NY = new Float32Array(N);
   R2BB_puffRaster(w, h, P, ID, Z, NX, NY);
   const MAT = new Int8Array(N).fill(-1); for (let i = 0; i < N; i++) if (ID[i] >= 0) MAT[i] = P[ID[i]][4];
+  PROF.push(nowMs());
   /* ---- oclusión angular desde el sol: OCC[a] = distancia al primer bulto ---- */
-  const NA = 1440, OCC = new Float32Array(NA).fill(1e9);
+  const NA = 1440, OCC = new Float32Array(NA).fill(1e9), OCC0 = new Float32Array(NA).fill(1e9);
   for (let a = 0; a < NA; a++) {
     const an = a / NA * TAU, ca = Math.cos(an), sa = Math.sin(an);
-    for (let d = SUN.r + 2; d < 900; d += 1) { const x = Math.round(SUN.x + ca * d), y = Math.round(SUN.y + sa * d); if (x < 0 || y < 0 || x >= w || y >= h) break; if (MAT[y * w + x] >= 0) { OCC[a] = d; break; } }
+    for (let d = SUN.r + 2; d < 900; d += 1) {
+      const x = Math.round(SUN.x + ca * d), y = Math.round(SUN.y + sa * d); if (x < 0 || y < 0 || x >= w || y >= h) break;
+      const m = MAT[y * w + x]; if (m >= 0 && OCC[a] > 1e8) OCC[a] = d; if (m === 0) { OCC0[a] = d; break; }
+    }
   }
+  PROF.push(nowMs());
   // variación de los haces: ruido angular suave (huecos entre bultos = haces brillantes)
   const RAY = new Float32Array(NA); for (let a = 0; a < NA; a++) RAY[a] = fbm1(a / NA * 46, 3, 77);
   const sky = V.P32(R2BB_SKYR), body = V.P32(R2BB_BODYR), wall = V.P32(R2BB_WALLR), cloud = V.P32(R2BB_CLOUDR), rimR = V.P32(R2BB_RIMR);
   const HZ = o.hz || 200;
-  const BODYMIX = [0, 0.25, 0.5, 0.75].map(k => new Uint32Array(R2BB_BODYR.map((c, j) => U(mixHex(c, R2BB_WALLR[j], k)))));
+  const BODYMIX = [0, 0.25, 0.5, 0.75].map(k => new Uint32Array(R2BB_BODYR.map((c, j) => U(mixHex(c, R2BB_WALLR[Math.min(j, R2BB_WALLR.length - 1)], k)))));
   const glowAt = (x, y) => { const d = Math.hypot(x - SUN.x, (y - SUN.y) * 1.2); return Math.exp(-d / 46) * 0.5 + Math.exp(-d / 150) * 0.42 + Math.exp(-d / 420) * 0.16; };
   const rayAt = (x, y) => {
     const dx = x - SUN.x, dy = y - SUN.y, d = Math.hypot(dx, dy); if (d < SUN.r) return 0;
@@ -31844,17 +31921,18 @@ function R2BB_stormSky(w, h, o = {}) {
     if (d > occ + 1) return -Math.min(1, (d - occ) / 40) * clamp(1.2 - (d - occ) / 520, 0.25, 1);  // sombra crepuscular
     const v = RAY[a]; return v > 0.55 ? (v - 0.55) * 2.4 * clamp(1 - d / 380, 0, 1) : 0;          // haz brillante
   };
+  const WT = new Float32Array(w); for (let x = 0; x < w; x++) WT[x] = wallTop(x) + 26;
+  const VYP = new Float32Array(h); for (let y = 0; y < h; y++) VYP[y] = 0.1 + 0.36 * Math.pow(clamp(y / HZ, 0, 1), 0.85);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x, m = MAT[i];
     if (m < 0) {
-      const wt = wallTop(x) + 26;
+      const wt = WT[x];
       if (y > wt) { // banco de polvo bajo el muro: opaco, más claro hacia abajo (polvo iluminado)
         const t = 0.3 + clamp((y - wt) / 120, 0, 1) * 0.42 + (fbm(x * 0.05, y * 0.12, 2, 5) - 0.5) * 0.14;
         pb.data[i] = wall[V.band(clamp(t, 0, 0.999), wall.length, x, y, 0.04, 17)];
         continue;
       }
-      const vy = clamp(y / HZ, 0, 1);
-      let t = 0.1 + 0.36 * Math.pow(vy, 0.85) + glowAt(x, y) * 0.66;
+      let t = VYP[y] + glowAt(x, y) * 0.66;
       const ry = rayAt(x, y); t += ry > 0 ? ry * 0.09 : ry * 0.12;
       pb.data[i] = sky[V.band(clamp(t, 0, 0.999), sky.length, x, y, 0.012, 11)];
       continue;
@@ -31867,7 +31945,9 @@ function R2BB_stormSky(w, h, o = {}) {
     const top = clamp(-ny * 0.7 + nz * 0.5 - nx * 0.12, -1, 1);
     let t, R;
     if (m === 0) {
-      t = 0.2 + 0.34 * top + 0.5 * back + tex;
+      // volumen: luz del sol rasante por la izquierda-arriba + rebote cálido del muro de polvo en las panzas
+      const bounce = Math.max(0, ny) * nz * clamp((y - HY - 30) / 90, 0, 1) * 0.2;
+      t = 0.2 + 0.3 * top + 0.62 * back + bounce + tex + Math.max(0, -nx) * nz * 0.08 * clamp(1.4 - Math.abs(x - SUN.x) / 200, 0, 1);
       // la base del coloso se deshace en el muro: rampa mezclada por bandas de altura (borde en clusters)
       const dk = clamp((y - HY - 92) / 70 + (hash2((x / 3) | 0, (y / 2) | 0, 61) - 0.5) * 0.3, 0, 0.999);
       R = BODYMIX[Math.floor(dk * BODYMIX.length)];
@@ -31875,9 +31955,27 @@ function R2BB_stormSky(w, h, o = {}) {
     } else if (m === 1) { t = 0.26 + 0.3 * top + 0.55 * back + 0.06 * rayAt(x, y) + clamp((y - 150) / 160, 0, 0.25) + tex; R = wall; }
     else { t = 0.2 + 0.26 * top + 0.75 * back + glowAt(x, y) * 0.45 + tex; R = cloud; }
     // pliegue: bulto delante → línea interior más oscura
-    for (const j of [i + 1, i - w, i - 1]) { if (j < 0 || j >= N) continue; const q = ID[j]; if (q >= 0 && q !== ID[i] && Z[j] > Z[i] + 1.8) { t -= 0.12; break; } }
+    { const id = ID[i], zz = Z[i] + 1.8; let q;
+      if ((x < w - 1 && (q = ID[i + 1]) >= 0 && q !== id && Z[i + 1] > zz) || (y > 0 && (q = ID[i - w]) >= 0 && q !== id && Z[i - w] > zz) || (x > 0 && (q = ID[i - 1]) >= 0 && q !== id && Z[i - 1] > zz)) t -= 0.12; }
     pb.data[i] = R[V.band(clamp(t, 0, 0.999), R.length, x, y, 0.04, 13 + m)];
   }
+  PROF.push(nowMs());
+  /* ---- jirones de polvo que el viento arranca del coloso hacia la izquierda (hebras + motas sueltas) ---- */
+  const wispU = U('#64303a'), speckU = U('#8a4636');
+  for (let y = 0; y < h; y++) {
+    let last = -1;
+    for (let x = w - 1; x >= 0; x--) {
+      const i = y * w + x, m = MAT[i];
+      if (m === 0) { last = x; continue; }
+      if (last < 0 || m >= 0) continue;
+      const d = last - x; if (d > 84) continue;
+      const fall = Math.pow(1 - d / 84, 1.5), st = fbm(x * 0.011, y * 0.28, 2, 91);
+      const k = fall * clamp((st - 0.44) * 3.4, 0, 1) + (hash2((x / 3) | 0, (y / 2) | 0, 23) - 0.5) * 0.12;
+      if (k > 0.14) pb.data[i] = V.mixU(pb.data[i], wispU, k > 0.62 ? 0.5 : k > 0.36 ? 0.32 : 0.17);
+      if (d < 40 && hash2(x, y, 13) < 0.018 * (1 - d / 40)) pb.data[i] = speckU;
+    }
+  }
+  PROF.push(nowMs());
   /* ---- luz de borde contra el cielo, del lado del sol (1–3 px, más fuerte cerca del sol) ---- */
   const rimList = [];
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
@@ -31891,6 +31989,7 @@ function R2BB_stormSky(w, h, o = {}) {
     if (k >= 1) rimList.push(i, clamp(k, 0, rimR.length - 1));
   }
   for (let q = 0; q < rimList.length; q += 2) pb.data[rimList[q]] = rimR[rimList[q + 1]];
+  PROF.push(nowMs());
   /* ---- sol velado detrás del coloso (solo sobre cielo) ---- */
   const SR = SUN.r;
   for (let y = SUN.y - SR - 3; y <= SUN.y + SR + 3; y++) for (let x = SUN.x - SR - 3; x <= SUN.x + SR + 3; x++) {
@@ -31898,30 +31997,184 @@ function R2BB_stormSky(w, h, o = {}) {
     const d = Math.hypot(x - SUN.x, y - SUN.y) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.8;
     if (d <= SR - 3) pb.data[i] = U('#fffbe6'); else if (d <= SR - 1) pb.data[i] = U('#fff2c0'); else if (d <= SR + 1) pb.data[i] = U('#ffe49a');
   }
-  /* ---- cara: cuencas, ojos de brasa y fauces ---- */
-  const eyes = [[HX - 9, HY + 1, -1], [HX + 9, HY, 1]];
-  const put = (x, y, c) => V.put(pb, x, y, U(c));
+  PROF.push(nowMs());
+  /* ---- cara: cuencas bajo el arco ciliar, ojos de brasa rasgados y fauces como boca de horno ---- */
+  const put = (x, y, c) => V.put(pb, x, y, typeof c === 'number' ? c : U(c));
+  const shadeAt = (x, y, k) => { x |= 0; y |= 0; if (x < 0 || y < 0 || x >= w || y >= h) return; const i = y * w + x; pb.data[i] = V.mixU(pb.data[i], U('#08030a'), k); };
+  const eyes = [[HX - 10, HY + 4, -1], [HX + 10, HY + 3, 1]];
   for (const [ex, ey, s] of eyes) {
-    // cuenca honda bajo la ceja (sombra granate) y ojo rasgado de brasa con núcleo claro
-    for (let yy = -3; yy <= 3; yy++) for (let xx = -6; xx <= 6; xx++) if (Math.abs(xx) + Math.abs(yy) * 1.7 <= 6.6) put(ex + xx, ey + yy, yy < -1 ? '#0a0306' : yy < 1 ? '#10050a' : '#1c0a10');
-    for (let xx = -4; xx <= 4; xx++) { const yy = Math.round(-xx * s * 0.3); put(ex + xx, ey + yy, Math.abs(xx) === 4 ? '#c8401a' : '#ff7a24'); if (Math.abs(xx) <= 3) put(ex + xx, ey + yy - 1, Math.abs(xx) <= 1 ? '#fff4b0' : '#ffb03a'); }
-  }
-  const my = HY + 15, maw = [];
-  for (let xx = -11; xx <= 11; xx++) {
-    const yy = Math.round(Math.abs(xx) * 0.24 - (Math.abs(xx) > 9 ? 1 : 0));
-    put(HX + xx, my + yy - 2, '#0a0306'); put(HX + xx, my + yy - 1, '#2a0808'); put(HX + xx, my + yy, '#7a1a0c'); put(HX + xx, my + yy + 1, '#3a0a08'); put(HX + xx, my + yy + 2, '#0a0306');
-    if (Math.abs(xx) < 10) {
-      if (xx % 3 === 0) { put(HX + xx, my + yy - 1, '#ffd070'); put(HX + xx, my + yy, '#ff8a30'); }          // colmillo superior
-      else if ((xx + 12) % 3 === 1) { put(HX + xx, my + yy + 1, '#ffb050'); put(HX + xx, my + yy, '#e05a22'); } // colmillo inferior
-      else put(HX + xx, my + yy, '#ff6a20');
+    // cuenca honda: sombra en elipse con borde en clusters
+    for (let yy = -4; yy <= 4; yy++) for (let xx = -8; xx <= 8; xx++) { const d = (xx * xx) / 64 + (yy * yy) / 16 + (hash2((ex + xx) >> 1, ey + yy, 9) - 0.5) * 0.25; if (d <= 1) shadeAt(ex + xx, ey + yy, d < 0.5 ? 0.75 : 0.45); }
+    // ojo rasgado (extremo interior más bajo: ceño), brasa con núcleo blanco-amarillo
+    for (let xx = -4; xx <= 4; xx++) {
+      const yy = Math.round(xx * s * -0.32), e = Math.abs(xx);
+      put(ex + xx, ey + yy, e === 4 ? '#a83416' : e === 3 ? '#e2561c' : '#ff8a2a');
+      if (e <= 2) put(ex + xx, ey + yy - 1, e === 0 ? '#fff6c8' : '#ffc050');
+      if (e <= 1) put(ex + xx, ey + yy + 1, '#c8401a');
     }
-    maw.push([HX + xx, my + yy]);
+  }
+  // fauces: abertura ancha en media luna, labio superior irregular (jirones de polvo, no dientes de dibujo),
+  // interior de horno (borde granate → núcleo ámbar abajo); el resplandor sube por la mandíbula
+  const my = HY + 22, maw = [], MW = 13;
+  const topE = (xx) => Math.round(-1 + Math.abs(xx) * 0.12 + (hash2(xx + 40, 3, 71) < 0.35 ? 1 : 0) + (Math.abs(xx) % 5 === 2 ? 2 : 0));
+  const botE = (xx) => Math.round(5.5 * Math.sqrt(Math.max(0, 1 - (xx * xx) / (MW * MW))) + 0.5);
+  for (let xx = -MW; xx <= MW; xx++) {
+    const t0 = topE(xx), t1 = Math.max(t0 + 1, botE(xx));
+    put(HX + xx, my + t0 - 1, '#0a0306');
+    for (let yy = t0; yy <= t1; yy++) {
+      const v = (yy - t0) / Math.max(1, t1 - t0), c = Math.abs(xx) / MW;
+      const heat = clamp(v * 1.1 - c * 0.55, 0, 1);
+      put(HX + xx, my + yy, heat > 0.78 ? '#ffd27a' : heat > 0.55 ? '#ff9a34' : heat > 0.32 ? '#e0581e' : heat > 0.12 ? '#8a2410' : '#3a0a0a');
+    }
+    put(HX + xx, my + t1 + 1, '#1a0608');
+    maw.push([HX + xx, my + Math.round((t0 + t1) / 2)]);
+  }
+  // reflejo de las fauces en la mandíbula y el pecho (luz de abajo, en bandas)
+  for (let yy = 2; yy <= 12; yy++) for (let xx = -16; xx <= 16; xx++) {
+    const x = HX + xx, y = my + 6 + yy; if (x < 0 || y >= h || MAT[y * w + x] !== 0) continue;
+    const k = (1 - yy / 13) * (1 - Math.abs(xx) / 17); if (k > 0.25) { const i = y * w + x; pb.data[i] = V.mixU(pb.data[i], U('#c25a2a'), k > 0.6 ? 0.42 : k > 0.4 ? 0.28 : 0.16); }
   }
   // grietas de brasa en el pecho (el corazón de la tormenta)
   const cracks = [];
-  for (let q = 0; q < 3; q++) { let x = HX + r.range(-10, 10), y = HY + 60 + q * 14; for (let k = 0; k < 14; k++) { const nx2 = x + r.range(-2.2, 2.2), ny2 = y + r.range(0.6, 1.8); put(Math.round(nx2), Math.round(ny2), k % 4 === 0 ? '#ffb040' : '#c8401a'); if (k % 5 === 0) cracks.push([Math.round(nx2), Math.round(ny2)]); x = nx2; y = ny2; } }
-  return { c: pb.toCanvas(), sun: SUN, eyes, maw, head: [HX, HY], cracks, wallTop };
+  for (let q = 0; q < 3; q++) { let x = HX + r.range(-12, 12), y = HY + 66 + q * 14; for (let k = 0; k < 14; k++) { const nx2 = x + r.range(-2.2, 2.2), ny2 = y + r.range(0.6, 1.8); put(Math.round(nx2), Math.round(ny2), k % 4 === 0 ? '#ffb040' : '#c8401a'); if (k % 5 === 0) cracks.push([Math.round(nx2), Math.round(ny2)]); x = nx2; y = ny2; } }
+  PROF.push(nowMs()); R2BB_stormSky.prof = PROF.slice(1).map((v, i) => Math.round(v - PROF[i]));
+  return { c: pb.toCanvas(), sun: SUN, eyes, maw, head: [HX, HY], cracks, wallTop, occ0: OCC0, ray: RAY, NA };
 }
+
+/* ---------------- r2-biomes-b · oclusor frontal: tendido eléctrico en contraluz (sin viga recta) ----------------
+   Catenarias colgando entre postes fuera de cuadro, con el canto superior encendido por el sol de la tormenta,
+   y jirones de lona enganchados (estáticos). Sustituye a 'cables' (que trae una viga de techo) en el exterior del N10. */
+PFStage.FG.r2bbWires = function (o) {
+  const w = o.w || 300, h = o.h || 46, pb = new PixelBuffer(w, h), r = RNG(o.seed || 5);
+  const dk = U('#0e0606'), md = U('#24120c'), rim = U(o.rim || '#e08a44');
+  const n = o.n || 3, curves = [];
+  for (let i = 0; i < n; i++) {
+    const y0 = 1 + i * 3 + r.int(0, 2), y1 = 2 + i * 4 + r.int(0, 3), sag = h * (0.42 + 0.12 * i + r.range(0, 0.08)), th = i === 0 ? 2 : 1;
+    const yAt = (x) => { const t = x / (w - 1); return Math.round(lerp(y0, y1, t) + sag * 4 * t * (1 - t)); };
+    curves.push(yAt);
+    let py = yAt(0);
+    for (let x = 0; x < w; x++) {
+      const y = yAt(x), yA = Math.min(py, y), yB = Math.max(py, y);
+      for (let yy = yA; yy <= yB + th - 1; yy++) PFK.put(pb, x, yy, yy === yB + th - 1 ? dk : md);
+      if (yA - 1 >= 0) PFK.put(pb, x, yA - 1, rim);
+      py = y;
+    }
+  }
+  // jirones de lona enganchados en el cable principal (colgando hacia la izquierda: viento de la tormenta)
+  for (const f of [0.3, 0.72]) {
+    const fx = Math.round(w * f), y = curves[0](fx);
+    for (let k = 0; k < 10; k++) { const len = k < 3 ? 3 : k < 6 ? 2 : 1; for (let q = 0; q < len; q++) PFK.put(pb, fx - k, y + 2 + Math.round(k * 0.3) + q, q === 0 ? U(k < 2 ? '#ffb070' : '#b0502a') : U('#4a1c12')); }
+  }
+  return pb;
+};
+
+/* ---------------- r2-biomes-b · haces crepusculares sobre el plano medio ----------------
+   Abanico desde el sol (al costado del hombro del coloso) hacia abajo-izquierda: mismos huecos angulares
+   que los haces del cielo (RAY), cortados donde el coloso tapa el sol (occ0). Alfa en 4 bandas con borde en
+   clusters 3×2 (sin tramado); se dibuja con 'lighter' como sprite parcial (≈ 0,45 pantallas), no a pantalla completa.
+     R2BB_rayFan(S) → { c, ox, oy }  (ox, oy: posición del sol dentro del sprite) */
+function R2BB_rayFan(S, o = {}) {
+  const w = o.w || 400, h = o.h || 270, ox = o.ox || 372, oy = o.oy || 0, pb = new PixelBuffer(w, h);
+  const NA = S.NA, RAY = S.ray, OCC0 = S.occ0, col = U(o.col || '#ffcc84') & 0xffffff, nb = 5;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy); if (d < 14) continue;
+    let a = Math.round((Math.atan2(dy, dx) / TAU) * NA); a = ((a % NA) + NA) % NA;
+    const deg = a / NA * 360; if (deg < 96 || deg > 186) continue;
+    if (d > OCC0[a] - 2) continue;                       // a la sombra del coloso
+    const v = RAY[a], beam = v > 0.5 ? Math.min(1, (v - 0.5) * 2.6) : 0;
+    const edge = clamp((deg - 96) / 14, 0, 1) * clamp((186 - deg) / 30, 0, 1);
+    const fall = Math.exp(-d / 230) * clamp(d / 40, 0, 1);
+    let f = (beam * 0.85 + 0.12) * fall * edge;
+    f += (hash2((x / 3) | 0, (y / 2) | 0, 57) - 0.5) / nb * 0.8;
+    const lv = clamp(Math.round(f * nb), 0, nb); if (!lv) continue;
+    pb.data[y * w + x] = ((Math.round(lv / nb * 255) << 24) | col) >>> 0;
+  }
+  return { c: pb.toCanvas(), ox, oy };
+}
+
+/* ---------------- r2-biomes-b · siluetas cercanas a contraluz (oclusor frontal f≈1,3, anclado abajo) ----------------
+   o.what: 'palm' (palmera doblada por el viento, hojas a la izquierda) · 'agave' · 'lamp' (farola torcida con
+   bombilla encendida y halo horneado en bandas) · 'fence' (cerca de arena medio enterrada con lona rota).
+   Negro cálido con borde encendido de 1–2 px del lado del sol (arriba y hacia o.sunDx) — alto contraste. */
+const R2BB_SILR = ['#0a0405', '#120806', '#1c0d09', '#28140c'];
+PFStage.FG.r2bbSil = function (o) {
+  const w = o.w || 120, h = o.h || 130, pb = new PixelBuffer(w, h), r = RNG(o.seed || 9), K = PFK;
+  const C = R2BB_SILR.map(c => U(c)), MASK = new Uint8Array(w * h);
+  const dot = (x, y, k = 1) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= w || y >= h) return; MASK[y * w + x] = Math.max(MASK[y * w + x], k); };
+  const disc = (cx, cy, rr, k = 1) => { for (let y = Math.floor(cy - rr); y <= cy + rr; y++) for (let x = Math.floor(cx - rr); x <= cx + rr; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= rr * rr) dot(x, y, k); };
+  const stroke = (pts, r0, r1, k = 1) => { for (let i = 0; i < pts.length - 1; i++) { const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay)); for (let j = 0; j <= n; j++) { const t = j / Math.max(1, n), u = (i + t) / (pts.length - 1); disc(lerp(ax, bx, t), lerp(ay, by, t), lerp(r0, r1, u), k); } } };
+  const bez = (a, b, c, n = 16) => Array.from({ length: n + 1 }, (_, i) => { const t = i / n; return [(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * b[0] + t * t * c[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * b[1] + t * t * c[1]]; });
+  const glows = [];
+  if (o.what === 'palm') {
+    const bx = w * 0.66, top = [w * 0.56, h * 0.3];
+    const trunk = bez([bx, h + 2], [bx + 12, h * 0.6], top, 26);
+    stroke(trunk, 5.2, 2.8, 2);
+    for (let i = 2; i < trunk.length - 1; i += 2) { const [x, y] = trunk[i]; dot(x - 4, y, 3); dot(x + 4, y, 3); dot(x - 3, y + 1, 3); }
+    // fronda peinada por el viento hacia la izquierda: raquis curvo + folíolos densos que cuelgan hacia atrás
+    const nf = 8;
+    for (let f = 0; f < nf; f++) {
+      const u = f / (nf - 1), a = lerp(-2.95, -0.2, u) + r.range(-0.1, 0.1);
+      const L = r.range(48, 62) * (u > 0.75 ? 0.66 : u < 0.2 ? 1.08 : 0.92), wind = -16 - r.range(0, 12) - (1 - u) * 6;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const mid = [top[0] + ca * L * 0.6 + wind * 0.3, top[1] + sa * L * 0.6 - 2];
+      const tip = [top[0] + ca * L * 0.85 + wind, top[1] + sa * L * 0.85 + L * 0.36];
+      const P = bez(top, mid, tip, 26); stroke(P, 1.8, 0.7, 1);
+      for (let i = 3; i < P.length - 1; i += 2) {
+        const [x, y] = P[i], [nx, ny] = P[i + 1], tl = Math.hypot(nx - x, ny - y) || 1, tx = (nx - x) / tl, ty = (ny - y) / tl, t = i / (P.length - 1);
+        const ll = (3 + 6 * Math.sin(Math.min(1, t * 1.25) * Math.PI)) * (0.85 + hash2(f, i, 3) * 0.3);
+        for (const sd of [-1, 1]) {
+          // folíolo en espiga: tangente girada ±45° hacia la punta, con caída por gravedad
+          const an = sd * 0.8, c = Math.cos(an), sn = Math.sin(an);
+          let dx = tx * c - ty * sn, dy = tx * sn + ty * c + 0.55; const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
+          for (let k = 1; k <= ll; k++) dot(x + dx * k, y + dy * k, 1);
+        }
+      }
+    }
+    disc(top[0], top[1] + 2, 4.2, 2); disc(top[0] + 3, top[1] + 5, 2.4, 3);
+    for (let k = 0; k < 5; k++) disc(top[0] - 2 + k * 1.5, top[1] + 6 + (k % 2) * 2, 1.6, 3); // dátiles
+  } else if (o.what === 'agave') {
+    const cx = w * 0.5, by = h - 1;
+    for (let i = 0; i < 13; i++) {
+      const a = lerp(-Math.PI + 0.25, -0.25, i / 12) + r.range(-0.08, 0.08), L = r.range(0.55, 1) * h * (Math.abs(i - 6) < 3 ? 0.95 : 0.7);
+      const tip = [cx + Math.cos(a) * L * 0.9, by + Math.sin(a) * L], mid = [cx + Math.cos(a) * L * 0.42, by + Math.sin(a) * L * 0.62];
+      stroke(bez([cx + Math.cos(a) * 4, by], mid, tip, 16), 4.2, 0.5, i % 2 ? 1 : 2);
+    }
+    // vara floral seca
+    if (o.stalk !== false) { const sx = cx + 6; stroke([[sx, by - 10], [sx + 2, by - h * 1.4]], 1.4, 0.8, 2); for (let k = 0; k < 4; k++) { const yy = by - h * (0.95 + k * 0.12); stroke([[sx + 1, yy], [sx - 7, yy - 4]], 0.8, 0.6, 1); stroke([[sx + 1, yy], [sx + 8, yy - 3]], 0.8, 0.6, 1); disc(sx - 7, yy - 4, 1.6, 2); disc(sx + 8, yy - 3, 1.6, 2); } }
+  } else if (o.what === 'lamp') {
+    const bx = w * 0.5, lean = o.lean ?? -0.08;
+    const top = [bx + lean * h, 10];
+    stroke([[bx, h + 2], [bx + lean * h * 0.5, h * 0.5], top], 3.2, 1.8, 2);
+    disc(bx, h - 3, 4, 2);
+    stroke([top, [top[0] - 14, top[1] + 3]], 1.4, 1.2, 2);
+    const lx = top[0] - 16, ly = top[1] + 5; stroke([[lx - 5, ly], [lx + 5, ly]], 2.2, 2.2, 3);
+    glows.push([lx, ly + 3]);
+  } else { // fence
+    const by = h - 1;
+    for (let x = 4; x < w - 4; x += 7) { const lean = r.range(-0.25, 0.1), hh = r.range(0.45, 1) * h * 0.8; stroke([[x, by + 2], [x + lean * hh, by - hh]], 1.6, 1.1, (x / 7) % 2 ? 1 : 2); }
+    stroke([[0, by - h * 0.34], [w, by - h * 0.42]], 1, 1, 2);
+    stroke([[0, by - h * 0.62], [w * 0.6, by - h * 0.68]], 0.9, 0.9, 2);
+    for (let x = w * 0.25; x < w * 0.55; x++) for (let k = 0; k < 6 - Math.abs(x - w * 0.4) / 5; k++) dot(x - k * 0.8, by - h * 0.62 + k, 1); // lona rota que flamea a la izquierda
+    for (let x = 0; x < w; x++) { const sh = Math.round(4 + 3 * Math.sin(x * 0.07)); for (let y = by - sh; y <= by; y++) dot(x, y, 3); } // arena acumulada
+  }
+  // color: masa negra cálida + borde encendido del lado del sol (arriba y hacia sunDx)
+  const sdx = o.sunDx ?? 1, rim1 = U(o.rim || '#f09048'), rim2 = U('#ffc878'), rimD = U('#7a3418');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, k = MASK[i]; if (!k) continue;
+    const up = y === 0 || !MASK[i - w], side = (x + sdx < 0 || x + sdx >= w) ? false : !MASK[i + sdx], up2 = y > 1 && !MASK[i - 2 * w] && !up;
+    let u = C[k === 3 ? 0 : k === 2 ? 1 : 2];
+    if (up && side) u = rim2; else if (up) u = (y < h * 0.5 ? rim1 : rimD); else if (side) u = y < h * 0.6 ? rimD : u; else if (up2 && y < h * 0.4) u = rimD;
+    if (y > h * 0.8) u = K.mixU(u, C[0], clamp((y - h * 0.8) / (h * 0.2), 0, 0.8));
+    pb.data[i] = u;
+  }
+  // halo horneado de la farola (bandas de alfa) + bombilla
+  for (const [gx, gy] of glows) {
+    const R = 16, col = U('#ffc070') & 0xffffff;
+    for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) { const d = Math.hypot(x, y * 1.2) / R; if (d >= 1) continue; const xx = Math.round(gx + x), yy = Math.round(gy + y); if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const i = yy * w + xx; if (MASK[i]) continue; const a = d < 0.3 ? 0.42 : d < 0.6 ? 0.24 : 0.1; pb.data[i] = ((Math.round(a * 255) << 24) | col) >>> 0; }
+    for (let x = -3; x <= 3; x++) { K.put(pb, Math.round(gx + x), Math.round(gy + 2), U(Math.abs(x) < 2 ? '#fff4c8' : '#ffc060')); }
+  }
+  return pb;
+};
 
 /* ===== 20_models.js ===== */
 /* =====================================================================
@@ -38197,6 +38450,7 @@ LEVELS[2] = {
     for (const [x, w] of [[470, 30], [880, 22], [1196, 26], [1840, 34], [2410, 24]]) K.ellipseFn(pb, x, G - 6, w / 2, 2.2, (nx, ny) => ny < -0.2 ? U_('#d0e6f0') : U_('#a8c8dc'));
     P.stencil(pb, 372, G - 15, 'ZONA DE ALTA PRESIÓN', '#f0c040');
     P.stencil(pb, 1700, G - 15, 'QUÍMICOS · USAR EPI', '#f0c040');
+    if (typeof R2BB_L2back === 'function') R2BB_L2back(pb); // r2-biomes-b: jardines verticales detrás del equipo
     /* ===== 1. ENTRADA DESDE EL PRETRATAMIENTO (0–100) ===== */
     // muro de la nave con el paso desde el pretratamiento (vano de 92 px con corredor en penumbra)
     for (let y = 96; y < G - 2; y++) for (let x = 0; x < 52; x++) { const inDoor = x > 6 && x < 46 && y > G - 104; if (inDoor) { const k = clamp((y - (G - 104)) / 100, 0, 1); K.put(pb, x, y, K.mixU(U_('#0a1426'), U_('#1e3a5a'), (1 - Math.abs(x - 26) / 22) * 0.6 * (1 - k * 0.5))); continue; } K.put(pb, x, y, U_(['#8c92a0', '#c8ccd2', '#dcdee2', '#c8ccd2', '#aeb2bc', '#aeb2bc', '#8c92a0', '#8c92a0', '#6a7080', '#6a7080', '#4a5060', '#3a4050'][Math.min(11, x < 7 ? x + 2 : x > 45 ? 11 - (x - 46) : 5)] )); }
@@ -38210,33 +38464,33 @@ LEVELS[2] = {
     P.rect(pb, 72, G - 84, 26, 14, U_('#e8f0f8')); P.hline(pb, 72, 97, G - 84, U_('#1e52a2'));
     P.sign(pb, 73, G - 82, 'helmet'); P.sign(pb, 81, G - 82, 'goggles'); P.sign(pb, 89, G - 82, 'ear');
     // alimentación pretratada (acero + azul claro) que entra por el muro
-    I.pipe(pb, [[0, 262], [106, 262]], 4, 'pre', { flange: 24, supports: 32, supportTo: () => fb + 2 });
+    I.pipe(pb, [[0, 262], [106, 262]], 4, 'r2bbFeed', { flange: 24, supports: 32, supportTo: () => fb + 2 });
     I.box3q(pb, 30, 268, 12, 12, 4, { ramp: P.FRAME }); P.rect(pb, 32, 258, 8, 4, U_('#06122a'));
     I.valve(pb, 92, 262);
-    flow([[0, 262], [104, 262]], 'pre', 0.8);
+    flow([[0, 262], [104, 262]], 'r2bbFeed', 0.8);
     /* ===== 2. FILTROS DE CARTUCHO (100–230) ===== */
     I.box3q(pb, 102, fb + 6, 116, 4, 12, { ramp: PFTerrain.CONC, skew: 0.6 });
-    I.pipe(pb, [[104, 262], [214, 262]], 3, 'pre', { flange: 26 });
+    I.pipe(pb, [[104, 262], [214, 262]], 3, 'r2bbFeed', { flange: 26 });
     let cart;
     for (let k = 0; k < 4; k++) cart = P.cartridge(pb, 122 + k * 26, fb + 2, { r: 9, h: 46 });
-    I.pipe(pb, [[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 3, 'pre', { flange: 18 });
-    flow([[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 'pre', 0.8);
+    I.pipe(pb, [[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 3, 'r2bbFeed', { flange: 18 });
+    flow([[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 'r2bbFeed', 0.8);
     PFTerrain.railing(pb, 104, 214, G - 6, 18);
     /* ===== 3. COLECTOR DE ASPIRACIÓN TRANSITABLE Y MANÓMETROS (230–360) ===== */
-    P.pipeDeck(pb, 268, 312, 262, fb + 4, 'pre');
-    flow([[270, 268], [312, 268]], 'pre', 0.8);
+    P.pipeDeck(pb, 268, 312, 262, fb + 4, 'r2bbFeed');
+    flow([[270, 268], [312, 268]], 'r2bbFeed', 0.8);
     for (const [gx, a] of [[282, -0.5], [302, 0.4]]) { P.vline(pb, gx, 252, 261, U_('#948e91')); P.vline(pb, gx + 1, 252, 261, U_('#4f4d51')); K.ellipseFn(pb, gx + 0.5, 247.5, 5.5, 5.5, (nx, ny, d) => d > 0.7 ? U_(nx + ny < 0 ? '#f2efea' : '#4f4d51') : d > 0.55 ? U_('#2a282e') : U_('#fbfbf6')); for (let k = 0; k < 6; k++) { const aa = -2.4 + k * 0.96; K.put(pb, Math.round(gx + 0.5 + Math.cos(aa) * 3.6), Math.round(247.5 + Math.sin(aa) * 3.6), U_('#2a282e')); } }
-    I.pipe(pb, [[312, 268], [338, 268], [338, 256]], 3, 'pre', { flange: 0 });
+    I.pipe(pb, [[312, 268], [338, 268], [338, 256]], 3, 'r2bbFeed', { flange: 0 });
     P.landing(pb, 318, 240, 30, fb + 4, { d: 7, railH: 26 });
     I.valve(pb, 334, 234);
     /* ===== 4. BOMBAS DE ALTA PRESIÓN (350–570) ===== */
-    I.pipe(pb, [[338, fb - 9], [566, fb - 9]], 3, 'pre', { flange: 30 }); // colector de aspiración (detrás)
+    I.pipe(pb, [[338, fb - 9], [566, fb - 9]], 3, 'r2bbFeed', { flange: 30 }); // colector de aspiración (detrás)
     const pumps = [];
     for (let k = 0; k < 3; k++) { pumps.push(P.pumpSkid(pb, 354 + k * 72, fb, { len: 62, motor: k === 1 ? P.BLUEP : P.GREEN })); N.pumps.push([354 + k * 72, fb, 62]); }
     const HPY = 200;
-    for (const pp of pumps) { I.pipe(pb, [[pp.dis[0], pp.dis[1] + 2], [pp.dis[0], HPY]], 3, 'pre', { flange: 0 }); flow([[pp.dis[0], pp.dis[1]], [pp.dis[0], HPY]], 'pre', 1); N.leds.push({ x: pp.led[0], y: pp.led[1], col: '#3fe0a0', hz: 1.4, ph: pp.led[0] * 0.03 }); }
-    I.pipe(pb, [[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 4, 'pre', { flange: 26 });
-    flow([[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 'pre', 1.2);
+    for (const pp of pumps) { I.pipe(pb, [[pp.dis[0], pp.dis[1] + 2], [pp.dis[0], HPY]], 3, 'r2bbFeed', { flange: 0 }); flow([[pp.dis[0], pp.dis[1]], [pp.dis[0], HPY]], 'r2bbFeed', 1); N.leds.push({ x: pp.led[0], y: pp.led[1], col: '#3fe0a0', hz: 1.4, ph: pp.led[0] * 0.03 }); }
+    I.pipe(pb, [[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 4, 'r2bbFeed', { flange: 26 });
+    flow([[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 'r2bbFeed', 1.2);
     for (const pp of pumps) { I.gauge(pb, pp.dis[0] - 10, HPY - 8, 3, -0.2); P.vline(pb, pp.dis[0] - 10, HPY - 5, HPY - 4, U_('#4f4d51')); P.rect(pb, pp.dis[0] - 3, HPY + 8, 7, 4, U_('#e2404a')); P.hline(pb, pp.dis[0] - 3, pp.dis[0] + 3, HPY + 8, U_('#f87a7a')); }
     PFTerrain.railing(pb, 350, 572, G - 4, 16);
     P.sign(pb, 352, G - 62, 'warn'); P.sign(pb, 362, G - 62, 'ear');
@@ -38244,29 +38498,29 @@ LEVELS[2] = {
     /* ===== 5. RECUPERADOR DE ENERGÍA (580–640) ===== */
     const E = P.erd(pb, 584, fb);
     LV2_ANCH.erd = E.rotor; N.leds.push(...E.leds);
-    I.pipe(pb, [[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 2, 'pre', { flange: 0 }); // salida AP de la alimentación al colector
-    flow([[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 'pre', 0.9);
-    I.pipe(pb, [[594, fb - 10], [594, G - 2]], 2, 'brine', { flange: 0 }); // salmuera de baja presión hacia la galería
-    flow([[594, fb - 10], [594, G - 2]], 'brine', 0.8);
+    I.pipe(pb, [[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 2, 'r2bbFeed', { flange: 0 }); // salida AP de la alimentación al colector
+    flow([[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 'r2bbFeed', 0.9);
+    I.pipe(pb, [[594, fb - 10], [594, G - 2]], 2, 'r2bbConc', { flange: 0 }); // salmuera de baja presión hacia la galería
+    flow([[594, fb - 10], [594, G - 2]], 'r2bbConc', 0.8);
     I.box3q(pb, 648, fb - 2, 10, 14, 4, { ramp: P.FRAME }); P.rect(pb, 650, fb - 14, 6, 4, U_('#06122a')); N.screens.push([650, fb - 14, 6, 4, '#3fe0a0']);
     /* ===== 6. TRENES DE OI A·B·C CON PASARELA (690–1260) ===== */
     const trains = [];
     for (let k = 0; k < 3; k++) trains.push(P.roRack(pb, 712 + k * 190, fb, { len: 112, rows: 3, r: 5, isolated: k === 1, tag: 'ABC'[k] + '1' }));
     // montantes de alimentación/permeado entre el nivel bajo y la pasarela (detrás del tablero)
-    for (const tr of trains) { I.pipe(pb, [[tr.ends[0] + 2, tr.top + 2], [tr.ends[0] + 2, 214]], 2, 'pre', { flange: 0 }); }
+    for (const tr of trains) { I.pipe(pb, [[tr.ends[0] + 2, tr.top + 2], [tr.ends[0] + 2, 214]], 2, 'r2bbFeed', { flange: 0 }); }
     P.catwalk(pb, 690, 1260, 222, fb + 4, { d: 9, span: 95, railH: 30 });
     const up = [];
     for (let k = 0; k < 3; k++) up.push(P.roRack(pb, 712 + k * 190, 217, { len: 112, rows: 4, r: 5, isolated: k === 1, tag: 'ABC'[k] + '2' }));
     // colector elevado de concentrado AP (grafito) hacia el ERD
     const BRY = 140;
-    for (const tr of up) I.pipe(pb, [[tr.ends[1] - 9, tr.top + 1], [tr.ends[1] - 9, BRY]], 2, 'brine', { flange: 0 });
-    I.pipe(pb, [[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 3, 'brine', { flange: 30, supports: 0 });
-    flow([[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 'brine', 1);
+    for (const tr of up) I.pipe(pb, [[tr.ends[1] - 9, tr.top + 1], [tr.ends[1] - 9, BRY]], 2, 'r2bbConc', { flange: 0 });
+    I.pipe(pb, [[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 3, 'r2bbConc', { flange: 30, supports: 0 });
+    flow([[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 'r2bbConc', 1);
     for (let x = 640; x < 1240; x += 120) { P.vline(pb, x, 96, BRY - 4, U_('#485c80')); P.hline(pb, x - 3, x + 3, BRY - 4, U_('#26324c')); }
     for (let k = 0; k < 3; k++) {
       const lo = trains[k], hi = up[k], on = k !== 1;
       N.leds.push(...lo.leds, ...hi.leds);
-      if (on) { flow([[hi.permX, hi.top + 4], [hi.permX, G - 2]], 'product', (sc) => 0.6 + (sc.state.trainsOn ?? 2) * 0.25); flow([[hi.ends[1] - 9, hi.top + 1], [hi.ends[1] - 9, BRY]], 'brine', 0.9); }
+      if (on) { flow([[hi.permX, hi.top + 4], [hi.permX, G - 2]], 'product', (sc) => 0.6 + (sc.state.trainsOn ?? 2) * 0.25); flow([[hi.ends[1] - 9, hi.top + 1], [hi.ends[1] - 9, BRY]], 'r2bbConc', 0.9); }
     }
     // luminarias bajo la pasarela (halo dinámico)
     for (let x = 740; x < 1240; x += 95) { P.rect(pb, x, 229, 10, 2, U_('#4f4d51')); P.hline(pb, x + 1, x + 8, 231, U_('#fff6d8')); N.lamps.push([x + 5, 232, '#fff0c8', 9]); }
@@ -38330,8 +38584,8 @@ LEVELS[2] = {
     P.toolbox(pb, 2420, fb - 30, '#2c6cc6'); P.bucket(pb, 2408, fb + 2, '#ff9f43');
     P.eyewash(pb, 2454, fb + 2); P.extinguisher(pb, 2474, fb + 2);
     /* ===== 13. SALIDA HACIA LOS CANALES DE SALMUERA (2510–2600) ===== */
-    I.pipe(pb, [[2506, G - 2], [2506, 170], [2600, 170]], 4, 'brine', { flange: 26 });
-    flow([[2506, G - 2], [2506, 170], [2600, 170]], 'brine', 1);
+    I.pipe(pb, [[2506, G - 2], [2506, 170], [2600, 170]], 4, 'r2bbConc', { flange: 26 });
+    flow([[2506, G - 2], [2506, 170], [2600, 170]], 'r2bbConc', 1);
     const dr = P.rollDoor(pb, 2526, fb + 2, 44, 98, { open: 0.58 }); LV2_ANCH.door = dr.mouth;
     P.sign(pb, 2531, fb - 106, 'exit');
     for (let y = 96; y < G - 2; y++) for (let k = 0; k < 14; k++) K.put(pb, 2586 + k, y, U_(['#3a4050', '#4a5060', '#6a7080', '#8c92a0', '#aeb2bc', '#c8ccd2', '#dcdee2', '#c8ccd2', '#aeb2bc', '#aeb2bc', '#8c92a0', '#8c92a0', '#6a7080', '#4a5060'][k]));
@@ -38349,6 +38603,7 @@ LEVELS[2] = {
     }
     P.tray(pb, 0, 680, 108, 12); P.tray(pb, 1262, 1418, 108, 12); P.tray(pb, 1652, 2160, 108, 12);
     for (const x of [120, 300, 480, 1300, 1760, 1990]) { P.vline(pb, x, 96, 118, U_('#2a282e')); P.rect(pb, x - 7, 118, 15, 3, U_('#4f4d51')); P.hline(pb, x - 6, x + 6, 121, U_('#fff6d8')); N.lamps.push([x, 124, '#fff0c8', 12]); }
+    if (typeof R2BB_L2front === 'function') R2BB_L2front(pb, flow); // r2-biomes-b: jardineras, potos, macetas, conducto eléctrico
     LEVELS[2]._ms = Math.round(nowMs() - t0);
   },
   /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno) */
@@ -38359,22 +38614,23 @@ LEVELS[2] = {
     // soportes de los colectores colgados del forjado
     for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < Y.feed + 6; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 5, Y.perm + 4, Y.feed + 5]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U('#26324c')); }
     // alimentación AP: bajante del colector de bombas → trenes
-    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'pre', 1.1);
-    for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'pre', { flange: 0 });
+    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'r2bbFeed', 1.1);
+    for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'r2bbFeed', { flange: 0 });
     // permeado (cian luminoso): trenes → tanque; producto remineralizado → bombas de producto
     run([[840, G + 4], [840, Y.perm], [1290, Y.perm], [1290, G + 4]], 3, 'product', 0.9);
     for (const x of [1220]) I.pipe(pb, [[x, G + 4], [x, Y.perm]], 2, 'product', { flange: 0 });
-    I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'pre', { flange: 0 }); // tren B: permeado aislado (sin brillo)
+    I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'r2bbFeed', { flange: 0 }); // tren B: permeado aislado (sin brillo)
     run([[1398, G + 4], [1398, Y.perm], [1938, Y.perm], [1938, G + 4]], 3, 'product', 0.9);
     // salmuera de baja presión: ERD + trenes del nivel bajo → salida a los canales
-    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'brine', 1);
-    for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'brine', { flange: 0 });
+    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'r2bbConc', 1);
+    for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'r2bbConc', { flange: 0 });
     // bandeja de cables y luces de emergencia en la galería
     for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 24, U('#354564')); PFK.put(pb, x, G + 25, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 23, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
     for (let x = 150; x < 2600; x += 320) { for (let k = 0; k < 6; k++) for (let q = 0; q < 3; q++) PFK.put(pb, x + k, G + 30 + q, U(q === 0 ? '#72c69a' : '#1f8a52')); PFK.put(pb, x + 2, G + 31, U('#ffffff')); }
     for (const x of [760, 1360, 2040]) I.valve(pb, x, Y.perm);
     // rótulos estarcidos en el muro de la galería
-    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#a8d0f0', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
+    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
+    if (typeof R2BB_L2gallery === 'function') R2BB_L2gallery(pb, LV2_GALFLOWS); // r2-biomes-b: sodio, musgo, conducto eléctrico, bandas
   },
   propsFront(pb, world) {
     const G = 290, K = PFK;
@@ -38975,6 +39231,146 @@ const Sim02 = makeSim({
     Gui.end();
   },
 });
+
+/* ===== 42b_r2bb_lv02.js ===== */
+/* =====================================================================
+   42b_r2bb_lv02.js — r2-biomes-b · VESTIDO DEL NIVEL 2 «El Laberinto Osmótico»
+   La nave dejaba de leerse como «acero gris y azul marino» (S 0,46): aquí se
+   añade, sin tocar la geometría jugable ni la lógica:
+     · CÓDIGO DE COLOR de corrientes (PFInfra.PIPES): alimentación TURQUESA
+       (r2bbFeed), concentrado GRAFITO-ÍNDIGO con chevrones índigo
+       (r2bbConc), permeado cian luminoso (product, ya existente) y
+       ELECTRICIDAD AMARILLA (r2bbPower, conductos con chevrones).
+     · NATURALEZA DENTRO: jardines verticales en los muros, jardineras de
+       terracota en la barandilla de la pasarela con potos que cuelgan,
+       potos en las bandejas de cables, macetas en el suelo, helechos y
+       musgo en la galería bajo el forjado.
+     · ACENTOS CÁLIDOS: suelo de epoxi arena (rampa del nivel), lámparas de
+       sodio con conos de luz horneados en la galería, terracota y madera.
+     · GALERÍA más rica: conducto eléctrico, bandas de identificación con
+       flecha, volantes de válvula, goteos, charcos con reflejo.
+   API: R2BB_L2back(pb) · R2BB_L2front(pb) · R2BB_L2gallery(pb, flows)
+        R2BB_greenWall(pb,x,y,w,h,seed) · R2BB_vine(pb,x,y,len,seed,o)
+        R2BB_trough(pb,x0,x1,y,seed) · R2BB_FLOOR (rampa del suelo)
+   ===================================================================== */
+PFInfra.PIPES.r2bbFeed = { ramp: ['#04282a', '#08484a', '#0d7270', '#159e96', '#2cc4b6', '#7ae4d4', '#d8fff4'], ink: '#03171a', chev: '#c8fff0', glow: null };
+PFInfra.PIPES.r2bbConc = { ramp: ['#05061a', '#0a0d24', '#131736', '#20244a', '#323862', '#4e5484', '#7a80b4'], ink: '#020310', chev: '#a4a8ff', glow: null };
+PFInfra.PIPES.r2bbPower = { ramp: ['#2a1a04', '#573a08', '#8a620e', '#c4921a', '#f0bc2c', '#ffd862', '#fff4b8'], ink: '#170e02', chev: '#fff6c0', glow: '#ffcc33' };
+/** Suelo de epoxi arena (cálido) para la nave; sustituye a la rampa cian-gris */
+const R2BB_FLOOR = ['#140f0c', '#221a15', '#33281f', '#463829', '#5a4a37', '#6e5c46', '#857058', '#9c886c', '#b6a084', '#d0bc9e'];
+const R2BB_LEAF = ['#0a1a0c', '#13301a', '#1f4a22', '#2f6626', '#46842c', '#68a43a', '#94c64c', '#c8e470'];
+const R2BB_TERRA = ['#2a1008', '#4a1e10', '#6e3018', '#94461f', '#b85e28', '#d67e3c', '#eca262'];
+
+/** Suma de luz (u32 ABGR): luz de sodio aditiva, no barro de mezcla */
+function R2BB_addU(u, ar, ag, ab) { const r = Math.min(255, (u & 255) + ar), g = Math.min(255, ((u >>> 8) & 255) + ag), b = Math.min(255, ((u >>> 16) & 255) + ab); return ((u & 0xff000000) | (Math.round(b) << 16) | (Math.round(g) << 8) | Math.round(r)) >>> 0; }
+/** Potos colgante: tallo que ondula hacia abajo con hojas acorazonadas alternas (2–3 px) */
+function R2BB_vine(pb, x, y, len, seed, o = {}) {
+  const K = PFK, r = RNG(seed), L = K.P32(o.ramp || R2BB_LEAF), sway = o.sway ?? 2.2;
+  let px = x;
+  for (let k = 0; k < len; k++) {
+    const yy = y + k; px = x + Math.round(Math.sin(k * 0.17 + seed) * sway + (o.lean || 0) * k);
+    K.put(pb, px, yy, L[k % 5 < 2 ? 1 : 2]);
+    if (k % 4 === 2 && k > 1) {
+      const sd = (k >> 2) % 2 ? 1 : -1, lit = sd < 0;
+      const hx = px + sd, c1 = L[lit ? 5 : 3], c2 = L[lit ? 6 : 4], c0 = L[lit ? 3 : 2];
+      K.put(pb, hx, yy, c1); K.put(pb, hx + sd, yy, c2); K.put(pb, hx, yy + 1, c0); K.put(pb, hx + sd, yy + 1, c1); K.put(pb, hx + sd * 2, yy + 1, c0);
+      if (r() < 0.4) K.put(pb, hx + sd, yy - 1, c2);
+    }
+  }
+  // punta con brote claro
+  K.put(pb, px, y + len, L[6]);
+}
+/** Jardín vertical: marco de acero, fondo de fieltro y masa de follaje en capas con flores y goteo */
+function R2BB_greenWall(pb, x, y, w, h, seed) {
+  const K = PFK, r = RNG(seed), F = K.P32(PFAPlant.FRAME);
+  for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+    const e = xx === x || xx === x + w - 1 || yy === y || yy === y + h - 1;
+    K.put(pb, xx, yy, e ? F[xx === x || yy === y ? 6 : 2] : U(((xx + yy) & 3) ? '#1a2414' : '#22301a'));
+  }
+  // riego por goteo: tubos horizontales cian con puntos
+  for (let yy = y + 10; yy < y + h - 4; yy += 16) for (let xx = x + 1; xx < x + w - 1; xx++) K.put(pb, xx, yy, U(xx % 5 === 0 ? '#9ff4ff' : '#2a8aa0'));
+  // follaje: racimos de hojas en capas (oscuro detrás, claro delante), sin tramado
+  const n = Math.round(w * h / 26);
+  for (let i = 0; i < n; i++) {
+    const cx = x + 2 + r() * (w - 4), cy = y + 3 + r() * (h - 6), rr = 2.5 + r() * 4;
+    PFFlora.cluster(pb, cx, cy, rr + 1, rr, i % 3 ? R2BB_LEAF : PFFlora.GLOSSY, seed + i * 7, { density: 0.7, leaf: [2, 4] });
+  }
+  // flores (bromelias rojas, amarillas) y helechos que desbordan por los lados
+  for (let i = 0; i < Math.round(w * h / 140); i++) { const fx = Math.round(x + 3 + r() * (w - 6)), fy = Math.round(y + 4 + r() * (h - 8)), c = r.pick(['#ff5a4a', '#ffc83a', '#ff8ab0', '#ffffff']); K.put(pb, fx, fy, U(c)); K.put(pb, fx + 1, fy, U(c)); K.put(pb, fx, fy - 1, U(shade(c, 0.3))); }
+  for (const sx of [x - 1, x + w]) for (let k = 0; k < 3; k++) PFFlora.fern(pb, sx, y + 8 + k * Math.round(h / 3), 7 + r.int(0, 4), seed + k + sx);
+  // placa y canaleta de recogida
+  for (let xx = x - 1; xx <= x + w; xx++) { K.put(pb, xx, y + h, F[6]); K.put(pb, xx, y + h + 1, F[3]); K.put(pb, xx, y + h + 2, F[1]); }
+}
+/** Jardinera de terracota colgada de una barandilla con plantas y potos que cuelgan */
+function R2BB_trough(pb, x0, x1, y, seed) {
+  const K = PFK, T = K.P32(R2BB_TERRA), r = RNG(seed);
+  for (let x = x0; x <= x1; x++) for (let k = 0; k < 6; k++) K.put(pb, x, y + k, T[k === 0 ? 6 : k === 1 ? 5 : k === 5 ? 1 : (x - x0) % 9 === 0 ? 2 : 3]);
+  for (let x = x0 + 2; x < x1 - 1; x += 4 + r.int(0, 3)) PFFlora.bush(pb, x + 2, y, 8 + r.int(0, 5), 6 + r.int(0, 4), r.chance(0.5) ? R2BB_LEAF : PFFlora.GLOSSY, seed + x, { density: 0.6 });
+  for (let x = x0 + 3; x < x1 - 2; x += 5 + r.int(0, 4)) R2BB_vine(pb, x, y + 6, 8 + r.int(0, 22), seed + x * 3);
+}
+/** Detrás del equipo (se llama antes de dibujarlo): jardines verticales en los muros de la nave */
+function R2BB_L2back(pb) {
+  const G = 290;
+  // muro de entrada (sobre el vano) y del almacén de membranas; huecos libres entre zonas
+  for (const [x, y, w, h, s] of [[54, 150, 16, 70, 1], [224, 140, 22, 84, 2], [1262, 120, 20, 66, 3], [1654, 132, 26, 86, 4], [2296, 128, 24, 76, 5], [2342, 136, 20, 64, 6]]) R2BB_greenWall(pb, x, y, w, h, 900 + s);
+  // franja de suelo junto a los jardines: alcorque con musgo
+  for (const [x, w] of [[222, 26], [1652, 30], [2294, 70]]) for (let k = 0; k < w; k++) { PFK.put(pb, x + k, G - 20, U(k % 3 ? '#2f6626' : '#46842c')); PFK.put(pb, x + k, G - 19, U('#1f4a22')); }
+}
+/** Delante (al final de los accesorios): jardineras, potos en bandejas y barandillas, macetas, conducto eléctrico */
+function R2BB_L2front(pb, flow) {
+  const G = 290, fb = G - 12, A = PFArch, I = PFInfra;
+  // jardineras de terracota en la barandilla de la pasarela de los trenes (cuelgan hacia el nivel bajo)
+  for (const [x0, x1] of [[712, 760], [818, 868], [902, 950], [1008, 1056], [1092, 1140], [1198, 1246]]) R2BB_trough(pb, x0, x1, 186, x0);
+  // potos que cuelgan de las bandejas de cables (sobre los equipos, sin tapar rótulos)
+  for (const x of [34, 96, 196, 330, 520, 610, 1286, 1388, 1700, 1872, 2010, 2150, 2240, 2330, 2440, 2560]) R2BB_vine(pb, x, 111, 10 + ((x * 7) % 26), 700 + x, { sway: 1.6 });
+  // macetas en el suelo (terracota) junto a los jardines
+  A.planter(pb, 2470, fb + 2, 18, { kind: 'palm', seed: 21, ramp: R2BB_TERRA });
+  A.planter(pb, 72, fb + 4, 14, { kind: 'agave', seed: 22, ramp: R2BB_TERRA });
+  // conducto eléctrico amarillo desde el CCM hasta las bombas de alta presión (bajo la bandeja, código de color)
+  const py = 124;
+  I.pipe(pb, [[1448, py], [1418, py], [680, py], [680, 134], [356, 134], [356, 150]], 1, 'r2bbPower', { flange: 40 });
+  flow([[1448, py], [1418, py], [680, py], [680, 134], [356, 134], [356, 150]], 'r2bbPower', 0.7);
+  I.pipe(pb, [[1652, py], [2178, py], [2178, 140]], 1, 'r2bbPower', { flange: 40 });
+  flow([[1652, py], [2178, py], [2178, 140]], 'r2bbPower', 0.6);
+}
+/** Galería de servicio (lienzo del terreno): sodio, musgo, helechos, conducto eléctrico, bandas de identificación */
+function R2BB_L2gallery(pb, flows) {
+  const K = PFK, G = 290, I = PFInfra, Y = LV2_GAL, top = G + 16, bot = 388;
+  // conducto eléctrico bajo el forjado con chevrones amarillos
+  I.pipe(pb, [[0, top + 4], [2600, top + 4]], 1, 'r2bbPower', { flange: 60 });
+  flows.push({ pts: [[0, top + 4], [2600, top + 4]], kind: 'r2bbPower', rate: 0.6 });
+  // musgo y helechos que brotan de las juntas del forjado; goteos
+  const r = RNG(4242);
+  for (let x = 8; x < 2600; x += 6 + r.int(0, 18)) {
+    const n = 2 + r.int(0, 5); for (let k = 0; k < n; k++) K.put(pb, x + k, top + (k % 2), U(r.pick(['#1f4a22', '#2f6626', '#46842c'])));
+    if (r.chance(0.18)) R2BB_vine(pb, x + 1, top + 1, 4 + r.int(0, 9), 9000 + x, { sway: 0.8 });
+    if (r.chance(0.06)) PFFlora.fern(pb, x + 2, top + 10, 6 + r.int(0, 3), 9100 + x, R2BB_LEAF);
+  }
+  // bandas de identificación con flecha (sentido del flujo) sobre cada colector
+  for (let x = 120; x < 2560; x += 260) for (const [yy, col, dir] of [[Y.brine, '#7a80b4', 1], [Y.perm, '#48d4f0', 1], [Y.feed, '#2cc4b6', 1]]) {
+    for (let k = 0; k < 14; k++) for (let q = -3; q <= 3; q++) { const u = K.get(pb, x + k, yy + q); if (!(u >>> 24)) continue; K.put(pb, x + k, yy + q, U(k < 2 || k > 11 ? '#f2efea' : col)); }
+    for (let q = -2; q <= 2; q++) K.put(pb, x + 6 + Math.abs(q) * -dir + 2, yy + q, U('#10141c'));
+    K.put(pb, x + 8, yy, U('#10141c'));
+  }
+  // volantes de válvula rojos en la alimentación y amarillos en las cajas eléctricas
+  for (const x of [420, 980, 1540, 2100]) { K.ellipseFn(pb, x, Y.feed - 7, 4, 4, (nx, ny, d) => d > 0.65 ? U(nx + ny < 0 ? '#ff7a6a' : '#8a1a1a') : d < 0.3 ? U('#c8282a') : 0); for (let k = 0; k < 4; k++) K.put(pb, x, Y.feed - 6 + k, U('#4f4d51')); }
+  for (const x of [260, 900, 1700, 2380]) { for (let yy = top + 6; yy < top + 15; yy++) for (let k = 0; k < 8; k++) K.put(pb, x + k, yy, U(k === 0 || yy === top + 6 ? '#ffe27a' : k === 7 ? '#8a620e' : '#f0bc2c')); K.put(pb, x + 3, top + 9, U('#10141c')); K.put(pb, x + 4, top + 10, U('#10141c')); K.put(pb, x + 3, top + 11, U('#10141c')); }
+  // lámparas de sodio con cono de luz cálido horneado (3 bandas) y reflejo en los tubos
+  for (const x of [140, 380, 620, 820, 1060, 1180, 1420, 1580, 1820, 1980, 2220, 2380]) {
+    for (let k = -4; k <= 4; k++) { K.put(pb, x + k, top + 1, U('#2a282e')); K.put(pb, x + k, top + 2, U(Math.abs(k) < 3 ? '#fff0b0' : '#ffb850')); }
+    for (let yy = top + 3; yy < bot; yy++) {
+      const dy = yy - top - 3, half = 4 + dy * 0.7;
+      for (let xx = Math.floor(x - half); xx <= x + half; xx++) {
+        const u = K.get(pb, xx, yy); if (!(u >>> 24)) continue;
+        const e = Math.abs(xx - x) / half, f = (1 - e) * clamp(1 - dy / 90, 0, 1) + (hash2((xx / 3) | 0, (yy / 2) | 0, 71) - 0.5) * 0.12;
+        const k = f > 0.55 ? 0.42 : f > 0.3 ? 0.26 : f > 0.12 ? 0.13 : 0; if (k) K.put(pb, xx, yy, R2BB_addU(u, 255 * k, 176 * k, 84 * k));
+      }
+    }
+  }
+}
+
+/* suelo de epoxi arena: la rampa del tramo se cambia al cargar (la geometría no cambia) */
+if (LEVELS[2] && LEVELS[2].pf && LEVELS[2].pf.terrain[0]) LEVELS[2].pf.terrain[0].ramp = R2BB_FLOOR;
 
 /* ===== 43_lv03.js ===== */
 /* =====================================================================
@@ -40970,7 +41366,8 @@ LEVELS[6] = {
     for (const [xa, xb] of [[140, 150], [210, 220], [280, 290]]) { const ya = yb(xa) - 1, yb2 = yb(xb) - 1; PFK.lineFn(pb, xa, ya - 30, xb, yb2 - 30, () => U('#b0b8d6')); PFK.lineFn(pb, xa, ya - 15, xb, yb2 - 15, () => U('#6e769a')); }
     H2.extinguisher(pb, 270, yb(270) - 1);
     /* ===== 2. PRIMER BANCO (340–880): bastidores BESS a escala de personaje ===== */
-    for (const x of VAULT_RACKS.slice(0, 6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    for (const x of VAULT_RACKS.slice(0, 6)) R2BB_L6rack(pb, E, D, x, yb, off); // r2-biomes-b: bastidores variados (tamaño, serie, estado, puerta abierta)
+    R2BB_workLamp(pb, D, 592, yb(592), -1, gy(592)); R2BB_workLamp(pb, D, 1172, yb(1172), -1, gy(1172));
     const hv1 = V.hvacUnit(pb, 834, yb(834), 40, 30); D.fans.push(hv1.fan);
     D.flows.push({ pts: [[882, yb(834) - 8], [882, yb(834) - 70]], kind: 'cool', rate: (sc) => sc.state.blackout ? 0 : 0.6 });
     /* ===== 3. SALA DE CONVERTIDORES (880–1310): PCS, barra de cobre, electrodos de los arcos ===== */
@@ -40991,7 +41388,8 @@ LEVELS[6] = {
     for (const [x, y, col] of ar.leds) D.leds.push({ x, y, col, hz: 0.4, ph: x });
     D.glows.push({ x: ar.lock[0], y: ar.lock[1], r: 8, col: '#e05aa0', a: 0.3, mode: 'pulse', hz: 0.6 });
     /* ===== 5. SEGUNDO BANCO (1760–2140) ===== */
-    for (const x of VAULT_RACKS.slice(6)) { const R = E.bessRack(pb, x, yb(x), 64, 100, 14, { cablesTo: 154, label: 'RACK ' + String(VAULT_RACKS.indexOf(x) + 1).padStart(2, '0') }); D.racks.push(Object.assign({ x }, R)); D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off }); }
+    for (const x of VAULT_RACKS.slice(6)) R2BB_L6rack(pb, E, D, x, yb, off);
+    R2BB_workLamp(pb, D, 2112, yb(2112), -1, gy(2112));
     const hv2 = V.hvacUnit(pb, 1764, yb(1764) - 0, 30, 26); D.fans.push(hv2.fan);
     /* ===== 6. BARRA PRINCIPAL (2140–2405): celdas de interruptores ===== */
     const sw = E.switchgear(pb, 2150, yb(2210), 5, 24, 112, 16, { label: 'BARRA PRINCIPAL' });
@@ -41019,7 +41417,7 @@ LEVELS[6] = {
     const gy = (x) => w.groundAt(x) - oy;
     const soc = S.blackout ? 0 : (S.soc ?? 0.28);
     // conos de luz de las luminarias (apagados en el apagón)
-    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#dcf4ff', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
+    if (!S.blackout) { g.globalCompositeOperation = 'lighter'; for (const [x, y, w0, w1, h, col, a] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, col || '#dcf4ff', a || 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); } g.globalCompositeOperation = 'source-over'; }
     // LED de módulos y barra de SOC en cada bastidor
     for (const R of D.racks) {
       const sx = R.x - ox; if (sx < -80 || sx > W + 10) continue;
@@ -41035,7 +41433,8 @@ LEVELS[6] = {
       hz.on = !S.blackout && ph < 0.8;
       const sx = a.x - ox, top = 198 - oy, bot = gy(a.x);
       frect(g, sx + 4, top, 3, 4, '#c8861a'); frect(g, sx + a.w - 7, bot - 4, 3, 4, '#c8861a');
-      if (hz.on) { let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } VISTA.veil(g, sx - 6, top, a.w + 12, bot - top, '#56e5ff', 0.12); }
+      // r2-biomes-b: halo radial suave (anillos en bandas, en caché) + charco de luz en el suelo + resplandor de los electrodos
+      if (hz.on) { const fl = 0.75 + 0.25 * Math.sin(t * 37 + i * 2.1); R2BB_arcLight(g, sx + a.w / 2, top, bot, fl); let px = sx + 6, py = top + 4; for (let y = top + 4; y < bot; y += 6) { const nx = sx + 4 + Math.random() * (a.w - 8); fline(g, px, py, nx, y, (Math.random() < 0.5) ? '#ffffff' : '#a6e6ff'); px = nx; py = y; } }
       else if (ph > 1.8) for (let k = 0; k < 3; k++) fpx(g, sx + 6 + Math.random() * 10, top + 6 + Math.random() * 10, '#a6e6ff');
     }
     // interruptores de la barra principal (arranque en negro por pasos)
@@ -41050,7 +41449,10 @@ LEVELS[6] = {
   },
   renderGrade(g, sc) {
     const S = sc.state;
-    g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.blackout ? 0.8 : 0.25; frect(g, 0, 0, W, H, S.blackout ? '#2a2050' : '#4a5ab0'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    // r2-biomes-b: sin el multiplicar azul marino a pantalla completa en marcha normal (con r2-light la gradación de interior ya está
+    // horneada en las capas): la bóveda deja de ser monocroma; en el apagón se mantiene la oscuridad
+    const r2l = typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc);
+    if (S.blackout || !r2l) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.blackout ? 0.8 : 0.25; frect(g, 0, 0, W, H, S.blackout ? '#2a2050' : '#4a5ab0'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (S.blackout) { const p = sc.player; const x = p.x - sc.cam.ox, y = p.y - sc.cam.oy - 30; g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.35; fdisc(g, x, y, 60, '#203060'); fdisc(g, x, y, 34, '#304080'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   },
   lens(g, sc, cam, k) {
@@ -41122,6 +41524,49 @@ LEVELS[6] = {
 
 /* ---------------- datos del plano jugable (los rellena props al entrar) ---------------- */
 const LV6 = { racks: [], screens: [], glows: [], cones: [], flows: [], leds: [], breakers: [], fans: [], lift: [] };
+/* r2-biomes-b: bastidores variados — misma x, tamaño y serie distintos, estados de color y dos en mantenimiento */
+const R2BB_L6RACK = [
+  { v: 0, w: 64, h: 100, st: 'ok' }, { v: 1, w: 60, h: 108, st: 'ok' }, { v: 3, w: 62, h: 100 }, { v: 0, w: 62, h: 98, st: 'ok' }, { v: 2, w: 62, h: 112, st: 'cold' }, { v: 1, w: 58, h: 104, st: 'ok' },
+  { v: 2, w: 62, h: 110, st: 'ok' }, { v: 0, w: 64, h: 100, st: 'fault' }, { v: 1, w: 60, h: 106, st: 'ok' }, { v: 3, w: 62, h: 102 },
+];
+function R2BB_L6rack(pb, E, D, x, yb, off) {
+  const i = VAULT_RACKS.indexOf(x), c = R2BB_L6RACK[i] || {};
+  const R = E.bessRack(pb, x, yb(x), c.w || 64, c.h || 100, 14, { cablesTo: 154, label: 'RACK ' + String(i + 1).padStart(2, '0'), variant: c.v | 0, state: c.st });
+  D.racks.push(Object.assign({ x }, R));
+  D.screens.push({ x: R.screen[0], y: R.screen[1], w: R.screen[2], h: R.screen[3], kind: 'bars', col: (sc) => (sc.state.soc ?? 0.28) < 0.3 ? '#ff6b6b' : '#b6f05a', on: off });
+  if (R.status) { const [sx, sy, col] = R.status, warn = col !== '#3fe08a'; D.glows.push({ x: sx, y: sy, r: warn ? 6 : 4, col, a: warn ? 0.85 : 0.55, mode: warn ? 'blink' : 'steady', hz: col === '#ff4e5d' ? 1.6 : 0.8, ph: x, on: off, core: '#ffffff' }); }
+}
+/** Foco de trabajo en trípode (luz cálida halógena) con cono y halo; dir = hacia dónde mira */
+function R2BB_workLamp(pb, D, x, yb, dir, gyx) {
+  const K = PFK, hy = yb - 52;
+  for (const [dx, k] of [[-8, 0], [8, 1], [2, 2]]) K.lineFn(pb, x, hy + 8, x + dx, yb, () => U(k === 2 ? '#26262e' : '#4a4a56'));
+  for (let yy = hy; yy < hy + 10; yy++) K.put(pb, x, yy, U('#6a6a76'));
+  // cabezal: carcasa naranja con rejilla y cara encendida
+  for (let yy = -4; yy <= 4; yy++) for (let k = -5; k <= 5; k++) { const e = Math.abs(yy) === 4 || Math.abs(k) === 5; K.put(pb, x + k, hy - 2 + yy, U(e ? '#3a1a08' : (k * dir > 2 ? '#fff4c8' : yy < -1 ? '#ff9a2a' : '#c8601a'))); }
+  K.put(pb, x - 5 * dir, hy + 3, U('#ffd060'));
+  D.glows.push({ x: x + 4 * dir, y: hy - 2, r: 30, col: '#ffa850', a: 0.42, mode: 'flicker', ph: x }, { x: x + 3 * dir, y: hy - 2, r: 9, col: '#ffe0a0', a: 0.7, mode: 'steady' });
+  // charco cálido horneado en el suelo bajo el foco (3 bandas, sin tramado)
+  for (let yy = -3; yy <= 3; yy++) for (let k = -26; k <= 26; k++) { const d = Math.hypot(k / 26, yy / 3.5); if (d >= 1) continue; const px = x + 10 * dir + k, py = gyx - 6 + yy, u = K.get(pb, px, py); if (!(u >>> 24)) continue; K.put(pb, px, py, K.mixU(u, U('#ffc070'), d < 0.4 ? 0.36 : d < 0.7 ? 0.22 : 0.1)); }
+  D.cones.push([x + 8 * dir, hy + 2, 6, 64, Math.max(20, gyx - hy - 4), '#ffc878', 0.24]);
+}
+/* r2-biomes-b: luz de los arcos eléctricos — halo radial en anillos (sin rectángulo duro), charco elíptico en el suelo
+   y destellos en los electrodos; lienzos en caché, 3 drawImage por arco encendido */
+const R2BB_ARC = { pool: null };
+function R2BB_arcPool() {
+  if (R2BB_ARC.pool) return R2BB_ARC.pool;
+  const w = 96, h = 18, pb = new PixelBuffer(w, h), col = U('#9ae6ff') & 0xffffff;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const d = Math.hypot((x - w / 2 + 0.5) / (w / 2), (y - h / 2 + 0.5) / (h / 2)); if (d >= 1) continue;
+    const a = d < 0.35 ? 0.5 : d < 0.62 ? 0.3 : 0.14; pb.data[y * w + x] = ((Math.round(a * 255) << 24) | col) >>> 0;
+  }
+  return (R2BB_ARC.pool = pb.toCanvas());
+}
+function R2BB_arcLight(g, cx, top, bot, k) {
+  const mid = (top + bot) / 2;
+  VISTA.drawGlow(g, cx, mid, 44, '#56c8ff', 0.3 * k);
+  VISTA.drawGlow(g, cx, mid, 18, '#c8f4ff', 0.4 * k);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55 * k; g.drawImage(R2BB_arcPool(), Math.round(cx - 48), Math.round(bot - 9)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
 
 /* ---------------- piezas del guion del nivel 06 ---------------- */
 async function gridFlow(sc, st) {
@@ -43901,18 +44346,26 @@ LEVELS[10] = {
       { x0: 1600, x1: 2160, surf: 'sand', face: 'sandstone', depth: 18, strata: true },
       { x0: 2160, x1: 2500, surf: 'metal', face: 'gallery', depth: 18, pipes: [[13, 3, 'h2'], [23, 2, 'power'], [32, 3, 'h2']], bay: 60 },
       { x0: 2500, x1: 2860, surf: 'path', face: 'terrace', depth: 18, falls: [2560, 2760], roots: [2600, 2700], tiers: [{ wall: 16, top: 10, channel: true, crop: 'lettuce' }, { wall: 14, top: 9, crop: 'bean' }] },
-      { x0: 2860, x1: 3400, surf: 'tile', face: 'steps', depth: 18, steps: 4, stepH: 7, ramp: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8'], refl: [{ x: 3080, w: 26, col: '#56e5ff', k: 0.2 }] },
+      // r2-biomes-b: muro de plaza esculpido (pilastras, arcos, hornacinas, desagües) en lugar de la escalinata en ladrillo
+      { x0: 2860, x1: 3400, surf: 'tile', face: 'curb', depth: 18, dust: '#d8a060', seed: 31, steps: 4, stepH: 7, ramp: ['#2a201c', '#3c2e28', '#504036', '#665246', '#7c6656', '#927a68', '#a8907c', '#bea692', '#d2bea8'], refl: [{ x: 3080, w: 26, col: '#56e5ff', k: 0.2 }] },
     ],
     fg: [
       { kind: 'clump', x: -24, w: 140, h: 90, seed: 101, spikes: 4, leaves: 11 },
-      { kind: 'cables', x: 330, y: 0, w: 320, h: 42, seed: 103, n: 4, cols: ['#140804', '#24120a', '#341c10'] },
+      { kind: 'r2bbWires', x: 330, y: -24, top: true, w: 340, h: 54, seed: 103, n: 3 },
       { kind: 'rail', x: 980, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
       { kind: 'reeds', x: 1660, w: 130, h: 86, seed: 105, ramp: ['#0a0604', '#140c08', '#22160c', '#302010', '#402c16', '#56401e'] },
       { kind: 'clump', x: 2380, w: 120, h: 76, seed: 107, spikes: 5, leaves: 9 },
-      { kind: 'cables', x: 2700, y: 0, w: 300, h: 40, seed: 109, n: 3, cols: ['#140804', '#24120a', '#341c10'] },
+      { kind: 'r2bbWires', x: 2700, y: -24, top: true, w: 320, h: 50, seed: 109, n: 2 },
       { kind: 'dark', x: 3260, w: 120, h: 70, seed: 111, leaves: 9 },
       { kind: 'rail', x: 3700, w: 220, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#301c12', '#402818', '#56361e', '#ffb070'] },
       { kind: 'clump', x: 4280, w: 150, h: 92, seed: 113, spikes: 6, leaves: 12 },
+      // r2-biomes-b: siluetas cercanas a contraluz con borde encendido (palmeras peinadas por el viento, farola, cerca, agaves)
+      { kind: 'r2bbSil', what: 'agave', x: 560, w: 84, h: 62, seed: 121, sunDx: 1 },
+      { kind: 'r2bbSil', what: 'fence', x: 1380, w: 90, h: 44, seed: 123, sunDx: 1 },
+      { kind: 'r2bbSil', what: 'lamp', x: 2190, w: 50, h: 140, seed: 125, sunDx: -1, lean: 0.06 },
+      { kind: 'r2bbSil', what: 'agave', x: 2620, w: 70, h: 54, seed: 127, sunDx: -1 },
+      { kind: 'r2bbSil', what: 'fence', x: 3380, w: 110, h: 50, seed: 129, sunDx: -1 },
+      { kind: 'r2bbSil', what: 'agave', x: 3940, w: 64, h: 46, seed: 131, sunDx: -1, stalk: false },
     ],
   },
   /** Etiquetas científicas en el mundo */
