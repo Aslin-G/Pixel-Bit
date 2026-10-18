@@ -688,6 +688,13 @@ function poseFor(anim, t, ch) {
         // 3/4: el gesto lo hace el brazo lejano (delante del pecho, visible) y las manos a la espalda quedan detrás
         if (ch.idleStyle === 'gesture') { const sw = [p.shF, p.elF, p.handF]; p.shF = -0.2; p.elF = 0.42; p.handF = 'open'; if (sw[0] > 0.3) { p.shB = sw[0]; p.elB = sw[1]; p.handB = sw[2]; } }
         if (ch.idleStyle === 'behind') p.backArmZ = 5;
+        // r3-chars: brazos cruzados en 3/4 — el antebrazo cercano cruza el pecho hacia delante y el lejano
+        // asoma por debajo hacia atrás (los dos puños visibles); hombros 1 px arriba, peso atrás
+        if (ch.idleStyle === 'crossed') { p.shF = 0.42 + S(P) * 0.02; p.elF = 1.95; p.handF = 'fist'; p.shB = -0.05; p.elB = -1.62; p.handB = 'fist'; p.lean = -0.035; p.headTilt = -0.05 + S(P) * 0.015; }
+        // herramienta/tableta en la mano lejana a la altura del pecho, la cabeza baja hacia ella
+        if (ch.idleStyle === 'tool') { p.shB = 0.12; p.elB = 1.85 + S(P) * 0.03; p.handB = 'flat'; p.headTilt = 0.16; p.headDX = 0.3; p.eyeLook = 0; }
+        // manos en la cadera: el codo cercano sale hacia atrás y la mano lejana descansa en la cadera delantera
+        if (ch.idleStyle === 'hips') { p.shF = -0.55; p.elF = 2.1; p.handF = 'fist'; if (!ch.holdB) { p.shB = 0.5; p.elB = -1.5; p.handB = 'fist'; } p.lean = -0.025; }
       }
       break;
     }
@@ -1136,6 +1143,8 @@ function itemPart(R, A, pose, D) {
    Registro de accesorios: ACCESSORY[kind](R, A, pose, cfg)
    A = anclas del cuerpo (cx, hipY, waistY, shoulderY, tw, lx, af, ab, hx, hy…)
    ===================================================================== */
+/** r3-chars: madera clara de bastones y mangos (se distingue de pantalones y botas marrones) */
+const R3CHARS_WOOD = ['#2a1606', '#5a3412', '#8a5a24', '#b8843e', '#dcae66', '#f4d494'];
 const ACCESSORY = {
   /** Mochila grande (cfg: body, flap, strap, buckle, led, bottle) */
   backpack(R, A, pose, cfg) {
@@ -1274,6 +1283,25 @@ const ACCESSORY = {
     R.custom(SDF.sub(SDF.ellipse(hx - 0.6, hy - hry * 0.42, hrx * 1.05, hry * 0.78), SDF.box(hx, hy + hry * 0.45, hrx * 2, hry * 0.62, 0)), [hx - hrx - 3, hy - hry - 4, hx + hrx + 3, hy], { mat: m, base: 3, z: 70, group: 'hat', bevel: 3.5, shiny: true, cast: { on: ['head', 'hair', 'ear'], dx: -1, dy: 2 } });
     R.box(hx + 2, hy - hry * 0.18, hrx * 1.22, 1.3, 0.6, { mat: m, base: 3, z: 71, group: 'brim', bevel: 0.9, cast: { on: ['head', 'hair', 'ear'], dx: -1, dy: 2 } });
     R.stamp(pb => { const x = Math.round(hx - 1), y = Math.round(hy - hry * 0.95); pb.vline(x, y, y + 8, m.ramp[5]); if (cfg.badge !== false) { pb.rect(Math.round(hx + 3), Math.round(hy - hry * 0.72), 3, 3, cfg.badge || '#2a4caa'); pb.set(Math.round(hx + 4), Math.round(hy - hry * 0.72 + 1), '#ffffff'); } }, 98);
+    // r3-chars: pantalla facial levantada (policarbonato cian ahumado sobre el ala) y barboquejo negro
+    if (cfg.visor) {
+      R.box(hx + hrx * 0.5, hy - hry * 0.36, hrx * 0.62, 1.6, 0.6, { mat: ['#0a2a3a', '#14506a', '#1f7a96', '#3aa6c0', '#7ad4e6', '#c8f4ff'], base: 3, z: 72, group: 'visor', bevel: 0.8, shiny: true }, -0.08);
+      R.stamp(pb => { pb.set(Math.round(hx + hrx * 0.2), Math.round(hy - hry * 0.42), '#e6fdff'); }, 98.5);
+    }
+    if (cfg.strap) R.stamp(pb0 => { const pb = R3CHARS_maskPB(pb0, R, /^(head|ear|neck)$/); pb.line(Math.round(hx - hrx * 0.25), Math.round(hy - hry * 0.1), Math.round(hx + hrx * 0.25), Math.round(hy + hry * 0.85), '#1a1a26'); }, 97);
+  },
+  /** r3-chars: anemómetro de latas (mástil de madera, 3 cazoletas de lata y veleta) en la mano lejana */
+  anemo(R, A, pose, cfg) {
+    const ab = A.ab; if (ab.hx == null) return;
+    const z = A.turn > 0.5 ? 46 : 8, x = ab.hx + 0.5, y = ab.hy;
+    R.capsule(x, y + 4, x, y - 15, 0.7, 0.7, { mat: R3CHARS_WOOD, base: 4, z, group: 'anemo', bevel: 0.5 });
+    R.stamp(pb => {
+      const X = Math.round(x), Y = Math.round(y - 16), ph = Math.floor((pose.phase || 0) * 12) % 3;
+      const P3 = [[-5, 0], [4, -1], [0, 1]];
+      pb.hline(X - 4, X + 3, Y, '#8e94ae');
+      for (let i = 0; i < 3; i++) { const [dx, dy] = P3[(i + ph) % 3]; pb.rect(X + dx, Y + dy - 1, 2, 2, '#d8dce8'); pb.set(X + dx, Y + dy - 1, '#ffffff'); pb.set(X + dx + 1, Y + dy, '#6a7088'); }
+      pb.set(X, Y - 1, '#ff5a5a'); pb.set(X, Y - 2, '#ffe14d');
+    }, 99);
   },
   /** Gafas de ver (cfg: col) */
   glasses(R, A, pose, cfg) {
@@ -1317,32 +1345,52 @@ const ACCESSORY = {
   },
   /** Bastón (prop de persona mayor) */
   cane(R, A, pose, cfg) {
-    const af = A.af; if (af.hx == null) return;
-    R.capsule(af.hx + 0.5, af.hy - 1, af.hx + 2.5, A.footY + 2.5, 0.9, 0.9, { mat: cfg.mat || MAT.leather, base: 4, z: 79, group: 'cane', bevel: 0.6 });
+    // r3-chars: la mano cercana se construye después de los accesorios: se usa el extremo del antebrazo
+    const af = A.af, hx = af.hx ?? af.ex + 0.8, hy = af.hy ?? af.ey + 0.8; if (hx == null) return;
+    const wood = cfg.mat || R3CHARS_WOOD;
+    R.capsule(hx + 1.5, hy - 1, hx + 3.5, A.footY + 2.5, 0.95, 0.95, { mat: wood, base: 4, z: 82, group: 'cane', bevel: 0.6, shiny: true });
+    R.capsule(hx - 0.5, hy - 1.8, hx + 2.5, hy - 1.8, 1.05, 1.05, { mat: wood, base: 4, z: 82.05, group: 'cane', bevel: 0.6 });
   },
   /** Cesta en el brazo */
   basket(R, A, pose, cfg) {
     const ab = A.ab; if (ab.hx == null) return;
-    R.box(ab.hx - 1, ab.hy + 3.5, 4.6, 3.4, 1.5, { mat: cfg.mat || MAT.straw, base: 3, z: 8, group: 'basket', bevel: 1.2, texture: (x, y, idx, ramp) => ((x + y) % 3 === 0 ? ramp[clamp(idx - 1, 1, ramp.length - 1)] : null) });
+    R.box(ab.hx - 1, ab.hy + 3.5, 4.6, 3.4, 1.5, { mat: cfg.mat || MAT.straw, base: 3, z: A.turn > 0.5 ? 45.2 : 8, group: 'basket', bevel: 1.2, texture: (x, y, idx, ramp) => ((x + y) % 3 === 0 ? ramp[clamp(idx - 1, 1, ramp.length - 1)] : null) });
     R.stamp(pb => { pb.set(Math.round(ab.hx - 3), Math.round(ab.hy + 0.5), '#ff6b6b'); pb.set(Math.round(ab.hx - 1), Math.round(ab.hy + 0.5), '#86e36f'); pb.set(Math.round(ab.hx + 1), Math.round(ab.hy + 1), '#ffe14d'); }, 99);
   },
   /** Caja de herramientas colgando de la mano trasera */
   toolbox(R, A, pose, cfg) {
     const ab = A.ab; if (ab.hx == null) return;
-    R.box(ab.hx, ab.hy + 4.5, 4.6, 3, 0.8, { mat: cfg.mat || MAT.safety, base: 3, z: 8, group: 'tbox', bevel: 1 });
-    R.stamp(pb => { pb.hline(Math.round(ab.hx - 4), Math.round(ab.hx + 4), Math.round(ab.hy + 3), '#3a1408'); pb.set(Math.round(ab.hx), Math.round(ab.hy + 5), '#cfe8ee'); }, 99);
+    const z = A.turn > 0.5 ? 45.2 : 8;
+    R.box(ab.hx, ab.hy + 4.5, 4.6, 3, 0.8, { mat: cfg.mat || MAT.safety, base: 3, z, group: 'tbox', bevel: 1 });
+    // r3-chars: asa, tapa con bisagra y cierres (se lee como caja de herramientas a 1×)
+    R.capsule(ab.hx - 2, ab.hy + 0.6, ab.hx + 2, ab.hy + 0.6, 0.6, 0.6, { mat: RAMP.metal, base: 3, z: z - 0.1, group: 'tboxH', bevel: 0.5 });
+    R.stamp(pb0 => { const pb = R3CHARS_maskPB(pb0, R, /^tbox$/); const x = Math.round(ab.hx), y = Math.round(ab.hy); pb.hline(x - 4, x + 4, y + 3, '#3a1408'); pb.set(x - 3, y + 4, '#cfe8ee'); pb.set(x + 3, y + 4, '#cfe8ee'); pb.hline(x - 3, x + 3, y + 6, (cfg.mat || MAT.safety)[5] || '#ffb070'); }, 99);
   },
   /** Regadera en la mano trasera */
   wateringCan(R, A, pose, cfg) {
     const ab = A.ab; if (ab.hx == null) return;
-    R.box(ab.hx, ab.hy + 4, 3.6, 3.2, 1.4, { mat: cfg.mat || RAMP.steelW, base: 3, z: 8, group: 'wcan', bevel: 1.2 });
-    R.capsule(ab.hx + 3, ab.hy + 3, ab.hx + 7, ab.hy, 0.8, 0.7, { mat: cfg.mat || RAMP.steelW, base: 3, z: 8.1, group: 'wcan', bevel: 0.6 });
+    const z = A.turn > 0.5 ? 45.2 : 8;
+    R.box(ab.hx, ab.hy + 4, 3.6, 3.2, 1.4, { mat: cfg.mat || RAMP.steelW, base: 3, z, group: 'wcan', bevel: 1.2 });
+    R.capsule(ab.hx + 3, ab.hy + 3, ab.hx + 7, ab.hy, 0.8, 0.7, { mat: cfg.mat || RAMP.steelW, base: 3, z: z + 0.1, group: 'wcan', bevel: 0.6 });
+  },
+  /** r3-chars: tableta de operador en la mano lejana (marco oscuro, pantalla cian con curva de datos y reflejo) */
+  tablet(R, A, pose, cfg) {
+    const ab = A.ab; if (ab.hx == null) return;
+    const z = A.turn > 0.5 ? 46 : 8, x = ab.hx + 1.5, y = ab.hy - 1.5;
+    R.box(x, y, 3.6, 2.6, 0.6, { mat: cfg.mat || RAMP_CH.charcoal || MAT.leather, base: 2, z, group: 'tablet', bevel: 0.6 }, -0.12);
+    R.stamp(pb0 => {
+      const pb = R3CHARS_maskPB(pb0, R, /^tablet$/), X = Math.round(x), Y = Math.round(y);
+      pb.rect(X - 2, Y - 1, 5, 3, '#1491aa'); pb.hline(X - 2, X + 2, Y - 1, '#56e5ff'); pb.set(X - 2, Y - 1, '#e6fdff');
+      pb.set(X - 1, Y + 1, '#ffe14d'); pb.set(X, Y, '#ffe14d'); pb.set(X + 1, Y, '#86e36f'); pb.set(X + 2, Y - 1 + 1, '#86e36f');
+    }, 99);
+    R.glow(pb => { const X = Math.round(x), Y = Math.round(y); pb.set(X - 3, Y, '#1a6a8a'); pb.set(X + 3, Y + 1, '#1a6a8a'); });
   },
   /** Azada al hombro */
   hoe(R, A, pose, cfg) {
-    const af = A.af; if (af.hx == null) return;
-    R.capsule(af.hx - 9, af.hy + 6, af.hx + 6, af.hy - 14, 0.8, 0.8, { mat: MAT.leather, base: 4, z: 79, group: 'hoe', bevel: 0.6 });
-    R.box(af.hx + 7, af.hy - 14, 1.2, 2.8, 0.4, { mat: RAMP.metal, base: 5, z: 79.1, group: 'hoeB', bevel: 0.6 }, 0.6);
+    const af = A.af, hx = af.hx ?? af.ex + 0.8, hy = af.hy ?? af.ey + 0.8; if (hx == null) return;
+    // r3-chars: azada apoyada en el suelo junto a la mano cercana (antes no se dibujaba: mano aún sin construir)
+    R.capsule(hx + 1, hy - 16, hx + 3, A.footY + 1.5, 0.85, 0.85, { mat: R3CHARS_WOOD, base: 4, z: 82, group: 'hoe', bevel: 0.6, shiny: true });
+    R.box(hx + 2.2, hy - 17, 3.4, 1.3, 0.4, { mat: RAMP.metal, base: 5, z: 82.1, group: 'hoeB', bevel: 0.6 }, -0.25);
   },
   /** Red de pesca al hombro */
   net(R, A, pose, cfg) {
@@ -1439,6 +1487,10 @@ function drawChar(g, charId, anim, time, x, y, facing = 1, opts = {}) {
   // calentamiento automático del set de movimiento la primera vez que aparece un personaje
   if (!SpriteCache._warmed.has(charId)) { SpriteCache._warmed.add(charId); SpriteCache.warm(charId, def.warmAnims || ['idle', 'walk', 'run', 'jump', 'fall', 'land']); }
   if (typeof Game !== 'undefined' && Game.frame !== SpriteCache._lastPump) { SpriteCache._lastPump = Game.frame; if (SpriteCache.queue.length) SpriteCache.pump(2); }
+  // r3-chars: variante de vestuario por nivel (def.levelVariant = {nivel: variante}) si el actor no fija una
+  if (opts.variant == null && def.levelVariant && typeof GameplayScene !== 'undefined' && GameplayScene.levelId != null) {
+    const v = def.levelVariant[GameplayScene.levelId]; if (v) opts = Object.assign({}, opts, { variant: v });
+  }
   const A = ANIMS[anim] || ANIMS.idle;
   // r2-chars: reposo desfasado por personaje (la multitud no respira al unísono) y parpadeo solo
   // una de cada tres vueltas (antes 1 de cada 6 cuadros: los NPC salían a menudo con los ojos cerrados)

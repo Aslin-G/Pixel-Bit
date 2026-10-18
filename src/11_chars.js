@@ -858,7 +858,8 @@ const OUTFIT = {
     OUTFIT.tee(R, o, c);
     const { cx, shoulderY, hipY, tw, lx } = o, m = c.vest;
     R.poly([[cx - tw * 0.55 + lx * 0.95, shoulderY], [cx + tw * 0.05 + lx, shoulderY], [cx + tw * 0.08, hipY + 2.5], [cx - tw * 0.58, hipY + 2.5]], { mat: m, base: 4, z: 31, group: 'vest', bevel: 2,
-      texture: c.woven ? (x, y, idx, ramp) => ((x + y) % 4 === 0 ? ramp[clamp(idx - 1, 1, ramp.length - 1)] : ((x - y + 64) % 4 === 0 && idx > 2 ? ramp[clamp(idx + 1, 1, ramp.length - 1)] : null)) : undefined });
+      // r3-chars: tejido en hebras diagonales de 2 tonos en una sola dirección (antes trama cruzada en damero)
+      texture: c.woven ? (x, y, idx, ramp) => { const k = (x + y + 300) % 3; return k === 0 ? ramp[clamp(idx - 1, 1, ramp.length - 1)] : (k === 1 && idx > 2 && idx < ramp.length - 1 ? ramp[idx + 1] : null); } : undefined });
     R.poly([[cx + tw * 0.3 + lx, shoulderY + 0.5], [cx + tw * 0.48 + lx, shoulderY + 1], [cx + tw * 0.46, hipY + 2], [cx + tw * 0.3, hipY + 2]], { mat: m, base: 4, z: 31.5, group: 'vest2', bevel: 1 });
   },
 };
@@ -934,7 +935,94 @@ const DANTE_D = Object.assign(makeBody('adult', { thigh: 14, shin: 14, torsoW: 1
     HAIR2.strand(R, o, H, [[-7, 3], [-10.5, 6.5]], 1.6, 0.35, { z: 53, group: 'spike' });
   },
 });
-CHARS.dante = { name: 'Dante', render: (a, t, op) => renderHumanoid('dante', DANTE_D, a, t, op), ox: HUM_OX, oy: HUM_OY, shadowR: 13 };
+CHARS.dante = { name: 'Dante', render: (a, t, op) => renderHumanoid('dante', R3CHARS_danteD(op && op.variant), a, t, op), ox: HUM_OX, oy: HUM_OY, shadowR: 13 };
+/* r3-chars: Dante cambia de equipo según el escenario (los jueces: «el mismo obrero con casco en L1, L6,
+   L9 y L11»). drawChar elige la variante por nivel (CHARS.dante.levelVariant) cuando el actor no fija
+   opts.variant; la identidad (pelo rojo, pecas, complexión, peto azul) se mantiene.
+   · coast  (L1 toma de mar): chaleco salvavidas naranja con cintas reflectantes y gorro de pescador caqui.
+   · tech   (L6 nave de baterías): casco BLANCO de electricista con pantalla facial levantada y barboquejo,
+            guantes dieléctricos naranjas, sin pañuelo.
+   · council (L9 consejo): sin casco (pelo a la vista), chaqueta de trabajo mostaza con manga larga.
+   · fiesta (L11 plaza): sin casco ni peto, pañuelo rojo en la cabeza, camiseta turquesa y el anemómetro
+            de latas de los estudiantes en la mano. */
+const R3CHARS_HAT_WHITE = ['#262838', '#545a74', '#8e94ae', '#c0c6d8', '#e2e6f2', '#f8faff', '#ffffff'];
+const R3CHARS_DANTE_LOOK = {
+  coast: { acc: () => [{ kind: 'bucket', mat: Mat({ ramp: RAMP_CH.khaki, outline: '#241a08' }) }], over: 'life' },
+  tech: { acc: () => [{ kind: 'hardhat', mat: Mat({ ramp: R3CHARS_HAT_WHITE, outline: '#20222e' }), badge: '#ff6a1a', visor: true, strap: true }], gloves: MAT.safety, noScarf: true },
+  council: { acc: () => [], over: 'jacket', sleeve: RAMP_CH.mustard, hatless: true },
+  fiesta: { acc: () => [{ kind: 'anemo' }], top: RAMP_CH.teal, noBib: true, holdB: true, hatless: true, headband: MAT.bandana },
+};
+const R3CHARS_danteVar = {};
+function R3CHARS_danteD(v) {
+  const L = v && R3CHARS_DANTE_LOOK[v];
+  if (!L) return DANTE_D;
+  if (R3CHARS_danteVar[v]) return R3CHARS_danteVar[v];
+  DANTE_D.prepare();
+  const D = Object.create(DANTE_D), M0 = DANTE_D.mat;
+  D.accessories = L.acc();
+  D.mat = Object.assign({}, M0);
+  if (L.gloves) D.mat.gloves = Mat({ ramp: L.gloves, outline: '#3a1004' });
+  if (L.top) D.mat.top = Mat({ ramp: L.top, outline: '#04161a' });
+  if (L.sleeve) { const sl = Mat({ ramp: L.sleeve, outline: '#221804' }); D.mat.sleeve = sl; D.foreMat = sl; D.shortSleeve = 0; D.jacketMat = sl; }
+  if (L.holdB) D.holdB = true;
+  if (L.hatless) D.hair = function (R, o) {
+    // sin casco: mechones rojos de punta peinados hacia atrás, flequillo y patilla (el casquete solo era un gorro)
+    const H = this.mat.hair;
+    HAIR2.cap(R, o, H, { grow: 0.5, sy: 0.86 });
+    HAIR2.lock(R, o, H, [[-4, -3], [-6.5, 1], [-6, 4]], 1.8, { z: 56 });
+    [[[-7, -6], [-11.5, -8.5], 2.1], [[-4, -9], [-7.5, -13.5], 2.2], [[0, -10.5], [-1.5, -14.5], 2.1], [[3.5, -10], [5.5, -13.2], 1.9], [[-9, -1], [-12.5, 0.5], 1.8]].forEach(([a, b, r], i) =>
+      HAIR2.strand(R, o, H, [a, b], r, 0.35, { z: 53.5 + i * 0.01, group: 'spike' + i, shiny: true }));
+    HAIR2.bangs(R, o, H, [[[2, -10.5], [6.5, -8], [8.8, -4.5], 2.1], [[5.5, -9.5], [9.5, -6.5], [10.5, -3], 1.5]]);
+    if (L.headband) {
+      const B = asMat(L.headband), { hx, hy } = o;
+      R.capsule(hx - 9.5, hy - 4.5, hx + 7.5, hy - 8.8, 1.45, 1.3, { mat: B, base: 4, z: 59, group: 'band', bevel: 0.9, cast: { on: ['head', 'bangs'], dx: -1, dy: 1 } });
+      R.strand([[hx - 10, hy - 4], [hx - 13, hy - 1], [hx - 14, hy + 2]], 1.3, 0.5, { mat: B, base: 3, z: 52, group: 'bandT' });
+      R.strand([[hx - 10, hy - 4.5], [hx - 14.5, hy - 4], [hx - 16, hy - 2]], 1.2, 0.5, { mat: B, base: 4, z: 52.1, group: 'bandT2' });
+      R.stamp(pb => { pb.set(Math.round(hx - 3), Math.round(hy - 7), '#ffe8c8'); pb.set(Math.round(hx + 3), Math.round(hy - 8), '#ffe8c8'); }, 98);
+    }
+  };
+  D.torso = function (R, o) {
+    const { cx, waistY, hipY, shoulderY, tw, lx, chestH } = o;
+    if (L.noBib) OUTFIT.tee(R, o, { top: this.mat.top });
+    else OUTFIT.overalls(R, o, { top: this.mat.top, bib: this.bib });
+    if (!L.noBib) R.box(cx + 0.5, waistY + 1, tw * 0.5, 1.5, 0.3, { mat: MAT.safety, base: 4, z: 34, group: 'stripe', bevel: 0.8 });
+    if (L.over === 'life') {
+      // chaleco salvavidas: dos paneles abultados naranjas, cuello acolchado, 2 cintas reflectantes y hebilla
+      const m = asMat(RAMP_CH.hivisO);
+      R.poly([[cx - tw * 0.56 + lx * 0.95, shoulderY - 0.5], [cx + tw * 0.02 + lx, shoulderY], [cx + tw * 0.1 + lx * 0.3, waistY + 1], [cx - tw * 0.6, waistY + 2]], { mat: m, base: 4, z: 36, group: 'life', bevel: 2.4, cast: { on: ['bib', 'torso'], dx: 1, dy: 1 } });
+      R.poly([[cx + tw * 0.26 + lx, shoulderY], [cx + tw * 0.5 + lx, shoulderY + 1], [cx + tw * 0.5 + lx * 0.4, waistY + 1], [cx + tw * 0.28 + lx * 0.3, waistY + 1.5]], { mat: m, base: 4, z: 36.2, group: 'life2', bevel: 1.6 });
+      R.capsule(cx - tw * 0.4 + lx, shoulderY - 1.5, cx + tw * 0.3 + lx, shoulderY - 0.5, 2, 1.8, { mat: m, base: 5, z: 36.4, group: 'lifeC', bevel: 1.2 });
+      R.stamp(pb0 => {
+        const pb = R3CHARS_maskPB(pb0, R, /^life2?$/);
+        for (const dy of [-chestH * 0.42, -chestH * 0.12]) pb.hline(Math.round(cx - tw * 0.6), Math.round(cx + tw * 0.52 + lx), Math.round(waistY + dy), '#eef6fa');
+        pb.rect(Math.round(cx + tw * 0.16 + lx * 0.5), Math.round(waistY - 3), 2, 2, '#1a1a24');
+      }, 95);
+    }
+    if (L.over === 'jacket') {
+      // chaqueta de trabajo abierta: paneles mostaza, cuello, bolsillo de pecho con bolígrafo y costura
+      const m = this.jacketMat;
+      R.poly([[cx - tw * 0.56 + lx * 0.95, shoulderY - 1.5], [cx + tw * 0.06 + lx, shoulderY - 1], [cx + tw * 0.14 + lx * 0.8, shoulderY + 6], [cx + tw * 0.12 + lx * 0.3, hipY + 1.5], [cx - tw * 0.56, hipY + 2], [cx - tw * 0.54 + lx * 0.4, waistY - chestH * 0.4]], { mat: m, base: 4, z: 36, group: 'jacket', bevel: 2.4, cast: { on: ['bib', 'torso'], dx: 1, dy: 1 } });
+      R.poly([[cx + tw * 0.34 + lx, shoulderY - 0.5], [cx + tw * 0.5 + lx, shoulderY + 0.5], [cx + tw * 0.5 + lx * 0.4, hipY + 1.5], [cx + tw * 0.36 + lx * 0.3, hipY + 1.5]], { mat: m, base: 4, z: 36.2, group: 'jacket2', bevel: 1.4 });
+      R.poly([[cx - 4.5 + lx, shoulderY - 4], [cx + 0.5 + lx, shoulderY - 3], [cx + 2 + lx, shoulderY + 0.5], [cx - 5.5 + lx, shoulderY + 0.5]], { mat: m, base: 5, z: 36.5, group: 'collarJ', bevel: 1, lineIdx: 1 });
+      R.stamp(pb0 => {
+        const pb = R3CHARS_maskPB(pb0, R, /^jacket$/), px = Math.round(cx - tw * 0.18 + lx * 0.8), py = Math.round(shoulderY + 5);
+        pb.hline(px - 2, px + 2, py, m.ramp[1]); pb.vline(px + 1, py - 2, py, '#3e7ae0'); pb.set(px + 1, py - 3, '#e8f0ff');
+        for (let y = Math.round(shoulderY + 7); y < hipY; y += 3) pb.set(Math.round(cx + tw * 0.1 + lx * 0.4), y, m.ramp[5]);
+      }, 95);
+    }
+    if (!L.noScarf && L.over !== 'jacket') {
+      R.ellipse(cx + 1 + lx, shoulderY + 0.5, 6.5, 2.4, { mat: MAT.bandana, base: 3, z: 37, group: 'scarf', bevel: 1.2, cast: { on: ['torso', 'bib', 'life'], dx: -1, dy: 2 } });
+      R.poly([[cx + 2 + lx, shoulderY + 1], [cx + 6 + lx, shoulderY + 1.5], [cx + 4 + lx, shoulderY + 6]], { mat: MAT.bandana, base: 4, z: 37.5, group: 'scarf2', bevel: 0.8 });
+    }
+    if (L.over !== 'life') {
+      R.capsule(cx - 9, waistY + 1, cx - 8, hipY + 7, 1.1, 1.1, { mat: RAMP.metal, base: 5, z: 36, group: 'tool', bevel: 0.8, shiny: true });
+      R.circle(cx - 8, hipY + 8.5, 2.2, { mat: RAMP.metal, base: 5, z: 36.1, group: 'tool', bevel: 0.8 });
+    }
+  };
+  R3CHARS_danteVar[v] = D;
+  return D;
+}
+CHARS.dante.levelVariant = { 1: 'coast', 6: 'tech', 9: 'council', 11: 'fiesta' };
 
 /* ------------------------------------------------------------------ */
 /* DRA. ELIANA ROJAS — mentora (alta y delgada, bata a la rodilla)       */
@@ -1230,6 +1318,13 @@ const NPC_STYLES = {
   short(R, o, H) { HAIR2.cap(R, o, H, { grow: 0.5, sy: 0.82 }); HAIR2.bangs(R, o, H, [[[3, -10], [7, -7], [9.5, -4], 2.2], [[0, -10.5], [3, -7.5], [4.5, -5], 2]]); },
   buzz(R, o, H) { HAIR2.cap(R, o, H, { grow: 0.1, sy: 0.78, faceR: 0.76, texture: (x, y, idx, ramp) => ((x + y * 2) % 3 === 0 ? ramp[clamp(idx - 1, 1, ramp.length - 1)] : null) }); },
   bald(R, o, H) { HAIR2.strand(R, o, H, [[-8, -2], [-9, 3], [-7.5, 6]], 2, 0.6, { z: 56, group: 'fringe' }); },
+  // r3-chars: calvo con corona de pelo (herradura blanca de la nuca a la sien, sobre la oreja): la cabeza
+  // deja de leerse como una bola de piel a 1×
+  baldFringe(R, o, H) {
+    HAIR2.strand(R, o, H, [[-9.5, -3], [-10.5, 2], [-8.5, 7]], 2.6, 1.2, { z: 56, group: 'fringe' });
+    HAIR2.strand(R, o, H, [[-6, -4.5], [-2.5, -3.2], [1, -2.6]], 1.7, 0.7, { z: 56.5, group: 'fringe2' });
+    HAIR2.strand(R, o, H, [[-7.5, 5], [-4.5, 7.5]], 1.4, 0.6, { z: 56.4, group: 'fringe3' });
+  },
   bun(R, o, H) { HAIR2.bun(R, o, H, -6, -9.5, 4.4); HAIR2.cap(R, o, H, { grow: 0.5, sy: 0.88 }); HAIR2.bangs(R, o, H, [[[4, -10], [8, -6], [9.6, -3], 2]]); },
   long(R, o, H) {
     HAIR2.cap(R, o, H, { grow: 1.2, sy: 0.95 });
@@ -1324,13 +1419,21 @@ function makeNPC(id, cfg) {
     torso(R, o) { (OUTFIT[outfit] || OUTFIT.tee)(R, o, this.oc); },
     faceStamp(pb, o) {
       const sk = this.mat.skin.ramp;
-      if (cfg.mustache) { pb.hline(Math.round(o.hx + 5), Math.round(o.hx + 9), Math.round(o.hy + 5.5), cfg.mustache); pb.set(Math.round(o.hx + 4), Math.round(o.hy + 6.5), cfg.mustache); }
+      if (cfg.mustache) {
+        pb.hline(Math.round(o.hx + 5), Math.round(o.hx + 9), Math.round(o.hy + 5.5), cfg.mustache); pb.set(Math.round(o.hx + 4), Math.round(o.hy + 6.5), cfg.mustache);
+        // r3-chars: bigote de 2 filas con sombra debajo (se lee a 1×)
+        if (cfg.bigMustache) { const y = Math.round(o.hy + 6.5), c2 = shade(cfg.mustache, -0.28); pb.hline(Math.round(o.hx + 5), Math.round(o.hx + 9), y, c2); pb.set(Math.round(o.hx + 10), y, cfg.mustache); pb.set(Math.round(o.hx + 4), y + 1, c2); pb.set(Math.round(o.hx + 6), Math.round(o.hy + 5.5), shade(cfg.mustache, 0.15)); }
+      }
+      if (cfg.brows) { const y = o.eyeY - 4; pb.hline(o.e1x - 2, o.e1x + 2, y, cfg.brows); pb.set(o.e1x - 2, y + 1, cfg.brows); pb.set(o.e1x + 3, y + 1, shade(cfg.brows, -0.25)); pb.hline(o.e2x - 1, o.e2x + 1, y, cfg.brows); }
       if (cfg.beard) { for (let y = 0; y < 4; y++) pb.hline(Math.round(o.hx + 1 + y), Math.round(o.hx + 8 - (y >> 1)), Math.round(o.hy + 7 + y), (y + o.hx) % 2 ? cfg.beard : shade(cfg.beard, -0.2)); }
       if (cfg.wrinkles) { pb.set(o.e1x - 2, o.eyeY + 1, sk[2]); pb.set(o.e1x - 2, o.eyeY + 2, sk[3]); pb.set(Math.round(o.hx + 5), Math.round(o.hy + 5), sk[3]); }
       if (cfg.earring) pb.set(Math.round(o.hx - 2), Math.round(o.hy + 5), cfg.earring);
     },
   });
   if (cfg.posture === 'stoop') D.stoop = 0.16;
+  // r3-chars: el objeto cuelga de la mano lejana (no la apoya en la cadera en el reposo 'hips')
+  D.holdB = ['toolbox', 'basket', 'wateringCan', 'net', 'tablet'].includes(cfg.prop || B.prop);
+  if (cfg.brows) D.brows = cfg.brows;
   // r2-chars: variante de reposo propia (RNG aparte: no altera los sorteos de ropa/sombrero)
   { const r2 = RNG((cfg.seed || 1) + 991), prop = cfg.prop || B.prop;
     D.idleStyle = cfg.idleStyle !== undefined ? cfg.idleStyle : prop ? r2.pick(['look', 'shift', 'lean']) : r2.pick(['look', 'lean', 'gesture', 'crossed', 'behind', 'hips', 'chin', 'shift', 'stretch']); }
@@ -1338,7 +1441,7 @@ function makeNPC(id, cfg) {
   return D;
 }
 makeNPC('marea', { idleStyle: 'lean', name: 'Tía Marea', seed: 11, skin: 'skinM', hair: RAMP.hairE, style: 'braid', top: MAT.danteOver, legs: MAT.tealPants, hat: 'bucket', hatCol: MAT.kiruBody, outfit: 'raincoat', coat: RAMP_CH.rain, wrinkles: true, body: 'elder', prop: 'net', shoes: MAT.boots });
-makeNPC('cobre', { idleStyle: 'crossed', name: 'Don Cobre', seed: 22, skin: 'skinE', hair: RAMP.hairE, style: 'bald', top: MAT.tshirtW, legs: MAT.amayaPants, outfit: 'apron', apron: RAMP.copper, mustache: '#cdcfe2', glasses: '#c8861a', wrinkles: true, body: 'stocky', prop: 'toolbox' });
+makeNPC('cobre', { idleStyle: 'hips', name: 'Don Cobre', seed: 22, skin: 'skinE', hair: RAMP.hairE, style: 'baldFringe', top: MAT.tshirtW, legs: MAT.amayaPants, outfit: 'apron', apron: RAMP.copper, mustache: '#e8eaf6', bigMustache: true, brows: '#f4f4fa', nose: 1.6, glasses: '#c8861a', wrinkles: true, body: 'stocky', prop: 'toolbox' });
 makeNPC('alma', { idleStyle: 'look', name: 'Alma Semilla', seed: 33, skin: 'skinA', hair: RAMP.hairA, style: 'curly', child: true, pigtails: true, top: MAT.nairaShirt, legs: MAT.kiruBody, flowers: true, shoes: MAT.sneakerY, outfit: 'tee', shortSleeve: true });
 makeNPC('nimbo', { idleStyle: 'behind', name: 'Capitán Nimbo', seed: 44, skin: 'skinD', hair: RAMP.hairE, style: 'short', top: NPC_CLOTH[5], legs: MAT.olive, hat: 'aviator', hatCol: MAT.leather, mustache: '#a8aac6', outfit: 'vest', vest: RAMP.coral, body: 'tall', wrinkles: true });
 makeNPC('consejal', { idleStyle: 'gesture', name: 'Consejera Ruth', seed: 55, skin: 'skinN', hair: RAMP.hairN, style: 'bun', top: NPC_CLOTH[0], legs: MAT.amayaPants, glasses: '#8a5e14', outfit: 'jacket', jacket: RAMP_CH.plum, body: 'adult', earring: '#ffd84a' });
@@ -1359,7 +1462,7 @@ const CROWD_CFG = [
   { child: true, style: 'short', skin: 'skinTan', hair: RAMP_CH.brownHair, hat: 'cap', hatCol: NPC_CLOTH[7], outfit: 'tee', top: NPC_CLOTH[3], legs: RAMP_CH.denim, shortSleeve: true , idleStyle: 'stretch' },
   { child: true, style: 'ponytail', skin: 'skinE', hair: RAMP_CH.blondHair, outfit: 'tee', top: NPC_CLOTH[0], legs: RAMP_CH.teal, shortSleeve: true, tie: RAMP.cyan , idleStyle: 'look' },
   { child: true, style: 'buzz', skin: 'skinD', hair: RAMP.hairD, outfit: 'overalls', top: NPC_CLOTH[11], bib: RAMP_CH.denim, legs: RAMP_CH.denim , idleStyle: 'shift' },
-  { body: 'stocky', style: 'buzz', skin: 'skinDeep', hair: RAMP_CH.blackHair, hat: 'hard', hatCol: MAT.hardhat, outfit: 'hivis', top: NPC_CLOTH[6], vest: RAMP_CH.hivis, legs: RAMP_CH.denim, prop: 'toolbox' , idleStyle: 'look' },
+  { body: 'stocky', style: 'buzz', skin: 'skinDeep', hair: RAMP_CH.blackHair, hat: 'hard', hatCol: RAMP_CH.cream, outfit: 'hivis', top: NPC_CLOTH[6], vest: RAMP_CH.hivis, legs: RAMP_CH.denim, prop: 'toolbox' , idleStyle: 'look' },
   { body: 'tall', style: 'long', skin: 'skinPale', hair: RAMP_CH.brownHair, outfit: 'dress', top: RAMP_CH.terracotta, legs: RAMP_CH.terracotta, prop: 'wateringCan', earring: '#ffd84a' , idleStyle: 'shift' },
   { body: 'elder', style: 'buzz', skin: 'skinE', hair: RAMP_CH.greyHair, outfit: 'labcoat', top: NPC_CLOTH[1], coat: RAMP_CH.cream, legs: RAMP_CH.charcoal, glasses: '#3a2a20', roundGlasses: true, mustache: '#bcbcc8', wrinkles: true, pens: false , idleStyle: 'behind' },
   { body: 'adult', style: 'doubleBraids', skin: 'skinM', hair: RAMP_CH.blackHair, outfit: 'overalls', top: RAMP_CH.mustard, bib: RAMP_CH.sage, legs: RAMP_CH.sage, prop: 'hoe', tie: RAMP.coral , idleStyle: 'look' },
