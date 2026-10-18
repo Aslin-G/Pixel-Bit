@@ -21,6 +21,9 @@
   V.RAMPS.cliff = ['#2a2c44', '#3e4060', '#585a7a', '#767896', '#9496ae', '#b2b2c4', '#cccbd6', '#e4e2e8', '#f6f4f4'];
   V.RAMPS.cliffWarm = ['#3a2430', '#5a3840', '#7e5048', '#a06c54', '#bc8a64', '#d4a87a', '#e6c498', '#f4dcb8', '#fcf0d8'];
   V.RAMPS.meadow = ['#0e2a1a', '#164028', '#1e5a32', '#2e7a3a', '#4a9a40', '#6ab84a', '#94d05a', '#c4e47a'];
+  /** r2-biomes-a: roca de acantilado cálida y saturada (como la referencia: granate → ocre → crema) y pradera más viva */
+  V.RAMPS.cliffR2 = ['#1c0c14', '#2e1218', '#48181c', '#6a2420', '#8e3a24', '#b4562a', '#d27a36', '#e8a04a', '#f6c472', '#fde4a8'];
+  V.RAMPS.meadowR2 = ['#0c2418', '#123a20', '#1a5426', '#28702a', '#3e8c2c', '#62a832', '#8cc43a', '#b8dc52', '#e2f088'];
   /** Pared de acantilado vista desde el mar: estratos, fisuras, caras de luz/sombra, pradera arriba */
   V.seaCliff = function (pb, o) {
     const k = o.k || 0, seed = o.seed || 1, R = ramp(o.ramp || V.RAMPS.cliff, k), n = R.length;
@@ -103,6 +106,39 @@
       x += w + r.int(o.gap[0], o.gap[1]);
     }
     return { top, spans };
+  };
+  /**
+   * Cabos esculpidos (r2-biomes-a): promontorios en RELIEVE sombreado (VISTA.r2baRelief) en vez de
+   * paredes con bandas: techo de pradera visto en 3/4 (cara superior iluminada, labio que vuela),
+   * paredes escalonadas con espolones y cárcavas, cara izquierda al sol y derecha en sombra azul,
+   * talud de derrubios y espuma al pie. Mismo contrato que VISTA.headlands → {top, spans, surfY(x)}.
+   * o: {seed, k, base, yTop:[a,b], w:[a,b], gap:[a,b], x0, x1, ramp, grass, nv, dvy, haze}
+   */
+  V.r2baHeadlands = function (pb, o) {
+    const r = RNG(o.seed || 7), k = o.k || 0, base = o.base ?? pb.h - 4, spans = [], list = [];
+    const nv = o.nv || 26, dvy = o.dvy ?? 0.55;
+    for (let x = (o.x0 ?? 0) + r.int(0, 40); x < (o.x1 ?? pb.w) + 40;) {
+      const w = r.int(o.w[0], o.w[1]), yT0 = r.int(o.yTop[0], o.yTop[1]), hh = base - yT0 - Math.round(nv * dvy * 0.5);
+      spans.push([x, x + w, yT0]);
+      list.push({ x: x + w / 2, v: r.int(Math.round(nv * 0.35), Math.round(nv * 0.55)), w: w / 2, d: r.int(Math.round(nv * 0.35), Math.round(nv * 0.5)), h: hh, step: r.int(5, 9), p: 2.6 + r.range(0, 1), wall0: r.range(0.7, 0.82), tal: 0.22, t0: 0.12 });
+      if (r.chance(0.55)) list.push({ x: x + w * r.range(0.15, 0.85), v: r.int(2, 6), w: r.int(8, 18), d: 4, h: Math.round(hh * r.range(0.35, 0.7)), step: 5, p: 2.4, tal: 0.4 });
+      x += w + r.int(o.gap[0], o.gap[1]);
+    }
+    const info = V.r2baRelief(pb, {
+      yBase: base, nv, dvy, seed: (o.seed || 7) + 1, hMax: base, H: V.r2baMesaH(list, { seed: (o.seed || 7) + 2, gully: 0.2 }),
+      ramp: o.ramp || V.RAMPS.cliffR2, contrast: 2.1, t0: 0.5, facet: 0.3, cav: 0.07, flatK: 0.12, spanDark: 0.006,
+      strata: { L: [4, 9], hard: 0.04, soft: 0.04, lip: 0.12, under: 0.1, warp: 3 }, shadeHue: o.shadeHue || '#2a1028', shadeK: 0.22,
+      haze: o.haze || { col: '#c4c8d8', k0: k, k: 0.08 }, rim: '#fff4d8', rimK: 0.5, tex: 0.04,
+      cap: { ramp: o.grass || V.RAMPS.meadowR2, minH: 6, slope: 0.5, lip: 2, lift: 0.06 },
+      veg: { ramp: V.hz(V.RAMPS.meadowR2, k * 0.6), density: 0.05, maxSlope: 0.3, minY: 4, size: 1.4 },
+    });
+    // espuma y rompiente al pie de cada cabo
+    for (let x = 0; x < pb.w; x++) { if (info.top[x] >= base) continue; V.put(pb, x, base, U(hash2(x >> 2, 4, 9) < 0.6 ? '#ffffff' : '#d2ecee')); if (hash2(x >> 1, 5, 9) < 0.5) V.put(pb, x, base + 1, U('#9ad6f2')); }
+    const top = new Int16Array(pb.w).fill(32767);
+    for (let x = 0; x < pb.w; x++) if (info.top[x] < base) top[x] = info.top[x];
+    // altura de la pradera (cara superior) a media profundidad, para plantar turbinas y casas
+    const surfY = (x) => { const v = Math.round(nv * 0.45), y = info.visY(clamp(x, 0, pb.w - 1), v); return y == null ? top[x] + 3 : y; };
+    return { top, spans, surfY, info };
   };
   /** Hierba peinada por el viento: briznas inclinadas con punta clara (horneada) */
   V.windGrass = function (pb, x0, x1, yFn, o = {}) {

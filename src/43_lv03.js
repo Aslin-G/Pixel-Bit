@@ -10,7 +10,7 @@ const BRINE_TINT = { tint: '#c86aa8', deep: '#621a66', caustic: '#f888b8', foam:
 /* ---------- anclas del plano jugable (kit PF + PFASalt) ---------- */
 const LV3_ANCH = { lamps: [], leds: [], screens: [] };
 /** Roca del cañón al atardecer: granate-magenta en sombra, melocotón en luz */
-const LV3_ROCK = ['#1e0a1e', '#341230', '#4e1c40', '#6a2a4c', '#8c3e52', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
+const LV3_ROCK = ['#1e0a1e', '#341230', '#461a3a', '#6e2c40', '#8e4248', '#ae5a5c', '#cc7a68', '#e8a07a', '#f8c894'];
 const LV3_FLOWS = [];
 
 LEVELS[3] = {
@@ -40,10 +40,10 @@ LEVELS[3] = {
   pf: {
     terrain: [
       { x0: 0, x1: 600, surf: 'saltcrust', face: 'saltflat', depth: 14, seed: 1 },
-      { x0: 600, x1: 1110, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 3, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a' },
+      { x0: 600, x1: 1110, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 3, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a', shadeHue: '#2a0c14' },
       { x0: 1110, x1: 1530, surf: 'saltcrust', face: 'saltflat', depth: 14, seed: 5 },
       { x0: 1530, x1: 1840, surf: 'meadow', face: 'saltflat', depth: 12, seed: 7, path: false },
-      { x0: 1840, x1: 2800, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 9, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a' },
+      { x0: 1840, x1: 2800, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 9, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a', shadeHue: '#2a0c14' },
     ],
     /** Primer plano: cristales de sal violetas y salicornia oscura en los bordes inferiores */
     fg: [
@@ -103,7 +103,7 @@ LEVELS[3] = {
     flow([[1290, gy(1290) - 10], [1326, gy(1290) - 10]], 'brine', (sc) => sc.state.diverted ? 1 : 0);
     I.pipe(pb, [[1290, gy(1290) - 24], [1540, gy(1290) - 24]], 2, 'brine', { flange: 30, supports: 40, supportTo: (x) => gy(x) - 4 });
     flow([[1290, gy(1290) - 24], [1540, gy(1290) - 24]], 'brine', (sc) => sc.state.diverted ? 0 : (sc.state.gateOpen ? 1 : 0.2));
-    const pd = S.pond(pb, 1328, 1494, gy(1328) - 6); N.pond = pd.surf;
+    const pd = S.pond(pb, 1328, 1494, gy(1328) - 6); N.pond = pd.surf; N.pondRows = pd.rows;
     PFSigns.post(pb, 1500, gy(1500) - 2, [{ text: 'CONTINGENCIA' }], 31, { font: 'tiny' });
     for (let x = 1120; x < 1520; x += 22 + r.int(0, 14)) S.salicornia(pb, x, back(x) + 4, 16, x);
     /* ===== 4. HUMEDAL SALINO CON MANGLAR (1530–1840) ===== */
@@ -123,6 +123,16 @@ LEVELS[3] = {
     for (let x = 2310; x < 2800; x += 30 + r.int(0, 20)) { if (hash2(x, 2, 5) < 0.6) So.dryBush(pb, x, back(x) + 4, 16, 9, x); else F.agave(pb, x, back(x) + 4, 7, x); }
     for (let x = 2520; x < 2600; x++) { K.put(pb, x, gy(x) - 22, U('#94602e')); K.put(pb, x, gy(x) - 12, U('#6e421e')); if (x % 10 === 0) for (let k = 0; k < 22; k++) K.put(pb, x, gy(x) - 2 - k, U('#7a4a24')); }
     PFSigns.post(pb, 2640, gy(2640) - 2, [{ text: 'DUNAS FOTÓNICAS' }], 37, { font: 'tiny' }); // 120 px antes de la salida (2760)
+    /* ===== r2-biomes-a: densidad del plano medio (un grupo cada ~28 px: peñas esculpidas, halita, matorral salino) ===== */
+    const skip = [[196, 386], [636, 796], [1206, 1296], [1324, 1500], [2046, 2196]];
+    for (let x = 12; x < 2790; x += 20 + r.int(0, 14)) {
+      if (skip.some(([a, b]) => x > a && x < b)) continue;
+      const yb = back(x) + 5, h = hash2(x, 7, 3);
+      const zone = (x < 600 || (x > 1110 && x < 1530)) ? 0 : (x >= 1530 && x < 1840) ? 2 : 1;
+      if (zone === 0) { if (h < 0.4) S.halite(pb, x, yb, 1 + (x % 2), x); else if (h < 0.78) S.saltScrub(pb, x, yb, 9 + (x % 7), x); else S.boulder(pb, x, yb, 9 + (x % 6), 5 + (x % 4), LV3_ROCK, x, { speck: '#f2e4ea' }); }
+      else if (zone === 1) { if (h < 0.45) S.boulder(pb, x, yb, 8 + (x % 10), 5 + (x % 6), LV3_ROCK, x, { speck: h < 0.2 ? '#a8c070' : null }); else if (h < 0.75) S.saltScrub(pb, x, yb, 10 + (x % 6), x); else So.dryBush(pb, x, yb - 1, 14, 9, x); if (hash2(x, 9, 4) < 0.3) S.boulder(pb, x + 7, yb + 1, 5, 3, LV3_ROCK, x + 3); }
+      else if (x < 1556 || x > 1794) S.saltScrub(pb, x, yb, 12, x);
+    }
     LEVELS[3]._ms = Math.round(nowMs() - t0);
   },
   propsFront(pb, world) {
@@ -146,7 +156,18 @@ LEVELS[3] = {
     const jx = 1220 - ox, jy = gy(1220);
     if (S.crystals > 0) for (let i = 0; i < 10 * S.crystals; i++) { const cx = jx + 4 + (i * 13) % 60, cy = jy - 2 - ((i * 7) % 12); frect(g, cx, cy - 4, 2, 5, i % 2 ? '#c4fbff' : '#7ee8f0'); fpx(g, cx, cy - 5, '#ffffff'); }
     // nivel de la laguna de contingencia (lámina rosada que crece)
-    if (N.pond) { const [px, py, pw, ph] = N.pond, lv = clamp(S.pond || 0.22, 0, 1); g.globalAlpha = 0.85; for (let r = 0; r < ph; r++) frect(g, Math.round(px + r * 0.7 - ox), py + ph - 1 - r - oy, Math.round(pw * lv), 1, r % 3 ? '#c86aa8' : '#e5a0c8'); g.globalAlpha = 1; if (S.diverted) fpx(g, Math.round(px + pw * lv * ((t * 0.3) % 1) - ox), py + 4 - oy, '#ffffff'); }
+    if (N.pond) {
+      // lámina que sigue el contorno redondeado de la laguna; la fracción llena se lee en anchura (como antes)
+      const [px, py, pw, ph] = N.pond, lv = clamp(S.pond || 0.22, 0, 1), R = N.pondRows;
+      g.globalAlpha = 0.88;
+      for (let r = 0; r < ph; r++) {
+        const xa = R && R[r] ? R[r][0] : px + r * 0.7, xb = R && R[r] ? R[r][1] : px + r * 0.7 + pw, ww = Math.round((xb - xa) * lv);
+        if (ww <= 0) continue;
+        frect(g, Math.round(xa - ox), py + ph - 1 - r - oy, ww, 1, r === ph - 1 ? '#f0b8dc' : r % 3 ? '#b05aa0' : '#d68cc0');
+        fpx(g, Math.round(xa - ox + ww - 1), py + ph - 1 - r - oy, '#ffe0f2');
+      }
+      g.globalAlpha = 1; if (S.diverted) fpx(g, Math.round(px + pw * lv * ((t * 0.3) % 1) - ox), py + 4 - oy, '#ffffff');
+    }
     // flamencos en el humedal
     for (let i = 0; i < 4; i++) { const fx = 1596 + i * 50 + Math.sin(t * 0.3 + i) * 6; ART.flamingo(g, fx - ox, 300 - oy, t + i * 1.3, i % 2 ? 1 : -1); }
     // boyas de salinidad

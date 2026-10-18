@@ -51,7 +51,16 @@ BIOMES.pvdunes = function (L) {
   /* ---------------- mesetas violetas (0,05) ---------------- */
   const farT = [];
   P(0.05, 116, 58, (pb, w, h) => {
-    const m = V.mesas(pb, { yBase: h - 1, seed: 71, k: 0.32, hMin: 12, hMax: 40 });
+    // r2-biomes-a: mesetas esculpidas en relieve (techo iluminado, paredes escalonadas con estratos, talud),
+    // arenisca cálida con velo lila de distancia (antes: bloques violetas planos)
+    const r0 = RNG(71), list = [];
+    for (let x = -30; x < w + 60;) { const ww = r0.int(40, 110); if (r0.chance(0.2)) { x += r0.int(30, 80); continue; } list.push({ x: x + ww / 2, v: r0.int(8, 16), w: ww / 2, d: r0.int(6, 12), h: r0.int(14, 40), step: r0.int(5, 8), p: 3.2, wall0: r0.range(0.66, 0.8) }); x += ww + r0.int(10, 60); }
+    const m = V.r2baRelief(pb, {
+      yBase: h - 1, nv: 30, dvy: 0.3, seed: 71, hMax: 40, H: V.r2baMesaH(list, { seed: 71, gully: 0.12 }),
+      ramp: ['#3a1a2a', '#56243a', '#783444', '#9a4a48', '#b8644c', '#d08454', '#e2a466', '#eec282', '#f6dca4'], contrast: 2, t0: 0.5, facet: 0.3, flatK: 0.14,
+      strata: { L: [3, 7], hard: 0.04, soft: 0.05, lip: 0.12, under: 0.1, warp: 3 }, shadeHue: '#3a2a6a', shadeK: 0.3,
+      haze: { col: '#b8a8cc', k0: 0.36, k: 0.08 }, mist: { col: '#e8d8d8', h: 10, k: 0.55 }, rim: '#fff0d0', rimK: 0.5, tex: 0.03,
+    });
     V.mirage(pb, h - 6, 6, { col: '#e0ecf8', a: 0.5 });
     for (const x of [560, 600, 640, 700]) { if (x >= w) continue; const y = m.top[x]; if (y >= h - 4) continue; const hub = V.turbineTower(pb, x, y, 14, { k: 0.45, w: 1 }); farT.push({ x: hub.hx, y: hub.hy, R: 6, k: 0.45, sp: 2.6, ph: x }); }
   }, { tag: 'far', dyn: (g, cam, Ly) => drawTurbines(g, cam, Ly, farT) });
@@ -101,6 +110,17 @@ BIOMES.pvdunes = function (L) {
       V.drawHeat(g, 0, oy + 6, W, 26, t, { n: 30, a: 0.3 });
     },
   });
+  /* ---------------- colinas con terrazas FV en ladera (0,2): la densidad de la referencia ---------------- */
+  const terFx = { glints: [], leds: [] };
+  P(0.2, 96, 92, (pb, w, h) => {
+    const k = 0.08, r = RNG(141);
+    for (let x = 30 + r.int(0, 60); x < w - 120; x += r.int(380, 560)) {
+      const ww = r.int(220, 320), T = V.r2baPVTerraces(pb, { x0: x, x1: Math.min(w - 20, x + ww), yBase: h - 2, steps: r.int(4, 6), stepH: r.int(8, 10), depth: 4, runL: r.int(16, 26), runR: r.int(4, 10), seed: 143 + x, k });
+      terFx.glints.push(...T.glints);
+      // caseta de inversores y poste en la cima de cada colina
+      const cx = x + ww - 60, cy = T.top(cx) + 2; if (cy < h - 10) { const inv = V.inverter(pb, cx, cy + 6, { k, s: 0.7 }); terFx.leds.push([inv.led[0], inv.led[1], '#3fe0a0', 1.1]); }
+    }
+  }, { tag: 'terraces', dyn: (g, cam, Ly) => { const [ox, oy] = B.vofs(Ly, cam), t = T(); V.drawGlints(g, terFx.glints, ox, oy, t); V.drawLeds(g, terFx.leds, ox, oy, t); } });
   /* ---------------- dunas medias con seguidores FV (0,28) ---------------- */
   const midFx = { S: null, glints: [], leds: [], fauna: [], pipe: [] };
   P(0.28, 176, 112, (pb, w, h) => {
