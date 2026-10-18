@@ -38897,6 +38897,8 @@ const R2BB_FLOOR = ['#140f0c', '#221a15', '#33281f', '#463829', '#5a4a37', '#6e5
 const R2BB_LEAF = ['#0a1a0c', '#13301a', '#1f4a22', '#2f6626', '#46842c', '#68a43a', '#94c64c', '#c8e470'];
 const R2BB_TERRA = ['#2a1008', '#4a1e10', '#6e3018', '#94461f', '#b85e28', '#d67e3c', '#eca262'];
 
+/** Suma de luz (u32 ABGR): luz de sodio aditiva, no barro de mezcla */
+function R2BB_addU(u, ar, ag, ab) { const r = Math.min(255, (u & 255) + ar), g = Math.min(255, ((u >>> 8) & 255) + ag), b = Math.min(255, ((u >>> 16) & 255) + ab); return ((u & 0xff000000) | (Math.round(b) << 16) | (Math.round(g) << 8) | Math.round(r)) >>> 0; }
 /** Potos colgante: tallo que ondula hacia abajo con hojas acorazonadas alternas (2–3 px) */
 function R2BB_vine(pb, x, y, len, seed, o = {}) {
   const K = PFK, r = RNG(seed), L = K.P32(o.ramp || R2BB_LEAF), sway = o.sway ?? 2.2;
@@ -38997,7 +38999,7 @@ function R2BB_L2gallery(pb, flows) {
       for (let xx = Math.floor(x - half); xx <= x + half; xx++) {
         const u = K.get(pb, xx, yy); if (!(u >>> 24)) continue;
         const e = Math.abs(xx - x) / half, f = (1 - e) * clamp(1 - dy / 90, 0, 1) + (hash2((xx / 3) | 0, (yy / 2) | 0, 71) - 0.5) * 0.12;
-        const k = f > 0.55 ? 0.46 : f > 0.3 ? 0.3 : f > 0.12 ? 0.15 : 0; if (k) K.put(pb, xx, yy, K.mixU(u, U('#ffb45a'), k));
+        const k = f > 0.55 ? 0.42 : f > 0.3 ? 0.26 : f > 0.12 ? 0.13 : 0; if (k) K.put(pb, xx, yy, R2BB_addU(u, 255 * k, 176 * k, 84 * k));
       }
     }
   }
