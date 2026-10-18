@@ -52,12 +52,14 @@ LEVELS[4] = {
     ],
     /** Primer plano oscuro del desierto: chumberas y matas secas en el borde inferior */
     fg: [
-      { kind: 'aDesert', x: -20, w: 150, h: 84, seed: 1, side: -1 },
-      { kind: 'aDesert', x: 640, w: 130, h: 70, seed: 2, side: 1 },
-      { kind: 'aDesert', x: 1330, w: 150, h: 86, seed: 3, side: -1 },
-      { kind: 'aDesert', x: 2080, w: 140, h: 78, seed: 4, side: 1 },
-      { kind: 'aDesert', x: 2780, w: 160, h: 90, seed: 5, side: -1 },
-      { kind: 'aDesert', x: 3360, w: 150, h: 84, seed: 6, side: 1 },
+      // r3-desert: f = 1,3; en las posiciones de juego cada pieza cae en un borde del encuadre (1,3·cámara − 75 / + 560)
+      { kind: 'aDesert', x: -40, w: 150, h: 94, seed: 1, side: -1 },
+      { kind: 'aDesert', x: 520, w: 130, h: 90, seed: 2, side: 1 },
+      { kind: 'aDesert', x: 1119, w: 130, h: 92, seed: 7, side: 1 },
+      { kind: 'aDesert', x: 1300, w: 150, h: 94, seed: 3, side: -1 },
+      { kind: 'aDesert', x: 1905, w: 140, h: 92, seed: 4, side: 1 },
+      { kind: 'aDesert', x: 2600, w: 150, h: 94, seed: 5, side: -1 },
+      { kind: 'aDesert', x: 3199, w: 150, h: 92, seed: 6, side: 1 },
     ],
     decorateFace(pb, world) { LEVELS[4].r3face(pb, world); },
     fauna: { eagle: { x0: 300, x1: 2500, y: 70 }, drones: [{ x: 760, y: 150, r: 60 }, { x: 2040, y: 130, r: 40 }] },
@@ -122,6 +124,7 @@ LEVELS[4] = {
     for (let k = 0; k < 4; k++) I.box3q(pb, 1276 + k * 2, 230 - k * 4, 34, 4, 6, { ramp: ['#0c1838', '#1b3366', '#335a98', '#6e98d0', '#d2d6dc'], skew: 0.7 });
     const invs = [S.inverter(pb, 1196, 280, { label: 'INV-1', style: 'central', wear: 0.6 }), S.inverter(pb, 1232, 280, { label: 'INV-2', style: 'tall', brand: '#1a9a6a', wear: 0.3 }), S.inverter(pb, 1282, 280, { w: 20, h: 28, tint: 'sand', wear: 0.8 }), S.inverter(pb, 1306, 280, { w: 20, h: 28, hot: true, wear: 0.5 }), S.inverter(pb, 1342, 280, { label: 'INV-3', style: 'central', w: 28, brand: '#c8861a', wear: 0.2 }), S.inverter(pb, 1376, 280, { label: 'INV-4', style: 'tall', tint: 'white', wear: 0.5 })];
     for (const v of invs) { N.screens.push([...v.screen, '#3fe0a0']); N.leds.push({ x: v.led[0], y: v.led[1], col: '#3fe0a0', hz: 1, ph: v.led[0] * 0.1 }); }
+    N.fans = invs.map(v => v.fan).filter(Boolean);
     N.hot = invs[3].vent;
     // banco de trabajo y herramientas, módulo de repuesto apoyado, extintor
     I.box3q(pb, 1408, 280, 14, 30, 6, { ramp: A.WOOD }); P.toolbox(pb, 1410, 248, '#bc2430');
@@ -137,7 +140,7 @@ LEVELS[4] = {
     { const r3 = RNG(4472); for (let x = 1524; x < 1936; x += 10 + r3.int(0, 9)) { const y = Math.round(back(x) + 4 + r3.int(0, 8)), k = r3(); if (k < 0.45) F.tuft(pb, x, y, 7, 7 + r3.int(0, 3), x, RAMP.grassR, { wind: 1 }); else if (k < 0.7) S.tabaiba(pb, x, y, 0.5 + r3() * 0.25, x); else if (k < 0.8) S.cardon(pb, x, y, 16 + r3.int(0, 8), x); } }
     N.trackers = [];
     for (const [x, y] of [[1610, 236], [1720, 214], [1830, 230]]) {
-      for (let k = 0; k < 2; k++) { const tx = x - 6 + k * 46, tb = Math.round(back(tx + 20) + 8); N.trackers.push(S.tracker(pb, tx, tb, 42, { ang: 0.1, h: tb - (y - 40), seed: tx })); }
+      for (let k = 0; k < 2; k++) { const tx = x - 6 + k * 46, tb = Math.round(back(tx + 20) + 8); N.trackers.push(S.tracker(pb, tx, tb, 42, { ang: 0.1, h: tb - (y - 40), seed: tx, dyn: true })); }
       P.landing(pb, x, y, 84, Math.round(gy(x + 42)) - 2, { d: 6, railH: 16 });
     }
     S.sandFence(pb, 1530, 1600, (x) => back(x) + 6, { seed: 21 });
@@ -257,7 +260,7 @@ LEVELS[4] = {
     add(0, () => { for (let x = 366; x < 1150; x += 44) { const A = at(x); if (A.fan > 3) continue; const y = A.top + 4; for (let k = 0; k < 6; k++) { put4(pb, x, y - k, k < 2 ? '#f0bc2c' : '#e8e4dc'); put4(pb, x + 1, y - k, k < 2 ? '#a87a10' : '#9a968e'); } put4(pb, x, y - 6, '#e2404a'); } });
     for (const s of PV_STRINGS) {
       const xa = s.x + 64, A = at(xa + 8);
-      add(A.top + 2, () => { FA.trays.push(S.cableTray(pb, [[xa, gy(xa) + 3], [xa + 4, Math.round((gy(xa) + A.e1) / 2)], [xa + 8, A.top + 3], [xa + 40, A.top + 3]])); });
+      add(A.top + 2, () => { const tr = S.cableTray(pb, [[xa, gy(xa) + 3], [xa + 4, Math.round((gy(xa) + A.e1) / 2)], [xa + 8, A.top + 3], [xa + 40, A.top + 3]]); tr.sid = s.id; FA.trays.push(tr); });
     }
     add(2, () => { for (const [x0, x1] of [[648, 778], [990, 1060]]) { const A = at((x0 + x1) / 2); FA.pits.push(S.trenchPit(pb, x0, x1, A.top + 7, 12)); } });
     // carril del robot de limpieza a lo largo del borde inferior de los módulos (tras las mesas)
@@ -309,7 +312,7 @@ LEVELS[4] = {
       const yb = qy(x + 30, 0.62);
       add(yb, () => { const k = S.invSkid(pb, x, yb, { label: lab }); FA.skids.push(k); FA.fans.push(k.fan); FA.leds.push({ x: k.led[0], y: k.led[1], col: '#3fe0a0', hz: 1.3, ph: x }); FA.ins.push(k.hv); });
       // bandeja desde la fila de seguidores hasta la entrada CC del skid
-      const A = at(tx); add(A.top, () => FA.trays.push(S.cableTray(pb, [[tx, gy(tx) + 3], [tx + 3, A.e1 - 2], [tx + 6, A.top + 4], [x - 2, yb - 10]])));
+      const A = at(tx); add(A.top, () => { const tr = S.cableTray(pb, [[tx, gy(tx) + 3], [tx + 3, A.e1 - 2], [tx + 6, A.top + 4], [x - 2, yb - 10]]); tr.sid = 'trk'; FA.trays.push(tr); });
     }
     { const y = qy(1690, 0.85); add(y, () => S.cableDrum(pb, 1690, y, 9)); }
     flora(1520, 1920, 0.05, 0.98, 14, { tab: 5, card: 2, grass: 1, agave: 1, aloe: 1 }, 141, (x, y) => (x > 1556 && x < 1640 && y < qy(x, 0.75) && y > qy(x, 0.15)) || (x > 1734 && x < 1818 && y < qy(x, 0.75) && y > qy(x, 0.15)));
@@ -329,9 +332,27 @@ LEVELS[4] = {
     add(qy(2300, 0.2), () => S.dryWall(pb, [[2304, qy(2304, 0.1)], [2330, qy(2330, 0.6)], [2310, qy(2310, 0.97)]], 19));
     { const y = qy(2622, 0.9); add(y, () => { I.cylV(pb, 2622, y, 8, 22, { ramp: ['#063a52', '#0a5a7a', '#0e7ea6', '#16a6cc', '#3ac8e6', '#8ae6f6', '#e0fbff'] }); S.r3Shadow(pb, 2628, y, 9, 3); for (let k = 0; k < 24; k++) put4(pb, 2631 + k, y - 3, '#1e7a8a'); }); }
     flora(2300, 2800, 0.05, 0.98, 14, { tab: 5, card: 3, grass: 2, agave: 2, opu: 1, green: 2 }, 161, (x, y) => (x > 2336 && x < 2564 && y < qy(x, 0.62)) || (x > 2644 && x < 2768 && y > qy(x, 0.2) && y < qy(x, 0.66)));
+    /* ===== r3-desert · línea de CA enterrada: galería → skids → patio de subestación (cinta naranja, hitos) ===== */
+    const acPath = [];
+    { const g0 = gy(1300), yv = g0 + 12 + 23;
+      for (let x = 1397; x < 1528; x++) acPath.push([x, yv, 1]);                                       // conducto adosado al zócalo
+      const q0 = clamp((yv - at(1528).top) / Math.max(1, at(1528).e2 - at(1528).top), 0.12, 0.3);
+      let py = yv;
+      for (let x = 1528; x < 1936; x++) { const ty = qy(x, q0 + (x > 1880 ? (x - 1880) / 56 * 0.42 : 0)); while (Math.abs(ty - py) > 1) { py += Math.sign(ty - py); acPath.push([x, py, 0]); } py = ty; acPath.push([x, py, 0]); }
+      add(1.5, () => {
+        const St = K.P32(PFInfra.STEEL);
+        for (const [x, y, c] of acPath) {
+          if (c) { K.put(pb, x, y - 2, St[6]); K.put(pb, x, y - 1, St[4]); K.put(pb, x, y, U((x >> 2) & 1 ? '#c8562a' : '#e8805a')); K.put(pb, x, y + 1, St[2]); K.put(pb, x, y + 2, U('#2a1c14')); if (x % 14 === 0) for (let k = -2; k < 3; k++) K.put(pb, x, y + k, St[1]); }
+          else { K.put(pb, x, y - 1, U('#5a3418')); K.put(pb, x, y, U(((x >> 2) & 1) ? '#f08a3a' : '#c8562a')); K.put(pb, x, y + 1, U('#3a2010')); }
+        }
+        for (let i = 40; i < acPath.length; i += 52) { const [x, y, c] = acPath[i]; if (c) continue; for (let k = 1; k < 7; k++) { K.put(pb, x, y - k, U(k > 4 ? '#f08a3a' : '#e8e4dc')); K.put(pb, x + 1, y - k, U(k > 4 ? '#9a4614' : '#9a968e')); } }
+      });
+    }
     // orden por profundidad (lo más lejano primero)
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.fn();
+    // tramos de la línea de CA que quedan a la vista (los skids y las matas la tapan): máscara para los pulsos
+    { const cab = new Set(['#c8562a', '#e8805a', '#f08a3a'].map(h => U(h) >>> 0)); FA.ac = acPath.map(([x, y]) => [x, y, cab.has(K.get(pb, x, y) >>> 0) ? 1 : 0]); }
     /* ===== corte frontal: zanjas en sección, tubería de riego, raíces y nidos ===== */
     for (let x = 380; x < 1150; x += 92) { const A = at(x + 30); FA.cores.push(...S.trenchSection(pb, x + 30, A.e2 + 14, 18, 14)); }
     for (const x of [1594, 1772, 2040]) { const A = at(x); FA.cores.push(...S.trenchSection(pb, x, A.e2 + 16, 26, 16)); }
@@ -347,6 +368,7 @@ LEVELS[4] = {
       for (let x = -((t * 6 + r * 7) % 16); x < W; x += 16) frect(g, Math.round(x + Math.sin(t * 2.6 + x * 0.09 + r) * 2), hz - 4 + r * 5 + Math.round(Math.sin(t * 3.1 + x * 0.05) * 1), 9, 1, r ? '#fff4d8' : '#ffffff');
     }
     g.globalAlpha = 1;
+    R3DESERT_sky(g, sc, cam);
   },
   /** Capas dinámicas de cada string (polvo, costras y lona) según el estado actual */
   overlay(s, st) {
@@ -411,9 +433,12 @@ LEVELS[4] = {
     // aeromotor: rotor multipala girando con el viento
     if (N.pump) { const [hx, hy] = N.pump.hub, sx = hx - ox; if (sx > -30 && sx < W + 30) { const a0 = t * 2.2; for (let k = 0; k < 12; k++) { const aa = a0 + k * TAU / 12; for (let q = 3; q < 14; q++) fpx(g, Math.round(sx + Math.cos(aa) * q * 0.45), Math.round(hy - oy + Math.sin(aa) * q), q > 11 ? '#c8562a' : '#d2d6dc'); } frect(g, sx - 1, hy - oy - 1, 3, 3, '#4c5260'); } }
     this.ambient(g, sc, cam);
+    R3DESERT_mid(g, sc, cam, this);
     // manga de viento ondeando hacia el este
     if (N.sock) { const [sx0, sy0] = N.sock; for (let i = 0; i < 16; i++) { const wv = Math.round(Math.sin(t * 7 - i * 0.6) * (i / 16) * 2); frect(g, sx0 + i - ox, sy0 + 1 + Math.round(i * 0.25) + wv - oy, 1, 6 - Math.round(i / 5), (Math.floor(i / 4) % 2) ? '#ffffff' : '#ff6a2a'); } }
   },
+  /** r3-desert: capa animada del diorama inferior (tras el terreno): CC amarilla, CA naranja, ventiladores, canal, robot, gramíneas */
+  renderFront(g, sc, cam) { R3DESERT_front(g, sc, cam, this); },
   /** Ambiente del desierto: reverbero sobre el horizonte, arena que corre con el viento por las dunas y lagartijas */
   ambient(g, sc, cam) {
     const t = Game.time, ox = cam.x, oy = cam.y, w = sc.world;
@@ -779,3 +804,159 @@ const Sim04 = makeSim({
     });
   },
 });
+
+/* =====================================================================
+   r3-desert · animación y ciencia visual del N4 (≥ 8 sistemas simultáneos)
+   R3DESERT_chev(g, pts, ox, oy, t, speed, gap, col, core, vis) — chevrones por una polilínea de píxeles
+   R3DESERT_sky  — bandada de pardelas (tras los accesorios)
+   R3DESERT_mid  — seguidores que giran con el sol, reverbero sobre los módulos, remolino de polvo,
+                   CC amarilla por la canaleta del taller hacia INV-1..4, CA naranja por la bandeja, ventiladores,
+                   pulsos de CA por la línea aérea al transformador
+   R3DESERT_front — capa del diorama: CC por las bandejas de cada string (atenuada por la sombra de nube),
+                   CC/CA en la galería, CA enterrada hasta la subestación, ventiladores de skids, canal, robot,
+                   gramíneas al viento, LED, aisladores y faroles
+   ===================================================================== */
+function R3DESERT_chev(g, pts, ox, oy, t, speed, gap, col, core, vis) {
+  const n = pts.length; if (n < 3) return;
+  const x0 = pts[0][0] - ox, x1 = pts[n - 1][0] - ox; if (Math.max(x0, x1) < -6 || Math.min(x0, x1) > W + 6) return;
+  const ph = ((t * speed) % gap + gap) % gap;
+  for (let s = ph; s < n - 1; s += gap) {
+    const i = s | 0, p = pts[i]; if (vis && !p[2]) continue;
+    const sx = p[0] - ox, sy = p[1] - oy; if (sx < -3 || sx > W + 3 || sy < -3 || sy > H + 3) continue;
+    const a = pts[Math.max(0, i - 2)], b = pts[Math.min(n - 1, i + 2)], dx = b[0] - a[0], dy = b[1] - a[1];
+    g.fillStyle = col;
+    if (Math.abs(dx) >= Math.abs(dy)) { const d = Math.sign(dx) || 1; g.fillRect(sx - d, sy - 1, 1, 1); g.fillRect(sx - d, sy + 1, 1, 1); g.fillStyle = core; g.fillRect(sx, sy, 1, 1); }
+    else { const d = Math.sign(dy) || 1; g.fillRect(sx - 1, sy - d, 1, 1); g.fillRect(sx + 1, sy - d, 1, 1); g.fillStyle = core; g.fillRect(sx, sy, 1, 1); }
+  }
+}
+/** Píxeles de una polilínea [[x,y]…] → [[x,y,1]…] */
+function R3DESERT_line(pts) { const out = []; for (let i = 0; i < pts.length - 1; i++) { const [xa, ya] = pts[i], [xb, yb] = pts[i + 1], n = Math.max(1, Math.abs(xb - xa), Math.abs(yb - ya)); for (let q = 0; q < n; q++) out.push([Math.round(xa + (xb - xa) * q / n), Math.round(ya + (yb - ya) * q / n), 1]); } return out; }
+/** Ventilador girando (aspas de 1 px; flat < 1 aplana la vista cenital en 3/4) */
+function R3DESERT_fan(g, x, y, r, t, col, flat = 1) {
+  g.fillStyle = col;
+  for (let k = 0; k < 3; k++) { const a = t * 14 + k * TAU / 3; for (let q = 1; q <= r - 1; q++) g.fillRect(Math.round(x + Math.cos(a) * q), Math.round(y + Math.sin(a) * q * flat), 1, 1); }
+}
+/** Calima de calor real: desplaza filas de 1 px (±1) de lo ya pintado entre y0 e y1 (copia del propio lienzo, sin tramado) */
+function R3DESERT_haze(g, x0, x1, y0, y1, t, k = 1) {
+  x0 = Math.max(0, Math.round(x0)); x1 = Math.min(W, Math.round(x1)); if (x1 - x0 < 4 || !g.canvas) return;
+  for (let y = Math.max(0, Math.round(y0)); y < Math.min(H, Math.round(y1)); y++) {
+    const e = Math.sin(((y - y0) / Math.max(1, y1 - y0)) * Math.PI), off = Math.round(Math.sin(t * 5.3 + y * 0.83) * Math.sin(t * 1.7 + y * 0.21) * 1.6 * e * k);
+    if (off) g.drawImage(g.canvas, x0, y, x1 - x0, 1, x0 + off, y, x1 - x0, 1);
+  }
+}
+function R3DESERT_sky(g, sc, cam) {
+  const t = Game.time;
+  // calima del horizonte: las filas lejanas de módulos y las mesas tiemblan con el calor
+  { const hz = (sc.backdrop.horizon || 170) - Math.round(cam.y * 0.08); R3DESERT_haze(g, 0, W, hz - 16, hz + 8, t, 1); }
+  // bandada de 5 pardelas cruzando hacia el oeste (V abierta), aleteo alterno
+  const span = W + 240, cx = W + 120 - ((t * 16) % span), cy = 92 + Math.sin(t * 0.4) * 8 - cam.y * 0.1;
+  g.fillStyle = '#3a2c4a';
+  for (let i = 0; i < 5; i++) {
+    const bx = Math.round(cx + Math.abs(i - 2) * 9 + (i === 2 ? -4 : 0)), by = Math.round(cy + (i - 2) * 4 + Math.sin(t * 2 + i) * 1.5), up = Math.floor(t * 7 + i * 1.3) % 2;
+    g.fillRect(bx, by, 1, 1); g.fillRect(bx - 2, by - up, 2, 1); g.fillRect(bx + 1, by - up, 2, 1); if (!up) { g.fillRect(bx - 3, by + 1, 1, 1); g.fillRect(bx + 3, by + 1, 1, 1); }
+  }
+}
+function R3DESERT_mid(g, sc, cam, def) {
+  const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, w = sc.world, N = LV4_ANCH;
+  const P = def.fieldPower(S, sc), pk = clamp(P / 820, 0.15, 1);
+  // 1 · seguidores: la franja de módulos gira siguiendo al sol (7 ángulos precalculados), todos a la vez
+  if (N.trackers) {
+    const ang = Math.sin(t * 0.22) * 0.5, fi = clamp(Math.round((ang + 0.5) * 6), 0, 6);
+    for (const T of N.trackers) {
+      const p = T.panel; if (!p || p.x - ox > W + 20 || p.x + p.w + 20 - ox < 0) continue;
+      if (!p.frames) p.frames = PFASolar.trackerFrames(p.w, p.seed);
+      const f = p.frames[fi]; g.drawImage(f.c, p.x - ox, p.ty + f.oy - oy);
+      if (Math.abs(Math.cos(t * 0.22)) > 0.2 && Math.floor(t * 4 + p.x) % 2) fpx(g, T.hub[0] - ox, T.hub[1] + 6 - oy, '#ffe14d');
+    }
+  }
+  // 2 · reverbero sobre los módulos: el aire caliente tiembla sobre cada mesa (filas desplazadas) y suben trazos claros
+  for (const s of PV_STRINGS) {
+    const tabs = N.strings[s.id]; if (!tabs || s.x + 90 - ox < 0 || s.x - 90 - ox > W) continue;
+    const q0 = tabs[0].quad, q1 = tabs[tabs.length - 1].quad, top = Math.min(q0[2][1], q0[3][1]) - oy;
+    R3DESERT_haze(g, q0[3][0] - ox, q1[2][0] - ox, top - 14, top + 5, t + s.x * 0.01, 1 - (s.cloud || 0));
+  }
+  g.fillStyle = '#fff8e0';
+  for (const s of PV_STRINGS) {
+    const tabs = N.strings[s.id]; if (!tabs || s.x + 90 - ox < 0 || s.x - 90 - ox > W) continue;
+    for (const T of tabs) {
+      const q = T.quad, top = Math.min(q[2][1], q[3][1]), lx = q[3][0], tw = q[2][0] - q[3][0];
+      for (let i = 0; i < 4; i++) {
+        const ph = (t * 0.55 + i / 4 + T.x * 0.013) % 1, yy = Math.round(top - 2 - ph * 16 - oy), xx = Math.round(lx + ((i * 17 + T.x) % Math.max(8, tw - 10)) + Math.sin(t * 4 + i * 2 + ph * 6) * 2 - ox);
+        g.globalAlpha = 0.28 * (1 - ph) * (1 - (s.cloud || 0)); g.fillRect(xx, yy, 6 + (i % 2) * 3, 1);
+      }
+    }
+  }
+  g.globalAlpha = 1;
+  // 3 · remolino de polvo (ida y vuelta por la duna al este del taller)
+  { const span = 140, u = (t * 9) % (2 * span), X = 1532 + (u < span ? u : 2 * span - u), sx = X - ox;
+    if (sx > -30 && sx < W + 30) {
+      const base = w.groundAt(X) - 2 - oy, sway = (hh) => Math.sin(t * 1.3 + hh * 0.07) * 3 + hh * 0.06;
+      for (let i = 0; i < 46; i++) {
+        const hh = (i / 46) * 50, r = 2 + hh * 0.2, a = t * 9 + i * 2.39, cx = sx + sway(hh), front = Math.sin(a) > 0;
+        g.globalAlpha = (front ? 0.62 : 0.34) * (1 - hh / 62); g.fillStyle = front ? (i % 3 ? '#f0d4a0' : '#fff0c8') : '#c8965a';
+        g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(base - hh + Math.sin(a) * r * 0.25), i % 4 ? 1 : 2, 1);
+      }
+      g.globalAlpha = 0.4; g.fillStyle = '#e8c890';
+      for (let i = 0; i < 9; i++) { const a = t * 3 + i * 0.7; g.fillRect(Math.round(sx - 9 + ((i * 7 + t * 20) % 18)), Math.round(base - Math.abs(Math.sin(a)) * 3), 2, 1); }
+      g.globalAlpha = 1;
+    }
+  }
+  // 4 · taller: CC amarilla por la canaleta del suelo hacia INV-1..4 y CA naranja por la bandeja del muro
+  if (1100 - ox < W && 1480 - ox > 0) {
+    if (!N._dc) { N._dc = R3DESERT_line([[1160, 269], [1398, 269]]); N._ac = R3DESERT_line([[1196, 223], [1426, 223], [1466, 223]]); }
+    R3DESERT_chev(g, N._dc, ox, oy, t, 22 * pk, 11, '#c89a1a', '#ffe14d');
+    R3DESERT_chev(g, N._ac, ox, oy, t, 18 * pk, 13, '#b8441a', '#ff9a3a');
+    if (N.fans) for (const f of N.fans) { const fx = f[0] - ox; if (fx < -8 || fx > W + 8) continue; R3DESERT_fan(g, fx, f[1] - oy, f[2], t * (f[3] ? 0.6 : 1), f[3] ? '#2a2a30' : '#d4dce6', f[3] ? 0.45 : 1); }
+  }
+  // 5 · línea aérea del transformador a la red: pulsos de CA
+  if (2100 - ox < W && 2170 - ox > 0) {
+    if (!N._ovl) { N._ovl = []; for (let x = 2120; x < 2168; x++) N._ovl.push([x, Math.round(lerp(208, 126, (x - 2120) / 48) + Math.sin((x - 2120) / 48 * Math.PI) * 6), 1]); }
+    R3DESERT_chev(g, N._ovl, ox, oy, t, 20 * pk, 12, '#b8441a', '#ffb060');
+  }
+}
+function R3DESERT_front(g, sc, cam, def) {
+  const FA = LV4_ANCH.face; if (!FA) return;
+  const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y;
+  const P = def.fieldPower(S, sc), pk = clamp(P / 820, 0.15, 1), cur = {};
+  for (const s of PV_STRINGS) cur[s.id] = def.stringCurrent(s, S);
+  // 1 · CC: chevrones amarillos por las bandejas de cada string (más lentos y apagados bajo la sombra de una nube)
+  for (const tr of FA.trays) { const I = tr.sid && cur[tr.sid] != null ? cur[tr.sid] : pk, dim = I < 0.6; R3DESERT_chev(g, tr, ox, oy, t, 6 + 18 * I, 10, dim ? '#7a6418' : '#c89a1a', dim ? '#b89a30' : '#ffe14d'); }
+  // 2 · galería: CC por las dos bandejas y CA por la tercera; CA enterrada hasta la subestación
+  if (FA.vault) {
+    const V = FA.vault;
+    if (!V._l) V._l = { dc1: R3DESERT_line([[V.x0 + 3, V.y0 + 9], [V.x1 - 4, V.y0 + 9]]), dc2: R3DESERT_line([[V.x0 + 3, V.y0 + 16], [V.x1 - 4, V.y0 + 16]]), ac: R3DESERT_line([[V.x1 - 46, V.y0 + 23], [V.x1 - 3, V.y0 + 23]]) };
+    R3DESERT_chev(g, V._l.dc1, ox, oy, t, 20 * pk, 12, '#c89a1a', '#ffe14d');
+    R3DESERT_chev(g, V._l.dc2, ox, oy, t, 20 * pk, 12, '#c89a1a', '#ffe14d');
+    R3DESERT_chev(g, V._l.ac, ox, oy, t, 16 * pk, 12, '#b8441a', '#ff9a3a');
+    const lx = V.lamp[0] - ox; if (lx > -20 && lx < W + 20) PFK.drawGlow(g, lx, V.lamp[1] + 2 - oy, 10, '#fff0c8', 0.22 + 0.04 * Math.sin(t * 9) * Math.sin(t * 2.3));
+  }
+  if (FA.ac) R3DESERT_chev(g, FA.ac, ox, oy, t, 16 * pk, 14, '#b8441a', '#ff9a3a', true);
+  // 3 · ventiladores de los skids, LED, aisladores, faroles
+  for (const f of FA.fans) { const fx = f[0] - ox; if (fx < -8 || fx > W + 8) continue; R3DESERT_fan(g, fx, f[1] - oy, 4, t * 0.8, '#2a2a30', 0.45); }
+  PFInfra.drawLeds(g, sc, FA.leds);
+  for (const [x, y] of FA.ins) if ((Math.floor(t * 2.5 + x * 0.37) % 6) === 0) PFK.drawGlow(g, x - ox, y - oy, 4, '#a8e0ff', 0.5);
+  PFDyn.glows(g, cam, FA.lamps, '#ffd890', 12, 0.3);
+  // 4 · canal de riego: destellos que corren con el agua; aljibe y tuberías
+  g.fillStyle = '#d4fcfc';
+  for (const C of FA.canals) for (let k = 0; k < 40; k++) {
+    const x = C.x0 + ((t * 14 + k * 23.7) % (C.x1 - C.x0)), sx = Math.round(x - ox); if (sx < -4 || sx > W + 4) continue;
+    const y = Math.round(C.y(x) - oy); g.globalAlpha = 0.8; g.fillRect(sx, y - 1 + (k % 3), 2 + (k % 2), 1);
+  }
+  g.globalAlpha = 1;
+  for (const [x, y, ww, hh] of FA.water) { const k = (t * 16 + x) % Math.max(4, ww - 3), sx = Math.round(x + k - ox); if (sx < -4 || sx > W + 4) continue; g.globalAlpha = 0.75; frect(g, sx, Math.round(y + (hh > 2 ? hh / 2 : 0) - oy), 3, 1, '#ffffff'); g.globalAlpha = 1; }
+  // 5 · robot de limpieza recorriendo el carril bajo las mesas agrivoltaicas (cepillo turquesa y rocío)
+  for (const R of FA.rails) {
+    const segs = R.segs, tot = segs.reduce((a, s2) => a + (s2[1] - s2[0]), 0); if (!tot) continue;
+    let u = (t * 12) % tot, sg = segs[0]; for (const s2 of segs) { const L = s2[1] - s2[0]; if (u < L) { sg = s2; break; } u -= L; }
+    const rx = Math.round(sg[0] + u - ox), ry = sg[2] - oy; if (rx < -12 || rx > W + 12) continue;
+    frect(g, rx - 4, ry - 5, 9, 4, '#f0bc2c'); frect(g, rx - 4, ry - 5, 9, 1, '#fff2a8'); frect(g, rx - 4, ry - 2, 9, 1, '#a87414');
+    frect(g, rx + 5, ry - 4, 2, 3, Math.floor(t * 12) % 2 ? '#1aa894' : '#9cecdc'); fpx(g, rx - 1, ry - 6, Math.floor(t * 3) % 2 ? '#3fe0a0' : '#1c1c24');
+    g.globalAlpha = 0.7; for (let i = 0; i < 3; i++) fpx(g, rx + 7 + ((t * 20 + i * 3) % 5), ry - 5 - ((t * 9 + i * 2) % 4), '#bff6fb'); g.globalAlpha = 1;
+  }
+  // 6 · gramíneas al viento: espigas que cabecean
+  for (const [x, y, h, green] of FA.grass) {
+    const sx = x - ox; if (sx < -6 || sx > W + 6) continue;
+    const sw = Math.round(Math.sin(t * 2.4 + x * 0.19) * 1.5 + 1);
+    fpx(g, sx + sw + 1, y - h + 1 - oy, green ? '#c4e070' : '#f6e0a0'); fpx(g, sx + sw - 2, y - h + 3 - oy, green ? '#86b83a' : '#d8b870');
+  }
+}

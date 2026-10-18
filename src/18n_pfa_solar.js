@@ -107,20 +107,38 @@ const PFASolar = (() => {
     const mx = x + Math.round(w / 2);
     I.box3q(pb, mx - 6, ty + 10, 12, 9, 4, { ramp: ['#141a28', '#22304a', '#34507a', '#4a6ea0', '#7a9cc8'] });
     // franja de módulos: la inclinación ang desplaza el borde superior (vista en 3/4)
+    // r3-desert: con o.dyn la franja no se hornea (la dibuja el nivel con trackerFrames, girando con el sol)
+    if (!o.dyn) trackerStrip(pb, x, ty, w, ang, o.seed || 1);
+    // tubo de torsión asomando por los extremos
+    for (let k = 0; k < 3; k++) { put(pb, x - 2 + k, ty, Al[4]); put(pb, x - 2 + k, ty + 1, Al[1]); }
+    return { hub: [mx, ty + 4], panel: { x, ty, w, seed: o.seed || 1 } };
+  }
+  /** Franja de módulos del seguidor (inclinación ang ∈ [−0,5, 0,5]); reflejo del cielo arriba (r3-desert) */
+  function trackerStrip(pb, x, ty, w, ang, seed) {
+    const d = 16, Al = P32(ALU), C = P32(CELL);
     const lift = Math.round(d * (0.55 + ang * 0.5)), drop = Math.round(d * (0.45 - ang * 0.5));
     for (let r = -drop; r <= lift; r++) {
       const v = (r + drop) / (lift + drop), off = Math.round(v * 9), yy = ty - r;
       for (let xx = x + off; xx < x + w + off; xx++) {
         const lx = (xx - x - off) % 15;
-        let k = r === lift ? 8 : r === -drop ? 2 : lx < 1 ? 6 : 3 + Math.round(v * 2);
-        const gd = ((xx - x) / w * 1.3 + v * 0.8 + (o.seed || 1) * 0.21) % 1.5;
+        let k = r === lift ? 8 : r === -drop ? 2 : lx < 1 ? 6 : 3 + Math.round(v * 2) + (ang < -0.15 ? 1 : 0);
+        const gd = ((xx - x) / w * 1.3 + v * 0.8 + seed * 0.21 + ang * 0.6) % 1.5;
         if (gd > 0.7 && gd < 0.76) k += 3;
-        put(pb, xx, yy, r === lift ? Al[6] : r === -drop ? Al[2] : C[clamp(k, 0, 8)]);
+        let c = r === lift ? Al[6] : r === -drop ? Al[2] : C[clamp(k, 0, 8)];
+        if (r !== lift && r !== -drop && lx >= 1 && v > 0.62) c = K.mixU(c, U('#8ad8f4'), (v - 0.62) * 0.7);
+        put(pb, xx, yy, c);
       }
     }
-    // tubo de torsión asomando por los extremos
-    for (let k = 0; k < 3; k++) { put(pb, x - 2 + k, ty, Al[4]); put(pb, x - 2 + k, ty + 1, Al[1]); }
-    return { hub: [mx, ty + 4] };
+  }
+  /** r3-desert: fotogramas precalculados de la franja del seguidor ({c, ox, oy} relativos a (x, ty)) para n ángulos */
+  function trackerFrames(w, seed, n = 7) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const ang = -0.5 + i / (n - 1), pb = new PixelBuffer(w + 12, 30);
+      trackerStrip(pb, 0, 15, w, ang, seed);
+      out.push({ c: pb.toCanvas(), ox: 0, oy: -15, ang });
+    }
+    return out;
   }
 
   /* ---------- inversor de string / central ---------- */
@@ -169,7 +187,8 @@ const PFASolar = (() => {
     if (o.label) K.text(pb, o.label, x + 4, yb - h + 18, U('#2c3444'), { font: 'tiny' });
     if (st === 'tall') PL.sign(pb, x + w - 11, yb - h + 24, 'bolt'); else PL.sign(pb, x + 3, yb - 24, 'bolt');
     const sy = st === 'tall' ? yb - h + 26 : yb - h + 10;
-    return { screen: [x + 5, sy, st === 'tall' ? 7 : 10, st === 'tall' ? 3 : 5], led: [x + (st === 'central' ? 20 : 18), yb - h + 11], vent: [x + w + 2, yb - h] };
+    return { screen: [x + 5, sy, st === 'tall' ? 7 : 10, st === 'tall' ? 3 : 5], led: [x + (st === 'central' ? 20 : 18), yb - h + 11], vent: [x + w + 2, yb - h],
+      fan: st === 'tall' ? [Math.round(x + w / 2), yb - 10, 5] : st === 'central' ? [x + 12, yb - h - 3, 4, 1] : null };
   }
 
   /* ---------- taller de mantenimiento en corte (muros de estuco, cubierta con FV) ---------- */
@@ -230,10 +249,30 @@ const PFASolar = (() => {
 
   /* ---------- kiosco de despacho solar ---------- */
   function kiosk(pb, x, yb, w = 92, h = 96) {
-    const Wl = P32(A.WHITE), F = P32(PL.FRAME);
+    const Wl = P32(A.WHITE), F = P32(PL.FRAME), KS = P32(STUC), VIO = U('#4a2a6a');
     A.castShadow(pb, x + 6, yb, w, 16, -0.26);
+    // r3-desert: sombra arrojada abajo-derecha sobre el suelo (sol arriba-izquierda), granate-violeta sin tramado
+    for (let yy = yb - 14; yy < yb + 3; yy++) for (let xx = x + w + 4; xx < x + w + 34 - (yy - yb + 14) * 1.3; xx++) { const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, R3SHC, 0.4)); }
     I.box3q(pb, x - 4, yb, w + 8, 5, 12, { ramp: PFTerrain.CONC, skew: 0.6 });
-    I.box3q(pb, x, yb - 5, w, h - 5, 12, { ramp: A.WHITE, skew: 0.6, front: (xx, yy, u, v) => { const lx = xx - x, ly = yy - (yb - h); if (ly < 3) return Wl[7]; if (ly > h - 12) return Wl[3 + ((xx >> 2) & 1)]; if (lx < 2 || lx > w - 3) return Wl[4]; return Wl[6 - (PFK.cl(xx, yy, 3, 61) < 0.07 ? 1 : 0)]; } });
+    // r3-desert: estuco cálido (no blanco plano): degradado vertical, manchas de arena abajo, arista soleada #fbc371,
+    // lateral derecho en sombra violeta y banda de sombra de 4 px bajo la cornisa
+    I.box3q(pb, x, yb - 5, w, h - 5, 12, { ramp: A.WHITE, skew: 0.6,
+      side: (xx, yy, u, v) => K.mixU(KS[clamp(5 - Math.round(v * 1.6) + Math.round((PFK.cl(xx, yy, 3, 63) - 0.5) * 1.2), 1, 8)], VIO, 0.46),
+      top: (xx, yy, u, v) => KS[clamp(7 - Math.round(v * 2), 3, 8)],
+      front: (xx, yy, u, v) => { const lx = xx - x, ly = yy - (yb - h);
+        if (lx === 0) return U('#fbc371'); if (lx === 1) return Wl[7];
+        if (ly < 3) return Wl[7];
+        if (ly >= 3 && ly < 7) return K.mixU(Wl[5], VIO, 0.42 - (ly - 3) * 0.08);
+        if (ly > h - 12) return K.mixU(Wl[3 + ((xx >> 2) & 1)], U('#c8925a'), 0.35);
+        if (lx > w - 3) return K.mixU(Wl[4], VIO, 0.2);
+        const gr = ly / h, st = PFK.vn(xx * 0.09, yy * 0.05, 65);
+        let c = K.mixU(Wl[6], U('#f4dcbc'), 0.25 + gr * 0.35);
+        if (st > 0.72 && ly > h * 0.55) c = K.mixU(c, U('#d0a06a'), (st - 0.72) * 1.4);
+        if (PFK.cl(xx, yy, 3, 61) < 0.07) c = K.mixU(c, Wl[4], 0.5);
+        return c; } });
+    // rejilla de ventilación y cartel de seguridad en el lateral claro; zócalo con salpicaduras de arena
+    for (let k = 0; k < 6; k++) hline(pb, x + 4, x + 14, yb - 34 + k * 2, U(k % 2 ? '#a39aa4' : '#6c6476'));
+    PL.sign(pb, x + 4, yb - 46, 'bolt');
     // franja violeta de marca, pantalla grande y puerta de vidrio
     rect(pb, x, yb - h + 3, w, 4, U('#8d6bff')); hline(pb, x, x + w - 1, yb - h + 3, U('#c4b0ff'));
     const sx = x + 8, sy = yb - h + 14, sw = w - 34, sh = 34;
@@ -241,7 +280,9 @@ const PFASolar = (() => {
     const dx = x + w - 22;
     for (let yy = yb - 5 - 86; yy < yb - 5; yy++) for (let xx = dx; xx < dx + 18; xx++) put(pb, xx, yy, (xx === dx || xx === dx + 17 || yy === yb - 91) ? F[3] : K.mixU(U('#1c3a5a'), U('#6aa0c8'), (xx - dx) / 18 * 0.4 + ((yy - (yb - 91)) < 20 - (xx - dx) ? 0.3 : 0)));
     // toldo de lamas, módulos FV en cubierta y equipo de clima
-    for (let xx = x - 6; xx < x + w - 24; xx++) for (let k = 0; k < 5; k++) put(pb, xx + Math.round(k * 0.6), yb - h - 1 + k, ((xx >> 2) & 1) ? U('#c8562a') : U('#f0e0c8'));
+    for (let xx = x - 6; xx < x + w - 24; xx++) for (let k = 0; k < 5; k++) put(pb, xx + Math.round(k * 0.6), yb - h - 1 + k, k === 0 ? U('#fbc371') : ((xx >> 2) & 1) ? U(k === 4 ? '#8a3418' : '#c8562a') : U(k === 4 ? '#b8a088' : '#f0e0c8'));
+    // sombra del toldo sobre la fachada (banda de 3 px, violeta)
+    for (let k = 0; k < 3; k++) for (let xx = x - 3; xx < x + w - 20; xx++) { const yy = yb - h + 4 + k, c = get(pb, xx + Math.round(k * 0.6), yy); if (c >>> 24) put(pb, xx + Math.round(k * 0.6), yy, K.mixU(c, U('#24183e'), 0.4 - k * 0.1)); }
     pvTable(pb, x + 6, yb - h - 12, 44, { low: 2, ph: 12, sk: 6, piles: 2, seed: 7 });
     I.box3q(pb, x + w - 26, yb - h - 12, 18, 10, 6, { ramp: PFInfra.STEEL, skew: 0.6 });
     return { screen: [sx, sy, sw, sh] };
@@ -367,8 +408,14 @@ const PFASolar = (() => {
     // chumbera oscura
     const pad = (cx, cy, rx, ry) => K.ellipseFn(pb, cx, cy, rx, ry, (nx, ny, d) => GK[clamp(Math.round(3.4 - nx * 1.6 - ny * 1.4 - (d > 0.85 ? 1.6 : 0)), 0, 6)]);
     const px = Math.round(w * (o.side > 0 ? 0.7 : 0.3));
-    pad(px, h - 12, 13, 14); pad(px - 14, h - 30, 10, 12); pad(px + 12, h - 34, 10, 12); pad(px - 2, h - 50, 8, 10);
-    for (let k = 0; k < 18; k++) put(pb, px + r.int(-20, 20), h - r.int(8, 56), GK[6]);
+    // r3-desert: la masa sube (las palas superiores asoman por encima del HUD inferior) y un agave oscuro de hojas largas
+    const up = h >= 88 ? 22 : 0;
+    // agave: hojas en abanico desde la base, puntas finas
+    const ax = Math.round(w * (o.side > 0 ? 0.42 : 0.58));
+    if (up) for (let i = 0; i < 9; i++) { const a = -Math.PI / 2 + (i / 8 - 0.5) * 2.3, L = h * (0.55 + (1 - Math.abs(i / 8 - 0.5) * 2) * 0.4); for (let k = 0; k < L; k++) { const t = k / L, xx = Math.round(ax + Math.cos(a) * k * 0.55), yy = Math.round(h - 2 + Math.sin(a) * k - Math.sin(t * Math.PI) * 2), wd = Math.max(1, Math.round((1 - t) * 3)); for (let q = 0; q < wd; q++) put(pb, xx + q, yy, GK[clamp(Math.round(4 - t * 2 + (q === 0 ? 1 : -1)), 0, 6)]); } }
+    pad(px, h - 12 - up, 13, 14); pad(px - 14, h - 30 - up, 10, 12); pad(px + 12, h - 34 - up, 10, 12); pad(px - 2, h - 50 - up, 8, 10);
+    if (up) { pad(px + 2, h - 10, 12, 10); pad(px - 16, h - 14, 9, 9); }
+    for (let k = 0; k < 18; k++) put(pb, px + r.int(-20, 20), h - r.int(8, 56 + up), GK[6]);
     // matas secas alrededor
     for (let i = 0; i < Math.round(w / 3); i++) {
       const bx = r() * w, a = -Math.PI / 2 + (r() - 0.5) * 2.2, L = h * (0.25 + r() * 0.4);
@@ -1063,7 +1110,7 @@ const PFASolar = (() => {
   PFTerrain.register('sandcut', { face: sandCut, prep: PFTerrain.EXT.prep.dune });
   PFTerrain.register('r3tier', { face: r3Face, prep: r3Prep });
 
-  return { pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV,
+  return { trackerFrames, pvTable, tracker, inverter, workshop, kiosk, transformerBig, meteo, sandFence, cactus, opuntia, dryBush, stones, fence, robot, waterTank, decorateDunes, powerLine, windPump, outcrop, desertCluster, tireTracks, CELL, ALU, STUC, CACT, DRYB, GRAV,
     // r3-desert: diorama de la ladera
     r3At, r3Shadow, r3VaultE1, r3VaultWall, tabaiba, cardon, grassWind, cropRow, agriPV, invSkid, robotRail, canal, cableTray, trenchPit, trenchSection, pipeSection, roots, basin, zoco, dryWall, strawGrid, hubara, substation, hangar, cableDrum, modulePallet, shadeHouse, R3TAB, R3LET, R3ALOE, R3SOIL, R3WAT, R3GH, R3CONW };
 })();

@@ -46,23 +46,40 @@ LEVELS[3] = {
       { x0: 1840, x1: 2800, surf: 'path', face: 'cliff', ramp: LV3_ROCK, depth: 14, seed: 9, ledges: false, ledgePlants: false, lip: '#ffd8b0', lip2: '#e8a07a', shadeHue: '#2a0c14' },
     ],
     /** Primer plano: cristales de sal violetas y salicornia oscura en los bordes inferiores */
+    // r3-desert: plano frontal f = 1,3 colocado para quedar en los bordes del encuadre en las posiciones de juego
+    // (x = 1,3·cámara − ancho/2 a la izquierda, 1,3·cámara + 560 a la derecha); altura ≤ 92 → nunca tapa a la jugadora
     fg: [
-      { kind: 'aSalt', x: -20, w: 150, h: 72, seed: 1 },
-      { kind: 'aSalt', x: 720, w: 120, h: 60, seed: 2 },
-      { kind: 'aSalt', x: 1460, w: 150, h: 76, seed: 3 },
-      { kind: 'clump', x: 2160, w: 130, h: 84, seed: 4, spikes: 4, leaves: 9 },
-      { kind: 'aSalt', x: 2860, w: 150, h: 70, seed: 5 },
-      { kind: 'aSalt', x: 3400, w: 140, h: 74, seed: 6 },
+      { kind: 'r3sFrame', x: -35, w: 130, h: 88, seed: 1, side: -1 },
+      { kind: 'aSalt', x: 499, w: 130, h: 70, seed: 2 },
+      { kind: 'r3sFrame', x: 1099, w: 130, h: 92, seed: 3, side: 1 },
+      { kind: 'r3sFrame', x: 1440, w: 130, h: 86, seed: 4, side: -1 },
+      { kind: 'clump', x: 2029, w: 130, h: 84, seed: 4, spikes: 4, leaves: 9 },
+      { kind: 'r3sFrame', x: 2600, w: 130, h: 80, seed: 5, side: -1 },
+      { kind: 'r3sFrame', x: 3179, w: 130, h: 90, seed: 6, side: 1 },
     ],
     /** r2-biomes-a: guarda de tono sobre el talud (malvas del lodo y del yeso → violeta/granate; la salmuera emisiva se respeta) */
-    decorateFace(pb) { VISTA.r2baHueGuard(pb, { hi: 359, redH: 4 }); },
+    decorateFace(pb, world) {
+      VISTA.r2baHueGuard(pb, { hi: 359, redH: 4 });
+      // r3-desert: diorama salino bajo la línea de paso (salinas por etapas, repisa del cañón con cuevas de cristales,
+      // diques y compuertas, marisma con manglar, bahía en corte con emisario, difusor y zona de mezcla)
+      LV3_ANCH.dio = PFASalt.r3sDiorama(pb, world, LEVELS[3].pf.r3szones);
+    },
+    /** r3-desert: zonas del diorama inferior */
+    r3szones: [
+      { x0: 0, x1: 600, kind: 'pans', stage0: 0, houses: [[98, 0.22, 'BOMBA'], [452, 0.5, null]], caves: [[70, 16, 8], [250, 20, 10], [430, 16, 8], [560, 18, 9]], seed: 31 },
+      { x0: 600, x1: 1110, kind: 'ledge', caves: [[668, 22, 12], [760, 16, 9], [846, 30, 15], [934, 18, 10], [1012, 24, 12]], pipe: [[604, 0.16], [1108, 0.16]], seed: 32 },
+      { x0: 1110, x1: 1530, kind: 'dikes', stage0: 2, houses: [[1300, 0.5, 'BOMBA 2']], caves: [[1170, 16, 8], [1360, 20, 9], [1490, 14, 7]], seed: 33, pw: [38, 60] },
+      { x0: 1530, x1: 1840, kind: 'marsh', birds: [[1590, 0.36, 1], [1668, 0.72, -1], [1760, 0.4, 1], [1804, 0.8, -1]], seed: 34 },
+      { x0: 1840, x1: 2660, kind: 'bay', wl: 314, bed: 374, pipeX: 2292, diff: [2372], caves: [[1902, 14, 7], [2580, 16, 7]], fish: [{ x0: 1870, x1: 2360, y: 346, n: 4 }, { x0: 1990, x1: 2640, y: 372, n: 5 }], seed: 35 },
+      { x0: 2660, x1: 2801, kind: 'caves', caves: [[2722, 26, 13]], seed: 36 },
+    ],
     fauna: { gulls: [{ x: 300, y: 128, n: 3 }, { x: 900, y: 120, n: 3 }, { x: 1420, y: 116, n: 2 }, { x: 2300, y: 110, n: 4 }], drones: [{ x: 2240, y: 120, r: 50 }] },
   },
   /** Etiquetas científicas en el mundo (la sal se conserva: de la planta a la bahía) */
   labels: [
     { x: 100, y: 222, title: 'CONCENTRADO OI', sub: '≈ 60 g/L de sal', kind: 'brine', ax: 100, ay: 262 },
     { x: 296, y: 248, title: 'CANAL DE SALMUERA', sub: 'Más densa: corre por el fondo', kind: 'brine', ax: 296, ay: 296 },
-    { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 540, ay: 226 },
+    { x: 556, y: 200, title: 'COSTRA SALINA', sub: 'La sal precipita al evaporarse', kind: 'brine', ax: 574, ay: 262 },
     { x: 1252, y: 186, title: 'CRUCE DE CANALES', sub: (sc) => sc.state.diverted ? '→ contingencia' : '→ costa', kind: 'alert', ax: 1252, ay: 210 },
     { x: 1410, y: 236, title: 'LAGUNA DE CONTINGENCIA', sub: (sc) => fmt0(clamp(sc.state.pond ?? 0.22, 0, 1) * 100) + ' % llena', kind: 'brine', ax: 1410, ay: 266 },
     { x: 1676, y: 200, title: 'HUMEDAL SALINO', sub: 'Manglar, aves y salicornia', kind: 'green', ax: 1676, ay: 232 },
@@ -186,6 +203,7 @@ LEVELS[3] = {
   },
   /** Delante del agua: brillo lento de la lámina de salmuera (y del humedal) — trazos que corren con el flujo y un reflejo ancho que deriva */
   renderFront(g, sc, cam) {
+    R3DESERT_l3front(g, sc, cam);
     const t = Game.time, ox = cam.x, oy = cam.y;
     for (const [x0, x1, wy, c1, c2, sp0] of [[200, 380, 296, '#f8c8ee', '#ffffff', 5], [640, 790, 296, '#f8c8ee', '#ffffff', 5], [1560, 1790, 294, '#c4fff0', '#ffffff', 2]]) {
       if (x1 - ox < -10 || x0 - ox > W + 10) continue;
@@ -678,3 +696,92 @@ const Sim03 = makeSim({
     Gui.end();
   },
 });
+
+/* =====================================================================
+   r3-desert · capa animada del diorama salino del N3 (tras el terreno)
+   cristales que laten · rezumes de salmuera · flamencos y cigüeñuelas en las salinas · garzas en la marisma ·
+   salmuera por las tuberías grafito-índigo · pluma del difusor (sube, se hunde y se diluye dentro de la
+   zona de mezcla) · peces · destellos en salinas y canal mareal · faroles de las casas de bombas
+   ===================================================================== */
+function R3DESERT_l3front(g, sc, cam) {
+  const D = LV3_ANCH.dio; if (!D) return;
+  const t = Game.time, ox = cam.x, oy = cam.y, vis = (x, m = 20) => x - ox > -m && x - ox < W + m;
+  // cristales y rezumes
+  for (const [x, y, col] of D.cry) { if (!vis(x)) continue; const a = 0.22 + 0.2 * Math.sin(t * 1.7 + x * 0.31); PFK.drawGlow(g, x - ox, y - oy, 5, col, a); if (Math.sin(t * 2.3 + x) > 0.93) fpx(g, x - ox, y - oy - 1, '#ffffff'); }
+  for (const s of D.seeps) { if (!s || !vis(s[0])) continue; const [x, y, w] = s, k = (t * 7 + x) % Math.max(4, w - 2); g.globalAlpha = 0.85; frect(g, Math.round(x + k - ox), y - oy, 2, 1, '#ffffff'); g.globalAlpha = 1; if (Math.floor(t * 1.3 + x) % 4 === 0) { const ph = (t * 1.3 + x) % 1; fpx(g, Math.round(x + w / 2 - ox), Math.round(y - 6 + ph * 6 - oy), '#c4fbff'); } }
+  // gotas de salmuera que caen de los rezumes del corte
+  if (D.drips) for (const [x, y, L] of D.drips) { if (!vis(x, 4)) continue; const ph = (t * 0.9 + x * 0.013) % 1; if (ph < 0.6) { fpx(g, x - ox, Math.round(y + 2 + ph * ph * L * 2.4 - oy), '#c4fbff'); } else if (ph < 0.7) { fpx(g, x - 1 - ox, y + 2 + Math.round(L * 0.86) - oy, '#7ee8f0'); fpx(g, x + 1 - ox, y + 2 + Math.round(L * 0.86) - oy, '#7ee8f0'); } }
+  // salinas: destellos y aves
+  g.fillStyle = '#ffffff';
+  for (const P of D.pans) { if (!vis(P.x0, 80)) continue; const k = (t * 9 + P.x0 * 3) % Math.max(6, P.x1 - P.x0 - 8), y = Math.round(P.y0 + (P.y1 - P.y0) * 0.6); g.globalAlpha = 0.7; g.fillRect(Math.round(P.x0 + 4 + k + (P.y1 - y) * P.sk - ox), y - oy, 3, 1); }
+  g.globalAlpha = 1;
+  let n = 0;
+  for (const P of D.pans) {
+    if ((P.x0 * 7) % 3 !== 0 || !vis(P.x0, 40)) continue;
+    for (let i = 0; i < 2; i++) {
+      const fx = P.x0 + 10 + ((i * 19 + P.x0) % Math.max(8, P.x1 - P.x0 - 20)) + Math.sin(t * 0.25 + i + P.x0) * 5, fy = Math.round(P.y0 + (P.y1 - P.y0) * (0.45 + i * 0.3)), f = (i + n) % 2 ? 1 : -1;
+      R3DESERT_bird(g, fx - ox + (P.y1 - fy) * P.sk, fy - oy, t + i * 1.7 + P.x0, f, (n + i) % 3 === 2 ? 'stilt' : 'flam');
+    }
+    n++;
+  }
+  for (const [x, y, f] of D.birds) if (vis(x)) R3DESERT_bird(g, x + Math.sin(t * 0.2 + x) * 4 - ox, y - oy, t + x, f, 'heron');
+  // faroles de las casas de bombas
+  PFDyn.glows(g, cam, D.lamps, '#ffd890', 9, 0.32);
+  // compuertas: hilo de agua que salta
+  for (const [x, y, w] of D.spill) { if (!vis(x)) continue; for (let i = 0; i < 3; i++) { const ph = (t * 2.2 + i / 3) % 1; fpx(g, Math.round(x + w / 2 + ph * 3 - ox), Math.round(y + ph * ph * 5 - oy), i % 2 ? '#d8f6fa' : '#ffffff'); } }
+  // canal mareal
+  for (const C of D.glints) for (let k = 0; k < 16; k++) { const x = C.x0 + ((t * 10 + k * 21) % (C.x1 - C.x0)); if (!vis(x, 4)) continue; g.globalAlpha = 0.75; frect(g, Math.round(x - ox), Math.round(C.y(x) - 1 - oy + (k % 2)), 2, 1, '#e0fbf2'); }
+  g.globalAlpha = 1;
+  // salmuera por las tuberías del emisario y de la repisa (chevrones magenta sobre grafito)
+  if (D.brinePipe) { if (!D._bp) D._bp = R3DESERT_line(D.brinePipe); R3DESERT_chev(g, D._bp, ox, oy, t, 12, 14, '#7a3a8a', '#e07ecf'); }
+  if (D.brinePipe2) { if (!D._bp2) D._bp2 = R3DESERT_line(D.brinePipe2); R3DESERT_chev(g, D._bp2, ox, oy, t, 12, 14, '#7a3a8a', '#e07ecf'); }
+  // pluma del difusor: chorro que sube, se dobla, se hunde por densidad y se diluye a lo largo del fondo
+  const Pl = D.plume;
+  if (Pl && vis(Pl.x, 200)) {
+    for (let k = 0; k < Pl.n; k++) {
+      const nx = Pl.x + k * Pl.step, ny = Pl.y;
+      for (let i = 0; i < 18; i++) {
+        const p = (t * 0.14 + i / 18 + k * 0.17) % 1;
+        let x, y;
+        if (p < 0.2) { const q = p / 0.2; x = nx + q * 7; y = ny - Math.sin(q * Math.PI * 0.5) * 10; }                       // chorro inclinado: sube
+        else { const q = (p - 0.2) / 0.8, xb = nx + 7 + q * (Pl.x1 - nx - 7) * (0.5 + k * 0.14); x = xb + Math.sin(t * 1.3 + i) * 1.5; y = Math.min(Pl.bed(xb) - 2 - (i % 3), ny - 10 + q * q * 70); }  // se dobla y se hunde
+        const a = p < 0.2 ? 0.95 : Math.max(0, 0.9 - (p - 0.2) * 1.1);                                                       // se diluye
+        if (a <= 0.05) continue;
+        g.globalAlpha = a; frect(g, Math.round(x - ox), Math.round(y - oy), p < 0.45 ? 2 : 1, p < 0.3 ? 2 : 1, p < 0.3 ? '#f07ed8' : p < 0.55 ? '#c08ad8' : '#9aa4e0');
+      }
+    }
+    // lengua densa que se arrastra por el fondo y se aclara (dilución) dentro de la zona de mezcla
+    for (let i = 0; i < 12; i++) {
+      const u = ((t * 6 + i * 13) % 130), x = Pl.x + 10 + u; if (x > Pl.x1) continue;
+      const a = 0.5 * (1 - u / 130); g.globalAlpha = a;
+      frect(g, Math.round(x - ox), Math.round(Pl.bed(x) - 2 - (i % 2) - oy), 6 + (i % 3) * 2, 2, u < 40 ? '#d070c8' : u < 85 ? '#a88ad8' : '#9ab4e8');
+    }
+    g.globalAlpha = 1;
+  }
+  // peces
+  for (const F of D.fish) for (let i = 0; i < F.n; i++) {
+    const span = F.x1 - F.x0, u = (t * (8 + i * 1.7) + i * 97) % (2 * span), dir = u < span ? 1 : -1, x = F.x0 + (u < span ? u : 2 * span - u), y = F.y + (i % 3) * 5 + Math.round(Math.sin(t * 1.5 + i) * 2);
+    if (!vis(x, 6)) continue;
+    const sx = Math.round(x - ox), sy = Math.round(y - oy);
+    frect(g, sx - 2, sy, 4, 1, i % 2 ? '#f0bc2c' : '#d8e6f0'); fpx(g, sx - 2 * dir - (dir > 0 ? 1 : 0), sy - 1, '#a87414'); fpx(g, sx - 3 * dir, sy, '#8a9aa8'); fpx(g, sx + (dir > 0 ? 1 : -2), sy, '#1c1c24');
+  }
+}
+/** Aves pequeñas del diorama (escala de terraza): flamenco, cigüeñuela y garza; picotean y caminan */
+function R3DESERT_bird(g, x, y, t, f, kind) {
+  x = Math.round(x); y = Math.round(y);
+  const peck = Math.sin(t * 1.3) > 0.6 ? 1 : 0;
+  if (kind === 'flam') {
+    frect(g, x, y - 5, 1, 5, '#e0607e'); frect(g, x + 2 * f, y - 5, 1, 4, '#e0607e');
+    frect(g, x - 1, y - 8, 5, 3, '#ff9ab8'); frect(g, x - 1, y - 8, 5, 1, '#ffd0e0'); fpx(g, x - 1 - f, y - 7, '#e0507a');
+    const hx = x + 3 * f + (f < 0 ? 2 : 0);
+    if (peck) { frect(g, hx, y - 8, 1, 6, '#ff9ab8'); fpx(g, hx, y - 2, '#1c1c24'); }
+    else { frect(g, hx, y - 13, 1, 6, '#ff9ab8'); fpx(g, hx + f, y - 13, '#fffaf0'); fpx(g, hx + 2 * f, y - 12, '#1c1c24'); }
+  } else if (kind === 'stilt') {
+    frect(g, x, y - 5, 1, 5, '#e2404a'); frect(g, x + 2 * f, y - 5, 1, 5, '#e2404a');
+    frect(g, x - 1, y - 7, 4, 2, '#ffffff'); frect(g, x - 1, y - 7, 4, 1, '#1c1c24');
+    fpx(g, x + 3 * f + (f < 0 ? 2 : 0), y - 8 + peck * 2, '#ffffff'); fpx(g, x + 4 * f + (f < 0 ? 2 : 0), y - 8 + peck * 3, '#1c1c24');
+  } else {
+    frect(g, x, y - 6, 1, 6, '#8a8a7a'); frect(g, x - 1, y - 10, 4, 4, '#e8ecf0'); frect(g, x - 1, y - 10, 4, 1, '#ffffff'); frect(g, x + 3, y - 9, 1, 2, '#9aa0b0');
+    const hx = x + 2 * f + (f < 0 ? 1 : 0); frect(g, hx, y - 14 + peck * 3, 1, 4, '#e8ecf0'); fpx(g, hx + f, y - 14 + peck * 3, '#f0bc2c'); fpx(g, hx + 2 * f, y - 14 + peck * 3, '#f0bc2c');
+  }
+}
