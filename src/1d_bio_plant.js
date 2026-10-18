@@ -11,6 +11,9 @@
    Contrato: B.horizon, B.sun, B.seaY(cam).
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+/** r2-biomes-b: acero estructural pintado (no gris): pilares cercanos en minio terracota, cerchas y montantes en turquesa */
+const R2BB_OXIDE = ['#2a0e0a', '#4a1810', '#6e2616', '#94361c', '#b84a26', '#d86a36', '#f09050', '#ffc488'];
+const R2BB_TEALST = ['#06262a', '#0a3c42', '#105a5e', '#18787a', '#2a9896', '#4ab8b0', '#86d8cc', '#d0f4ec'];
 
 BIOMES.plant = function (L) {
   const V = VISTA;
@@ -99,14 +102,14 @@ BIOMES.plant = function (L) {
     // techo: bandeja oscura con lucernarios (transparentes) y cercha
     for (let y = 0; y < 26; y++) for (let x = 0; x < w; x++) V.put(pb, x, y, ST[y < 2 ? 1 : (y % 5 === 0) ? 2 : 3]);
     for (let x = 40; x < w; x += BAY) { for (let y = 3; y < 20; y++) for (let xx = x; xx < x + 90; xx++) V.put(pb, xx, y, 0); V.glazing(pb, x, 3, 90, 17, { k, cols: 6, rows: 1, a: 0.1 }); }
-    const tr = V.truss(pb, 0, w, 26, 14, { k, step: 24, lamps: 4 });
+    const tr = V.truss(pb, 0, w, 26, 14, { k, step: 24, lamps: 4, ramp: R2BB_TEALST });
     wallFx.lamps = tr.lights;
     for (const [lx, ly] of tr.lights) { V.rect(pb, lx - 5, ly, 10, 2, ST[1]); V.rect(pb, lx - 4, ly + 2, 8, 1, U('#fff6d8')); }
     // ventanales entre pilares (se ve la costa) con rótulos encima
     for (let x = 18; x < w; x += BAY) {
       for (let y = WIN_Y; y < WIN_Y + WIN_H; y++) for (let xx = x; xx < x + BAY_W; xx++) V.put(pb, xx, y, 0);
       V.glazing(pb, x, WIN_Y, BAY_W, WIN_H, { k, cols: 5, rows: 3, a: 0.12, seed: x });
-      V.ibeam(pb, x + BAY_W + 10, 40, h, 14, { k });
+      V.ibeam(pb, x + BAY_W + 10, 40, h, 14, { k, ramp: R2BB_TEALST });
     }
     const signs = ['SYNARA · PLANTA DE ÓSMOSIS INVERSA', 'AGUA DE MAR → PERMEADO', 'SALA DE TRENES · 3 × 8 TUBOS', 'RECUPERACIÓN DE ENERGÍA'];
     for (let x = 18 + 30, i = 0; x < w - 60; x += BAY * 2, i++) V.sign(pb, x, 42, signs[i % signs.length], { k, bg: '#072248', border: '#6d9be8' });
@@ -185,11 +188,12 @@ BIOMES.plant = function (L) {
     const sw = Math.ceil(W + Math.max(0, L.width - W) * 0.22) + 2, pb = new PixelBuffer(sw, 300), list = [];
     for (let x = 18; x < sw; x += BAY) for (let c = 0; c < 5; c++) list.push([x + c * 30 + 4, WIN_Y + 4, 20, 236, 0.55]);
     for (let x = 40; x < sw; x += BAY) list.push([x + 10, 20, 60, 150, 0.35]);
-    V.shafts(pb, list, { col: '#ffe2a8', a: 0.2 });
+    // r2-biomes-b: sol de tarde dorado (acento cálido de la nave), más presente que el blanco frío
+    V.shafts(pb, list, { col: '#ffcf7e', a: 0.3 });
     return pb.toCanvas();
   });
   B.vdyn(0.22, (g, cam) => {
-    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.42 + 0.06 * Math.sin(T() * 0.6);
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5 + 0.06 * Math.sin(T() * 0.6);
     g.drawImage(shaftC, -Math.round(cam.x * 0.22), Math.round(-(cam.y - V.CAMY) * 0.066) - 3);
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }, { tag: 'shafts' });
@@ -207,7 +211,7 @@ BIOMES.plant = function (L) {
     nearFx.perm.push([0, 13], [w, 13]);
     // pilares en I con tornapuntas y luminarias colgantes
     for (let x = 120; x < w; x += 300) {
-      V.ibeam(pb, x, 0, h, 18, { k, brace: 30 });
+      V.ibeam(pb, x, 0, h, 18, { k, brace: 30, ramp: R2BB_OXIDE });
       for (let q = 0; q < 30; q++) V.put(pb, x + 60, 17 + q, V.P32(V.STEELW)[1]);
       V.rect(pb, x + 54, 47, 13, 3, V.P32(V.STEELW)[2]); V.rect(pb, x + 55, 50, 11, 1, U('#fff6d8'));
       nearFx.lamps.push([x + 60, 52, 12]);

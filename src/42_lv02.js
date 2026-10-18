@@ -80,6 +80,7 @@ LEVELS[2] = {
     for (const [x, w] of [[470, 30], [880, 22], [1196, 26], [1840, 34], [2410, 24]]) K.ellipseFn(pb, x, G - 6, w / 2, 2.2, (nx, ny) => ny < -0.2 ? U_('#d0e6f0') : U_('#a8c8dc'));
     P.stencil(pb, 372, G - 15, 'ZONA DE ALTA PRESIÓN', '#f0c040');
     P.stencil(pb, 1700, G - 15, 'QUÍMICOS · USAR EPI', '#f0c040');
+    if (typeof R2BB_L2back === 'function') R2BB_L2back(pb); // r2-biomes-b: jardines verticales detrás del equipo
     /* ===== 1. ENTRADA DESDE EL PRETRATAMIENTO (0–100) ===== */
     // muro de la nave con el paso desde el pretratamiento (vano de 92 px con corredor en penumbra)
     for (let y = 96; y < G - 2; y++) for (let x = 0; x < 52; x++) { const inDoor = x > 6 && x < 46 && y > G - 104; if (inDoor) { const k = clamp((y - (G - 104)) / 100, 0, 1); K.put(pb, x, y, K.mixU(U_('#0a1426'), U_('#1e3a5a'), (1 - Math.abs(x - 26) / 22) * 0.6 * (1 - k * 0.5))); continue; } K.put(pb, x, y, U_(['#8c92a0', '#c8ccd2', '#dcdee2', '#c8ccd2', '#aeb2bc', '#aeb2bc', '#8c92a0', '#8c92a0', '#6a7080', '#6a7080', '#4a5060', '#3a4050'][Math.min(11, x < 7 ? x + 2 : x > 45 ? 11 - (x - 46) : 5)] )); }
@@ -93,33 +94,33 @@ LEVELS[2] = {
     P.rect(pb, 72, G - 84, 26, 14, U_('#e8f0f8')); P.hline(pb, 72, 97, G - 84, U_('#1e52a2'));
     P.sign(pb, 73, G - 82, 'helmet'); P.sign(pb, 81, G - 82, 'goggles'); P.sign(pb, 89, G - 82, 'ear');
     // alimentación pretratada (acero + azul claro) que entra por el muro
-    I.pipe(pb, [[0, 262], [106, 262]], 4, 'pre', { flange: 24, supports: 32, supportTo: () => fb + 2 });
+    I.pipe(pb, [[0, 262], [106, 262]], 4, 'r2bbFeed', { flange: 24, supports: 32, supportTo: () => fb + 2 });
     I.box3q(pb, 30, 268, 12, 12, 4, { ramp: P.FRAME }); P.rect(pb, 32, 258, 8, 4, U_('#06122a'));
     I.valve(pb, 92, 262);
-    flow([[0, 262], [104, 262]], 'pre', 0.8);
+    flow([[0, 262], [104, 262]], 'r2bbFeed', 0.8);
     /* ===== 2. FILTROS DE CARTUCHO (100–230) ===== */
     I.box3q(pb, 102, fb + 6, 116, 4, 12, { ramp: PFTerrain.CONC, skew: 0.6 });
-    I.pipe(pb, [[104, 262], [214, 262]], 3, 'pre', { flange: 26 });
+    I.pipe(pb, [[104, 262], [214, 262]], 3, 'r2bbFeed', { flange: 26 });
     let cart;
     for (let k = 0; k < 4; k++) cart = P.cartridge(pb, 122 + k * 26, fb + 2, { r: 9, h: 46 });
-    I.pipe(pb, [[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 3, 'pre', { flange: 18 });
-    flow([[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 'pre', 0.8);
+    I.pipe(pb, [[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 3, 'r2bbFeed', { flange: 18 });
+    flow([[206, cart.outY], [254, cart.outY], [254, 268], [266, 268]], 'r2bbFeed', 0.8);
     PFTerrain.railing(pb, 104, 214, G - 6, 18);
     /* ===== 3. COLECTOR DE ASPIRACIÓN TRANSITABLE Y MANÓMETROS (230–360) ===== */
-    P.pipeDeck(pb, 268, 312, 262, fb + 4, 'pre');
-    flow([[270, 268], [312, 268]], 'pre', 0.8);
+    P.pipeDeck(pb, 268, 312, 262, fb + 4, 'r2bbFeed');
+    flow([[270, 268], [312, 268]], 'r2bbFeed', 0.8);
     for (const [gx, a] of [[282, -0.5], [302, 0.4]]) { P.vline(pb, gx, 252, 261, U_('#948e91')); P.vline(pb, gx + 1, 252, 261, U_('#4f4d51')); K.ellipseFn(pb, gx + 0.5, 247.5, 5.5, 5.5, (nx, ny, d) => d > 0.7 ? U_(nx + ny < 0 ? '#f2efea' : '#4f4d51') : d > 0.55 ? U_('#2a282e') : U_('#fbfbf6')); for (let k = 0; k < 6; k++) { const aa = -2.4 + k * 0.96; K.put(pb, Math.round(gx + 0.5 + Math.cos(aa) * 3.6), Math.round(247.5 + Math.sin(aa) * 3.6), U_('#2a282e')); } }
-    I.pipe(pb, [[312, 268], [338, 268], [338, 256]], 3, 'pre', { flange: 0 });
+    I.pipe(pb, [[312, 268], [338, 268], [338, 256]], 3, 'r2bbFeed', { flange: 0 });
     P.landing(pb, 318, 240, 30, fb + 4, { d: 7, railH: 26 });
     I.valve(pb, 334, 234);
     /* ===== 4. BOMBAS DE ALTA PRESIÓN (350–570) ===== */
-    I.pipe(pb, [[338, fb - 9], [566, fb - 9]], 3, 'pre', { flange: 30 }); // colector de aspiración (detrás)
+    I.pipe(pb, [[338, fb - 9], [566, fb - 9]], 3, 'r2bbFeed', { flange: 30 }); // colector de aspiración (detrás)
     const pumps = [];
     for (let k = 0; k < 3; k++) { pumps.push(P.pumpSkid(pb, 354 + k * 72, fb, { len: 62, motor: k === 1 ? P.BLUEP : P.GREEN })); N.pumps.push([354 + k * 72, fb, 62]); }
     const HPY = 200;
-    for (const pp of pumps) { I.pipe(pb, [[pp.dis[0], pp.dis[1] + 2], [pp.dis[0], HPY]], 3, 'pre', { flange: 0 }); flow([[pp.dis[0], pp.dis[1]], [pp.dis[0], HPY]], 'pre', 1); N.leds.push({ x: pp.led[0], y: pp.led[1], col: '#3fe0a0', hz: 1.4, ph: pp.led[0] * 0.03 }); }
-    I.pipe(pb, [[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 4, 'pre', { flange: 26 });
-    flow([[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 'pre', 1.2);
+    for (const pp of pumps) { I.pipe(pb, [[pp.dis[0], pp.dis[1] + 2], [pp.dis[0], HPY]], 3, 'r2bbFeed', { flange: 0 }); flow([[pp.dis[0], pp.dis[1]], [pp.dis[0], HPY]], 'r2bbFeed', 1); N.leds.push({ x: pp.led[0], y: pp.led[1], col: '#3fe0a0', hz: 1.4, ph: pp.led[0] * 0.03 }); }
+    I.pipe(pb, [[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 4, 'r2bbFeed', { flange: 26 });
+    flow([[pumps[0].dis[0], HPY], [664, HPY], [664, G - 2]], 'r2bbFeed', 1.2);
     for (const pp of pumps) { I.gauge(pb, pp.dis[0] - 10, HPY - 8, 3, -0.2); P.vline(pb, pp.dis[0] - 10, HPY - 5, HPY - 4, U_('#4f4d51')); P.rect(pb, pp.dis[0] - 3, HPY + 8, 7, 4, U_('#e2404a')); P.hline(pb, pp.dis[0] - 3, pp.dis[0] + 3, HPY + 8, U_('#f87a7a')); }
     PFTerrain.railing(pb, 350, 572, G - 4, 16);
     P.sign(pb, 352, G - 62, 'warn'); P.sign(pb, 362, G - 62, 'ear');
@@ -127,29 +128,29 @@ LEVELS[2] = {
     /* ===== 5. RECUPERADOR DE ENERGÍA (580–640) ===== */
     const E = P.erd(pb, 584, fb);
     LV2_ANCH.erd = E.rotor; N.leds.push(...E.leds);
-    I.pipe(pb, [[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 2, 'pre', { flange: 0 }); // salida AP de la alimentación al colector
-    flow([[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 'pre', 0.9);
-    I.pipe(pb, [[594, fb - 10], [594, G - 2]], 2, 'brine', { flange: 0 }); // salmuera de baja presión hacia la galería
-    flow([[594, fb - 10], [594, G - 2]], 'brine', 0.8);
+    I.pipe(pb, [[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 2, 'r2bbFeed', { flange: 0 }); // salida AP de la alimentación al colector
+    flow([[642, fb - 54], [664, fb - 54], [664, HPY + 6]], 'r2bbFeed', 0.9);
+    I.pipe(pb, [[594, fb - 10], [594, G - 2]], 2, 'r2bbConc', { flange: 0 }); // salmuera de baja presión hacia la galería
+    flow([[594, fb - 10], [594, G - 2]], 'r2bbConc', 0.8);
     I.box3q(pb, 648, fb - 2, 10, 14, 4, { ramp: P.FRAME }); P.rect(pb, 650, fb - 14, 6, 4, U_('#06122a')); N.screens.push([650, fb - 14, 6, 4, '#3fe0a0']);
     /* ===== 6. TRENES DE OI A·B·C CON PASARELA (690–1260) ===== */
     const trains = [];
     for (let k = 0; k < 3; k++) trains.push(P.roRack(pb, 712 + k * 190, fb, { len: 112, rows: 3, r: 5, isolated: k === 1, tag: 'ABC'[k] + '1' }));
     // montantes de alimentación/permeado entre el nivel bajo y la pasarela (detrás del tablero)
-    for (const tr of trains) { I.pipe(pb, [[tr.ends[0] + 2, tr.top + 2], [tr.ends[0] + 2, 214]], 2, 'pre', { flange: 0 }); }
+    for (const tr of trains) { I.pipe(pb, [[tr.ends[0] + 2, tr.top + 2], [tr.ends[0] + 2, 214]], 2, 'r2bbFeed', { flange: 0 }); }
     P.catwalk(pb, 690, 1260, 222, fb + 4, { d: 9, span: 95, railH: 30 });
     const up = [];
     for (let k = 0; k < 3; k++) up.push(P.roRack(pb, 712 + k * 190, 217, { len: 112, rows: 4, r: 5, isolated: k === 1, tag: 'ABC'[k] + '2' }));
     // colector elevado de concentrado AP (grafito) hacia el ERD
     const BRY = 140;
-    for (const tr of up) I.pipe(pb, [[tr.ends[1] - 9, tr.top + 1], [tr.ends[1] - 9, BRY]], 2, 'brine', { flange: 0 });
-    I.pipe(pb, [[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 3, 'brine', { flange: 30, supports: 0 });
-    flow([[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 'brine', 1);
+    for (const tr of up) I.pipe(pb, [[tr.ends[1] - 9, tr.top + 1], [tr.ends[1] - 9, BRY]], 2, 'r2bbConc', { flange: 0 });
+    I.pipe(pb, [[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 3, 'r2bbConc', { flange: 30, supports: 0 });
+    flow([[up[2].ends[1] - 9, BRY], [596, BRY], [596, fb - 64]], 'r2bbConc', 1);
     for (let x = 640; x < 1240; x += 120) { P.vline(pb, x, 96, BRY - 4, U_('#485c80')); P.hline(pb, x - 3, x + 3, BRY - 4, U_('#26324c')); }
     for (let k = 0; k < 3; k++) {
       const lo = trains[k], hi = up[k], on = k !== 1;
       N.leds.push(...lo.leds, ...hi.leds);
-      if (on) { flow([[hi.permX, hi.top + 4], [hi.permX, G - 2]], 'product', (sc) => 0.6 + (sc.state.trainsOn ?? 2) * 0.25); flow([[hi.ends[1] - 9, hi.top + 1], [hi.ends[1] - 9, BRY]], 'brine', 0.9); }
+      if (on) { flow([[hi.permX, hi.top + 4], [hi.permX, G - 2]], 'product', (sc) => 0.6 + (sc.state.trainsOn ?? 2) * 0.25); flow([[hi.ends[1] - 9, hi.top + 1], [hi.ends[1] - 9, BRY]], 'r2bbConc', 0.9); }
     }
     // luminarias bajo la pasarela (halo dinámico)
     for (let x = 740; x < 1240; x += 95) { P.rect(pb, x, 229, 10, 2, U_('#4f4d51')); P.hline(pb, x + 1, x + 8, 231, U_('#fff6d8')); N.lamps.push([x + 5, 232, '#fff0c8', 9]); }
@@ -213,8 +214,8 @@ LEVELS[2] = {
     P.toolbox(pb, 2420, fb - 30, '#2c6cc6'); P.bucket(pb, 2408, fb + 2, '#ff9f43');
     P.eyewash(pb, 2454, fb + 2); P.extinguisher(pb, 2474, fb + 2);
     /* ===== 13. SALIDA HACIA LOS CANALES DE SALMUERA (2510–2600) ===== */
-    I.pipe(pb, [[2506, G - 2], [2506, 170], [2600, 170]], 4, 'brine', { flange: 26 });
-    flow([[2506, G - 2], [2506, 170], [2600, 170]], 'brine', 1);
+    I.pipe(pb, [[2506, G - 2], [2506, 170], [2600, 170]], 4, 'r2bbConc', { flange: 26 });
+    flow([[2506, G - 2], [2506, 170], [2600, 170]], 'r2bbConc', 1);
     const dr = P.rollDoor(pb, 2526, fb + 2, 44, 98, { open: 0.58 }); LV2_ANCH.door = dr.mouth;
     P.sign(pb, 2531, fb - 106, 'exit');
     for (let y = 96; y < G - 2; y++) for (let k = 0; k < 14; k++) K.put(pb, 2586 + k, y, U_(['#3a4050', '#4a5060', '#6a7080', '#8c92a0', '#aeb2bc', '#c8ccd2', '#dcdee2', '#c8ccd2', '#aeb2bc', '#aeb2bc', '#8c92a0', '#8c92a0', '#6a7080', '#4a5060'][k]));
@@ -232,6 +233,7 @@ LEVELS[2] = {
     }
     P.tray(pb, 0, 680, 108, 12); P.tray(pb, 1262, 1418, 108, 12); P.tray(pb, 1652, 2160, 108, 12);
     for (const x of [120, 300, 480, 1300, 1760, 1990]) { P.vline(pb, x, 96, 118, U_('#2a282e')); P.rect(pb, x - 7, 118, 15, 3, U_('#4f4d51')); P.hline(pb, x - 6, x + 6, 121, U_('#fff6d8')); N.lamps.push([x, 124, '#fff0c8', 12]); }
+    if (typeof R2BB_L2front === 'function') R2BB_L2front(pb, flow); // r2-biomes-b: jardineras, potos, macetas, conducto eléctrico
     LEVELS[2]._ms = Math.round(nowMs() - t0);
   },
   /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno) */
@@ -242,22 +244,23 @@ LEVELS[2] = {
     // soportes de los colectores colgados del forjado
     for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < Y.feed + 6; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 5, Y.perm + 4, Y.feed + 5]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U('#26324c')); }
     // alimentación AP: bajante del colector de bombas → trenes
-    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'pre', 1.1);
-    for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'pre', { flange: 0 });
+    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'r2bbFeed', 1.1);
+    for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'r2bbFeed', { flange: 0 });
     // permeado (cian luminoso): trenes → tanque; producto remineralizado → bombas de producto
     run([[840, G + 4], [840, Y.perm], [1290, Y.perm], [1290, G + 4]], 3, 'product', 0.9);
     for (const x of [1220]) I.pipe(pb, [[x, G + 4], [x, Y.perm]], 2, 'product', { flange: 0 });
-    I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'pre', { flange: 0 }); // tren B: permeado aislado (sin brillo)
+    I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'r2bbFeed', { flange: 0 }); // tren B: permeado aislado (sin brillo)
     run([[1398, G + 4], [1398, Y.perm], [1938, Y.perm], [1938, G + 4]], 3, 'product', 0.9);
     // salmuera de baja presión: ERD + trenes del nivel bajo → salida a los canales
-    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'brine', 1);
-    for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'brine', { flange: 0 });
+    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'r2bbConc', 1);
+    for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'r2bbConc', { flange: 0 });
     // bandeja de cables y luces de emergencia en la galería
     for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 24, U('#354564')); PFK.put(pb, x, G + 25, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 23, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
     for (let x = 150; x < 2600; x += 320) { for (let k = 0; k < 6; k++) for (let q = 0; q < 3; q++) PFK.put(pb, x + k, G + 30 + q, U(q === 0 ? '#72c69a' : '#1f8a52')); PFK.put(pb, x + 2, G + 31, U('#ffffff')); }
     for (const x of [760, 1360, 2040]) I.valve(pb, x, Y.perm);
     // rótulos estarcidos en el muro de la galería
-    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#a8d0f0', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
+    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
+    if (typeof R2BB_L2gallery === 'function') R2BB_L2gallery(pb, LV2_GALFLOWS); // r2-biomes-b: sodio, musgo, conducto eléctrico, bandas
   },
   propsFront(pb, world) {
     const G = 290, K = PFK;
