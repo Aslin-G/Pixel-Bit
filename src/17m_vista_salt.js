@@ -490,7 +490,7 @@
     // balsas de anchura variable con degradado y reflejo; la costra blanca cristaliza en islas, no en bloques
     for (let row = 0; row < rows; row++) {
       const ph = 3 + row + (row > 2 ? 1 : 0), sh = row * skew, wallH = 2 + (row >> 1);
-      const xs = o.x0 - sh + r.int(-10, 10), xe = o.x1 - sh + r.int(-10, 10);
+      const back = rows - 1 - row, xs = o.x0 - sh + back * r.int(6, 14) + r.int(-8, 8), xe = o.x1 - sh - back * r.int(4, 12) + r.int(-8, 8);
       const f1 = r.range(0.008, 0.016), f2 = r.range(0.03, 0.05), p1 = r.range(0, 6), p2 = r.range(0, 6);
       const yo = (x) => Math.round(Math.sin(x * f1 + p1) * 1.6 + Math.sin(x * f2 + p2) * 0.7);
       // cortes entre balsas
@@ -503,10 +503,10 @@
         for (let x = a; x < b; x++) {
           const yt = y + yo(x), end = Math.min(x - xs, xe - 1 - x), cut = end < 3 ? 3 - end : 0;
           // dique trasero (canto claro)
-          V.put(pb, x, yt + cut, BER[nB - 2 - (hash2(x >> 2, row, 3) < 0.2 ? 1 : 0)]);
+          V.put(pb, x, yt + cut, BER[nB - 3 - (hash2(x >> 2, row, 3) < 0.3 ? 1 : 0)]);
           for (let yy = 1 + cut; yy <= ph; yy++) {
             let col;
-            if (x === a) col = yy === 1 ? BER[nB - 2] : BER[nB - 3];                          // dique entre balsas
+            if (x === a) col = yy === 1 ? BER[nB - 3] : BER[nB - 4];                          // dique entre balsas
             else if (x === a + 1) col = C[0];                                                  // sombra del dique
             else if (yy === 1) col = C[0];
             else if (dry) col = BER[(hash2(x, yy, 5) < 0.3 ? 3 : 2)];
@@ -521,7 +521,7 @@
             V.put(pb, x, yt + yy, col);
           }
           // muro de contención delantero: canto iluminado + cara en sombra con mampuestos
-          V.put(pb, x, yt + ph + 1, BER[nB - 3]);
+          V.put(pb, x, yt + ph + 1, BER[nB - 4 + (hash2(x >> 1, row, 8) < 0.3 ? 1 : 0)]);
           for (let q = 0; q < wallH; q++) V.put(pb, x, yt + ph + 2 + q, WALL[clamp(2 - q + (hash2((x + q * 3) >> 2, row * 5 + q, 9) < 0.3 ? 1 : 0), 0, 5)]);
           V.put(pb, x, yt + ph + 2 + wallH, WALL[0]);
         }

@@ -104,7 +104,7 @@ BIOMES.canyon = function (L) {
       ramp: ROCK, contrast: 1.5, t0: 0.4, facet: 0.3, spanDark: 0.02, haze: { col: '#9a7ab0', k0: 0.1, k: 0.06 }, rim: '#ffd0a0', tex: 0.05,
     });
     // salinas en grupos con huecos de vega entre medias (no bandas a todo lo ancho)
-    for (const [a, b, s0] of [[40, 290, 117], [520, 770, 118], [900, 1090, 119]]) {
+    for (const [a, b, s0] of [[40, 230, 117], [560, 720, 118], [930, 1070, 119]]) {
       if (a >= w) continue;
       const S = V.r2baPans(pb, { x0: a, x1: Math.min(w, b), y0: 12, rows: 4, seed: s0, k, sky: '#f8c0a0', skew: 3 });
       panFx.glints.push(...S.glints);

@@ -184,27 +184,88 @@ const PFASalt = (() => {
     // cristales cúbicos caídos al pie
     for (let i = 0; i < 5; i++) { const cx = Math.round(x - 4 + r() * (w + 10)), cy = yb - r.int(0, 1), s = 1 + r.int(0, 1); for (let a = 0; a <= s; a++) for (let b = 0; b <= s; b++) put(pb, cx + a, cy - b, S[b === s ? 8 : a === 0 ? 7 : 4]); }
   }
-  /** Chimenea de roca con vetas de sal y cara superior */
+  /** Chimenea de roca esculpida (r2-biomes-a): perfil por capas duras/blandas (las duras vuelan, las blandas
+   *  se socavan), sombreado cilíndrico con luz arriba-izquierda, lado en sombra violeta, canto de estrato al sol,
+   *  vetas de sal discontinuas, inclinación leve, sombrero que vuela con sombra debajo y cara superior en 3/4 */
   function hoodoo(pb, x, yb, w, h, ramp, seed = 1) {
-    const R = P32(ramp), n = R.length, S = P32(SALT);
-    A.castShadow(pb, x, yb, w + 6, 12, -0.26);
-    for (let yy = 0; yy < h; yy++) {
-      const t = yy / h, hw = Math.round(w / 2 * (0.82 + 0.18 * Math.sin(t * 7 + seed) + (t > 0.85 ? 0.15 : 0)));
-      const cx = x + w / 2 + Math.round(Math.sin(t * 3 + seed) * 2);
-      for (let k = -hw; k <= hw; k++) {
-        const f = (k + hw) / (2 * hw + 0.01);
-        let kk = Math.round((f < 0.12 ? 0.55 : f < 0.3 ? 0.85 : f < 0.55 ? 0.66 : f < 0.8 ? 0.45 : 0.25) * (n - 1) + (PFK.cl(cx + k, yb - yy, 2, seed) - 0.5) * 1.4);
-        let u = R[clamp(kk, 0, n - 1)];
-        const vein = (yy + Math.round(Math.sin(k * 0.3 + seed) * 2)) % 13, vOn = hash2(Math.floor((cx + k) / 5), Math.floor(yy / 13), seed + 2) < 0.6;
-        if (vein === 0 && vOn) u = K.mixU(u, S[f < 0.6 ? 8 : 6], 0.7); else if (vein === 1 && vOn) u = R[clamp(kk - 2, 0, n - 1)];
-        put(pb, Math.round(cx + k), yb - yy, u);
+    const R = P32(ramp), n = R.length, S = P32(SALT), r = RNG(seed), SHV = U('#2a1a5a'), WARM = U('#ffd8a8');
+    A.castShadow(pb, x, yb, w + 8, 12, -0.26);
+    const prof = new Float32Array(h + 1), hard = new Uint8Array(h + 1), capH = Math.max(5, Math.round(h * 0.07));
+    let acc = 0, layer = 0, lh = r.int(6, 14);
+    for (let q = 0; q <= h; q++) {
+      if (++acc > lh) { acc = 0; layer++; lh = r.int(5, 16); }
+      hard[q] = layer % 2;
+      const t = q / h;
+      let rad = w / 2 * (1.3 - t * 0.5) * (1 + (fbm1(q * 0.045 + seed, 3, seed) - 0.5) * 0.5);
+      rad *= hard[q] ? 1.025 : 0.975;
+      if (q >= h - capH) rad = w / 2 * 1.32 * (1 - Math.pow((q - (h - capH)) / capH, 2.5) * 0.4);
+      else if (q > h - capH - 5) rad *= 0.8;
+      prof[q] = Math.max(2, rad);
+    }
+    const lean = r.range(-0.05, 0.05), ph = r.range(0, 6);
+    for (let q = 0; q <= h; q++) {
+      const rad = prof[q], y = yb - q, cx = x + w / 2 + lean * q + Math.sin(q * 0.06 + ph);
+      const dr = (prof[Math.min(h, q + 1)] - prof[Math.max(0, q - 1)]) * 0.5;
+      for (let xx = Math.floor(cx - rad); xx <= Math.ceil(cx + rad); xx++) {
+        const nx = (xx + 0.5 - cx) / rad; if (Math.abs(nx) > 1) continue;
+        const nz = Math.sqrt(Math.max(0, 1 - nx * nx)), ny = clamp(dr * 1.3, -0.9, 0.9);
+        let I = (nx * -0.6 + ny * -0.5 + nz * 0.64) / Math.hypot(nx, ny, nz);
+        if (!hard[q]) I -= 0.04;
+        if (q >= h - capH - 2 && q < h - capH + 1) I -= 0.3;                    // sombra bajo el sombrero
+        let tt = clamp(0.3 + I * 0.66 - (1 - q / h) * 0.1 + (PFK.cl(xx, y, 2, seed) - 0.5) * 0.12, 0, 0.999);
+        let u = R[clamp(Math.floor(tt * n), 0, n - 1)];
+        if (tt < 0.4) u = K.mixU(u, SHV, 0.32 * (1 - tt / 0.4));
+        if (Math.abs(nx) > 0.92) u = R[clamp(Math.floor(tt * n) - 2, 0, n - 1)];
+        else if (hard[q] && !hard[Math.min(h, q + 1)] && nx < 0.2 && (layer = hash2(q, 3, seed)) < 0.6) u = K.mixU(u, WARM, 0.28);   // canto del estrato al sol
+        const vein = (q + Math.round(Math.sin(xx * 0.3 + seed) * 1.5)) % 17 === 0 && hash2(xx >> 2, q >> 4, seed + 2) < 0.55;
+        if (vein && q < h - capH - 3) u = K.mixU(u, S[nx < 0.3 ? 8 : 5], 0.6);
+        put(pb, Math.round(xx), y, u);
       }
     }
-    // capitel con cara superior iluminada y matas
-    const tw = w + 6, tx = x - 3, ty = yb - h;
-    for (let r = 0; r < 5; r++) for (let k = 0; k < tw; k++) put(pb, tx + k + Math.round(r * 0.6), ty - r, R[r === 4 ? n - 1 : n - 2 - (k % 7 === 0 ? 1 : 0)]);
-    PFFlora.tuft(pb, tx + 4, ty - 3, 7, 5, seed, PFFlora.DRY);
-    return { top: ty - 5 };
+    // cara superior del sombrero (elipse en 3/4) con matas
+    const tcx = x + w / 2 + lean * h, tr = prof[h - 1] * 0.95, ty = yb - h;
+    for (let yy = -2; yy <= 1; yy++) for (let xx = Math.floor(-tr); xx <= tr; xx++) { const e = (xx * xx) / (tr * tr) + ((yy + 0.5) * (yy + 0.5)) / 3; if (e > 1) continue; put(pb, Math.round(tcx + xx), ty - 1 + yy, K.mixU(R[n - 1], WARM, xx < 0 ? 0.5 : 0.15)); }
+    PFFlora.tuft(pb, Math.round(tcx - tr * 0.4), ty - 1, 7, 5, seed, PFFlora.DRY);
+    // derrubios al pie
+    for (let q = 0; q < w + 8; q++) { const px = x - 4 + q, hh = Math.round((1 - Math.abs(q - w / 2 - 4) / (w / 2 + 4)) * 3); for (let yy = 0; yy < hh; yy++) put(pb, px, yb - yy, R[clamp(3 + (q < w / 2 + 4 ? 2 : 0) - yy + (hash2(px, yy, seed) < 0.3 ? -1 : 0), 0, n - 1)]); }
+    return { top: ty - 3 };
+  }
+  /** Peña esculpida (r2-biomes-a): superelipse con techo iluminado arriba-izquierda, lado en sombra violeta,
+   *  grieta, cantos de estrato, motas de sal o liquen y sombra de contacto hacia la derecha */
+  function boulder(pb, x, yb, w, h, ramp, seed = 1, o = {}) {
+    const R = P32(ramp || PILLAR_ROCK), n = R.length, r = RNG(seed), SHV = U('#2a1a5a');
+    A.castShadow(pb, x - w / 2, yb + 1, w + 6, 4, -0.24);
+    const cx = x + r.range(-1, 1), p = 2.4 + r() * 1.4, crack = r.int(-w / 4, w / 4) | 0;
+    for (let yy = -h; yy <= 0; yy++) for (let xx = -Math.ceil(w / 2); xx <= Math.ceil(w / 2); xx++) {
+      const nx = xx / (w / 2), ny = (yy + h * 0.45) / (h * 0.55 + 0.01);
+      const wob = (PFK.vn((x + xx) * 0.3, yy * 0.3, seed) - 0.5) * 0.35;
+      const d = Math.pow(Math.abs(nx), p) + Math.pow(Math.abs(Math.min(ny, 0.9)), p) + wob; if (d > 1 || (yy === 0 && Math.abs(nx) > 0.9)) continue;
+      const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, d)));
+      let I = 0.42 - nx * 0.38 - ny * 0.34 + nz * 0.22 + (PFK.cl(x + xx, yy, 2, seed + 1) - 0.5) * 0.14;
+      if (Math.abs(xx - crack - Math.round(yy * 0.3)) < 1 && yy > -h * 0.8) I -= 0.3;
+      if (d > 0.82) I -= 0.12;
+      let k = clamp(Math.round(I * (n - 1)), 0, n - 1), u = R[k];
+      if (k < n * 0.4) u = K.mixU(u, SHV, 0.32 * (1 - k / (n * 0.4)));
+      if (o.speck && ny < -0.3 && hash2(x + xx, yy, seed + 3) < 0.12) u = U(o.speck);
+      put(pb, Math.round(cx + xx), yb + yy, u);
+    }
+  }
+  /** Racimo de cristales cúbicos de halita (2–4 cubos en 3/4 con cara superior blanca y destello) */
+  function halite(pb, x, yb, s = 2, seed = 1) {
+    const S = P32(SALT), r = RNG(seed);
+    for (let i = 0; i < 2 + r.int(0, 2); i++) {
+      const c = s + r.int(0, 2), cx = x + r.int(-5, 5), cy = yb - r.int(0, 2);
+      for (let a = 0; a <= c; a++) for (let b = 0; b <= c; b++) put(pb, cx + a, cy - b, S[b === c ? 8 : a === c ? 4 : a === 0 ? 7 : 6]);
+      for (let a = 1; a <= Math.ceil(c / 2); a++) for (let b = 0; b <= c; b++) put(pb, cx + c + a, cy - b - a, S[b === c ? 7 : 3]);
+      put(pb, cx + 1, cy - c, U('#ffffff'));
+    }
+  }
+  /** Matorral salino (sosa/suaeda): domo verde azulado con puntas rojizas y tallos claros */
+  function saltScrub(pb, x, yb, w = 14, seed = 1) {
+    const r = RNG(seed), G = ['#0c1a1c', '#163026', '#22462e', '#3a6236', '#5a8040', '#86a452'];
+    PFFlora.cluster(pb, x, yb - w * 0.32, w * 0.5, w * 0.34, G, seed, {});
+    for (let i = 0; i < Math.round(w / 3); i++) { const px = Math.round(x + (r() - 0.5) * w * 0.9), py = Math.round(yb - w * 0.32 - r() * w * 0.3); put(pb, px, py, U(i % 2 ? '#e2405a' : '#c8605a')); }
+    for (let k = -Math.round(w / 2); k <= Math.round(w / 2); k++) if (hash2(x + k, yb, seed) < 0.5) put(pb, x + k, yb, U('#1a1420'));
   }
   /** Compuertas del cruce de canales: estructura de hormigón con dos tajaderas y pasarela */
   function weir(pb, x, yb) {
@@ -364,5 +425,5 @@ const PFASalt = (() => {
   }
   if (typeof PFStage !== 'undefined' && PFStage.FG) PFStage.FG.aSalt = fgSalt;
 
-  return { build, renderBack, renderFront, outfall, saltPile, saltPillar, hoodoo, weir, pond, mangrove, salicornia, reeds, boardwalk, station, emissary, drawBuoy, SALT, BRW, WET, MANG };
+  return { build, renderBack, renderFront, outfall, boulder, halite, saltScrub, saltPile, saltPillar, hoodoo, weir, pond, mangrove, salicornia, reeds, boardwalk, station, emissary, drawBuoy, SALT, BRW, WET, MANG };
 })();
