@@ -270,17 +270,125 @@ const R2TERRAIN_Rock = (() => {
     return { bx0, w, h, buf, ms, cols, gyA, H, F, DBG };
   }
 
+
+  /* ---------- r3-coast: cara de CANTOS esculpidos (opcional por tramo: s.r3b = true) ----------
+     Sobre el búfer columnar se superponen masas redondeadas en hileras irregulares (más grandes arriba):
+     cada canto con normal elipsoidal facetada (luz arriba-izquierda), canto superior cálido de 1 px,
+     panza en sombra violácea, oclusión bajo el canto de encima y grietas granate (#602212/#3e0c03)
+     entre cantos. Los huecos entre masas quedan como recovecos oscuros. */
+  const R3B_CREV = [U('#3e0c03'), U('#4e1608'), U('#602212')];
+  function r3bLayout(bx0, w, h, gyAt, seed, o = {}) {
+    const r = RNG(seed), B = [];
+    let d = 0;
+    for (let row = 0; d < h + 30; row++) {
+      const big = row === 0 ? 1.25 : row === 1 ? 1.1 : 0.95;
+      let rowH = 0;
+      for (let x = bx0 - r.int(4, 22); x < bx0 + w + 24;) {
+        const rx = Math.round((o.rMin || 9) + r() * ((o.rMax || 20) - (o.rMin || 9))) * big, ry = rx * (0.85 + r() * 0.75);
+        const cx = x + rx, top = d + (row === 0 ? 1 + r.int(0, 4) : r.int(-4, 6));
+        B.push({ cx, cy: gyAt(Math.round(cx)) + top + ry, rx, ry, row, id: B.length, tone: (r() - 0.5) * 0.16, fq: 0.34 + r() * 0.2, fs: r.int(1, 1e5), plant: r() < 0.42, p: 2.6 + r() * 1.4, crk: r() < 0.5 ? cx + (r() - 0.5) * rx : null });
+        rowH = Math.max(rowH, ry * 2);
+        x += rx * (1.55 + r() * 0.4);
+      }
+      d += rowH * (0.62 + r() * 0.12);
+    }
+    // índice por columnas de 32 px
+    const bins = new Map();
+    for (const b of B) for (let k = Math.floor((b.cx - b.rx) / 32); k <= Math.floor((b.cx + b.rx) / 32); k++) { if (!bins.has(k)) bins.set(k, []); bins.get(k).push(b); }
+    return { B, bins };
+  }
+  /** canto más cercano en (x, y): {b, d1, d2} con métrica elíptica */
+  function r3bNear(L, x, y) {
+    const list = L.bins.get(Math.floor(x / 32)); let d1 = 9, d2 = 9, b1 = null;
+    if (list) for (const b of list) { const nx = Math.abs(x - b.cx) / b.rx, ny = Math.abs(y - b.cy) / b.ry, d = Math.pow(Math.pow(nx, b.p) + Math.pow(ny, b.p), 2 / b.p); if (d < d1) { d2 = d1; d1 = d; b1 = b; } else if (d < d2) d2 = d; }
+    return { b: b1, d1, d2 };
+  }
+  /** color del canto en (x, y) o null si cae en un hueco */
+  function r3bShade(L, RR, x, y, sd) {
+    const q = r3bNear(L, x, y), b = q.b; if (!b || q.d1 >= 1) return { u: null, q };
+    const ax = (x - b.cx) / b.rx, ay = (y - b.cy) / b.ry;
+    // normal de superelipse (bloque redondeado) con facetas pictóricas: cuantizada y desplazada por canto
+    let gx = Math.sign(ax) * Math.pow(Math.abs(ax), b.p - 1), gy = Math.sign(ay) * Math.pow(Math.abs(ay), b.p - 1);
+    const gl = Math.hypot(gx, gy, 0.55 * (1 - q.d1) + 0.08); gx /= gl; gy /= gl;
+    const fq = b.fq, jx = (hash2((x + b.fs) >> 2, (y + b.fs) >> 3, sd) - 0.5) * fq;
+    let nx = Math.round((gx + jx) / fq) * fq, ny = Math.round(gy / fq) * fq;
+    const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, nx * nx + ny * ny)));
+    const lam = clamp(-nx * 0.55 - ny * 0.75 + nz * 0.5, 0, 1.2);
+    let t = 0.16 + 0.7 * lam + b.tone + (hash2(x >> 1, y >> 1, sd + 7) - 0.5) * 0.05;
+    let cool = clamp((0.36 - lam) * 1.6 + (ay > 0.6 ? 0.3 : 0), 0, 0.85);
+    // grieta vertical que parte algunos bloques
+    if (b.crk != null && Math.abs(x - (b.crk + Math.round(Math.sin(y * 0.3 + b.fs) * 1.2))) < 1 && ay > -0.7 && ay < 0.85) return { u: R3B_CREV[1], q };
+    // oclusión bajo el canto de arriba (el píxel 3 px más arriba pertenece a otro canto más alto)
+    const up = r3bNear(L, x, y - 3);
+    if (up.b && up.b !== b && up.d1 < 1 && up.b.cy < b.cy) { t -= 0.26; cool = Math.min(1, cool + 0.3); }
+    // canto superior cálido de 1 px (el píxel de arriba ya no es de este canto)
+    const a1 = r3bNear(L, x, y - 1);
+    const rim = (a1.b !== b || a1.d1 >= 1) && ay < -0.2 && ax < 0.7;
+    let u;
+    if (q.d2 - q.d1 < 0.2 && q.d2 < 1.6) u = R3B_CREV[(hash2(x >> 1, y >> 1, sd + 3) * 3) | 0];
+    else if (rim) u = U('#fdd89a');
+    else if (ny < -0.55 && lam > 0.75) u = K.mixU(RR.lit[15], U('#f8c890'), 0.45);   // cabeza al sol, melocotón
+    else {
+      const k = clamp(Math.round(t * 16), 1, 15);
+      u = cool > 0.05 ? K.mixU(RR.lit[k], RR.sh[k], cool) : RR.lit[k];
+    }
+    return { u, q };
+  }
+  function r3bApply(R, s, world) {
+    const { bx0, w, h, buf, gyA } = R;
+    const RR = ramp17(s.ramp || RAMP.rockWarmR, s.shadeHue || '#2a0c2e');
+    const gyAt = (x) => gyA[clamp(x - bx0, 0, w - 1)], sd = ((s.seed | 0) * 131 + 29) & 0xffff;
+    const L = r3bLayout(bx0, w, h, gyAt, (s.seed | 0) * 977 + 41, s.r3bOpt || {});
+    for (let y = 0; y < h; y++) for (let xi = 0; xi < w; xi++) {
+      const i = y * w + xi; if (!(buf[i] >>> 24)) continue;
+      const x = bx0 + xi, d = y - gyA[xi]; if (d < 0) continue;
+      const S = r3bShade(L, RR, x, y, sd);
+      if (S.u != null) buf[i] = S.u;
+      else buf[i] = K.mixU(buf[i], R3B_CREV[d % 7 === 0 ? 0 : 1], 0.62); // recoveco entre masas
+    }
+    R.r3b = L; R.r3bRR = RR; R.r3bSd = sd;
+    return R;
+  }
+  /** plantas en las cabezas de algunos cantos y masas que desbordan el borde libre (voladizo) */
+  function r3bPost(pb, world, s, R) {
+    const L = R.r3b; if (!L) return;
+    const opaque = (x, y) => (K.get(pb, x, y) >>> 24) === 255;
+    const gyAt = (x) => world.ground[clamp(Math.round(x), 0, world.w)];
+    for (const b of L.B) {
+      if (!b.plant || b.row === 0 || b.cx < s.x0 + 4 || b.cx > s.x1 - 4) continue;
+      const x = Math.round(b.cx - b.rx * 0.25), y = Math.round(b.cy - b.ry) + 1;
+      if (y > world.h - 8 || y < gyAt(x) + 6 || !opaque(x, y + 2)) continue;
+      const k = hash2(b.id, 3, R.r3bSd);
+      if (k < 0.34) PFFlora.tuft(pb, x, y, 6 + k * 10, 5 + k * 8, x * 3 + y, s.tuftRamp || RAMP.grassR);
+      else if (k < 0.5) PFFlora.flowerPatch(pb, x, y, 7, x + y);
+      else if (k < 0.62) { for (let q = 0; q < 2; q++) PFFlora.lupine(pb, x + q * 3, y, 7 + q * 4, x + q); }
+      else if (k < 0.74) PFFlora.fern(pb, x, y, 8, x + y * 3);
+      else if (k < 0.82) PFFlora.agave(pb, x, y, 4, x + y);
+      else hangRoot(pb, x + 2, Math.round(b.cy + b.ry * 0.6), 4 + ((k * 40) | 0) % 9, x * 13 + y);
+    }
+    // voladizo: los cantos del borde libre derecho desbordan la arista recta (solo bajo el canto superior)
+    if (s.r3bSpill) {
+      const [xa, xb] = s.r3bSpill;
+      for (let x = xa; x < xb; x++) for (let y = gyAt(s.x1 - 1) + 4; y < world.h; y++) {
+        if (opaque(x, y)) continue;
+        const S = r3bShade(L, R.r3bRR, x, y, R.r3bSd);
+        if (S.u != null && S.q.b.cx < s.x1 + 4) K.put(pb, x, y, S.u);
+      }
+    }
+  }
+
   /** Búfer del tramo 'cliff' (perezoso) */
   function build(s, world) {
     const segs = (world.def.pf && world.def.pf.terrain) || [];
     const nb = (xe, left) => segs.find(o => o.x0 !== s.x0 && (left ? o.x1 === xe : o.x0 === xe));
     const voidL = s.edgeL != null ? s.edgeL : (nb(s.x0, true) && nb(s.x0, true).face === 'void' ? s.x0 : null);
     const voidR = s.edgeR != null ? s.edgeR : (nb(s.x1, false) && nb(s.x1, false).face === 'void' ? s.x1 : null);
-    return field({
+    const R = field({
       x0: s.x0, x1: s.x1, h: world.h, gyAt: (x) => world.ground[clamp(Math.round(x), 0, world.w)],
       ramp: s.ramp || RAMP.rockWarmR, seed: (s.seed | 0) + 3, lip: s.lip, hue: s.shadeHue, heads: s.heads !== false,
       tiers: s.tiers, scree: s.scree, screeD: s.screeD, edgeL: voidL, edgeR: voidR,
     });
+    return s.r3b ? r3bApply(R, s, world) : R;
   }
   function pix(s, x, y, gy, world) {
     let R = s._r2; if (!R) R = s._r2 = build(s, world);
@@ -365,6 +473,7 @@ const R2TERRAIN_Rock = (() => {
         PFFlora.tuft(pb, x, y, 6 + r() * 4, 4 + r() * 5, x * 3 + y, s.tuftRamp || RAMP.grassR);
       }
     }
+    if (R.r3b) r3bPost(pb, world, s, R);
   }
-  return { build, pix, post, field, ramp17, structure, hangRoot, LV };
+  return { build, pix, post, field, ramp17, structure, hangRoot, LV, r3bApply, r3bLayout };
 })();

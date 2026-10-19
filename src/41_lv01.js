@@ -32,7 +32,7 @@ LEVELS[1] = {
   /* ---------------- plano jugable con kit PF ---------------- */
   pf: {
     terrain: [
-      { x0: 0, x1: 268, surf: 'path', face: 'cliff', depth: 16 },
+      { x0: 0, x1: 268, surf: 'path', face: 'cliff', depth: 16, r3b: true, r3bSpill: [268, 292] }, // r3-coast: cantos esculpidos que desbordan sobre el mar
       { x0: 268, x1: 785, surf: 'sand', face: 'beach', shore: true, depth: 14 },
       { x0: 785, x1: 1060, surf: 'rock', face: 'rocks', depth: 14 },
       { x0: 1060, x1: 1108, surf: 'paving', face: 'quay', depth: 16 },
