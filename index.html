@@ -29093,6 +29093,32 @@ const SCBEnd = (() => {
     pb.outline(() => U('#000633'));
     c = pb.toCanvas(); _tiles.set(k, c); return c;
   }
+  /** Marco ilustrado del panel: guirnalda de hiedra que cuelga sobre el borde superior, con flores y
+   *  un tubo de permeado cian que recorre el borde inferior con sus bridas (según el final) */
+  function vine(w, id) {
+    const k = 'vine|' + w + '|' + id; let c = _tiles.get(k); if (c) return c;
+    const pb = new PixelBuffer(w, 18), dry = id === 'deuda';
+    const G = V.P32(dry ? ['#2a1a08', '#4a3410', '#6a4c1a', '#8a6a28', '#ac8a3a', '#ccaa50'] : ['#0a2414', '#123a1c', '#1a5424', '#2a7a2c', '#4a9a34', '#7ac04a', '#b0dc5a']);
+    const FL = id === 'tecnica' ? ['#c8d0e0', '#ffffff'] : dry ? ['#c88a3a', '#f0c070'] : ['#ff6ab0', '#ffe14d', '#ffffff', '#b49cff'];
+    const yAt = (x) => 6 + Math.round(Math.sin(x * 0.045) * 2 + Math.sin(x * 0.013 + 1) * 2);
+    for (let x = 0; x < w; x++) { const y = yAt(x); V.put(pb, x, y, G[1]); V.put(pb, x, y + 1, G[0]); if (x % 3 === 0) V.put(pb, x, y - 1, G[2]); }
+    for (let x = 4; x < w - 4; x += 7) {
+      const y = yAt(x), up = (x / 7 | 0) % 2 === 0, L = 3 + ((x * 7) % 3);
+      for (let q = 0; q < L; q++) { const yy = up ? y - 1 - q : y + 2 + q, xx = x + (up ? -(q >> 1) : (q >> 1)); V.put(pb, xx, yy, G[q === 0 ? 2 : q === L - 1 ? G.length - 1 : 4]); V.put(pb, xx + 1, yy, G[q === L - 1 ? 5 : 3]); }
+      if (hash2(x, 3, 9) < 0.28) { const fx = x + 2, fy = y + (up ? 3 : -3), fc = U(FL[(x * 13) % FL.length]); V.put(pb, fx, fy, fc); V.put(pb, fx - 1, fy, fc); V.put(pb, fx + 1, fy, fc); V.put(pb, fx, fy - 1, fc); V.put(pb, fx, fy + 1, fc); V.put(pb, fx, fy, U('#fff6d8')); }
+    }
+    // zarcillos que cuelgan más (cada ~90 px)
+    for (let x = 30; x < w - 20; x += 88 + ((x * 3) % 17)) { const y = yAt(x); for (let q = 0; q < 4; q++) { V.put(pb, x + (q % 3 === 1 ? 1 : 0), y + 2 + q, G[q % 2 ? 2 : 3]); if (q % 3 === 2) V.put(pb, x + 2, y + 2 + q, G[5]); } }
+    c = pb.toCanvas(); _tiles.set(k, c); return c;
+  }
+  function pipeFrame(w) {
+    const k = 'pipeF|' + w; let c = _tiles.get(k); if (c) return c;
+    c = makeCanvas(w, 7); const b = c.g, R = ['#0a3a5a', '#1a6a9a', '#48b6ec', '#86dcff', '#c8f4ff'];
+    b.globalAlpha = 0.35; b.fillStyle = '#48b6ec'; b.fillRect(0, 0, w, 7); b.globalAlpha = 1;
+    for (let j = 0; j < 5; j++) { b.fillStyle = R[[1, 3, 4, 2, 0][j]]; b.fillRect(0, 1 + j, w, 1); }
+    for (let x = 24; x < w - 8; x += 64) { b.fillStyle = '#000633'; b.fillRect(x, 0, 4, 7); b.fillStyle = '#b8c6d6'; b.fillRect(x + 1, 0, 2, 7); b.fillStyle = '#f4f9ff'; b.fillRect(x + 1, 1, 1, 2); }
+    _tiles.set(k, c); return c;
+  }
   function renderScreen(sc, g) {
     const E = sc.E, t = sc.t, st = sc.st;
     if (!sc.art || sc.art.id !== sc.id) sc.art = make(sc.id);
@@ -29104,7 +29130,7 @@ const SCBEnd = (() => {
     if (!sc.titleC || sc.titleK !== 'r3' + sc.id) {
       sc.titleK = 'r3' + sc.id; const tc = makeCanvas(W, 72); tc.g.imageSmoothingEnabled = false;
       const c0 = E.cols[0], c1 = E.cols[1];
-      drawTitleText(tc.g, E.title, W / 2, 8, 3, ['#ffffff', mixHex('#ffffff', c0, 0.35), c0, mixHex(c0, c1, 0.5), shade(c1, -0.15)], { align: 'center', font: 'bold', shadow: mixHex('#140d26', c0, 0.15), depth: 3, outline: '#140d26' });
+      drawTitleText(tc.g, E.title.toUpperCase(), W / 2, 8, 3, ['#ffffff', mixHex('#ffffff', c0, 0.35), c0, mixHex(c0, c1, 0.5), shade(c1, -0.15)], { align: 'center', font: 'bold', shadow: mixHex('#140d26', c0, 0.15), depth: 3, outline: '#140d26' });
       sc.titleC = tc;
     }
     const ly = 18 + Math.round(Math.sin(t * 1.2) * 1.5);
@@ -29113,16 +29139,21 @@ const SCBEnd = (() => {
     // panel inferior (≤ 35 %): cristal navy con bisel, divisor y tres columnas
     const py = BH + 2, ph = H - py - 4, x = 6, w = W - 12;
     UIK.panel(g, x, py, w, ph, 'dialog', null, { key: false });
+    // marco ilustrado: tubo de permeado luminoso con bridas por el borde inferior y chevrones que avanzan
+    g.drawImage(pipeFrame(w - 16), x + 8, H - 9);
+    { const off = (t * 22) % 14; for (let cx = x + 10 + off; cx < x + w - 10; cx += 14) { const q = Math.round(cx); fpx(g, q, H - 7, '#ffffff'); fpx(g, q + 1, H - 6, '#ffffff'); fpx(g, q, H - 5, '#ffffff'); } }
+    // guirnalda de hiedra con flores colgando sobre el borde superior (se mece un píxel)
+    g.drawImage(vine(W, sc.id), Math.round(Math.sin(t * 0.9) * 1), py - 10);
     const div = (xx) => { frect(g, xx, py + 6, 1, ph - 12, '#12305a'); frect(g, xx + 1, py + 6, 1, ph - 12, '#2a4c82'); };
     // columna 1: texto del final en la fuente de cuerpo con palabras clave en color
-    const c1w = 250;
+    const c1w = 246;
     let yy = py + 6;
     yy += drawTextBlock(g, markKeys(E.text), x + 8, yy, c1w - 12, { color: '#fffaf0', lineH: 10 }) + 2;
     yy += drawTextBlock(g, '{y}Pendiente:{/} ' + E.pending, x + 8, yy, c1w - 12, { color: '#e2ebfc', lineH: 10 }) + 2;
     drawTextBlock(g, '{y}Para seguir aprendiendo:{/} practica ' + sc.weak.join(', ') + ' en el modo Práctica del mapa.', x + 8, yy, c1w - 12, { color: '#cfe7ff', lineH: 10 });
     div(x + c1w);
     // columna 2: fichas de estadística con icono, valor y barra
-    const tx0 = x + c1w + 6, tw = 80, th = 33;
+    const tx0 = x + c1w + 6, tw = 78, th = 33;
     drawText(g, 'DEBRIEF', tx0 + 1, py + 6, { font: 'tiny', color: '#ffe14d' });
     const tiles = [
       ['chart', 'DOMINIO', 'PROMEDIO', fmt0(st.avg) + ' / 100', st.avg / 100, '#86e36f'],
