@@ -41,7 +41,12 @@ const R2LIGHT_TOD = {
     grade: { map: ['#1a1040', '#38245e', '#6a4060', '#b86a52', '#f6a058', '#ffe2a8'], mapK: 0.14, shade: '#2c1a5c', shadeK: 0.2, lift: '#ffb468', liftK: 0.3, sat: 1.14, warmMag: 0.5, vgrad: [0.03, -0.07] },
     rim: { col: '#ffb070', k: 0.62, side: 1, terrain: 0.6 },
     cast: { col: '#4a2a7a', a: 0.5, len: 1.7, maxLen: 110, hMax: 64, lit: '#ffa860', litK: 0.22 },
-    char: { mul: '#ffdccc', mulK: 0.3, shade: '#3a1d62', shadeK: 0.22, lift: '#ffc090', liftK: 0.22, rim: '#ffc27a', rimK: 0.8, shadowCol: '#2a1040', shadowA: 0.66, cast: 1.6, castA: 0.44 },
+    // r3-light: personajes reiluminados al ocaso: borde cálido #ffc070 de 1 px (lado del sol, coronilla y coleta),
+    // multiplicar violeta #2a1a50 en el lado contrario (2 escalones) y sombra arrojada larga
+    char: { mul: '#ffdcc4', mulK: 0.26, shade: '#3a1d62', shadeK: 0.14, lift: '#ffc090', liftK: 0.2, rim: '#ffc070', rimK: 0.9, rimMix: 0.78, rimOutline: 0.82, rimInner: 0.4, crown: 0.95, top: 0.55, crownH: 0.36,
+      side: { col: '#2a1a50', k: 0.17, from: 0.5, soft: 0.1 }, warm: { col: '#ffc070', k: 0.1, to: 0.36 },
+      shadowCol: '#1c0c36', shadowA: 0.66, cast: 1.6, castA: 0.58 },
+    charEnv: 'none',
     glow: 1.3,
   },
   storm: {
@@ -355,6 +360,23 @@ const R2LIGHT = (() => {
     if (facing < 0) { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) D[y * w + x] = S[y * w + (w - 1 - x)]; } else D.set(S);
     const grade = st.charGrade, rc = C.rim ? rgb(C.rim) : null, rk = C.rimK || 0, sx = -st.sd;
     const src = new Uint32Array(D), A = (i) => src[i] >>> 24 > 8, Lu = (u) => (0.299 * (u & 255) + 0.587 * ((u >>> 8) & 255) + 0.114 * ((u >>> 16) & 255)) / 255;
+    // r3-light: modelado de dos lados (atardecer): el lado del sol se calienta y el lado contrario recibe
+    // un multiplicar violeta en 2 escalones planos; el terminador sigue la silueta (extremos de fila ±2)
+    const SDc = C.side, WMc = C.warm, rimMix = C.rimMix ?? 0.6;
+    let XL = null, XR = null, yTop = h, crownY = -1;
+    if (SDc || C.crown) {
+      XL = new Int16Array(h).fill(-1); XR = new Int16Array(h).fill(-1);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (A(y * w + x)) { if (XL[y] < 0) XL[y] = x; XR[y] = x; if (y < yTop) yTop = y; }
+      const fyS = CHARS[CC.charId].oy ?? 78;
+      crownY = yTop + Math.round((Math.min(h, fyS) - yTop) * (C.crownH ?? 0.34));
+    }
+    const sideCol = SDc ? rgb(SDc.col).map(v => v / 255) : null, warmCol = WMc ? rgb(WMc.col) : null;
+    const sideOf = (x, y) => {
+      let l = 9999, r = -1;
+      for (let k = Math.max(0, y - 2); k <= Math.min(h - 1, y + 2); k++) if (XL[k] >= 0) { if (XL[k] < l) l = XL[k]; if (XR[k] > r) r = XR[k]; }
+      const wd = r - l + 1; if (wd < 5) return -1;
+      return (sx > 0 ? r - x : x - l) / wd;   // 0 = borde del lado del sol · 1 = borde contrario
+    };
     // ¿el vecino hacia (dx,dy) es exterior? (transparente, o contorno oscuro con exterior detrás)
     const outside = (x, y, dx, dy) => {
       const x1 = x + dx, y1 = y + dy; if (x1 < 0 || y1 < 0 || x1 >= w || y1 >= h) return true;
@@ -365,15 +387,38 @@ const R2LIGHT = (() => {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const i = y * w + x, u = src[i]; if (!A(i)) continue;
       let r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255;
-      const L0 = Lu(u);
+      const L0 = Lu(u), emis = emissiveOf(r, g, b) || L0 > 0.92;
       if (grade && L0 > 0.1) { const o = grade(r, g, b, 0); r = o[0]; g = o[1]; b = o[2]; }
-      if (rc && rk && L0 > 0.22 && L0 < 0.95) {
+      if ((SDc || WMc) && !emis) {
+        const v = sideOf(x, y);
+        if (v >= 0) {
+          if (SDc && v >= (SDc.from ?? 0.5) - (SDc.soft ?? 0.1)) {
+            const k = (SDc.k ?? 0.15) * (v >= (SDc.from ?? 0.5) ? 1 : 0.5);
+            r *= 1 - k + k * sideCol[0]; g *= 1 - k + k * sideCol[1]; b *= 1 - k + k * sideCol[2];
+          } else if (WMc && v < (WMc.to ?? 0.34) && L0 > 0.12) {
+            const k = WMc.k ?? 0.1;   // luz cálida (pantalla) en el lado del sol
+            r += (255 - r) * k * warmCol[0] / 255; g += (255 - g) * k * warmCol[1] / 255; b += (255 - b) * k * warmCol[2] / 255;
+          }
+        }
+      }
+      // r3-light: contorno oscuro del lado del sol (y de la coronilla) → línea de luz cálida de 1 px (selout)
+      if (C.rimOutline && rc && L0 <= 0.22) {
+        const ex = (dx, dy) => { const x1 = x + dx, y1 = y + dy; return x1 < 0 || y1 < 0 || x1 >= w || y1 >= h || !A(y1 * w + x1); };
+        const sOut = ex(sx, 0), tOut = ex(0, -1);
+        const k = sOut ? C.rimOutline : tOut ? C.rimOutline * (y <= crownY ? (C.crown ?? 0.5) : (C.top ?? 0.5)) : 0;
+        if (k > 0) { r += (rc[0] * 0.92 - r) * k; g += (rc[1] * 0.86 - g) * k; b += (rc[2] * 0.8 - b) * k; }
+      }
+      if (rc && rk && L0 > 0.22 && L0 < 0.95 && !(emis && L0 > 0.6)) {
         const side = outside(x, y, sx, 0), top = outside(x, y, 0, -1);
         if (side || top) {
           // borde del sol: sube hacia el color de la luz conservando algo del tono del material
-          const k = rk * (side && top ? 1 : side ? 0.85 : 0.5);
+          // (r3-light: la coronilla y la coleta llevan el borde casi completo; C.top regula el resto de bordes altos)
+          const topK = y <= crownY ? (C.crown ?? 0.5) : (C.top ?? 0.5);
+          // con selout el contorno ya lleva la luz: el píxel interior solo se aclara un poco (C.rimInner)
+          const inner = C.rimOutline && !((side && (x + sx < 0 || x + sx >= w || !A(y * w + x + sx))) || (top && (y < 1 || !A(i - w)))) ? (C.rimInner ?? 1) : 1;
+          const k = rk * inner * (side && top ? 1 : side ? 0.85 : topK);
           const m = Math.max(r, g, b, 1), lift = Math.min(1.5, 235 / m);
-          r += (Math.min(255, rc[0] * 0.6 + r * lift * 0.4) - r) * k; g += (Math.min(255, rc[1] * 0.6 + g * lift * 0.4) - g) * k; b += (Math.min(255, rc[2] * 0.6 + b * lift * 0.4) - b) * k;
+          r += (Math.min(255, rc[0] * rimMix + r * lift * (1 - rimMix)) - r) * k; g += (Math.min(255, rc[1] * rimMix + g * lift * (1 - rimMix)) - g) * k; b += (Math.min(255, rc[2] * rimMix + b * lift * (1 - rimMix)) - b) * k;
         }
       }
       D[i] = ((u & 0xff000000) | (cl8(b) << 16) | (cl8(g) << 8) | cl8(r)) >>> 0;
@@ -690,7 +735,9 @@ const R2LIGHT = (() => {
     st.charGrade = compileGrade(C.char);
     CHR.contact.clear();
     // ambiente de la luz de borde del rig
-    if (typeof SpriteCache !== 'undefined') { st.env0 = SpriteCache.env; if (C.env) { SpriteCache.env = C.env; st.envSet = true; } else st.envSet = false; }
+    // r3-light: C.charEnv sustituye al ambiente del rig (p. ej. 'none' al ocaso: sin contraluz fijo en la espalda; la luz
+    // de borde la pone litSprite del lado del sol)
+    if (typeof SpriteCache !== 'undefined') { st.env0 = SpriteCache.env; const ev = C.charEnv || C.env; if (ev) { SpriteCache.env = ev; st.envSet = true; } else st.envSet = false; }
     // capas estáticas: reiluminar y recortar
     const L = {};
     for (const [key, role] of [['propsC', 'props'], ['terrainC', 'terrain'], ['propsFrontC', 'front']]) {
