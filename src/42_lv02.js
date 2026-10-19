@@ -2,6 +2,10 @@
    42_lv02.js — NIVEL 02: EL LABERINTO OSMÓTICO
    Planta de pretratamiento fino, bombas de alta presión y trenes de OI.
    RA-02 · Tejedor de Presión · Guardián: OSMORA
+   Ronda 3 (r3-int-a): nave pintada a pleno sol de tarde (sin grises), haces
+   nítidos de los ventanales (VISTA.r3iaDrawBeams) con charcos de luz,
+   plano frontal 1,3 de montantes y conductos, galería de colectores
+   iluminada y llena (R3INTA_L2gallery*, 42b) y su animación.
    ===================================================================== */
 
 /** Conductividad aproximada del permeado (µS/cm) a partir de TDS (g/L) — factor 0,55 mg/L por µS/cm */

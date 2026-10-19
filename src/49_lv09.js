@@ -3,6 +3,10 @@
    Consejo ciudadano, laboratorio del gemelo digital y observatorio económico.
    RA-08 · Tablero Mosaico · Guardián: El Índice Único
    Cuarto giro: no existe un único culpable (revelación sistémica).
+   Ronda 3 (r3-int-a): haces de sol poniente nítidos con charcos de luz,
+   patio de zellige con acequia bajo la línea de paso, plantas (naranjos,
+   palmeras, buganvilla, jazmín), logia 0,7, estandartes con vaivén,
+   ventiladores y palomas (R3INTA_L9*, 19r_scb_lv09.js).
    ===================================================================== */
 
 const CHAIN_CARDS = [
