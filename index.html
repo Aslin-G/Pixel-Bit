@@ -30395,6 +30395,20 @@ const R2MAP = (() => {
     ], { seed: 41, rough: 0.6, scale: 0.05, sharp: 1.15, spurs: 7 });
     const N = MW * WR;
     const Hh = new Float32Array(N), LD = new Float32Array(N), BI = new Uint8Array(N);
+    // r3-mapui: barrancos que cortan el altiplano ocre (paredes con luz y sombra, fondo verde con hilo de agua),
+    // oasis verdes y balsas de riego entre los nodos (coordenadas del lienzo; el mundo va 14 px más abajo)
+    const RAV = [
+      [[300, 84], [318, 112], [342, 140], [372, 162], [400, 188], [432, 214], [466, 244]],
+      [[236, 142], [258, 162], [272, 188], [280, 218], [296, 248], [306, 276]],
+      [[360, 100], [384, 80], [404, 62]],
+      [[452, 160], [470, 182], [474, 210]],
+      [[170, 128], [158, 150], [138, 170]],
+    ];
+    const segD = (px, py, ax, ay, bx, by) => { const vx = bx - ax, vy = by - ay, t = clamp(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy || 1), 0, 1); return Math.hypot(px - ax - vx * t, py - ay - vy * t); };
+    const ravD = (x, yw) => { let m = 99; for (const R of RAV) for (let s2 = 0; s2 < R.length - 1; s2++) { const d2 = segD(x, yw, R[s2][0], R[s2][1] + 14, R[s2 + 1][0], R[s2 + 1][1] + 14); if (d2 < m) m = d2; } return m; };
+    const OAS2 = [[392, 150, 16, 9], [268, 212, 14, 8], [452, 176, 12, 8], [318, 96, 14, 8], [440, 238, 14, 8], [182, 118, 12, 7]];
+    const RES = [[418, 160, 8, 3.5], [252, 192, 7, 3], [338, 112, 6, 2.6]];
+    const RAVW = new Uint8Array(N);
     const BIO = ['sand', 'dune', 'rock', 'grass', 'crop', 'salt', 'city'];
     const bix = (s) => BIO.indexOf(s);
     const TERR = new Uint8Array(N); // 1 = terraza agrícola (bancal)
@@ -30405,7 +30419,7 @@ const R2MAP = (() => {
       const inl = -d;
       // acantilado costero (más bajo en las calas de la toma y de la planta)
       const cove = Math.max(gauss((x - 102) / 30, (yw - 214) / 26), gauss((x - 146) / 34, (yw - 262) / 22) * 0.9, gauss((x - 520) / 26, (yw - 222) / 20) * 0.6);
-      const cliff = (11 + 9 * fbm(x * 0.025, yw * 0.025, 3, 41)) * (1 - 0.75 * cove);
+      const cliff = (14 + 11 * fbm(x * 0.025, yw * 0.025, 3, 41)) * (1 - 0.75 * cove);
       let h = 1 + cliff * smooth01(0.0015, 0.008, inl);
       // colina de la ciudad en terrazas de 4 px
       const city = gauss((x - 204) / 40, (yw - 180) / 28);
@@ -30425,6 +30439,16 @@ const R2MAP = (() => {
       const dun = gauss((x - 352) / 64, (yw - 240) / 30);
       h += dun * (2 + 2 * Math.sin(x * 0.16 + yw * 0.35 + fbm(x * 0.05, yw * 0.05, 2, 3) * 4));
       // oasis: cuenca con laguna; salinas: llano bajo
+      // barrancos: corte en V de hasta 9 px con fondo plano estrecho
+      // (el punto se desplaza con ruido de baja frecuencia: el cauce serpentea; el ancho también varía)
+      const rwid = 5 + 4 * fbm(x * 0.03, yw * 0.03, 2, 23);
+      const rv = ravD(x + (fbm(x * 0.022, yw * 0.022, 3, 21) - 0.5) * 22, yw + (fbm(x * 0.022 + 7, yw * 0.022, 3, 22) - 0.5) * 14) + (fbm(x * 0.1, yw * 0.1, 2, 19) - 0.5) * 3;
+      let ravK = 0;
+      if (rv < rwid && inl > 0.03 && city < 0.3) { ravK = Math.pow(1 - rv / rwid, 1.3); h -= 7.5 * ravK; if (rv < 1.1) RAVW[i] = 1; }
+      // balsas de riego: lámina plana con murete
+      let resK = 9;
+      for (const [rx0, ry0, rax, ray] of RES) resK = Math.min(resK, Math.hypot((x - rx0) / rax, (yw - ry0 - 14) / ray));
+      if (resK < 1.35) h = Math.max(2, h - (resK < 1 ? 1 : 0));
       const oas = gauss((x - 374) / 48, (yw - 290) / 20);
       const sal = gauss((x - 228) / 56, (yw - 298) / 18);
       h = lerp(h, 3, clamp(oas * 1.5, 0, 0.85));
@@ -30440,6 +30464,13 @@ const R2MAP = (() => {
       if (sal > 0.42 + n * 0.25) b = 'salt';
       if (oas > 0.2 + n * 0.3 || gauss((x - 430) / 30, (yw - 284) / 18) > 0.4 + n) b = 'crop';
       else if (oas > 0.08 + n * 0.2 || gauss((x - 140) / 40, (yw - 220) / 30) > 0.5 + n * 0.5) b = 'grass';
+      // r3-mapui: fondos de barranco y oasis verdes entre los nodos; murete de las balsas en tono claro
+      if (b === 'sand' || b === 'rock' || b === 'dune') {
+        if (ravK > 0.32 + n * 0.4) b = 'grass';
+        for (const [ox0, oy0, orx, ory] of OAS2) { const go = gauss((x - ox0) / orx, (yw - oy0 - 14) / ory); if (go > 0.42 + n * 0.5) b = go > 0.8 && hash2(x >> 2, yw >> 2, 7) < 0.5 ? 'crop' : 'grass'; }
+      }
+      if (resK < 1.35 && resK >= 1) b = 'salt';
+      if (resK < 1) RAVW[i] = 3;
       BI[i] = bix(b);
       if ((b === 'crop' && oas < 0.75) || (b === 'city' && city < 0.55)) TERR[i] = 1;
     }
@@ -30454,6 +30485,7 @@ const R2MAP = (() => {
       const q = Math.hypot((x - 372) / 22, (yw - 290) / 7) + (fbm(x * 0.1, yw * 0.1, 2, 9) - 0.5) * 0.5;
       if (q < 1) { WATER[i] = 1; Hh[i] = 3; }
     }
+    for (let i = 0; i < N; i++) if (RAVW[i] && LD[i] < 0) WATER[i] = RAVW[i] === 3 ? 1 : 2;
     // canal del oasis al mar (cae por el acantilado sur como cascada) y arroyo de la ciudad hacia el oeste
     const rivers = [
       [[372, 294], [380, 302], [390, 310], [396, 320], [398, 336]],
@@ -30617,7 +30649,7 @@ const R2MAP = (() => {
       // fondos de vaguada (más bajos que su entorno): más verdes y más densos
       const xw = P(x), hc = Hh[i], hv = (Hh[z * MW + Math.max(0, xw - 5)] + Hh[z * MW + Math.min(MW - 1, xw + 5)] + Hh[Math.max(0, z - 4) * MW + xw] + Hh[Math.min(WR - 1, z + 4) * MW + xw]) * 0.25;
       const vale = hv - hc > 0.9 && bn !== 'salt' && bn !== 'city';
-      const dens = vale ? 0.9 : { sand: 0.34, dune: 0.05, rock: 0.2, grass: 0.95, crop: 0.3, salt: 0.0, city: 0.2 }[bn];
+      const dens = vale ? 0.95 : { sand: 0.48, dune: 0.06, rock: 0.26, grass: 0.95, crop: 0.3, salt: 0.0, city: 0.2 }[bn];
       if (r() > dens || nearNode(x, cy, 9)) continue;
       const big = bn === 'grass' || vale ? r.chance(0.5) : r.chance(0.2);
       const pal = (bn === 'sand' || bn === 'rock') && !vale ? (r.chance(0.6) ? SHRUBR : FOLR) : FOLR;
@@ -30626,7 +30658,7 @@ const R2MAP = (() => {
     /* ---------------- parcelas de cultivo en el altiplano (mosaico de huertas) ---------------- */
     const FIELD = [['#1c5a24', '#2e7e22', '#4ca022', '#7cc42a', '#b4e03a'], ['#8a5a1e', '#c08a26', '#e8b83a', '#f8d860', '#fff0a0'], ['#5a2a1e', '#8a4a2a', '#b06a3a', '#d0905a', '#f0b878'],
       ['#185a3a', '#2a7a3a', '#4ca848', '#80d060', '#b8f080'], ['#3a5a12', '#5a8a16', '#8ab820', '#bcd83a', '#e8f070'], ['#1c5a24', '#2e7e22', '#4ca022', '#7cc42a', '#b4e03a']];
-    const parcels = [[150, 196, 40, 18], [232, 196, 36, 16], [268, 150, 28, 12], [454, 222, 34, 14], [120, 214, 26, 12], [300, 238, 22, 10], [180, 226, 30, 12], [420, 236, 30, 12]];
+    const parcels = [[150, 196, 40, 18], [232, 196, 36, 16], [268, 150, 28, 12], [454, 222, 34, 14], [120, 214, 26, 12], [300, 238, 22, 10], [180, 226, 30, 12], [420, 236, 30, 12], [336, 92, 24, 10], [392, 196, 22, 9], [470, 150, 22, 10], [210, 132, 20, 8]];
     for (const [px0, py0, pw, ph] of parcels) {
       const cols = Math.max(2, Math.round(pw / 11));
       for (let cy = py0; cy < py0 + ph; cy++) for (let x = px0; x < px0 + pw; x++) {
@@ -30694,6 +30726,25 @@ const R2MAP = (() => {
     }, 2);
     // torre SYNARA en el altiplano (Núcleo, nodo 10)
     add(342, 176, (X, Y) => { const T = V.synaraTower(pb, X, Y, 34, { k: 0 }); M._tower = T; }, 2);
+    /* ---------------- r3-mapui: aldeas encaladas, palmeras de los oasis y balsas ---------------- */
+    const VILL = [[362, 128, 7], [448, 140, 6], [232, 228, 7], [312, 62, 5], [470, 226, 5], [168, 112, 5]];
+    VILL.forEach(([vx, vy, nh], vi) => {
+      for (let k = 0; k < nh * 3 && k < 40; k++) {
+        const a2 = k * 2.39996, rad = Math.sqrt(k / (nh * 3)) * (6 + nh * 1.6), x = vx + Math.cos(a2) * rad * 1.3, cy = vy + Math.sin(a2) * rad * 0.6;
+        if (nearNode(x, cy, 11)) continue;
+        const z = worldAt(x, cy); if (z == null || KIND[Math.round(cy) * MW + P(x)] !== 1 || WATER[z * MW + P(x)]) continue;
+        if (k % 3 === 2) { const sd = vi * 31 + k; add(x, cy, (X, Y) => V.tree(pb, X, Y, 2, sd, {}), 1); continue; }
+        const w = 3 + (k % 3), h = 3 + ((k * 7) % 2), seed = vi * 97 + k * 13;
+        add(x, cy, (X, Y) => house(X, Y, w, h, seed), 1);
+      }
+    });
+    for (const [ox0, oy0, orx] of OAS2) for (let k = 0; k < 5; k++) {
+      const a2 = k * 2.39996 + ox0, x = ox0 + Math.cos(a2) * orx * 0.6, cy = oy0 + Math.sin(a2) * 4;
+      if (nearNode(x, cy, 10)) continue;
+      const z = worldAt(x, cy); if (z == null || WATER[z * MW + P(x)] || KIND[Math.round(cy) * MW + P(x)] !== 1) continue;
+      const hh = 6 + (k % 3), lean = (k % 2 ? 1.5 : -1.5), sd = ox0 * 3 + k;
+      add(x, cy, (X, Y) => V.palm(pb, X, Y, hh, lean, sd, {}), 2);
+    }
     /* ---------------- Mesa del Nexo: anfiteatro y sala del consejo en el farallón ---------------- */
     add(236, 106, (X, Y) => {
       V.box3q(pb, X - 9, Y, 18, 5, 5, { ramp: ['#5a3a4a', '#8a6070', '#c09aa0', '#e8d0c8', '#fff4ea'], front: 3, side: 1, top: 4 });
