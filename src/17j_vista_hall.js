@@ -20,6 +20,7 @@
      VISTA.drawLeds(g, list, ox, oy, t)      list: [[x, y, col, hz]]
      VISTA.drawScreens(g, list, ox, oy, t)   list: [{x, y, w, h, kind}]
      VISTA.drawHook(g, H, ox, oy, t)         H: {x, y, len}
+     r3-int-a: VISTA.r3iaBeamSprite(w0,w1,h,s,col,steps) · VISTA.r3iaShafts(sc, S) · VISTA.r3iaDrawBeams(g, list, t, o)
    ===================================================================== */
 (() => {
   const V = VISTA;
@@ -163,6 +164,74 @@
         }
       }
     }
+  };
+  /* ---------------- r3-int-a: haces de ventanal nítidos y charcos de luz (interiores N2/N9) ----------------
+     Trapecio inclinado con 3 escalones de alfa planos (borde · cuerpo · núcleo) y 2 escalones verticales
+     (entrada por el vano, apagado al pie): bordes sólidos, sin tramado. La geometría replica la de
+     R2LIGHT (shafts del nivel: capa del ventanal, from, wTop/wBot, slant) para que el pie del haz caiga
+     sobre el charco de luz que R2LIGHT pinta en el suelo. Sprites cacheados: 2 drawImage por haz. */
+  const _r3b = new Map();
+  V.r3iaBeamSprite = function (w0, w1, h, s, col, steps) {
+    const A = steps || [0.38, 0.68, 1], key = [w0, w1, h, s, col, A.join(',')].join('|');
+    let c = _r3b.get(key); if (c) return c;
+    const cw = Math.ceil(Math.max(w0, w1) + Math.abs(s)) + 2, x0 = s < 0 ? -s : 0, [r, g, b] = hexToRgb(col);
+    c = makeCanvas(cw, h); const img = c.g.createImageData(cw, h), D = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < h; y++) {
+      const v = y / Math.max(1, h - 1), bw = w0 + (w1 - w0) * v, cx = x0 + s * v + (Math.max(w0, w1) - bw) / 2;
+      const fall = v < 0.05 ? 0.55 : v < 0.72 ? 1 : 0.72;
+      for (let x = 0; x < cw; x++) {
+        const d = (x + 0.5 - cx) / bw; if (d < 0 || d >= 1) continue;
+        const e = Math.min(d, 1 - d) * 2, lv = e < 0.3 ? A[0] : e < 0.68 ? A[1] : A[2];
+        D[y * cw + x] = ((Math.round(lv * fall * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0;
+      }
+    }
+    c.g.putImageData(img, 0, 0); c.x0 = x0; _r3b.set(key, c); return c;
+  };
+  /** Geometría de los haces de un nivel (S = R2LIGHT_CFG[id].shafts) en pantalla: [{x, top, w0, w1, h, s, bx, fy}] */
+  V.r3iaShafts = function (sc, S) {
+    const B = sc.backdrop; let L = null;
+    for (const l of (B && B.layers) || []) if (l.tag === S.layer) { L = l; break; }
+    if (!L) return [];
+    const [ox, oy] = B.vofs(L, sc.cam), cam = sc.cam, W_ = sc.world, out = [];
+    const sd = (typeof R2LIGHT !== 'undefined' && R2LIGHT._st && R2LIGHT._st.sd) || 1;
+    for (let x = S.x0; x < (L.c ? L.c.width : W_.w) + S.step; x += S.step) {
+      const sx = x + ox; if (sx > W + 140 || sx + S.w < -140) continue;
+      const top = Math.round(S.y0 + (S.y1 - S.y0) * (S.from ?? 0.35) + oy);
+      const w0 = Math.round(S.w * (S.wTop ?? 0.62)), w1 = Math.round(S.w * (S.wBot ?? 0.92)), sl = S.slant * sd;
+      let bx = sx + S.w / 2 + sl * 140;
+      let fy = Math.round(W_.groundAt(clamp(Math.round(bx + cam.ox), 0, W_.w)) - cam.oy);
+      const h = Math.max(20, (fy - top + 3) & ~3), s = Math.round(sl * h);
+      bx = sx + (S.w - w0) / 2 + s + w1 / 2 - (Math.max(w0, w1) - w1) / 2;
+      fy = Math.round(W_.groundAt(clamp(Math.round(bx + cam.ox), 0, W_.w)) - cam.oy);
+      out.push({ x: Math.round(sx + (S.w - Math.max(w0, w1)) / 2), top, w0, w1, h, s, bx: Math.round(bx), fy });
+    }
+    return out;
+  };
+  /** Haces nítidos: aclarado (luminosity) + luz suave cálida (soft-light) + núcleo aditivo + motas; o = {col, a, soft, lum, steps, cut, motes, moteCol} */
+  V.r3iaDrawBeams = function (g, list, t, o = {}) {
+    const col = o.col || '#ffd58a', pk = 0.92 + 0.08 * Math.sin(t * 0.37);
+    for (const q of list) {
+      const hh = o.cut ? Math.max(8, Math.min(q.h, o.cut - q.top)) : q.h;
+      const c = V.r3iaBeamSprite(q.w0, q.w1, q.h, q.s, col, o.steps);
+      // aclarado que conserva tono y saturación (luminosity) y después el tinte cálido aditivo
+      if (o.lum) { g.globalCompositeOperation = 'luminosity'; g.globalAlpha = Math.min(1, o.lum * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
+      if (o.soft) { g.globalCompositeOperation = 'soft-light'; g.globalAlpha = Math.min(1, o.soft * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh); }
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, (o.a ?? 0.2) * pk); g.drawImage(c, 0, 0, c.width, hh, q.x - c.x0, q.top, c.width, hh);
+    }
+    // motas de polvo que derivan dentro de cada haz (2×1 px, 2 brillos)
+    if (o.motes) {
+      g.globalCompositeOperation = 'lighter'; g.fillStyle = o.moteCol || '#fff0c8';
+      for (let i = 0; i < list.length; i++) {
+        const q = list[i];
+        for (let k = 0; k < o.motes; k++) {
+          const ph = (t * (0.035 + (k % 5) * 0.009) + k * 0.271 + i * 0.37) % 1, v = 0.08 + ph * 0.8, bw = q.w0 + (q.w1 - q.w0) * v;
+          const u = (k * 0.618 + i * 0.13 + Math.sin(t * 0.5 + k * 1.7) * 0.06) % 1;
+          g.globalAlpha = (k % 3 ? 0.35 : 0.7) * Math.sin(ph * Math.PI);
+          g.fillRect(Math.round(q.x + q.s * v + (Math.max(q.w0, q.w1) - bw) / 2 + bw * (0.12 + u * 0.76)), Math.round(q.top + q.h * v), k % 4 ? 1 : 2, 1);
+        }
+      }
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   };
   /* ---------------- dinámicos ---------------- */
   V.drawLeds = function (g, list, ox, oy, t) {

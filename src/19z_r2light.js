@@ -65,9 +65,13 @@ const R2LIGHT_CFG = {
   // toldos turquesa y banderines rosas de la plaza no son emisivos: solo LED verdes
   0: { tod: 'day', glowKinds: [2] },
   1: { tod: 'day' },
+  // r3-int-a: nave de OI a pleno sol de tarde: gradación cálida y saturada, haces legibles y charcos de luz
   2: { tod: 'interior', env: 'tech',
-    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, wTop: 0.5, wBot: 0.78, col: '#ffe0a0', a: 0.04, soft: 0.42, pool: { col: '#ffe8b8', a: 0.45 } },
-    lampPools: { a: 0.34, wk: 5, reach: 150 } },
+    grade: { mul: '#c4bce8', mulK: 0.3, shade: '#14205a', shadeK: 0.24, lift: '#ffd890', liftK: 0.12, sat: 1.3, vgrad: [0.0, -0.05] },
+    rim: { col: '#fbc371', k: 0.45, side: 0.7, terrain: 0.35 },
+    char: { shade: '#1a1c50', shadeK: 0.1, lift: '#ffd8a0', liftK: 0.08, rim: '#ffd8a0', rimK: 0.6, shadowCol: '#1a0e30', shadowA: 0.66, cast: 0.25, castA: 0.3 },
+    shafts: { layer: 'wall', x0: 18, step: 186, w: 150, y0: 54, y1: 166, from: 0.25, slant: 0.3, wTop: 0.5, wBot: 0.78, col: '#ffd58a', a: 0, soft: 0, pool: { col: '#ffc870', a: 0.44, wk: 1.05 }, moteCol: '#fff0c8' }, // volumen: VISTA.r3iaDrawBeams (42_lv02 renderFront)
+    lampPools: { a: 0.4, wk: 4.2, reach: 220 } },
   3: { tod: 'dusk', env: 'dusk' },
   4: { tod: 'day', cast: { col: '#4a2a6a', a: 0.36, len: 0.3, maxLen: 40 } },
   5: { tod: 'day' },
@@ -83,8 +87,8 @@ const R2LIGHT_CFG = {
     rim: { col: '#ffb070', k: 0.7, side: 1, terrain: 0.65 } },
   8: { tod: 'day' },
   9: { tod: 'interior', env: 'dusk', glowKinds: [],
-    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0.12, soft: 1, pool: { col: '#ffc080', a: 0.7 }, moteCol: '#ffe8c0' },
-    lampPools: { a: 0.36, wk: 5, reach: 210 }, grade: { mul: '#ffe0d4', mulK: 0.16, shade: '#2a1a50', shadeK: 0.22, lift: '#ffc898', liftK: 0.16, sat: 1.14, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
+    shafts: { layer: 'hall', x0: 38, step: 180, w: 104, y0: 50, y1: 218, from: 0.25, slant: 0.42, wTop: 0.55, wBot: 0.82, col: '#ffb468', a: 0, soft: 0, motes: false, pool: { col: '#ffb060', a: 0.62, wk: 1.15, band: 12, refl: 10 } }, // r3-int-a: volumen nítido en LEVELS[9].renderFront (VISTA.r3iaDrawBeams)
+    lampPools: { a: 0.36, wk: 5, reach: 210 }, grade: { mul: '#e8d4e4', mulK: 0.2, shade: '#2a1a50', shadeK: 0.24, lift: '#ffc898', liftK: 0.05, sat: 1.18, vgrad: [0.0, -0.06] }, rim: { col: '#ffb880', k: 0.36, side: 0.8, terrain: 0.3 }, char: { mul: '#ffe2d6', mulK: 0.18, shade: '#2a1a50', shadeK: 0.14, lift: '#ffc898', liftK: 0.14, rim: '#ffc890', rimK: 0.7, shadowCol: '#1a0e30', shadowA: 0.55, cast: 0.4, castA: 0.26 } },
   10: { tod: 'storm', env: 'calima' },
   11: { tod: 'dusk', env: 'dusk', glowKinds: [2], grade: { map: ['#1e1034', '#4a2a52', '#8a5060', '#d88a60', '#ffc06a', '#ffecb8'], mapK: 0.14, shade: '#3a1e58', shadeK: 0.16, lift: '#ffc070', liftK: 0.26, sat: 1.12, warmMag: 0.3, vgrad: [0.03, -0.07] }, rim: { col: '#ffc070', k: 0.6, side: 1, terrain: 0.55 }, cast: { col: '#4a2a72', a: 0.46, len: 1.5, maxLen: 100, hMax: 60, lit: '#ffb860', litK: 0.2 } },
 };

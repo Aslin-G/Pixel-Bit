@@ -2,6 +2,10 @@
    42_lv02.js — NIVEL 02: EL LABERINTO OSMÓTICO
    Planta de pretratamiento fino, bombas de alta presión y trenes de OI.
    RA-02 · Tejedor de Presión · Guardián: OSMORA
+   Ronda 3 (r3-int-a): nave pintada a pleno sol de tarde (sin grises), haces
+   nítidos de los ventanales (VISTA.r3iaDrawBeams) con charcos de luz,
+   plano frontal 1,3 de montantes y conductos, galería de colectores
+   iluminada y llena (R3INTA_L2gallery*, 42b) y su animación.
    ===================================================================== */
 
 /** Conductividad aproximada del permeado (µS/cm) a partir de TDS (g/L) — factor 0,55 mg/L por µS/cm */
@@ -10,9 +14,22 @@ const tdsToEC = (gL) => gL * 1000 / 0.55;
 /* ---------- arte del plano jugable (kit PF + PFAPlant), anclas para lo dinámico ---------- */
 const LV2_ANCH = { leds: [], lamps: [], screens: [] };
 /** Colectores en la galería de servicio bajo el forjado (corte que muestra lo invisible) */
-const LV2_GAL = { brine: 322, perm: 334, feed: 346 };
+const LV2_GAL = { brine: 317, perm: 326, feed: 335, floor: 354 }; // r3-int-a: rack de colectores alto y suelo visible sobre el HUD
 const LV2_FLOWS = [];
 const LV2_GALFLOWS = [];
+/** r3-int-a: repinta por luminancia un rectángulo ya pintado con otra rampa (hormigón gris → hormigón cálido);
+    pred(x, y, u) decide qué píxeles se repintan */
+function R3INTA_recolor(pb, x0, y0, x1, y1, ramp, pred) {
+  const R = PFK.P32(ramp), n = R.length;
+  for (let y = Math.max(0, y0); y < Math.min(pb.h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(pb.w, x1); x++) {
+    const u = pb.data[y * pb.w + x]; if (!(u >>> 24)) continue;
+    if (pred && !pred(x, y, u)) continue;
+    const L = (0.299 * (u & 255) + 0.587 * ((u >>> 8) & 255) + 0.114 * ((u >>> 16) & 255)) / 255;
+    pb.data[y * pb.w + x] = R[clamp(Math.round(L * 1.15 * (n - 1)), 0, n - 1)];
+  }
+}
+/** Hormigón cálido de la losa y los pilares de la galería (luz de la nave, sin gris) */
+const R3INTA_CONC = ['#24101a', '#3e1c22', '#5e2e2c', '#804432', '#a05c3a', '#bc7a48', '#d49a5c', '#e8ba78', '#f6d69c'];
 
 LEVELS[2] = {
   id: 2, title: 'El Laberinto Osmótico', chapter: 'CAPÍTULO 02', biome: 'plant', music: 'plant', width: 2600, height: 400,
@@ -34,16 +51,22 @@ LEVELS[2] = {
   /* Cámara: el mundo crece 40 px hacia abajo (forjado en corte con la galería de colectores) */
   cam: { look: 50, vy: 0.6 },
   pf: {
-    terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 12, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
+    terrain: [{ x0: 0, x1: 2600, surf: 'floor', face: 'slab', depth: 24, slabH: 16, pier: 160, pierOff: 60, galFloor: 46, seed: 2, ramp: ['#0a1216', '#122026', '#1a2e36', '#223c46', '#2c4c58', '#365c6a', '#426e7c', '#52828e', '#6a9ca6', '#8cbcc2'] }],
     /** Oclusores de interior en el primer plano (f 1,3): pilares en I, haces de tubos y cadenas de polipasto */
     fg: [
+      // r3-int-a: más denso y legible (≈ 1 cada 220 px; arriba conductos/tubos/cadenas cortas que no tapan rótulos, abajo montantes y codos)
       { kind: 'aRail', x: 120, w: 220, h: 56, seed: 1 },
+      { kind: 'aDuct', x: 330, w: 170, h: 40, top: true, seed: 9, sway: 0 },
+      { kind: 'aRiser', x: 560, h: 74, seed: 10, sway: 0 },
       { kind: 'aPipes', x: 760, w: 240, h: 46, y: -4, top: true, seed: 2 },
       { kind: 'aElbow', x: 1180, w: 150, h: 84, r: 12, seed: 3 },
-      { kind: 'aChain', x: 1600, h: 104, y: -6, top: true, seed: 4 },
+      { kind: 'aChain', x: 1440, h: 50, y: -6, top: true, seed: 4 },
+      { kind: 'aRiser', x: 1700, h: 70, seed: 11, sway: 0 },
       { kind: 'aPipes', x: 1930, w: 260, h: 46, y: -4, top: true, seed: 5 },
+      { kind: 'aDuct', x: 2180, w: 190, h: 40, top: true, seed: 12, sway: 0 },
       { kind: 'aRail', x: 2330, w: 200, h: 56, seed: 6 },
-      { kind: 'aChain', x: 2760, h: 92, y: -6, top: true, seed: 7 },
+      { kind: 'aRiser', x: 2580, h: 76, seed: 13, sway: 0 },
+      { kind: 'aChain', x: 2760, h: 48, y: -6, top: true, seed: 7 },
       { kind: 'aElbow', x: 3020, w: 150, h: 84, r: 12, seed: 8 },
     ],
     decorateFace(pb, world) { LEVELS[2].gallery(pb, world); },
@@ -160,7 +183,7 @@ LEVELS[2] = {
     const tk = P.tankV(pb, 1320, fb + 2, 17, 72, { glass: true, ladder: true, rail: true, plate: 'PERMEADO', band: ['#06303e', '#0a5a72', '#119ab8', '#22c8e4', '#6de1f1', '#d0f4f8'], bands: [{ y: 12, h: 3 }, { y: 58, h: 2 }] });
     LV2_ANCH.tank = tk.glass;
     I.pipe(pb, [[1338, fb - 12], [1360, fb - 12]], 2, 'product', { flange: 0 });
-    const cal = P.tankV(pb, 1374, fb + 2, 11, 50, { ramp: ['#3a3026', '#5a4c3e', '#7c6c5a', '#a08e78', '#c2b29a', '#dcceb6', '#ece2ce', '#f8f2e4', '#ffffff'], band: ['#3a2a10', '#6a5020', '#a07a34', '#c8a04a', '#e6c46a', '#f6e0a0'], plate: 'CaCO₃', plateCol: '#6a5020', legs: 4 });
+    const cal = P.tankV(pb, 1374, fb + 2, 11, 50, { ramp: ['#3a2410', '#5c3a1a', '#7e5428', '#a07038', '#c08c4a', '#d8a862', '#ecc684', '#f8e0aa', '#fff4d8'], band: ['#3a2a10', '#6a5020', '#a07a34', '#c8a04a', '#e6c46a', '#f6e0a0'], plate: 'CaCO₃', plateCol: '#6a5020', legs: 4 });
     I.pipe(pb, [[1386, cal.top + 6], [1398, cal.top + 6], [1398, G - 2]], 2, 'product', { flange: 0 });
     flow([[1386, cal.top + 6], [1398, cal.top + 6], [1398, G - 2]], 'product', 0.8);
     /* ===== 8. SALA DE CONTROL ELEVADA Y CCM BAJO ELLA (1420–1650) ===== */
@@ -169,17 +192,17 @@ LEVELS[2] = {
     const cr = P.controlRoom(pb, 1420, 214, 230, { ceil: 102, floorY: fb + 4 });
     LV2_ANCH.cr = cr; for (const l of cr.lamps) N.lamps.push([l[0], l[1] + 2, '#fff8e0', 11]);
     // mobiliario de la sala: consola con monitores, silla, archivador, planta y reloj
-    I.box3q(pb, 1440, 210, 50, 30, 8, { ramp: ['#1a2236', '#28344e', '#3a4a6a', '#54688c', '#7a90b4', '#a8bcd8'], skew: 0.7 });
+    I.box3q(pb, 1440, 210, 50, 30, 8, { ramp: ['#0c1c3a', '#14305a', '#1e467e', '#2a5ea0', '#3c78bc', '#5a98d8'], skew: 0.7 });
     for (const mx of [1444, 1460, 1476]) { P.rect(pb, mx, 166, 13, 10, U_('#1a2236')); P.rect(pb, mx + 1, 167, 11, 8, U_('#06122a')); P.vline(pb, mx + 6, 176, 179, U_('#3a4a6a')); N.screens.push([mx + 2, 168, 9, 6, mx === 1460 ? '#ff9f43' : '#56e5ff']); }
     for (let k = 0; k < 9; k++) K.put(pb, 1452 + k * 3, 182, U_('#7a90b4'));
     I.box3q(pb, 1492, 210, 12, 4, 4, { ramp: ['#141418', '#26262e', '#3a3a46', '#56566a'] }); P.vline(pb, 1497, 196, 206, U_('#26262e')); I.box3q(pb, 1491, 196, 14, 12, 3, { ramp: ['#141418', '#26262e', '#3a3a46', '#56566a'] });
-    I.box3q(pb, 1562, 210, 18, 34, 6, { ramp: A.WHITE, skew: 0.7 }); for (const yy of [184, 194, 204]) P.hline(pb, 1566, 1575, yy, U_('#7e7686'));
+    I.box3q(pb, 1562, 210, 18, 34, 6, { ramp: P.GREEN, skew: 0.7 }); for (const yy of [184, 194, 204]) P.hline(pb, 1566, 1575, yy, U_('#7e7686'));
     A.planter(pb, 1626, 210, 16, { kind: 'agave', seed: 5 });
     K.ellipseFn(pb, 1600, 124, 4.5, 4.5, (nx, ny, d) => d > 0.6 ? U_('#26324c') : U_('#f4f6f2')); K.put(pb, 1600, 122, U_('#141418')); K.put(pb, 1601, 124, U_('#141418'));
     /* ===== 9. LIMPIEZA CIP Y ANTIINCRUSTANTE (1690–1930) ===== */
     for (const [cx, r, h, band] of [[1712, 17, 88, '#ff9f43'], [1752, 16, 80, '#ff9f43'], [1792, 15, 72, '#86e36f']]) {
       const bb = band === '#86e36f' ? ['#08301a', '#0e5a2a', '#1a8a3a', '#46b85a', '#86e36f', '#c8f5b0'] : ['#3a1a04', '#7a3a0a', '#c0601a', '#ef8a2c', '#ff9f43', '#ffd0a0'];
-      P.tankV(pb, cx, fb + 2, r, h, { ramp: I.STEEL, band: bb, ladder: cx === 1712, rail: cx === 1712, plate: cx === 1790 ? 'NaOH' : cx === 1752 ? 'ÁCIDO' : 'CIP', plateCol: '#3a1a04' });
+      P.tankV(pb, cx, fb + 2, r, h, { ramp: cx === 1712 ? P.FRP : cx === 1752 ? ['#3a2410', '#5c3a1a', '#8a5a2a', '#b47e3e', '#d4a058', '#e8c07a', '#f6dca4', '#fff2d0'] : R3INTA_TEAL, band: bb, ladder: cx === 1712, rail: cx === 1712, plate: cx === 1790 ? 'NaOH' : cx === 1752 ? 'ÁCIDO' : 'CIP', plateCol: '#3a1a04' });
     }
     I.pipe(pb, [[1726, fb - 20], [1820, fb - 20]], 2, 'steel', { flange: 16 });
     P.landing(pb, 1760, 248, 60, fb + 4, { d: 7, railH: 28 });
@@ -236,15 +259,19 @@ LEVELS[2] = {
     if (typeof R2BB_L2front === 'function') R2BB_L2front(pb, flow); // r2-biomes-b: jardineras, potos, macetas, conducto eléctrico
     LEVELS[2]._ms = Math.round(nowMs() - t0);
   },
-  /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno) */
+  /** Galería de servicio bajo el forjado: colectores de salmuera, permeado y alimentación (lienzo del terreno).
+      r3-int-a: galería iluminada y llena (≈ 1 objeto cada 33 px): muro alicatado turquesa y enlucido cálido bajo
+      lámparas de sodio, rack de colectores con código de color, bombas de refuerzo, estaciones de válvulas,
+      caudalímetros, cajas de conexión, charcos con reflejo, musgo y helechos, material de mantenimiento. */
   gallery(pb, world) {
-    const I = PFInfra, Y = LV2_GAL, G = 290;
+    const I = PFInfra, Y = LV2_GAL, G = 290, FY = LV2_GAL.floor;
     LV2_GALFLOWS.length = 0;
     const run = (pts, r, kind, rate) => { I.pipe(pb, pts, r, kind, { flange: 32 }); LV2_GALFLOWS.push({ pts, kind, rate }); };
+    if (typeof R3INTA_L2galleryBack === 'function') R3INTA_L2galleryBack(pb, Y, FY);
     // soportes de los colectores colgados del forjado
-    for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < Y.feed + 6; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 5, Y.perm + 4, Y.feed + 5]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U('#26324c')); }
+    for (let x = 20; x < 2600; x += 80) { for (let y = G + 16; y < FY; y++) { PFK.put(pb, x, y, U('#1a2336')); PFK.put(pb, x + 1, y, U('#354564')); } for (const yy of [Y.brine + 4, Y.perm + 4, Y.feed + 4]) for (let k = -4; k <= 5; k++) PFK.put(pb, x + k, yy, U(k === -4 ? '#4a5c80' : '#26324c')); PFK.put(pb, x - 2, FY - 1, U('#26324c')); PFK.put(pb, x + 3, FY - 1, U('#26324c')); }
     // alimentación AP: bajante del colector de bombas → trenes
-    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 4, 'r2bbFeed', 1.1);
+    run([[664, G + 4], [664, Y.feed], [1102, Y.feed]], 3, 'r2bbFeed', 1.1);
     for (const x of [705, 895, 1085]) I.pipe(pb, [[x, Y.feed], [x, G + 4]], 2, 'r2bbFeed', { flange: 0 });
     // permeado (cian luminoso): trenes → tanque; producto remineralizado → bombas de producto
     run([[840, G + 4], [840, Y.perm], [1290, Y.perm], [1290, G + 4]], 3, 'product', 0.9);
@@ -252,15 +279,19 @@ LEVELS[2] = {
     I.pipe(pb, [[1030, G + 4], [1030, Y.perm]], 2, 'r2bbFeed', { flange: 0 }); // tren B: permeado aislado (sin brillo)
     run([[1398, G + 4], [1398, Y.perm], [1938, Y.perm], [1938, G + 4]], 3, 'product', 0.9);
     // salmuera de baja presión: ERD + trenes del nivel bajo → salida a los canales
-    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 4, 'r2bbConc', 1);
+    run([[594, G + 4], [594, Y.brine], [2506, Y.brine], [2506, G + 4]], 3, 'r2bbConc', 1);
     for (const x of [835, 1025, 1215]) I.pipe(pb, [[x, G + 4], [x, Y.brine]], 2, 'r2bbConc', { flange: 0 });
-    // bandeja de cables y luces de emergencia en la galería
-    for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 24, U('#354564')); PFK.put(pb, x, G + 25, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 23, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
-    for (let x = 150; x < 2600; x += 320) { for (let k = 0; k < 6; k++) for (let q = 0; q < 3; q++) PFK.put(pb, x + k, G + 30 + q, U(q === 0 ? '#72c69a' : '#1f8a52')); PFK.put(pb, x + 2, G + 31, U('#ffffff')); }
+    // bandeja de cables pegada al forjado
+    for (let x = 0; x < 2600; x++) { PFK.put(pb, x, G + 20, U('#4a5c80')); PFK.put(pb, x, G + 21, U('#1a2336')); if ((x >> 4) % 3 === 0) PFK.put(pb, x, G + 19, U(['#c8562a', '#141418', '#1e52a2'][(x >> 6) % 3])); }
     for (const x of [760, 1360, 2040]) I.valve(pb, x, Y.perm);
     // rótulos estarcidos en el muro de la galería
-    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#b8a8d0', Y.brine - 12], [1460, 'PERMEADO', '#6de1f1', Y.perm - 10], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 7], [2200, 'SALMUERA → CANALES', '#b8a8d0', Y.brine - 12]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
+    for (const [x, txt, col, yy] of [[640, 'SALMUERA', '#c8b8f0', Y.brine - 10], [1460, 'PERMEADO', '#6de1f1', Y.perm - 9], [800, 'ALIMENTACIÓN AP', '#7ae4d4', Y.feed + 6], [2200, 'SALMUERA → CANALES', '#c8b8f0', Y.brine - 10]]) PFK.text(pb, txt, x, yy, U(col), { font: 'tiny' });
     if (typeof R2BB_L2gallery === 'function') R2BB_L2gallery(pb, LV2_GALFLOWS); // r2-biomes-b: sodio, musgo, conducto eléctrico, bandas
+    if (typeof R3INTA_L2galleryFront === 'function') R3INTA_L2galleryFront(pb, Y, FY);
+    // r3-int-a: canto de hormigón de la losa y pilares de la galería en hormigón cálido (no gris)
+    const isGrey = (x, y, u) => { const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx > 60 && (mx - mn) / mx < 0.3; };
+    R3INTA_recolor(pb, 0, G + 5, 2600, G + 16, R3INTA_CONC, isGrey);
+    R3INTA_recolor(pb, 0, G + 16, 2600, 400, R3INTA_CONC, (x, y, u) => ((x + 60 + 3000) % 160) < 14 && isGrey(x, y, u));
   },
   propsFront(pb, world) {
     const G = 290, K = PFK;
@@ -330,8 +361,11 @@ LEVELS[2] = {
   },
   /** Chevrones de los colectores de la galería (bajo la línea de paso: nunca tapan personajes) */
   renderFront(g, sc, cam) {
+    // r3-int-a: haces nítidos de los ventanales (3 escalones de alfa, bordes sólidos) que iluminan piernas y equipos
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[2].shafts), Game.time, { col: '#ffb050', a: 0.18, lum: 0.3, motes: 14 });
     if (cam.y + H < 300) return;
     PFDyn.flowsImg(g, sc, LV2_GALFLOWS, 14);
+    if (typeof R3INTA_L2galleryAnim === 'function') R3INTA_L2galleryAnim(g, sc, cam);
     const t = Game.time; for (const x of [700, 1280, 1860, 2440]) { const sx = x - cam.x; if (sx > -30 && sx < W + 30) PFK.drawGlow(g, sx, 307 - cam.y, 10, '#fff0c8', 0.18 + 0.03 * Math.sin(t + x)); }
   },
   renderGrade(g, sc) { },

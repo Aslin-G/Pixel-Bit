@@ -9,6 +9,8 @@
    arcada cercana con faroles, bancos y macetas, y suelo pulido.
    Planos: cielo (0) · nubes · mar y cordillera (0,04) · colina de ARIDIA
    (0,08) · tejados (0,13) · muro con ventanales (0,2) · haces · arcada (0,34)
+   con buganvilla y enredaderas (r3-int-a) · logia interior con pérgola,
+   columnas con jazmín, palmeras y naranjos en maceta (0,7, r3-int-a)
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
 
@@ -46,7 +48,7 @@ BIOMES.council = function (L) {
     });
   }, { tag: 'far' });
   /* ---------------- colina de ARIDIA encendida (0,08) ---------------- */
-  const cityFx = { falls: [], lights: [], glints: [], turb: [] };
+  const cityFx = { falls: [], lights: [], glints: [], turb: [], fauna: [{ kind: 'gull', x: 120, y: 40, r: 200, sp: 5 }, { kind: 'gull', x: 150, y: 52, r: 180, sp: 6 }, { kind: 'gull', x: 420, y: 34, r: 240, sp: 4.5 }, { kind: 'gull', x: 600, y: 46, r: 220, sp: 5.5 }, { kind: 'gull', x: 700, y: 28, r: 160, sp: 6.5 }] }; // r3-int-a: gaviotas al atardecer
   B.vplane(0.08, at(0.08, 48), 180, (pb, w, h) => {
     const k = 0.1, r = RNG(961), cx = 250;
     const info = V.relief(pb, {
@@ -71,6 +73,7 @@ BIOMES.council = function (L) {
       for (const tb of cityFx.turb) V.drawRotor(g, tb.rot, tb.x + ox, tb.y + oy, t * tb.sp + tb.ph);
       for (const [x, y] of cityFx.glints) V.drawGlow(g, x + ox, y + oy, 4, '#ffe8c0', 0.35 + 0.3 * Math.sin(t * 1.3 + x));
       V.drawLights(g, cityFx.lights, ox, oy, t, { blink: -0.3 });
+      V.drawFauna(g, cityFx.fauna, ox, oy, t);
     },
   });
   /* ---------------- tejados de la ciudad (0,13) ---------------- */
@@ -136,12 +139,50 @@ BIOMES.council = function (L) {
       nearFx.lanterns.push([lx, 66]);
       // bancos y macetas
       V.bench3q(pb, x + 60, 276, 40, { k }); if (r.chance(0.7)) V.planter(pb, x + 180, 276, { k, seed: x });
+      // r3-int-a: buganvilla que cae del arco y enredadera que trepa por la pilastra
+      if (typeof R3INTA_bougain === 'function') { for (let q = 0; q < 7; q++) R3INTA_bougain(pb, x + 30 + q * 9 + r.int(-2, 2), 30 + Math.round(Math.sin((q * 9 + 8) / 218 * Math.PI) * 18) + 2, 16 + r.int(0, 26), 20000 + x + q, { sway: 1.6, ramp: V.hz(R3INTA_BOUG, k) }); for (let q = 0; q < 4; q++) R3INTA_bougain(pb, x + 200 - q * 8, 44 - q * 3, 12 + r.int(0, 18), 20100 + x + q, { sway: 1.4, ramp: V.hz(R3INTA_BOUG, k) }); }
+      if (typeof R2BB_vine === 'function') for (let q = 0; q < 3; q++) R2BB_vine(pb, x + 3 + q * 7, 40 + q * 30, 60 + r.int(0, 80), 20200 + x + q, { sway: 2.6, ramp: V.hz(['#0a1a0c', '#13301a', '#1f4a22', '#2f6626', '#46842c', '#68a43a', '#94c64c', '#c8e470'], k) });
     }
   }, {
     tag: 'near', dyn: (g, cam, Ly) => {
       const [ox, oy] = B.vofs(Ly, cam), t = T();
       for (const [x, y] of nearFx.lanterns) { const sx = x + ox; if (sx < -40 || sx > W + 40) continue; V.drawGlow(g, sx, y + oy, 10, '#ffd070', 0.55); V.drawSoftGlow(g, sx, y + oy + 10, 46, '#ff9a50', 0.25); }
       V.drawMotes(g, 16, t, 41, { y0: 80, y1: 280, col: '#ffe0a0' });
+    },
+  });
+  /* ---------------- r3-int-a: logia interior (0,7) con pérgola, columnas con jazmín, palmeras y naranjos en maceta,
+     buganvilla en cascada; bruma cálida de atardecer (más lejos que el plano jugable, más cerca que la arcada) ---------------- */
+  const logFx = { lamps: [] };
+  B.vplane(0.7, at(0.7, 0), 296, (pb, w, h) => {
+    const k = 0.22, HZC = '#e8a890', r = RNG(995);
+    const WD = V.P32(V.hz(['#200e06', '#3a1c0c', '#5a3016', '#7a4620', '#9a5e2c', '#ba7c3e', '#d49c58', '#ecc080'], k, HZC));
+    const MB = V.P32(V.hz(['#3a2a3a', '#5a4450', '#7e6468', '#a08680', '#c0a898', '#dccab4', '#f2e4d0'], k, HZC));
+    const TR = V.P32(V.hz(R3INTA_TERRA, k, HZC)), LF = V.hz(R3INTA_LEAF, k, HZC), BG = V.hz(R3INTA_BOUG, k * 0.8, HZC);
+    // pérgola de madera bajo el artesonado
+    for (let x = 0; x < w; x++) for (let y = 30; y < 38; y++) V.put(pb, x, y, WD[y === 30 ? 7 : y === 31 ? 5 : y === 37 ? 0 : (x % 40 === 0 ? 1 : 3)]);
+    for (let x = 12; x < w; x += 40) for (let q = 0; q < 6; q++) { V.put(pb, x, 38 + q, WD[4]); V.put(pb, x + 1, 38 + q, WD[2]); }
+    for (let x = 0; x < w; x += 16 + r.int(0, 30)) R3INTA_bougain(pb, x, 38, 10 + r.int(0, 40), 21000 + x, { sway: 1.8, ramp: BG });
+    for (let x = 20; x < w; x += 90 + r.int(0, 60)) R2BB_vine(pb, x, 38, 20 + r.int(0, 60), 21100 + x, { sway: 2, ramp: LF });
+    // columnas esbeltas de mármol con jazmín y macetas al pie
+    for (let x = 150; x < w; x += 310) {
+      for (let y = 38; y < 282; y++) for (let i = 0; i < 10; i++) V.put(pb, x + i, y, MB[i < 2 ? 6 : i < 4 ? 5 : i > 7 ? 1 : 3]);
+      for (let i = -3; i < 13; i++) { V.put(pb, x + i, 38, MB[6]); V.put(pb, x + i, 39, MB[4]); V.put(pb, x + i, 281, MB[5]); V.put(pb, x + i, 282, MB[2]); }
+      for (let y = 60; y < 270; y += 3) { const sx = x + 5 + Math.round(Math.sin(y * 0.08) * 6); PFFlora.leaf(pb, sx, y, y % 2 ? -0.6 : 3.7, 4, 3, V.P32(LF), 4); if (y % 9 === 0) { V.put(pb, sx + 2, y - 1, U('#fffaf0')); V.put(pb, sx + 3, y - 1, U('#ffe8f0')); } }
+      // maceta grande con palmera (izquierda) y naranjo (derecha)
+      for (const [px, kind] of [[x - 34, 'palm'], [x + 46, 'citrus']]) {
+        for (let yy = 0; yy < 18; yy++) { const hw = 11 - Math.round(yy * 0.15); for (let xx = -hw; xx <= hw; xx++) V.put(pb, px + xx, 282 - yy, TR[yy === 17 ? 6 : xx < -8 ? 5 : xx > 8 ? 1 : 3]); }
+        if (kind === 'palm') PFFlora.palm(pb, px, 264, 70, -4 + r.int(0, 8), 21200 + px, { ramp: LF });
+        else { PFFlora.cluster(pb, px, 238, 18, 16, LF, 21300 + px, { density: 0.75, leaf: [3, 5] }); for (let q = 0; q < 12; q++) { const fx = px + r.int(-14, 14), fy = 238 + r.int(-12, 12); V.put(pb, fx, fy, U(V.hzc('#ff9a1c', k, HZC))); V.put(pb, fx, fy - 1, U(V.hzc('#ffd060', k, HZC))); } for (let y = 254; y < 264; y++) V.put(pb, px, y, WD[2]); }
+      }
+      // farolillo colgado de la pérgola
+      const lx = x + 160; for (let y = 38; y < 70; y++) V.put(pb, lx, y, WD[3]);
+      V.rect(pb, lx - 3, 70, 7, 8, WD[5]); V.rect(pb, lx - 2, 71, 5, 6, U('#ffe8a0'));
+      logFx.lamps.push([lx, 74]);
+    }
+  }, {
+    tag: 'loggia', dyn: (g, cam, Ly) => {
+      const [ox, oy] = B.vofs(Ly, cam), t = T();
+      for (const [x, y] of logFx.lamps) { const sx = x + ox; if (sx < -30 || sx > W + 30) continue; V.drawGlow(g, sx, y + oy, 8, '#ffd070', 0.45 + 0.08 * Math.sin(t * 6 + x)); }
     },
   });
   B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };

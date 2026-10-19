@@ -3,6 +3,10 @@
    Consejo ciudadano, laboratorio del gemelo digital y observatorio económico.
    RA-08 · Tablero Mosaico · Guardián: El Índice Único
    Cuarto giro: no existe un único culpable (revelación sistémica).
+   Ronda 3 (r3-int-a): haces de sol poniente nítidos con charcos de luz,
+   patio de zellige con acequia bajo la línea de paso, plantas (naranjos,
+   palmeras, buganvilla, jazmín), logia 0,7, estandartes con vaivén,
+   ventiladores y palomas (R3INTA_L9*, 19r_scb_lv09.js).
    ===================================================================== */
 
 const CHAIN_CARDS = [
@@ -72,6 +76,8 @@ LEVELS[9] = {
       { kind: 'rail', x: 2640, w: 240, h: 40, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'] },
       { kind: 'pillar', x: 3060, w: 26, h: 360, ramp: ['#0a0604', '#140c08', '#22140c', '#2e1c10', '#3a2414', '#4a3018', '#ffc070'], lit: true, capital: true, fluted: true },
     ],
+    /** r3-int-a: bajo la línea de paso, patio de zellige con acequia, nenúfares, surtidores, jardineras y bancos */
+    decorateFace(pb, world, segs) { if (typeof R3INTA_L9ground === 'function') R3INTA_L9ground(pb, world, segs); },
   },
   /** Etiquetas científicas en el mundo */
   labels: [
@@ -93,7 +99,8 @@ LEVELS[9] = {
     const warm = (x, y, r = 10, a = 0.3) => D.glows.push({ x, y, r, col: '#ffd890', a, mode: 'flicker', ph: x });
     /* ===== techo: estandartes y lámparas colgantes ===== */
     const bcols = ['#1aa59a', '#e08a1a', '#3a8adc', '#2f9e4c', '#d4505a', '#9a52d4'];
-    for (let k = 0; k < 12; k++) M.banner(pb, 96 + k * 200, 8, bcols[k % 6], k % 6, 64);
+    // r3-int-a: los estandartes se dibujan por cuadro con vaivén (R3INTA_L9mid); sin ellos, horneados como antes
+    if (typeof R3INTA_L9banners === 'function') R3INTA_L9banners(); else for (let k = 0; k < 12; k++) M.banner(pb, 96 + k * 200, 8, bcols[k % 6], k % 6, 64);
     for (const x of [300, 760, 940, 1260, 1620, 2200]) { const L = M.chandelier(pb, x, 0, 108); warm(L[0], L[1], 12, 0.34); D.cones.push([L[0], L[1] + 6, 12, 60, gy(x) - L[1] - 10]); }
     /* ===== 1. VESTÍBULO (0–600): paneles de historia, bancos, macetas ===== */
     const hcols = ['#20a0c8', '#e0a020', '#3ab070', '#d0584a'];
@@ -120,6 +127,7 @@ LEVELS[9] = {
     M.grandDoor(pb, 2354, yb(2354), 58, 104, 'NÚCLEO SYNARA');
     D.glows.push({ x: 2354, y: yb(2354) - 120, r: 14, col: '#56e5ff', a: 0.25, mode: 'pulse', hz: 0.4 });
     /* ===== acabado (19r_scb_lv09.js): vitrinas, cordones, atril, quiosco, alfombra y reflejos en el mármol ===== */
+    if (typeof R3INTA_L9plants === 'function') R3INTA_L9plants(pb, world, back, gy); // r3-int-a: naranjos, palmeras, buganvilla
     SCBL9.finish(pb, world, back, gy, D);
     // placa del gemelo colgada delante de los postes de latón (bajo el cordón): se lee entera
     B.plaque(pb, 1440, yb(1440) - 12, 'GEMELO DIGITAL', { center: true, bg: '#06203a', border: '#56e5ff', col: '#f4fbff', h: 9, screws: false });
@@ -127,6 +135,7 @@ LEVELS[9] = {
   },
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV9;
+    if (typeof R3INTA_L9mid === 'function') R3INTA_L9mid(g, sc, cam); // r3-int-a: estandartes con vaivén y ventiladores
     // conos de luz de las lámparas colgantes
     g.globalCompositeOperation = 'lighter';
     for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#ffe0a8', 0.12), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
@@ -143,6 +152,12 @@ LEVELS[9] = {
     PFB.glows(g, sc, D.glows);
     // cielo de calima que avanza al final
     if (S.calimaK > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = S.calimaK * 0.5; frect(g, 0, 0, W, H, '#c06a30'); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+  },
+  /** r3-int-a: haces de sol poniente nítidos (3 escalones de alfa, bordes sólidos) que bajan de los ventanales en arco
+      hasta los charcos de luz del suelo y encienden las piernas de los personajes; motas de polvo en suspensión */
+  renderFront(g, sc, cam) {
+    if (typeof R2LIGHT !== 'undefined' && R2LIGHT.on(sc) && VISTA.r3iaShafts) VISTA.r3iaDrawBeams(g, VISTA.r3iaShafts(sc, R2LIGHT_CFG[9].shafts), Game.time, { col: '#ffb468', a: 0.34, lum: 0.36, motes: 22, moteCol: '#ffe8c0' });
+    if (typeof R3INTA_L9front === 'function') R3INTA_L9front(g, sc, cam);
   },
   lens(g, sc, cam, k) {
     const ox = cam.x, oy = cam.y;
@@ -185,6 +200,8 @@ LEVELS[9] = {
     sc.station({ id: 'exit', x: 2360, kind: 'clue', label: 'Ir al núcleo (Gran Calima)', glow: '#ff9f43', hidden: true, draw: PFB.drawClue, onUse: async (sc2) => finishLevel9(sc2) });
     sc.setObjective('Habla con la Consejera Ruth en la mesa', ['¿Quién se sienta en la mesa y quién no?', 'La mesa está en el centro del salón.']);
     Codex.unlock('gobernanza');
+    // r3-int-a: los consejeros conversan en su sitio (solo animación de reposo; el guion no cambia)
+    for (const [a, an] of [[celia, 'talk'], [marea, 'think'], [ruth, 'talk'], [ivan, 'observe']]) { a.anim = an; a.restAnim = an; a.animT = Math.random() * 3; }
     if (p.checkpoint === 'lab') { Object.assign(S, { council: true, chainDone: true }); GS.flag('communityDataRestored', true); sc.world.find('moSim').hidden = false; sc.setObjective('Usa el tablero del gemelo', []); }
   },
   update(sc, dt) { const S = sc.state; if (S.calima) S.calimaK = Math.min(1, S.calimaK + dt * 0.2); if (S.calima) ambientParticles(sc.world.ps, 'dust', sc.cam, 1.2, 2); },
