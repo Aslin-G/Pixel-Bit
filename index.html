@@ -30984,10 +30984,10 @@ const R2MAP_THUMBTEST = {
   const GRASS = ['#123a30', '#1c5228', '#2e6e22', '#4c8c1e', '#76aa22', '#a4c62a', '#d0de44'];
   const SAND = ['#7a3a32', '#a85a34', '#cc7c3e', '#e49e50', '#f2be6a', '#fad88e'];
   const CONC = ['#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#f5e5c3'];
-  function bandSky(pb, stops, sun) {
-    const R = V.P32(V.expand(stops, 16));
-    for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
-      let t = y / (BH * 0.7);
+  function bandSky(pb, stops, sun, hh) {
+    const R = V.P32(V.expand(stops, 16)), BH2 = hh || pb.h || BH;
+    for (let y = 0; y < Math.min(pb.h, BH2); y++) for (let x = 0; x < BW; x++) {
+      let t = y / (BH2 * 0.7);
       if (sun) { const d = Math.hypot((x - sun[0]) * 0.7, y - sun[1]); t += Math.max(0, 1 - d / 90) ** 2 * 0.35; }
       pb.data[y * BW + x] = R[V.band(clamp(t, 0, 0.999), 16, x, y, 0.04, 3)];
     }
@@ -30996,7 +30996,7 @@ const R2MAP_THUMBTEST = {
   const range = (pb, yBase, peaks, rp, o = {}) => V.relief(pb, Object.assign({ yBase, nv: 40, dvy: 0.5, H: V.massif(peaks, { seed: o.seed || 3, rough: 0.6, scale: 0.04 }), ramp: rp, seed: o.seed || 3, rim: o.rim || '#f4c8b0', contrast: 1.5 }, o));
   const ground = (pb, yFn, rp, o = {}) => {
     const R = V.P32(rp), n = R.length;
-    for (let x = 0; x < BW; x++) { const top = Math.round(yFn(x)); for (let y = Math.max(0, top); y < BH; y++) { const t = clamp((o.t0 ?? 0.78) - (y - top) / (o.depth || 50) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.16, 0, 0.999); pb.data[y * BW + x] = R[V.band(t, n, x, y, 0.05, 7)]; } if (o.rim && top >= 0 && top < BH) pb.data[top * BW + x] = U(o.rim); }
+    for (let x = 0; x < BW; x++) { const top = Math.round(yFn(x)); for (let y = Math.max(0, top); y < pb.h; y++) { const t = clamp((o.t0 ?? 0.78) - (y - top) / (o.depth || 50) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.16, 0, 0.999); pb.data[y * BW + x] = R[V.band(t, n, x, y, 0.05, 7)]; } if (o.rim && top >= 0 && top < BH) pb.data[top * BW + x] = U(o.rim); }
   };
   /* ---------- maquinaria por capítulo (en el búfer del ventanal, 640×124) ---------- */
   const SCENES = {
@@ -31096,12 +31096,48 @@ const R2MAP_THUMBTEST = {
       for (let i = 0; i < 160; i++) V.put(pb, (i * 53) % BW, (i * 29) % BH, U(i % 3 ? '#f0c070' : '#fff0c0'));
     },
   };
+  /* ---------- r3-mapui: ventanal a toda altura (la planta se ve detrás de los paneles, atenuada) ---------- */
+  const FH = WIN_Y1;           // 0…320: el ventanal ocupa toda la pantalla sobre la consola
+  const WARM = ['#3a1a2e', '#5a2430', '#843a2e', '#a24a1f', '#c8662a', '#e08a3a', '#f4b05a', '#fbc371'];
+  const FULL = {
+    2(pb, L) { // OI: la planta protagonista de cerca sobre el mar, cordillera ocre y costa con palmeras
+      bandSky(pb, ['#1a3a90', '#2a5ab8', '#3470c8', '#4686d4', '#5c9ade', '#78aee4', '#a4c4e8', '#d4dcec'], [92, 46, 11], 190);
+      const cl = [[30, 22, 150, 40, 3], [250, 8, 120, 34, 7], [430, 34, 170, 46, 11], [150, 82, 90, 24, 5]];
+      for (const [x, y, w, h, sd] of cl) V.blit(pb, V.cumulus(w, h, sd, {}), x, y);
+      range(pb, 150, [{ x: 120, v: 20, h: 40, w: 150, d: 22 }, { x: 330, v: 22, h: 30, w: 120, d: 20 }, { x: 560, v: 20, h: 46, w: 160, d: 24 }], FARM, { seed: 9 });
+      range(pb, 168, [{ x: 60, v: 20, h: 34, w: 120, d: 20 }, { x: 250, v: 22, h: 26, w: 110, d: 20 }, { x: 470, v: 20, h: 30, w: 140, d: 22 }], WARM, { seed: 4, rim: '#ffe0a0' });
+      V.seaFar(pb, 170, FH, { seed: 5 });
+      const I = R2PLANT.hero(pb, 636, 292, { s: 1.32, k: 0, from: 'pretrat', workers: true, lights: true });
+      L.hero = I;
+      // costa izquierda: roca cálida esculpida, pradera y palmeras (naturaleza en primer plano)
+      if (V.seaCliff) V.seaCliff(pb, { x0: 0, x1: 160, top: (x) => 236 + Math.round(Math.sin(x * 0.05) * 5 + x * 0.12 + Math.max(0, x - 118) * 2.4), base: FH, seed: 6, ramp: V.RAMPS.cliffR2, grass: V.RAMPS.meadowR2 });
+      for (const [x, h, sd] of [[28, 46, 3], [70, 38, 8], [116, 30, 5]]) V.palm(pb, x, 238 + Math.round(x * 0.12), h, x % 2 ? 3 : -3, sd, {});
+      if (V.agave) V.agave(pb, 100, 262, 9, 4, {});
+      if (V.flowerBush) for (const [x, y] of [[50, 252], [134, 266]]) V.flowerBush(pb, x, y, 6, x, {});
+    },
+  };
+  function fullBackdrop(pb, key, live) {
+    const win = new PixelBuffer(BW, FH);
+    FULL[key](win, live);
+    const GL = U('#9ad6f2'), NV = U('#06122e');
+    for (let y = 0; y < FH; y++) for (let x = 0; x < BW; x++) {
+      const i = y * BW + x; let u = win.data[i]; if (!(u >>> 24)) u = U('#2a5ab8');
+      const diag = ((x + y * 0.8) % 200);
+      if (diag < 20) u = V.mixU(u, GL, diag < 7 ? 0.12 : 0.06);
+      // atenuación: más fuerte arriba (detrás de los paneles), más suave abajo, donde la planta se ve entre paneles
+      u = V.mixU(u, NV, 0.34 - Math.min(1, y / FH) * 0.12);
+      pb.data[i] = u;
+    }
+  }
   /** Sala de control con ventanal panorámico (640×360), cacheada por capítulo */
   M.simBackdrop = function (key) {
     if (cache.has(key)) return cache.get(key);
     const live = { rotors: [], leds: [], glints: [] };
     const pb = new PixelBuffer(W, H);
+    const isFull = !!FULL[key];
+    if (isFull) { try { fullBackdrop(pb, key, live); } catch (e) { console.warn('R3 fullBackdrop', key, e); } }
     // muro técnico: dos bandas navy con paneles, juntas y rejilla de 16 px tenue
+    if (!isFull) {
     const WALL = V.P32(['#020a1c', '#041027', '#061632', '#081c3c', '#0a2246', '#0d2850', '#11305c']);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       // planchas de 80×48 con degradado propio, vetas de cepillado horizontales en clusters y juntas
@@ -31130,12 +31166,18 @@ const R2MAP_THUMBTEST = {
       u = V.mixU(u, U('#0a1a3a'), 0.12 + (1 - y / BH) * 0.1);
       pb.data[(y + WIN_Y0) * W + x] = u;
     }
+    }
     // marco de acero del ventanal: travesaño superior, montantes y alféizar
     const STEEL = ['#0a1226', '#1a2a46', '#2e4468', '#4a6a94', '#86a8d0', '#cfe4ff'];
     const bar = (x, y, w, h, vert) => { for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const k = vert ? xx / Math.max(1, w - 1) : yy / Math.max(1, h - 1); pb.set(x + xx, y + yy, STEEL[clamp(Math.round(vert ? 4.6 - k * 4 : 4.6 - k * 4.2), 0, 5)]); } };
-    bar(0, WIN_Y0 - 6, W, 6, false);
-    for (let x = 0; x <= W; x += 160) bar(Math.min(W - 5, Math.max(0, x - 2)), WIN_Y0, 5, BH, true);
-    for (let x = 0; x < W; x++) { pb.set(x, WIN_Y0 - 7, '#000633'); pb.set(x, WIN_Y0 - 1, '#cfe4ff'); }
+    if (!isFull) {
+      bar(0, WIN_Y0 - 6, W, 6, false);
+      for (let x = 0; x <= W; x += 160) bar(Math.min(W - 5, Math.max(0, x - 2)), WIN_Y0, 5, BH, true);
+      for (let x = 0; x < W; x++) { pb.set(x, WIN_Y0 - 7, '#000633'); pb.set(x, WIN_Y0 - 1, '#cfe4ff'); }
+    } else {
+      // ventanal a toda altura: montantes finos (detrás de los paneles casi no se ven)
+      for (const x of [0, 636]) bar(Math.min(W - 4, Math.max(0, x - 2)), 0, 4, WIN_Y1, true);
+    }
     // consola bajo el ventanal: tablero inclinado con pantallas, botones y LED
     const cons = [];
     const DESK = ['#06102a', '#0a1a3e', '#10264e', '#1a3664', '#2a4c82', '#5a86c0'];
@@ -31208,11 +31250,14 @@ const R2MAP_THUMBTEST = {
     _icon = icon || null;
     if (on && !_orig) {
       _orig = UIK.panel;
+      // r3-mapui: relleno de cristal al 84 % con bisel; gráficos, tanques y baterías iluminados
+      const glass = typeof R3MAPUI !== 'undefined' ? R3MAPUI.glassPanel(_orig) : null;
+      if (typeof R3MAPUI !== 'undefined') R3MAPUI.simCharts(true);
       UIK.panel = function (g, x, y, w, h, style = 'tech', accent = null, o = {}) {
-        _orig.call(UIK, g, x, y, w, h, style, accent, o);
+        if (glass) glass(g, x, y, w, h, style, accent, o); else _orig.call(UIK, g, x, y, w, h, style, accent, o);
         if (w >= 64 && h >= 40 && !(o && o.alpha != null && o.alpha < 1)) g.drawImage(panelTex(Math.round(w), Math.round(h), style), Math.round(x), Math.round(y));
       };
-    } else if (!on && _orig) { UIK.panel = _orig; _orig = null; }
+    } else if (!on && _orig) { UIK.panel = _orig; _orig = null; if (typeof R3MAPUI !== 'undefined') R3MAPUI.simCharts(false); }
   };
   /** Guía entero (KIRU flotando con su estela) junto al globo de diálogo */
   M.drawGuide = function (g, x, y, t, who) {
@@ -31220,6 +31265,541 @@ const R2MAP_THUMBTEST = {
     try { drawChar(g, 'kiru', 'idle', t, x, y + Math.round(Math.sin(t * 2.6) * 2), 1, { shadow: false, expr: 'esperanzado' }); } catch (e) { return false; }
     return true;
   };
+})();
+
+/* ===== 19w_r2map_e_r3sim.js ===== */
+/* =====================================================================
+   19w_r2map_e_r3sim.js — MAQUINARIA ILUSTRADA DE LOS SIMULADORES (R3MAPUI).
+   Ronda 3: los esquemas de los gemelos digitales dejan de ser bandas
+   planas y puntos. Kit de piezas iluminadas desde arriba-izquierda
+   (STYLE LOCK §6–7) prerenderizadas en PixelBuffer y cacheadas por tamaño,
+   más una capa viva barata (partículas 2×2 con halo de 1 px al 50 %,
+   chevrones, LED). Sin tramado.
+   API:
+     R3MAPUI.dot(col)                     sprite 4×4: núcleo 2×2 + halo 1 px al 50 %
+     R3MAPUI.roVessel(g, x, y, w, h, st, t) recipiente a presión de OI en corte: carcasa de
+         acero con franja especular, sombra de núcleo y luz reflejada, tapas con remaches,
+         espaciador de alimentación en malla, hojas de membrana, colector de permeado y tubo
+         central cian luminoso con chevrones y halo de 2 px, salida de concentrado grafito con
+         partículas magenta, cristales de sal en el lado del concentrado.
+         st = {R, Qp, Qf, Qc, P, foul, scale, cip}  → {inlet:{x,y}, conc:{x,y}, perm:{x,y}, membTop, membBot, x0, x1}
+     R3MAPUI.litBar(g, x, y, w, h, col)   barra-tubo iluminada (especular, sombra, tinta)
+     R3MAPUI.tag(g, x, y, text, col, o)   etiqueta píldora navy con borde del color del sistema y tallo
+     R3MAPUI.glassPlate(g, x, y, w, h, a) placa de cristal ahumado con bisel (deja ver la escena)
+     R3MAPUI.simCharts(on)                en el simulador: marcos de gráfico con bisel, ejes y marcas,
+         líneas de 2 px con halo; tanques, baterías, barras y manómetros iluminados (misma geometría)
+     R3MAPUI.glassPanel(orig)             envoltorio de UIK.panel: relleno al 84 % sobre la escena + bisel
+   ===================================================================== */
+const R3MAPUI = (() => {
+  const M = {};
+  const V = VISTA;
+  const cache = new Map();
+  const memo = (k, make) => { let c = cache.get(k); if (!c) { c = make(); cache.set(k, c); if (cache.size > 220) cache.delete(cache.keys().next().value); } return c; };
+  const P = (a) => V.P32(a);
+  /* ---------- rampas ---------- */
+  const STEEL = ['#0c1124', '#1a2238', '#2a3450', '#3e4a68', '#56647f', '#72809a', '#94a2b8', '#b8c6d6', '#dbe6ef', '#f4f9ff'];
+  const BLUE = ['#071a4a', '#0e2a6a', '#1a4290', '#2a62bc', '#4686dc', '#7ab0f0', '#b4d8ff'];
+  const GRAPH = ['#06061a', '#0e0e2a', '#1a1a40', '#2a2a58', '#3e3e74', '#5a5a92', '#8282b4'];
+  const SEAP = ['#062a4a', '#0a4a72', '#127aa8', '#1aa6cf', '#4ccbe4', '#8ae8f2', '#c8fbff'];
+  const PERM = ['#0a3a5a', '#1a6a9a', '#2a96cc', '#48b6ec', '#86dcff', '#c8f4ff', '#ffffff'];
+  M.RAMPS = { STEEL, BLUE, GRAPH, SEAP, PERM };
+  /** sprite de partícula: núcleo 2×2 y halo de 1 px al 50 % del mismo color */
+  M.dot = function (col) {
+    return memo('dot|' + col, () => {
+      const c = makeCanvas(4, 4), g = c.g;
+      g.globalAlpha = 0.5; g.fillStyle = col; g.fillRect(1, 0, 2, 4); g.fillRect(0, 1, 4, 2);
+      g.globalAlpha = 1; g.fillRect(1, 1, 2, 2);
+      g.fillStyle = mixHex(col, '#ffffff', 0.55); g.fillRect(1, 1, 1, 1);
+      return c;
+    });
+  };
+  /** cubo de sal 2×2 con faceta (iones de sal estilizados) y halo */
+  M.saltDot = function (col) {
+    return memo('salt|' + col, () => {
+      const c = makeCanvas(4, 4), g = c.g;
+      g.globalAlpha = 0.45; g.fillStyle = col; g.fillRect(1, 0, 2, 4); g.fillRect(0, 1, 4, 2);
+      g.globalAlpha = 1; g.fillStyle = col; g.fillRect(1, 1, 2, 2);
+      g.fillStyle = '#ffffff'; g.fillRect(1, 1, 1, 1); g.fillStyle = shade(col, -0.35); g.fillRect(2, 2, 1, 1);
+      return c;
+    });
+  };
+  /** cristal de incrustación (racimo de 3–5 px) */
+  function crystalSprite(seed) {
+    return memo('cry|' + seed, () => {
+      const pb = new PixelBuffer(7, 6), C = ['#5a4a8a', '#a89ad8', '#e8e0ff', '#ffffff'];
+      const n = 2 + (seed % 3);
+      for (let k = 0; k < n; k++) {
+        const x = 1 + ((seed * 7 + k * 3) % 4), h = 2 + ((seed + k) % 4);
+        for (let y = 0; y < h; y++) { pb.set(x, 5 - y, C[y === h - 1 ? 3 : y === 0 ? 0 : 1]); pb.set(x + 1, 5 - y, C[y === h - 1 ? 2 : 0]); }
+      }
+      return pb.toCanvas();
+    });
+  }
+  /** intensidad de cilindro horizontal iluminado desde arriba: t=0 arriba … 1 abajo → índice 0..n-1 */
+  function cylRow(t, n, hh = 0) {
+    // contorno · luz de borde · medio claro · especular casi blanca de 1–2 px (≈ 29 %) · medio · sombra de núcleo (75–88 %) · luz reflejada · contorno
+    const sp = hh > 12 ? 1.6 / hh : 0.06;
+    if (Math.abs(t - 0.29) < sp) return n - 1;
+    const k = t < 0.04 ? 0.08 : t < 0.1 ? 0.8 : t < 0.2 ? 0.72 : t < 0.36 ? 0.8 : t < 0.5 ? 0.62 : t < 0.64 ? 0.5 : t < 0.74 ? 0.38 : t < 0.86 ? 0.2 : t < 0.94 ? 0.4 : 0.06;
+    return clamp(Math.round(k * (n - 2)), 0, n - 2);
+  }
+  M.cylRow = cylRow;
+  /** Barra-tubo iluminada (para indicadores de presión) */
+  M.litBar = function (g, x, y, w, h, col) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.max(3, Math.round(h));
+    if (w < 3) return;
+    const c = memo('bar|' + w + '|' + h + '|' + col, () => {
+      const cc = makeCanvas(w + 2, h + 2), b = cc.g;
+      b.fillStyle = '#000633'; b.fillRect(1, 0, w, h + 2); b.fillRect(0, 1, w + 2, h);
+      const R = [shade(col, -0.55), shade(col, -0.3), col, mixHex(col, '#ffffff', 0.35), mixHex(col, '#ffffff', 0.8)];
+      for (let j = 0; j < h; j++) { const t = (j + 0.5) / h; b.fillStyle = R[t < 0.2 ? 3 : t < 0.42 ? 4 : t < 0.7 ? 2 : t < 0.86 ? 1 : 0]; b.fillRect(1, 1 + j, w, 1); }
+      b.fillStyle = shade(col, -0.45); b.fillRect(w, 1, 1, h);
+      b.fillStyle = mixHex(col, '#ffffff', 0.5); b.fillRect(1, 1, 1, h - 1);
+      for (let xx = 8; xx < w - 2; xx += 8) { b.fillStyle = shade(col, -0.2); b.fillRect(1 + xx, 1 + Math.ceil(h * 0.5), 1, Math.max(1, Math.floor(h * 0.4))); }
+      return cc;
+    });
+    g.drawImage(c, x - 1, y - 1);
+  };
+  /** Etiqueta píldora con tallo (estilo de las etiquetas del mundo de la referencia) */
+  M.tag = function (g, x, y, text, col, o = {}) {
+    const f = o.font || 'tiny';
+    const tw = FONTS[f].measure(stripMarkup(text)), w = tw + 8, h = f === 'tiny' ? 11 : 14;
+    x = Math.round(o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x); y = Math.round(y);
+    if (o.stem) { const [sx, sy] = o.stem; const mx = clamp(Math.round(sx), x + 2, x + w - 3); const y0 = sy < y ? Math.round(sy) : y + h, y1 = sy < y ? y : Math.round(sy); frect(g, mx, y0, 1, y1 - y0, col); frect(g, mx + 1, y0, 1, y1 - y0, '#000633'); frect(g, mx - 1, Math.round(sy) - 1, 3, 3, col); fpx(g, mx, Math.round(sy), '#ffffff'); }
+    frect(g, x + 1, y, w - 2, h, '#000633'); frect(g, x, y + 1, w, h - 2, '#000633');
+    frect(g, x + 1, y + 1, w - 2, h - 2, col);
+    frect(g, x + 2, y + 2, w - 4, h - 4, '#041533'); frect(g, x + 2, y + 2, w - 4, 1, mixHex('#041533', col, 0.35));
+    drawText(g, text, x + 4, y + (f === 'tiny' ? 3 : 3), { font: f, color: o.color || mixHex(col, '#ffffff', 0.62) });
+    return { x, y, w, h };
+  };
+  /** Placa de cristal ahumado con bisel de 1 px: la escena de fondo se ve atenuada */
+  M.glassPlate = function (g, x, y, w, h, a = 0.62, tint = '#041533') {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    const c = memo('plate|' + w + '|' + h + '|' + a + '|' + tint, () => {
+      const cc = makeCanvas(w, h), b = cc.g;
+      b.globalAlpha = a; b.fillStyle = tint; b.fillRect(2, 2, w - 4, h - 4);
+      b.globalAlpha = a * 0.5; b.fillStyle = '#000633'; b.fillRect(2, Math.round(h * 0.55), w - 4, h - 2 - Math.round(h * 0.55));
+      // reflejo diagonal del cristal (dos tiras planas)
+      b.globalAlpha = 0.07; b.fillStyle = '#cfe4ff';
+      for (let j = 2; j < h - 2; j++) { const xx = Math.round(w * 0.62 - j * 0.6); b.fillRect(Math.max(2, xx), j, 10, 1); b.fillRect(Math.max(2, xx + 16), j, 3, 1); }
+      b.globalAlpha = 1;
+      // marco: tinta, bisel claro arriba/izquierda, sombra abajo/derecha
+      b.fillStyle = '#000633'; b.fillRect(1, 0, w - 2, 1); b.fillRect(1, h - 1, w - 2, 1); b.fillRect(0, 1, 1, h - 2); b.fillRect(w - 1, 1, 1, h - 2);
+      b.fillStyle = '#7bacfb'; b.fillRect(1, 1, w - 2, 1); b.fillRect(1, 1, 1, h - 2);
+      b.fillStyle = '#2a4c82'; b.fillRect(1, h - 2, w - 2, 1); b.fillRect(w - 2, 1, 1, h - 2);
+      b.fillStyle = '#d2efff'; b.fillRect(2, 1, 6, 1); b.fillRect(1, 2, 1, 4);
+      for (const [rx, ry] of [[4, 4], [w - 6, 4], [4, h - 6], [w - 6, h - 6]]) { b.fillStyle = '#000633'; b.fillRect(rx, ry, 2, 2); b.fillStyle = '#86a8d0'; b.fillRect(rx, ry, 1, 1); }
+      return cc;
+    });
+    g.drawImage(c, x, y);
+  };
+
+  /* =================== RECIPIENTE A PRESIÓN DE OI EN CORTE =================== */
+  // geometría local del recipiente (sin tubos): tapas, bridas, ventana de corte y capas
+  function geo(w, h) {
+    const cap = Math.max(10, Math.round(h * 0.2)), s = 5, ct = 10, mem = 5, pc = 4;
+    const F = Math.floor((h - 2 * s - ct) / 2) - mem - pc;
+    const bx0 = cap, bx1 = w - cap, cx0 = bx0 + 30, cx1 = bx1 - 30, cy = Math.floor(h / 2);
+    const fT = s, mT = s + F, pT = mT + mem, tT = pT + pc, tB = tT + ct, pB = tB, mB = pB + pc, fB = mB + mem;
+    return { cap, s, ct, mem, pc, F, bx0, bx1, cx0, cx1, cy, fT, mT, pT, tT, tB, pB, mB, fB };
+  }
+  M.roGeo = geo;
+  /** base estática (cacheada por tamaño y nivel de recuperación: el concentrado se oscurece hacia la salida) */
+  function vesselBase(w, h, rq) {
+    return memo('ro|' + w + '|' + h + '|' + rq, () => {
+      const pb = new PixelBuffer(w, h), G = geo(w, h), d = pb.data;
+      const S = P(STEEL), Bl = P(BLUE), nS = S.length;
+      const kR = rq / 8;
+      // ---- carcasa intacta (cilindro horizontal) entre las tapas
+      for (let y = 0; y < h; y++) {
+        const t = (y + 0.5) / h, i = cylRow(t, nS, h);
+        for (let x = G.bx0; x < G.bx1; x++) {
+          let u = S[i];
+          // anillos azules de la carcasa (dos por tramo intacto) y cordones de soldadura
+          const lx = x - G.bx0, rx = G.bx1 - 1 - x;
+          const ring = (lx >= 10 && lx < 15) || (rx >= 10 && rx < 15) || (x >= G.cx0 - 8 && x < G.cx0 - 5) || (x > G.cx1 + 4 && x <= G.cx1 + 7);
+          if (ring) u = Bl[clamp(Math.round(i / (nS - 1) * (Bl.length - 1)), 0, Bl.length - 1)];
+          if (lx === 22 || rx === 22) u = S[Math.max(0, i - 2)];
+          if (lx === 23 || rx === 23) u = S[Math.min(nS - 1, i + 1)];
+          // vetas de laminado en clusters (sin ruido de píxel suelto)
+          if (!ring && hash2((x / 6) | 0, y, 31) < 0.08 && i > 1 && i < nS - 1) u = S[i - 1];
+          d[y * w + x] = u;
+        }
+      }
+      // ---- bridas atornilladas en la unión tapa-cuerpo
+      for (const fx of [G.bx0, G.bx1 - 4]) for (let y = 1; y < h - 1; y++) {
+        const t = (y + 0.5) / h, i = cylRow(t, nS, h);
+        for (let k = 0; k < 4; k++) d[y * w + fx + k] = S[clamp(i + (k === 0 ? 1 : k === 3 ? -2 : -1), 0, nS - 1)];
+        if (y % 7 === 3 && y > 3 && y < h - 4) { d[y * w + fx + 1] = S[nS - 1]; d[y * w + fx + 2] = S[Math.max(0, i - 1)]; d[(y + 1) * w + fx + 1] = S[Math.max(0, i - 2)]; d[(y + 1) * w + fx + 2] = S[0]; }
+      }
+      // ---- tapas abombadas con anillo de remaches (luz arriba-izquierda)
+      // tapa: casquete visto de lado; normal (nx·0,7, ny, nz) iluminada desde arriba-izquierda, con especular,
+      // sombra de núcleo abajo-derecha y luz reflejada en el borde inferior
+      const LX = -0.48, LY = -0.62, LZ = 0.62;
+      const capFn = (left) => (nx, ny) => {
+        const ax = nx * 0.7, nz = Math.sqrt(Math.max(0, 1 - ax * ax - ny * ny));
+        const l = ax * LX + ny * LY + nz * LZ;
+        if (l > 0.9) return S[nS - 1];
+        let k = 0.12 + Math.max(0, l) * 0.78;
+        if (ny > 0.7 && ny < 0.86) k += 0.14;                      // luz reflejada
+        if (!left) k -= 0.06;
+        return S[clamp(Math.round(k * (nS - 2)), 0, nS - 2)];
+      };
+      V.ellipse(pb, G.cap + 0.5, h / 2, G.cap, h / 2 - 0.5, (nx, ny) => nx > 0.02 ? 0 : capFn(true)(nx, ny));
+      V.ellipse(pb, w - G.cap - 0.5, h / 2, G.cap, h / 2 - 0.5, (nx, ny) => nx < -0.02 ? 0 : capFn(false)(nx, ny));
+      for (const [cx, sg] of [[G.cap, -1], [w - G.cap, 1]]) for (let a = 0; a < 14; a++) {
+        const an = -Math.PI / 2 + a / 13 * Math.PI, px = Math.round(cx + sg * Math.cos(an) * (G.cap - 4)), py = Math.round(h / 2 + Math.sin(an) * (h / 2 - 5));
+        V.put(pb, px, py, S[nS - 1]); V.put(pb, px + 1, py + 1, S[1]);
+      }
+      // contorno de tinta
+      const ink = U('#000633');
+      const solid = (x, y) => x >= 0 && y >= 0 && x < w && y < h && (d[y * w + x] >>> 24) === 255;
+      const edge = [];
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (solid(x, y) && (!solid(x - 1, y) || !solid(x + 1, y) || !solid(x, y - 1) || !solid(x, y + 1))) edge.push(y * w + x);
+      for (const i of edge) d[i] = ink;
+      // luz de borde cálida del sol (arriba-izquierda) en la arista superior de la carcasa y de la tapa izquierda
+      const warm = U('#fbc371');
+      for (let x = 2; x < w - G.cap; x++) for (let y = 1; y < 6; y++) { const i = y * w + x; if (d[i] !== ink && (d[(y - 1) * w + x] === ink)) { d[i] = V.mixU(d[i], warm, x < G.cap ? 0.7 : 0.5); break; } }
+      // ---- ventana de corte: el elemento en espiral en sección longitudinal
+      const feedA = V.P32(V.expand(['#1aa6cf', '#1690c4', '#1e6eae', '#2a5296', '#343c7c', '#3a2e66'], 24));
+      const MEM = P(['#2a1a6a', '#3a2a8a', '#5a44a8', '#7a5ae0', '#8d6bff', '#b49cff', '#dcd0ff']);
+      const PC = P(['#0a2a4a', '#123e66', '#1a5a8a', '#2a7ab0', '#3a96cc']);
+      const TUBE = P(['#06223e', '#0c3456', '#164a72', '#24648e']);
+      for (let y = 1; y < h - 1; y++) for (let x = G.cx0; x < G.cx1; x++) {
+        const lx = (x - G.cx0) / (G.cx1 - G.cx0);
+        let u;
+        // capas de arriba abajo, simétricas respecto del tubo central
+        if (y < G.fT) { // pared de la carcasa cortada: cara de corte clara
+          u = y === G.fT - 1 ? S[1] : y === 1 ? S[nS - 2] : S[clamp(nS - 3 - y, 2, nS - 1)];
+        } else if (y >= G.fB + G.F) {
+          const yy = h - 1 - y; u = yy === G.s - 1 ? S[2] : S[clamp(nS - 4 - yy, 2, nS - 1)];
+        } else if ((y >= G.fT && y < G.mT) || (y >= G.fB && y < G.fB + G.F)) { // canal de alimentación con espaciador en malla
+          const top = y < G.mT, yy = top ? y - G.fT : y - G.fB;
+          const k = clamp(Math.pow(lx, 0.85) * kR * 1.1, 0, 1);
+          let ti = Math.round(k * (feedA.length - 1));
+          // la luz entra por arriba: el canal superior se ilumina hacia la membrana, el inferior recibe luz reflejada
+          const depth = top ? yy / G.F : 1 - yy / G.F;
+          let col = feedA[ti];
+          const dd = Math.abs(y - G.cy) / (h / 2);
+          let shadeK = top ? (yy < 4 ? -0.36 + yy * 0.06 : 0.07 * (1 - depth)) : (yy > G.F - 3 ? -0.26 : yy === G.F - 4 ? 0.12 : 0.02);
+          shadeK -= Math.max(0, dd - 0.5) * 0.5;                       // el interior se curva y se oscurece hacia la carcasa
+          if (shadeK) col = shadeK > 0 ? V.mixU(col, U('#bff8ff'), shadeK) : V.mixU(col, U('#020818'), -shadeK);
+          // malla del espaciador: diagonales cada 8 px en ambos sentidos (filamentos de 1 px con sombra)
+          const m1 = (x + yy) % 9, m2 = (x - yy + 900) % 9;
+          if (m1 === 0 || m2 === 0) col = V.mixU(col, U('#9ae8f6'), 0.28 - k * 0.12);
+          else if (m1 === 1 || m2 === 1) col = V.mixU(col, U('#03142e'), 0.25);
+          if (m1 === 0 && m2 === 0) col = V.mixU(col, U('#e6fdff'), 0.35);
+          u = col;
+        } else if ((y >= G.mT && y < G.pT) || (y >= G.mB && y < G.fB)) { // hoja de membrana
+          const top = y < G.pT, yy = top ? y - G.mT : G.fB - 1 - y;
+          let mi = yy === 0 ? 6 : yy === 1 ? 5 : yy === G.mem - 1 ? 1 : (x % 3 === 0 ? 3 : 4);
+          if (!top) mi = yy === 0 ? 5 : yy === G.mem - 1 ? 1 : (x % 3 === 1 ? 3 : 4);
+          if (x % 46 === 23) mi = Math.max(0, mi - 2); // línea de encolado de la hoja
+          u = MEM[mi];
+        } else if ((y >= G.pT && y < G.tT) || (y >= G.pB && y < G.mB)) { // colector de permeado (tricot)
+          const yy = y < G.tT ? y - G.pT : y - G.pB;
+          u = PC[((x >> 1) + yy) % 2 ? 3 : 2]; if (yy === 0 && y < G.tT) u = PC[4]; if (yy === G.pc - 1 && y >= G.pB) u = PC[1];
+        } else { // tubo central perforado (el permeado luminoso va encima, en la capa viva)
+          const yy = y - G.tT;
+          u = yy === 0 || yy === G.ct - 1 ? TUBE[0] : yy === 1 ? TUBE[3] : TUBE[1];
+          if ((yy === 1 || yy === G.ct - 2) && x % 7 === 3) u = U('#020818'); // perforaciones
+        }
+        d[y * w + x] = u;
+      }
+      // sombra del borde de corte izquierdo sobre el interior (luz desde la izquierda) y cara de corte clara a la derecha
+      for (let y = 1; y < h - 1; y++) {
+        for (let k = 0; k < 3; k++) { const i = y * w + G.cx0 + k; d[i] = V.mixU(d[i], U('#020818'), 0.45 - k * 0.14); }
+        d[y * w + G.cx0 - 1] = S[nS - 2]; d[y * w + G.cx0 - 2] = ink;
+        d[y * w + G.cx1] = S[3]; d[y * w + G.cx1 + 1] = ink;
+      }
+      // tapón del tubo central en el lado de alimentación
+      for (let y = G.tT; y < G.tB; y++) { d[y * w + G.cx0 + 3] = S[6]; d[y * w + G.cx0 + 4] = S[3]; }
+      return pb.toCanvas();
+    });
+  }
+  /** Tubo iluminado horizontal o vertical (canvas cacheado) */
+  function pipeH(len, r, ramp) {
+    return memo('ph|' + len + '|' + r + '|' + ramp.join(), () => {
+      const c = makeCanvas(len, 2 * r + 1), b = c.g, n = ramp.length;
+      for (let j = 0; j <= 2 * r; j++) { const t = (j + 0.5) / (2 * r + 1); b.fillStyle = ramp[cylRow(t, n)]; b.fillRect(0, j, len, 1); }
+      for (let x = 10; x < len - 3; x += 22) { b.fillStyle = ramp[n - 2]; b.fillRect(x, 0, 1, 2 * r + 1); b.fillStyle = ramp[1]; b.fillRect(x + 1, 0, 1, 2 * r + 1); }
+      return c;
+    });
+  }
+  function pipeV(len, r, ramp) {
+    return memo('pv|' + len + '|' + r + '|' + ramp.join(), () => {
+      const c = makeCanvas(2 * r + 1, len), b = c.g, n = ramp.length;
+      for (let j = 0; j <= 2 * r; j++) { const t = (j + 0.5) / (2 * r + 1); const k = t < 0.2 ? 0.7 : t < 0.4 ? 1 : t < 0.65 ? 0.55 : t < 0.88 ? 0.25 : 0.06; b.fillStyle = ramp[clamp(Math.round(k * (n - 1)), 0, n - 1)]; b.fillRect(j, 0, 1, len); }
+      return c;
+    });
+  }
+  M.pipeH = (g, x, y, len, r, ramp) => { if (len > 0) g.drawImage(pipeH(Math.round(len), r, ramp), Math.round(x), Math.round(y - r)); };
+  M.pipeV = (g, x, y, len, r, ramp) => { if (len > 0) g.drawImage(pipeV(Math.round(len), r, ramp), Math.round(x - r), Math.round(y)); };
+  /** Manómetro de esfera (bisel de acero, escala, zona roja, aguja) */
+  M.dial = function (g, cx, cy, r, frac, o = {}) {
+    const c = memo('dial|' + r + '|' + (o.red ?? 0.85), () => {
+      const s = 2 * r + 3, cc = makeCanvas(s, s), pb = new PixelBuffer(s, s), S = P(STEEL);
+      V.ellipse(pb, r + 1.5, r + 1.5, r + 1, r + 1, (nx, ny) => S[clamp(Math.round((0.55 - ny * 0.35 - nx * 0.15) * 9), 1, 9)]);
+      V.ellipse(pb, r + 1.5, r + 1.5, r - 1, r - 1, (nx, ny) => U(ny < -0.3 ? '#f4f9ff' : '#dbe6ef'));
+      for (let a = 0; a <= 20; a++) { const tt = a / 20, an = Math.PI * (0.75 + tt * 1.5); const px = Math.round(r + 1.5 + Math.cos(an) * (r - 2)), py = Math.round(r + 1.5 + Math.sin(an) * (r - 2)); V.put(pb, px, py, U(tt > (o.red ?? 0.85) ? '#e0283c' : a % 5 === 0 ? '#0c1124' : '#72809a')); }
+      cc.g.drawImage(pb.toCanvas(), 0, 0);
+      return cc;
+    });
+    g.drawImage(c, Math.round(cx - r - 1), Math.round(cy - r - 1));
+    const an = Math.PI * (0.75 + clamp(frac, 0, 1) * 1.5);
+    fline(g, cx, cy, cx + Math.cos(an) * (r - 2), cy + Math.sin(an) * (r - 2), '#c8102e');
+    fpx(g, cx, cy, '#0c1124');
+  };
+  /**
+   * Recipiente a presión de OI en corte, con tubos de entrada y salida.
+   * (x, y, w, h) es la caja total; el cuerpo ocupa (x+16 … x+w-16).
+   */
+  M.roVessel = function (g, x, y, w, h, st = {}, t = 0) {
+    x = Math.round(x); y = Math.round(y);
+    const PAD = 16, vw = w - 2 * PAD, vx = x + PAD, G = geo(vw, h);
+    const R = clamp(st.R || 0, 0, 0.95), rq = clamp(Math.round(clamp(R / 0.6, 0, 1) * 8), 0, 8);
+    const on = clamp((st.Qp || 0) / 40, 0, 1.2), cip = !!st.cip;
+    const cy = y + G.cy, X0 = vx + G.cx0 + 5, X1 = vx + G.cx1 - 2, LW = X1 - X0;
+    // ---- sombra de contacto y patines (bajo el recipiente)
+    g.globalAlpha = 0.6; frect(g, vx + 10, y + h + 8, vw - 20, 2, '#020818'); g.globalAlpha = 1;
+    // bancada de acero pintada (viga en I) y dos cunas que abrazan el recipiente
+    frect(g, vx + 14, y + h + 3, vw - 28, 5, '#000633'); frect(g, vx + 15, y + h + 4, vw - 30, 1, '#ffe58a'); frect(g, vx + 15, y + h + 5, vw - 30, 1, '#e0b440'); frect(g, vx + 15, y + h + 6, vw - 30, 1, '#9a6a12');
+    for (let xx = vx + 22; xx < vx + vw - 22; xx += 14) frect(g, xx, y + h + 5, 6, 2, '#1a1404');
+    for (const sx of [vx + G.bx0 + 34, vx + G.bx1 - 50]) {
+      frect(g, sx - 1, y + h - 9, 18, 13, '#000633'); frect(g, sx, y + h - 8, 16, 11, '#3e4a68'); frect(g, sx, y + h - 8, 16, 2, '#94a2b8'); frect(g, sx, y + h - 6, 2, 9, '#72809a'); frect(g, sx + 14, y + h - 6, 2, 9, '#1a2238');
+      frect(g, sx + 3, y + h - 3, 3, 3, '#0c1124'); frect(g, sx + 10, y + h - 3, 3, 3, '#0c1124'); fpx(g, sx + 4, y + h - 2, '#b8c6d6'); fpx(g, sx + 11, y + h - 2, '#b8c6d6');
+    }
+    // ---- tubos (detrás del cuerpo): alimentación turquesa, concentrado grafito, permeado cian
+    const yIn = cy - 1, yConc = y + G.fT + Math.round(G.F * 0.45), yPerm = cy;
+    M.pipeH(g, x, yIn, PAD + 6, 4, SEAP);
+    M.pipeH(g, vx + vw - 6, yConc, PAD + 6, 5, GRAPH);
+    // halo de 2 px del permeado (dos escalones de alfa planos) y tubo cian luminoso
+    const pl = PAD + 8, px0 = vx + vw - 8;
+    if (on > 0.02) { g.globalAlpha = 0.25 * Math.min(1, on); frect(g, px0, yPerm - 6, pl, 13, '#48b6ec'); g.globalAlpha = 0.5 * Math.min(1, on); frect(g, px0, yPerm - 5, pl, 11, '#48b6ec'); g.globalAlpha = 1; }
+    M.pipeH(g, px0, yPerm, pl, 3, on > 0.02 ? PERM : ['#0a1a36', '#123e66', '#1a5a8a', '#2a7ab0', '#3a96cc', '#5ab0d8', '#86c8e8']);
+    // bridas de los tubos
+    for (const [fx, fy, r] of [[x + 3, yIn, 5], [x + w - 4, yConc, 6], [x + w - 4, yPerm, 4], [vx + vw + 3, yConc, 6]]) { frect(g, fx, fy - r, 2, 2 * r + 1, '#000633'); frect(g, fx, fy - r + 1, 1, 2 * r - 1, '#b8c6d6'); }
+    // ---- cuerpo (base estática)
+    g.drawImage(vesselBase(vw, h, rq), vx, y);
+    // ---- capa de polarización (sal rechazada junto a la membrana, crece con la recuperación)
+    const polA = clamp(0.08 + R * 0.75, 0, 0.6);
+    g.fillStyle = '#f888b8';
+    for (let s = 0; s < 4; s++) { const x0 = X0 + Math.round(LW * s / 4), ww = Math.round(LW / 4); g.globalAlpha = polA * (0.35 + s * 0.22); g.fillRect(x0, y + G.mT - 3, ww, 3); g.fillRect(x0, y + G.fB, ww, 3); }
+    g.globalAlpha = 1;
+    // ---- ensuciamiento (biopelícula marrón sobre la membrana, lado alimentación)
+    const fh = Math.round(clamp(st.foul || 0, 0, 1) * 6);
+    if (fh > 0) for (let xx = X0; xx < X1; xx += 3) { const hh = Math.max(1, fh - ((xx * 7) % 3)); frect(g, xx, y + G.mT - hh, 3, hh, (xx % 2) ? '#7a5a2a' : '#5a3e1a'); frect(g, xx, y + G.fB, 3, hh, (xx % 2) ? '#6a4a22' : '#5a3e1a'); }
+    // ---- incrustación: racimos de cristales en el lado del concentrado (solo con riesgo real)
+    const sc = st.scale ?? -1;
+    if (sc > -0.35) {
+      const nC = Math.round(clamp((sc + 0.35) / 1.35, 0, 1) * 26);
+      for (let i = 0; i < nC; i++) {
+        const xx = X0 + LW * (0.55 + 0.45 * ((i * 0.618) % 1)), top = i % 2 === 0;
+        const cs = crystalSprite(i % 6);
+        g.drawImage(cs, Math.round(xx), top ? y + G.mT - 6 - fh : y + G.fB + fh, cs.width, cs.height);
+      }
+    }
+    // ---- iones de sal que viajan con la alimentación (más densos hacia la salida)
+    const nSalt = 56, fq = 0.08 + (st.Qf || 100) / 1200;
+    for (let i = 0; i < nSalt; i++) {
+      const ph = ((t * fq + i / nSalt) % 1);
+      if (hash1(i, 3) > 0.38 + ph * clamp(R * 1.2, 0, 0.8)) continue;
+      const top = i % 2 === 0, ch0 = top ? y + G.fT + 3 : y + G.fB + 3;
+      const near = ph > 0.55 && hash1(i, 9) < 0.5 + R; // la sal rechazada se acerca a la membrana al avanzar
+      const yy = near ? (top ? y + G.mT - 5 - (i % 3) : y + G.fB + 2 + (i % 3)) : ch0 + ((i * 37) % (G.F - 8)) + Math.sin(t * 3 + i) * 1.2;
+      g.drawImage(M.saltDot(ph > 0.6 ? '#f888b8' : '#fffaf0'), Math.round(X0 + ph * (LW - 4)) - 1, Math.round(yy) - 1);
+    }
+    // ---- moléculas de agua: viajan con la alimentación y cruzan la membrana hacia el tubo central
+    const nW = cip ? 0 : Math.round(clamp((st.Qp || 0) / 1.6, 0, 30));
+    for (let i = 0; i < nW; i++) {
+      const ph = ((t * 0.45 + hash1(i, 21)) % 1), top = i % 2 === 0;
+      const xx = X0 + 10 + Math.round(((i * 0.381966) % 1) * (LW - 24));
+      const ya = top ? y + G.mT - 9 : y + G.fB + 7, yb = top ? y + G.tT + 1 : y + G.tB - 3;
+      const yy = Math.round(lerp(ya, yb, ph)), inM = top ? (yy >= y + G.mT - 1 && yy < y + G.pT + 1) : (yy >= y + G.mB - 1 && yy < y + G.fB + 1);
+      g.drawImage(M.dot(inM ? '#ffffff' : ph < 0.35 ? '#6cf0db' : '#a6f4ff'), xx - 1, yy - 1);
+    }
+    // ---- permeado luminoso en el tubo central: núcleo blanco, halo de 2 px y chevrones que avanzan
+    if (on > 0.02) {
+      const ty = y + G.tT + 2, th = G.ct - 4, gx1 = vx + G.cx1;
+      g.globalAlpha = 0.25 * Math.min(1, on); frect(g, X0, ty - 4, gx1 - X0, th + 8, '#48b6ec');
+      g.globalAlpha = 0.5 * Math.min(1, on); frect(g, X0, ty - 2, gx1 - X0, th + 4, '#48b6ec');
+      g.globalAlpha = 0.6 + 0.4 * Math.min(1, on); frect(g, X0, ty, gx1 - X0, th, '#48b6ec'); frect(g, X0, ty + 1, gx1 - X0, 1, '#c8f4ff'); g.globalAlpha = 1;
+      const step = 18, off = (t * 22 * (0.5 + Math.min(1, on))) % step;
+      for (let cx = X0 + off; cx < gx1 - 3; cx += step) { const q = Math.round(cx), c0 = ty + Math.floor(th / 2); fpx(g, q, c0 - 2, '#ffffff'); fpx(g, q + 1, c0 - 1, '#ffffff'); frect(g, q + 2, c0, 1, 1, '#ffffff'); fpx(g, q + 1, c0 + 1, '#ffffff'); fpx(g, q, c0 + 2, '#ffffff'); }
+    }
+    if (on > 0.02) { const off = (t * 26) % 9; for (let cx = px0 + 4 + off; cx < x + w - 4; cx += 9) { const q = Math.round(cx); fpx(g, q, yPerm - 1, '#ffffff'); fpx(g, q + 1, yPerm, '#ffffff'); fpx(g, q, yPerm + 1, '#ffffff'); } }
+    // ---- concentrado grafito: partículas magenta que salen por el tubo
+    const nB = Math.round(clamp((st.Qc || 0) / 8, 1, 9));
+    for (let i = 0; i < Math.min(nB, 4); i++) { const ph = ((t * 0.7 + i / Math.min(nB, 4)) % 1); g.drawImage(M.dot(i % 2 ? '#f888b8' : '#ff5ad8'), Math.round(vx + vw + ph * (PAD - 4)) - 1, yConc - 1 + (i % 2)); }
+    // ---- alimentación a presión: chevrones turquesa en el tubo de entrada y manómetro
+    { const off = (t * 26) % 8; for (let cx = x + off; cx < vx + 2; cx += 8) { const q = Math.round(cx); fpx(g, q, yIn - 1, '#c6fff2'); fpx(g, q + 1, yIn, '#c6fff2'); fpx(g, q, yIn + 1, '#c6fff2'); } }
+    // espuma de limpieza (CIP)
+    if (cip) for (let i = 0; i < 40; i++) { const ph = (t * 0.4 + i / 40) % 1; g.drawImage(M.dot('#fffaf0'), Math.round(X0 + ph * LW), Math.round(y + (i % 2 ? G.fT + 4 : G.fB + 4) + ((i * 13) % (G.F - 8)))); }
+    return { x0: X0, x1: X1, cy, inlet: { x: x + 4, y: yIn }, conc: { x: x + w - 2, y: yConc }, perm: { x: x + w - 2, y: yPerm }, membTop: y + G.mT, membBot: y + G.fB, feedTop: y + G.fT, tubeY: y + G.tT, vx, vw, G };
+  };
+
+  /* =================== MODO SIMULADOR: paneles de cristal y gráficos ilustrados =================== */
+  const GLASS = 0.84;
+  /** Panel del simulador: marco de la casa con el relleno al 84 % (la escena se intuye) y bisel de 1 px */
+  M.glassPanel = function (orig) {
+    return function (g, x, y, w, h, style = 'tech', accent = null, o = {}) {
+      x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+      if (w < 24 || h < 16 || (o && o.alpha != null && o.alpha < 1)) return orig.call(UIK, g, x, y, w, h, style, accent, o);
+      const s = panelStyle(style);
+      const k = 'gp|' + style + '|' + w + '|' + h + '|' + (accent || '') + '|' + (o.chamfer ?? '') + '|' + (o.key ?? '') + '|' + (o.spark ?? '') + '|' + (o.cbr ?? '');
+      const c = memo(k, () => {
+        const cc = makeCanvas(w, h), b = cc.g; b.imageSmoothingEnabled = false;
+        UIK.drawFrame(b, 0, 0, w, h, s, accent, o);
+        // relleno translúcido: se resta alfa al interior (no al marco)
+        b.globalCompositeOperation = 'destination-out'; b.globalAlpha = 1 - GLASS; b.fillStyle = '#000'; b.fillRect(4, 4, w - 8, h - 8);
+        b.globalCompositeOperation = 'source-over'; b.globalAlpha = 1;
+        // bisel interior de 1 px (luz arriba-izquierda, sombra abajo-derecha)
+        b.globalAlpha = 0.55; b.fillStyle = s.hi; b.fillRect(4, 3, w - 8, 1); b.fillRect(3, 4, 1, h - 8);
+        b.globalAlpha = 0.6; b.fillStyle = s.ink; b.fillRect(4, h - 4, w - 8, 1); b.fillRect(w - 4, 4, 1, h - 8);
+        b.globalAlpha = 1;
+        return cc;
+      });
+      g.drawImage(c, x, y);
+    };
+  };
+  const _orig = {};
+  let _on = false;
+  // tanque iluminado: cilindro vertical de vidrio con líquido y menisco
+  function tankLit(g, x, y, w, h, frac, ramp = RAMP.sea, label = null, o = {}) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    const shell = memo('tk|' + w + '|' + h, () => {
+      const cc = makeCanvas(w, h + 4), b = cc.g, S = STEEL;
+      b.fillStyle = '#000633'; b.fillRect(1, 2, w - 2, h); b.fillRect(0, 3, w, h - 2);
+      for (let xx = 1; xx < w - 1; xx++) { const t = xx / (w - 1); const k = t < 0.12 ? 5 : t < 0.26 ? 8 : t < 0.5 ? 6 : t < 0.78 ? 4 : t < 0.9 ? 2 : 3; b.fillStyle = S[k]; b.fillRect(xx, 3, 1, 2); b.fillRect(xx, h - 1, 1, 2); }
+      // cuerpo de vidrio oscuro
+      for (let xx = 2; xx < w - 2; xx++) { const t = xx / (w - 1); b.fillStyle = t < 0.25 ? '#123050' : t < 0.6 ? '#0a2440' : '#061830'; b.fillRect(xx, 5, 1, h - 6); }
+      // tapa abombada
+      b.fillStyle = '#000633'; b.fillRect(3, 0, w - 6, 3); b.fillStyle = S[7]; b.fillRect(4, 1, w - 8, 1); b.fillStyle = S[5]; b.fillRect(4, 2, w - 8, 1);
+      return cc;
+    });
+    g.drawImage(shell, x, y - 2);
+    const lh = Math.round((h - 7) * clamp(frac, 0, 1)), top = y + h - 2 - lh, rn = ramp.length - 1;
+    for (let xx = 2; xx < w - 2 && lh > 0; xx++) {
+      const tt = xx / (w - 1), k = tt < 0.2 ? 0.85 : tt < 0.45 ? 0.7 : tt < 0.75 ? 0.5 : 0.3;
+      g.fillStyle = ramp[clamp(Math.round(k * rn), 0, rn)]; g.fillRect(x + xx, top, 1, lh);
+    }
+    if (lh > 1) { g.fillStyle = ramp[rn]; for (let xx = x + 2; xx < x + w - 2; xx += 2) g.fillRect(xx, top + Math.round(Math.sin(Game.time * 3 + xx * 0.5) * 0.7), 2, 1); }
+    // reflejo vertical del vidrio (1–2 px casi blanco al 25 % del ancho) y luz reflejada a la derecha
+    g.globalAlpha = 0.5; frect(g, x + Math.max(2, Math.round(w * 0.22)), y + 4, 1, h - 7, '#f4f9ff'); g.globalAlpha = 0.22; frect(g, x + Math.max(3, Math.round(w * 0.22)) + 1, y + 4, 2, h - 7, '#f4f9ff'); g.globalAlpha = 0.3; frect(g, x + w - 4, y + 4, 1, h - 7, '#8fdfff'); g.globalAlpha = 1;
+    if (o.reserve != null) { const ry = y + h - 2 - Math.round((h - 4) * o.reserve); for (let xx = x + 1; xx < x + w - 1; xx += 2) fpx(g, xx, ry, '#ff4e5d'); }
+    for (let i = 1; i < 4; i++) frect(g, x + w - 5, y + Math.round(h * i / 4), 3, 1, '#b8c6d6');
+    if (label) drawText(g, label, x + w / 2, y + h + 2, { font: 'tiny', color: '#b8c8e8', align: 'center' });
+  }
+  // batería: armario BESS con módulos iluminados, LED y terminales
+  function batteryLit(g, x, y, w, h, soc, reserve = 0, label = null) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    const shell = memo('bt|' + w + '|' + h, () => {
+      const cc = makeCanvas(w + 2, h + 5), b = cc.g, S = STEEL;
+      b.fillStyle = '#000633'; b.fillRect(Math.round(w / 2) - 5, 0, 12, 4); b.fillStyle = '#d0a040'; b.fillRect(Math.round(w / 2) - 4, 1, 4, 2); b.fillStyle = '#56647f'; b.fillRect(Math.round(w / 2) + 2, 1, 4, 2);
+      b.fillStyle = '#000633'; b.fillRect(0, 3, w + 1, h + 1);
+      for (let xx = 1; xx < w; xx++) { const t = xx / w; b.fillStyle = S[t < 0.1 ? 6 : t < 0.25 ? 8 : t < 0.7 ? 5 : t < 0.9 ? 3 : 4]; b.fillRect(xx, 4, 1, h - 1); }
+      b.fillStyle = '#020e26'; b.fillRect(3, 6, w - 5, h - 5);
+      return cc;
+    });
+    g.drawImage(shell, x - 1, y - 4);
+    const n = 10, mh = Math.floor((h - 6) / n);
+    for (let i = 0; i < n; i++) {
+      const lv = (i + 0.5) / n, my = y + h - 2 - (i + 1) * mh, onn = soc >= lv;
+      const col = !onn ? '#0e2850' : soc < 0.2 ? '#ff4e5d' : soc < 0.4 ? '#ffb83e' : '#86e36f';
+      frect(g, x + 3, my + 1, w - 6, mh - 1, col);
+      if (onn) { frect(g, x + 3, my + 1, w - 6, 1, mixHex(col, '#ffffff', 0.45)); frect(g, x + w - 4, my + 1, 1, mh - 1, shade(col, -0.3)); fpx(g, x + 4, my + Math.max(1, mh - 2), '#ffffff'); }
+    }
+    if (reserve > 0) { const ry = y + h - 2 - Math.round((h - 4) * reserve); frect(g, x - 2, ry, w + 4, 1, '#ff4e5d'); }
+    if (label) drawText(g, label, x + w / 2, y + h + 2, { font: 'tiny', color: '#b8c8e8', align: 'center' });
+  }
+  // barras: prismas con cara frontal iluminada, cara lateral en sombra y tapa clara (en 3/4)
+  function barsLit(g, x, y, w, h, items, o = {}) {
+    Charts.frame(g, x, y, w, h, o.bg);
+    const max = o.max ?? Math.max(...items.map(i => i.v)) * 1.15;
+    const n = items.length, bw = Math.floor((w - 8) / n);
+    items.forEach((it, i) => {
+      const bh = Math.round((h - 16) * clamp(it.v / max, 0, 1));
+      const bx = x + 4 + i * bw, by = y + h - 10 - bh, ww = Math.max(2, bw - 3);
+      if (bh > 0) {
+        frect(g, bx + 1, by, ww, bh, it.color);
+        frect(g, bx + 1, by, Math.max(1, Math.round(ww * 0.3)), bh, mixHex(it.color, '#ffffff', 0.22));
+        frect(g, bx + 1 + ww - Math.max(1, Math.round(ww * 0.28)), by, Math.max(1, Math.round(ww * 0.28)), bh, shade(it.color, -0.32));
+        frect(g, bx + 1, by, ww, 1, mixHex(it.color, '#ffffff', 0.6));
+        if (bh > 3) frect(g, bx + 2, by + 1, 1, bh - 2, mixHex(it.color, '#ffffff', 0.7));
+        frect(g, bx + 1, y + h - 10, ww, 1, '#000633');
+      }
+      if (it.label) drawText(g, it.label, bx + bw / 2 - 1, y + h - 8, { font: 'tiny', color: '#b8c8e8', align: 'center' });
+      if (o.values) drawText(g, o.fmt ? o.fmt(it.v) : fmt(it.v, 0), bx + bw / 2 - 1, by - 7, { font: 'tiny', color: it.color, align: 'center' });
+    });
+    if (o.limit != null) { const ly = y + h - 10 - Math.round((h - 16) * o.limit / max); for (let xx = x + 2; xx < x + w - 2; xx += 2) fpx(g, xx, ly, '#ff4e5d'); }
+  }
+  // marco de gráfico: pozo de cristal al 82 % con bisel, remaches y rótulo de esquina
+  function frameLit(g, x, y, w, h, bg = '#020e26') {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    if (w < 8 || h < 8) return _orig.frame.call(Charts, g, x, y, w, h, bg);
+    if (bg === '#0a0f26' || bg === '#1a1838') bg = '#020e26';
+    const c = memo('cf|' + w + '|' + h + '|' + bg, () => {
+      const cc = makeCanvas(w, h), b = cc.g;
+      b.fillStyle = '#000633'; b.fillRect(1, 0, w - 2, h); b.fillRect(0, 1, w, h - 2);
+      b.fillStyle = '#3a64b0'; b.fillRect(1, 1, w - 2, 1); b.fillRect(1, 1, 1, h - 2);
+      b.fillStyle = '#163a6a'; b.fillRect(1, h - 2, w - 2, 1); b.fillRect(w - 2, 1, 1, h - 2);
+      b.clearRect(2, 2, w - 4, h - 4);
+      b.globalAlpha = 0.82; b.fillStyle = bg; b.fillRect(2, 2, w - 4, h - 4);
+      b.globalAlpha = 0.5; b.fillStyle = '#00081c'; b.fillRect(2, 2, w - 4, 1); b.fillRect(2, 2, 1, h - 4);
+      b.globalAlpha = 1;
+      for (const [rx, ry] of [[3, 3], [w - 5, 3], [3, h - 5], [w - 5, h - 5]]) { b.fillStyle = '#2a4c82'; b.fillRect(rx, ry, 2, 2); b.fillStyle = '#86a8d0'; b.fillRect(rx, ry, 1, 1); }
+      return cc;
+    });
+    g.drawImage(c, x, y);
+  }
+  // gráfico de líneas: ejes con marcas de 2 px y series de 2 px con halo del color del sistema
+  function lineLit(g, x, y, w, h, series, o = {}) {
+    const r = _orig.line.call(Charts, g, x, y, w, h, series, o);
+    if (!r) return r;
+    const { X, Y, cx, cy, cw, ch } = r;
+    frect(g, cx - 1, cy, 1, ch, '#5a86c0'); frect(g, cx - 1, cy + ch, cw + 1, 1, '#5a86c0');
+    const ny = o.yTicks ?? 4, nx = o.xTicks ?? 6;
+    for (let i = 0; i <= ny; i++) frect(g, cx - 3, Math.round(cy + ch - 1 - i * (ch - 1) / ny), 2, 1, '#a8c8ff');
+    for (let i = 0; i <= nx; i++) frect(g, Math.round(cx + i * (cw - 1) / nx), cy + ch + 1, 1, 2, '#a8c8ff');
+    // series reforzadas: halo de 1 px al 30 % arriba, sombra de 1 px abajo y la línea encima
+    series.forEach((s) => {
+      if (s.dashed || s.step) return;
+      const Pp = s.data.map((d, i) => Array.isArray(d) ? d : [i, d]);
+      if (Pp.length < 2 || Pp.length > 400) return;
+      const dk = shade(s.color, -0.45);
+      g.globalAlpha = 0.3;
+      for (let i = 0; i < Pp.length - 1; i++) fline(g, X(Pp[i][0]), Y(Pp[i][1]) - 1, X(Pp[i + 1][0]), Y(Pp[i + 1][1]) - 1, s.color);
+      g.globalAlpha = 1;
+      for (let i = 0; i < Pp.length - 1; i++) fline(g, X(Pp[i][0]), Y(Pp[i][1]) + 1, X(Pp[i + 1][0]), Y(Pp[i + 1][1]) + 1, dk);
+      for (let i = 0; i < Pp.length - 1; i++) fline(g, X(Pp[i][0]), Y(Pp[i][1]), X(Pp[i + 1][0]), Y(Pp[i + 1][1]), s.color);
+    });
+    if (o.cursor != null) { const xx = X(o.cursor); frect(g, xx - 1, cy, 1, ch, 'rgba(232,246,255,0.35)'); frect(g, xx, cy, 1, ch, '#e8f6ff'); frect(g, xx - 1, cy - 1, 3, 2, '#ffffff'); }
+    return r;
+  }
+  // manómetro con bisel de acero y esfera clara
+  function gaugeLit(g, cx, cy, r, frac, col = '#56e5ff', label = null, valueText = null) {
+    const ring = memo('gz|' + r, () => {
+      const s = 2 * r + 7, cc = makeCanvas(s, s), pb = new PixelBuffer(s, s), S = P(STEEL), o = r + 3.5;
+      V.ellipse(pb, o, o, r + 3, r + 3, (nx, ny) => S[clamp(Math.round((0.5 - ny * 0.4 - nx * 0.2) * 9), 1, 9)]);
+      V.ellipse(pb, o, o, r + 1, r + 1, () => U('#000633'));
+      V.ellipse(pb, o, o, r, r, (nx, ny) => U(ny < -0.4 ? '#0e2a54' : '#071a3a'));
+      cc.g.drawImage(pb.toCanvas(), 0, 0);
+      return cc;
+    });
+    g.drawImage(ring, Math.round(cx - r - 3), Math.round(cy - r - 3));
+    _orig.gauge.call(Charts, g, cx, cy, r, frac, col, label, valueText);
+  }
+  M.simCharts = function (on) {
+    if (on && !_on) {
+      _on = true;
+      _orig.frame = Charts.frame; _orig.line = Charts.line; _orig.bars = Charts.bars; _orig.tank = Charts.tank; _orig.battery = Charts.battery; _orig.gauge = Charts.gauge;
+      Charts.frame = frameLit; Charts.line = lineLit; Charts.bars = barsLit; Charts.tank = tankLit; Charts.battery = batteryLit; Charts.gauge = gaugeLit;
+    } else if (!on && _on) {
+      _on = false;
+      Charts.frame = _orig.frame; Charts.line = _orig.line; Charts.bars = _orig.bars; Charts.tank = _orig.tank; Charts.battery = _orig.battery; Charts.gauge = _orig.gauge;
+    }
+  };
+  return M;
 })();
 
 /* ===== 19z_r2light.js ===== */
@@ -42484,69 +43064,29 @@ const Sim02 = makeSim({
     const r = this.last && this.phase === 'auto' ? this.last : this.solve();
     if (this.phase !== 'auto') this.last = r;
     const t = this.t;
-    // --- corte del módulo de membrana (izquierda)
+    // --- corte del módulo de membrana (izquierda): recipiente a presión ilustrado sobre cristal ahumado (R3MAPUI)
     const X0 = 8, Y0 = 28, WW = 380, HH = 196;
-    Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
-    const fy = Y0 + 34, fh = 54, my = fy + fh, mh = 10, py = my + mh, ph = 40;
-    // canal de alimentación → concentrado (sal que aumenta a lo largo)
-    // alimentación turquesa que se oscurece hacia grafito-índigo en el concentrado (bandas, sin degradado continuo)
-    { const NB = 10, bw = Math.ceil((WW - 60) / NB), kR = clamp(r.R / 0.6, 0, 1);
-      for (let b = 0; b < NB; b++) {
-        const k = (b / (NB - 1)) * kR, c = mixHex('#16a6cf', '#2c2c5e', k);
-        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), fh, c);
-        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), 2, mixHex(c, '#bff8ff', 0.35));
-        frect(g, X0 + 30 + b * bw, fy + 2, Math.min(bw, WW - 60 - b * bw), 12, mixHex(c, '#56e5ff', 0.12));
-      }
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) R3.glassPlate(g, X0, Y0, WW, HH, 0.5); else Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
+    const VX = X0 + 6, VY = Y0 + 56, VW = WW - 12, VH = 90;
+    const ves = R3 ? R3.roVessel(g, VX, VY, VW, VH, { R: r.R, Qp: r.Qp, Qf: r.Qf, Qc: r.Qc, P: r.P, foul: this.foul || 0, scale: r.scaleIdx, cip: this.cipT > 0 }, t) : null;
+    if (ves) {
+      // manómetro en la entrada de alta presión
+      R3.dial(g, VX + 9, ves.inlet.y - 11, 6, clamp(r.P / 90, 0, 1), { red: 82 / 90 });
+      frect(g, VX + 8, ves.inlet.y - 5, 2, 2, '#56647f');
+      // etiquetas del mundo con tallo (fuera del cuerpo: las partículas nunca pasan por el texto)
+      R3.tag(g, VX + 2, VY - 18, 'ALIMENTACIÓN → CONCENTRADO', '#22bdd0', { stem: [VX + 30, ves.feedTop + 6] });
+      R3.tag(g, X0 + WW / 2 + 20, VY - 18, 'MEMBRANA SEMIPERMEABLE', '#8d6bff', { align: 'center', stem: [X0 + WW / 2 + 40, ves.membTop + 2] });
+      R3.tag(g, X0 + WW - 6, VY - 18, 'CONCENTRADO', '#bc3e92', { align: 'right', stem: [ves.conc.x - 8, ves.conc.y - 4] });
+      R3.tag(g, X0 + WW - 6, VY + VH + 6, 'PERMEADO', '#48b6ec', { align: 'right', stem: [ves.perm.x - 10, ves.perm.y + 3] });
     }
-    const nSalt = 90, LW = WW - 60;
-    for (let i = 0; i < nSalt; i++) {
-      const ph2 = ((t * (0.08 + r.Qf / 1200) + i / nSalt) % 1);
-      // la densidad de sal crece hacia la salida (concentración)
-      if (hash1(i, 3) > 0.35 + ph2 * clamp(r.R, 0, 0.8)) continue;
-      const x = X0 + 30 + ph2 * LW, y = fy + 6 + ((i * 37) % (fh - 12)) + Math.sin(t * 3 + i) * 1.5;
-      frect(g, Math.round(x), Math.round(y), 2, 2, ph2 > 0.6 ? '#f888b8' : '#fffaf0');
-    }
-    // capa de polarización: sal rechazada que se acumula junto a la membrana
-    PFDyn.veil(g, X0 + 30, fy + fh - 6, LW, 6, "#f888b8", clamp(0.1 + r.R * 0.7, 0, 0.6));
-    // moléculas de agua que viajan con la alimentación y atraviesan la membrana
-    const nW0 = 40;
-    for (let i = 0; i < nW0; i++) { const ph2 = ((t * 0.15 + i / nW0) % 1); fpx(g, X0 + 30 + ph2 * LW, fy + 4 + ((i * 53) % (fh - 8)), '#6cf0db'); }
-    // membrana: capas, ensuciamiento e incrustación
-    frect(g, X0 + 30, my, WW - 60, mh, '#5a44a8'); for (let x = 0; x < WW - 60; x += 4) frect(g, X0 + 30 + x, my + 1, 2, mh - 2, '#8d6bff');
-    frect(g, X0 + 30, my, WW - 60, 1, '#b49cff'); frect(g, X0 + 30, my + mh - 1, WW - 60, 1, '#3a2a7a');
-    const foulH = Math.round(clamp(this.foul || 0, 0, 1) * 8);
-    if (foulH) PFDyn.veil(g, X0 + 30, my - foulH, WW - 60, foulH, "#7a5a2a", 0.7);
-    if (r.scaleIdx > 0) for (let i = 0; i < 40 * clamp(r.scaleIdx, 0, 1.5); i++) frect(g, X0 + 30 + (WW - 60) * (0.5 + (i * 0.618 % 0.5)), my - 2 - (i % 3), 2, 2, '#ffffff');
-    // canal de permeado
-    // canal de permeado: fondo cian en bandas + corriente cian luminosa (#48b6ec) con halo de 1 px y chevrones blancos
-    frect(g, X0 + 30, py, WW - 60, ph, '#0f3f66'); frect(g, X0 + 30, py, WW - 60, 3, '#1f6fa8'); frect(g, X0 + 30, py + ph - 8, WW - 60, 8, '#0b3152');
-    { const on = clamp(r.Qp / 40, 0, 1), sy = py + Math.round(ph / 2) - 3;
-      if (on > 0.02) {
-        g.globalAlpha = 0.35 + 0.4 * on; frect(g, X0 + 30, sy - 1, WW - 60, 1, '#8fe0ff'); frect(g, X0 + 30, sy + 6, WW - 60, 1, '#8fe0ff');
-        g.globalAlpha = 0.55 + 0.45 * on; frect(g, X0 + 30, sy, WW - 60, 6, '#48b6ec'); frect(g, X0 + 30, sy, WW - 60, 1, '#a6f4ff'); g.globalAlpha = 1;
-        const step = 26, off = (t * 20 * (0.5 + on)) % step;
-        for (let cx = X0 + 30 + off; cx < X0 + WW - 34; cx += step) { const qx = Math.round(cx); fpx(g, qx, sy + 1, '#ffffff'); fpx(g, qx + 1, sy + 2, '#ffffff'); fpx(g, qx + 2, sy + 3, '#ffffff'); fpx(g, qx + 1, sy + 4, '#ffffff'); fpx(g, qx, sy + 5, '#ffffff'); }
-      }
-    }
-    const nW = Math.round(clamp(r.Qp / 2, 0, 34));
-    for (let i = 0; i < nW; i++) {
-      const ph3 = ((t * 0.7 + i / Math.max(1, nW)) % 1);
-      const x = X0 + 40 + ((i * 53) % (WW - 80));
-      if (ph3 < 0.5) frect(g, x, Math.round(my - 6 + ph3 * 2 * (mh + 10)), 2, 2, '#a6f4ff');
-      else frect(g, Math.round(x + (ph3 - 0.5) * 30), Math.round(py + 4 + (ph3 - 0.5) * 2 * (ph - 10)), 2, 2, '#e6fdff');
-    }
-    for (let i = 0; i < Math.round(tdsToEC(r.Cp) / 120); i++) fpx(g, X0 + 40 + ((i * 71 + Math.floor(t * 20)) % (WW - 80)), py + 8 + (i * 13) % (ph - 12), '#ffffff');
-    Charts.flow(g, [[X0 + WW - 30, py + ph / 2], [X0 + WW - 4, py + ph / 2]], 'permeate', r.Qp / 40, 3);
-    Charts.flow(g, [[X0 + 4, fy + fh / 2], [X0 + 30, fy + fh / 2]], 'seawater', r.Qf / 100, 3);
-    Charts.flow(g, [[X0 + WW - 30, fy + fh / 2], [X0 + WW - 4, fy + fh / 2]], 'brine', r.Qc / 60, 3);
-    drawText(g, 'ALIMENTACIÓN → CONCENTRADO', X0 + 34, fy + 2, { font: 'tiny', color: '#cfe8ee' });
-    drawText(g, 'MEMBRANA SEMIPERMEABLE', X0 + WW / 2, my + 2, { font: 'tiny', align: 'center', color: '#fffaf0' });
-    drawText(g, 'PERMEADO', X0 + 34, py + ph - 9, { font: 'tiny', color: '#a6f4ff' });
     // flechas de presión: aplicada vs osmótica
     const ax = X0 + 12, base = Y0 + 6;
     const pW = clamp(r.P / 85, 0, 1) * (WW - 40), piW = clamp(r.piAvg / 85, 0, 1) * (WW - 40);
-    frect(g, ax, base, pW, 5, '#ffe14d'); drawText(g, 'P aplicada ' + fmt0(r.P) + ' bar', ax + 2, base + 7, { font: 'tiny', color: '#ffe14d' });
-    frect(g, ax, base + 16, piW, 3, '#f888b8'); drawText(g, 'π media ' + fmt0(r.piAvg) + ' bar', ax + piW + 4, base + 14, { font: 'tiny', color: '#f888b8' });
+    if (R3) R3.litBar(g, ax, base, pW, 5, '#ffe14d'); else frect(g, ax, base, pW, 5, '#ffe14d');
+    drawText(g, 'P aplicada ' + fmt0(r.P) + ' bar', ax + 2, base + 7, { font: 'tiny', color: '#ffe14d' });
+    if (R3) R3.litBar(g, ax, base + 16, piW, 3, '#f888b8'); else frect(g, ax, base + 16, piW, 3, '#f888b8');
+    drawText(g, 'π media ' + fmt0(r.piAvg) + ' bar', ax + piW + 4, base + 14, { font: 'tiny', color: '#f888b8' });
     drawText(g, 'Presión neta ≈ ' + fmt(r.NDP, 1) + ' bar', X0 + WW - 6, base + 7, { font: 'tiny', align: 'right', color: r.NDP > 0 ? '#86e36f' : '#ff4e5d' });
     // balances
     const by = Y0 + HH - 30;
@@ -42599,7 +43139,7 @@ const Sim02 = makeSim({
     } else {
       const pts = [], ecs = [];
       for (let P = (this.phase === 'transfer' ? 5 : 20); P <= (this.phase === 'transfer' ? 45 : 90); P += 2) { const rr = ROModel.solve(Object.assign(this.params(), { P })); pts.push([P, rr.Qp * (this.phase === 'transfer' ? 2 : 1)]); ecs.push([P, Math.min(100, tdsToEC(rr.Cp) / 15)]); }
-      Charts.line(g, CX, 182, CW, 110, [{ data: pts, color: '#56e5ff', label: this.phase === 'transfer' ? 'Qp×2' : 'Qp m³/h' }, { data: ecs, color: '#ff9a8a', label: 'cond./15' }], { xMin: this.phase === 'transfer' ? 5 : 20, xMax: this.phase === 'transfer' ? 45 : 90, yMin: 0, yMax: 100, legend: true, xLabel: 'bar', cursor: this.cfg.P });
+      Charts.line(g, CX, 182, CW, 110, [{ data: pts, color: '#56e5ff', label: this.phase === 'transfer' ? 'Qp×2' : 'Qp m³/h' }, { data: ecs, color: '#f888b8', label: 'cond./15' }], { xMin: this.phase === 'transfer' ? 5 : 20, xMax: this.phase === 'transfer' ? 45 : 90, yMin: 0, yMax: 100, legend: true, xLabel: 'bar', cursor: this.cfg.P });
     }
     // veredicto
     if (this.verdict) {
