@@ -26,6 +26,159 @@ const PFWater = (() => {
     return P[clamp(Math.round((t * 0.35 + Math.sqrt(t) * 0.65 + j) * 8), 0, 8)];
   }
 
+
+  /* ---------- r3-coast: arrecife, repisas y rejilla de toma detallada ---------- */
+  const R3C_ROCK = ['#1c0a1c', '#3a1424', '#5e2426', '#86382a', '#ac5230', '#cc703c', '#e4904e', '#f4b46a', '#fcd290'];
+  const R3C_BRAIN = ['#3e0e22', '#7a2238', '#b8404a', '#e4685a', '#fa9a76', '#ffd0a0'];
+  const R3C_FAN = ['#2a0c40', '#561c70', '#8a34a4', '#c056cc', '#ea8ee4'];
+  const R3C_SPONGE = ['#4a2206', '#8a4a10', '#c87a1a', '#f0aa2e', '#ffd860'];
+  const R3C_ANEM = ['#4a1240', '#8a2a7a', '#c850a8', '#f08ad0', '#ffd0f0'];
+  const R3C_KELP = ['#0e2a14', '#1a4a1c', '#2e6a22', '#4e8a2a', '#7aae38', '#b4d050'];
+  /** mezcla con el agua según profundidad (los cálidos se apagan con la hondura, sin perder el tono) */
+  function r3cWet(u, Y, wy, UW, k0 = 0.12) { const d = clamp((Y - wy) / 150, 0, 1); return PFK.mixU(u, UW[clamp(6 - Math.round(d * 4), 1, 7)], k0 + d * 0.26); }
+  function r3coastReef(pb, o) {
+    const { x0, x1, y0, wy, wd, bedAt, UW, put, r, W_ } = o;
+    const RK = PFK.P32(R3C_ROCK);
+    const wet = (u, Y, k) => r3cWet(u, Y, wy, UW, k);
+    const putW = (X, Y, u, k) => put(X, Y, wet(u, Y, k));
+    // pilotes traseros (más finos, más hondos y en otro ritmo: profundidad y menos repetición)
+    for (const bx of (W_.backPiles || [])) {
+      const bed = bedAt(bx) - 6;
+      for (let Y = wy - 20; Y < bed; Y++) for (let k = 0; k < 4; k++) {
+        const u = PFK.mixU(U(['#3a3a48', '#6a6a78', '#55556a', '#2e2e3e'][k]), UW[clamp(4 - Math.round((Y - wy) / 40), 1, 5)], Y < wy ? 0.35 : 0.62 + clamp((Y - wy) / 300, 0, 0.2));
+        put(bx + k, Y, u);
+      }
+      for (let Y = wy + 2; Y < wy + 14; Y++) if (hash2(bx, Y, 5) < 0.5) put(bx + (hash2(bx, Y, 6) < 0.5 ? -1 : 4), Y, wet(U('#2e5a2a'), Y, 0.3));
+    }
+    // repisas de roca: masa que sube desde el lecho y se abre en voladizo, tapa iluminada, sombra bajo el vuelo
+    for (const [sx0, sx1, sy, th] of (W_.shelves || [])) {
+      const cx = (sx0 + sx1) / 2, hw = (sx1 - sx0) / 2;
+      const topAt = (X) => { const e = Math.abs(X - cx) / hw; return Math.round(sy + Math.pow(e, 3) * th * 0.9 + (PFK.vn(X * 0.12, 1, sy) - 0.5) * 4 + (hash2(X >> 2, 3, sy) - 0.5) * 2); };
+      for (let X = sx0 - 2; X <= sx1 + 2; X++) {
+        const e = Math.abs(X - cx) / hw; if (e > 1.04) continue;
+        const top = topAt(X), bed = bedAt(X);
+        // tallo central hasta el lecho; extremos solo en voladizo
+        const stem = e < 0.55 + PFK.vn(X * 0.05, 2, sy) * 0.15;
+        const bot = stem ? bed : Math.round(top + th * (1 - e * 0.55) + (PFK.vn(X * 0.2, 3, sy) - 0.5) * 5);
+        for (let Y = top; Y < bot; Y++) {
+          const dy = Y - top;
+          // estratos y grietas
+          const strat = ((Y + Math.round(PFK.vn(X * 0.05, 5, sy) * 6)) % 7 === 0);
+          const crack = PFK.vn(X * 0.3, Y * 0.06, sy + 7) > 0.78;
+          let t = dy < 2 ? 7.4 - dy * 0.8 : 5.2 - dy * 0.11 - e * 1.2 + (PFK.cl(X, Y, 3, sy) - 0.5) * 1.4;
+          if (strat) t -= 1.2;
+          if (crack) t -= 2.2;
+          if (!stem && bot - Y <= 2) t = 1.2; // borde inferior del voladizo
+          putW(X, Y, RK[clamp(Math.round(t), 0, 8)], dy < 2 ? 0.08 : 0.18);
+        }
+        // sombra proyectada bajo el voladizo (agua más oscura)
+        if (!stem) for (let Y = bot; Y < Math.min(bed, bot + 10); Y++) { const i = (Y - y0) * wd + (X - x0); if (i >= 0 && i < pb.data.length) pb.data[i] = PFK.mixU(pb.data[i], UW[1], 0.35 * (1 - (Y - bot) / 10)); }
+        // flecos de algas colgando del voladizo
+        if (!stem && hash2(X, sy, 9) < 0.35) { const L = 2 + Math.floor(hash2(X, sy, 10) * 7); for (let q = 0; q < L; q++) putW(X, bot + q, U(q < 2 ? '#4e8a2a' : '#2e6a22'), 0.2 + q * 0.03); }
+      }
+      // vida sobre la repisa (cada ~12 px)
+      for (let X = sx0 + 4; X < sx1 - 3; X += 9 + r.int(0, 6)) r3cCluster(pb, put, X, topAt(X), r, wy, UW, 0.6 + r() * 0.5);
+    }
+    // jardín del lecho: un racimo cada ~30 px (alternando tipos y tamaños)
+    for (let X = x0 + 10; X < x1 - 6; X += 22 + r.int(0, 16)) r3cCluster(pb, put, X, bedAt(X) + 1, r, wy, UW, 0.8 + r() * 0.7);
+  }
+  /** racimo de arrecife: coral cerebro, cuerno de ciervo, abanico, esponjas tubo, anémona o kelp */
+  function r3cCluster(pb, put, X, by, r, wy, UW, s) {
+    const kind = r.int(0, 6), wet = (u, Y, k = 0.14) => r3cWet(u, Y, wy, UW, k);
+    const P = (ramp) => PFK.P32(ramp);
+    if (kind === 0 || kind === 6) { // coral cerebro (cúpula con surcos)
+      const C = P(R3C_BRAIN), rx = Math.round(3 + s * 3), ry = Math.round(2 + s * 2.2);
+      for (let yy = -ry; yy <= 0; yy++) for (let xx = -rx; xx <= rx; xx++) {
+        const d = (xx * xx) / (rx * rx) + (yy * yy) / (ry * ry); if (d > 1) continue;
+        let t = 2.6 - yy / ry * 1.6 - xx / rx * 0.7; if (d > 0.8) t -= 1.2;
+        if (((xx + Math.round(Math.sin(yy * 0.9) * 2)) & 3) === 0) t -= 1; // surcos
+        put(X + xx, by + yy - 1, wet(C[clamp(Math.round(t), 0, 5)], by));
+      }
+    } else if (kind === 1) { // cuerno de ciervo cálido
+      const C = P(RAMP.coralWarmR), n = 3 + Math.round(s * 2), h = Math.round(5 + s * 6);
+      for (let b = 0; b < n; b++) {
+        let bx = X + (b - (n - 1) / 2) * 2.2, yy = by; const ang = -Math.PI / 2 + (b - (n - 1) / 2) * 0.32;
+        for (let k = 0; k < h; k++) { bx += Math.cos(ang) * 0.75 + Math.sin(k * 0.7 + b) * 0.25; yy += Math.sin(ang) * 0.95; put(Math.round(bx), Math.round(yy), wet(C[clamp(1 + Math.round(k / h * 3), 0, 3)], by)); if (k === h - 1) put(Math.round(bx), Math.round(yy) - 1, wet(U('#ffe08a'), by)); }
+      }
+    } else if (kind === 2) { // abanico violeta/magenta (celosía radial)
+      const C = P(R3C_FAN), L = Math.round(7 + s * 6);
+      for (let a = -5; a <= 5; a++) { const ang = -Math.PI / 2 + a * 0.13; for (let k = 2; k < L - Math.abs(a) * 0.4; k++) put(Math.round(X + Math.cos(ang) * k), Math.round(by - 1 + Math.sin(ang) * k), wet(C[clamp(1 + Math.round(k / L * 3) + (a === 0 ? 1 : 0), 0, 4)], by)); }
+      for (let k = 0; k < 3; k++) put(X, by - k, wet(C[0], by));
+    } else if (kind === 3) { // esponjas tubo amarillas
+      const C = P(R3C_SPONGE), n = 2 + r.int(0, 2);
+      for (let i = 0; i < n; i++) { const tx = X + i * 3 - n, h = Math.round(4 + s * 4 + r.int(0, 4)); for (let k = 0; k < h; k++) { put(tx, by - k, wet(C[k === h - 1 ? 0 : 2], by)); put(tx + 1, by - k, wet(C[k === h - 1 ? 1 : (k > h - 3 ? 4 : 3)], by)); } }
+    } else if (kind === 4) { // anémona rosa con tentáculos
+      const C = P(R3C_ANEM), rx = Math.round(2 + s * 1.5);
+      for (let xx = -rx; xx <= rx; xx++) { put(X + xx, by - 1, wet(C[1], by)); put(X + xx, by - 2, wet(C[2], by)); }
+      for (let xx = -rx - 1; xx <= rx + 1; xx += 1) { const L = 2 + ((xx + X) & 1) + Math.round(s); for (let k = 0; k < L; k++) put(X + xx + Math.round(Math.sin(k * 0.8 + xx) * 0.6), by - 3 - k, wet(C[clamp(3 + (k === L - 1 ? 1 : 0), 0, 4)], by)); }
+    } else { // kelp en mata (3–5 frondas con hojas)
+      const C = P(R3C_KELP), n = 3 + r.int(0, 2);
+      for (let i = 0; i < n; i++) {
+        const h = Math.round(12 + s * 14 + r.int(0, 12)), ph = r() * 6;
+        for (let k = 0; k < h; k++) {
+          const xx = Math.round(X + (i - n / 2) * 2 + Math.sin(k * 0.13 + ph) * 2.2);
+          put(xx, by - k, wet(C[k % 7 === 0 ? 4 : 2], by - k, 0.18)); put(xx + 1, by - k, wet(C[1], by - k, 0.2));
+          if (k % 5 === 3 && k > 3) { const sd = (k & 8) ? 1 : -1; put(xx + (sd > 0 ? 2 : -1), by - k, wet(C[3], by - k, 0.18)); put(xx + (sd > 0 ? 3 : -2), by - k - 1, wet(C[4], by - k, 0.2)); }
+        }
+      }
+    }
+  }
+  /** Cabezal de toma detallado: caperuza de velocidad (hongo) sobre rejilla de barrotes, brida, zapata y vida incrustada */
+  function r3coastIntakeHead(pb, ix, iy, x0, y0, wy, UW, bed) {
+    const put = (X, Y, u) => PFK.put(pb, X - x0, Y - y0, u);
+    const wet = (u, Y, k = 0.22) => r3cWet(u, Y, wy, UW, k);
+    const CON = PFK.P32(['#1a1820', '#34303a', '#504a52', '#6e666a', '#90867e', '#b4a898', '#d8cab4']);
+    const ST = PFK.P32(['#04263c', '#07507a', '#0a7fae', '#11bedd', '#3adcf1', '#9cf0f8']);
+    // escollera de bloques bajo la zapata hasta el lecho (la toma se eleva sobre el fondo: no aspira arena)
+    const RKc = PFK.P32(R3C_ROCK);
+    for (let X = ix - 34; X <= ix + 34; X++) {
+      const e = Math.abs(X - ix) / 34, top = Math.round(iy + 11 + e * e * Math.max(0, bed - iy - 11) * 0.9);
+      for (let Y = top; Y <= bed + 2; Y++) {
+        const cx = Math.floor((X + 400) / 9), cy = Math.floor((Y + (cx & 1) * 4) / 7), fx = ((X + 400) % 9) / 9, fy = ((Y + (cx & 1) * 4) % 7) / 7;
+        let t = 4.6 - fy * 2.4 - fx * 0.8 + (hash2(cx, cy, 5) - 0.5) * 2.2;
+        if (fx < 0.12 || fy < 0.14) t = 1;
+        put(X, Y, wet(RKc[clamp(Math.round(t), 0, 8)], Y, 0.3));
+      }
+    }
+    // zapata de hormigón (trapecio) con juntas
+    for (let X = ix - 26; X <= ix + 26; X++) for (let Y = iy + 6; Y < iy + 12; Y++) {
+      const e = Math.abs(X - ix) / 26; if (Y - iy - 6 < e * 3) continue;
+      put(X, Y, wet(CON[clamp(Y - iy - 6 < e * 3 + 1 ? 5 : 3 - ((X >> 3) & 1) + (hash2(X, Y, 3) < 0.12 ? -1 : 0), 0, 6)], Y));
+    }
+    // anillo base y brida con pernos
+    for (let X = ix - 19; X <= ix + 19; X++) for (let Y = iy + 3; Y <= iy + 5; Y++) put(X, Y, wet(CON[Y === iy + 3 ? 6 : 4], Y));
+    for (let X = ix - 19; X <= ix + 19; X += 5) put(X, iy + 4, wet(U('#2a2830'), iy + 4));
+    // rejilla: barrotes verticales con fondo oscuro (succión), reflejo arriba
+    for (let Y = iy - 9; Y <= iy + 2; Y++) for (let X = ix - 17; X <= ix + 17; X++) {
+      const bar = ((X - ix + 17) % 3) === 0;
+      let u = bar ? ST[clamp(4 - Math.round((Y - iy + 9) / 4), 1, 5)] : U('#03101e');
+      if (bar && Math.abs(X - ix) > 14) u = ST[1];
+      if (!bar && Y < iy - 6) u = U('#062438');
+      put(X, Y, wet(u, Y, bar ? 0.2 : 0.1));
+    }
+    // caperuza (hongo): disco con alero, luz cenital en la cara superior, sombra bajo el alero
+    for (let Y = iy - 15; Y <= iy - 10; Y++) {
+      const hw = Y < iy - 13 ? 20 - (iy - 13 - Y) * 3 : 23;
+      for (let X = ix - hw; X <= ix + hw; X++) {
+        let k = Y === iy - 15 ? 6 : Y === iy - 14 ? 5 : Y <= iy - 12 ? 4 : Y === iy - 11 ? 2 : 1;
+        if (Math.abs(X - ix) > hw - 2 && Y > iy - 13) k--;
+        put(X, Y, wet(CON[clamp(k, 0, 6)], Y, 0.18));
+      }
+    }
+    for (let X = ix - 22; X <= ix + 22; X++) put(X, iy - 9, wet(U('#0a0c18'), iy - 9, 0.15)); // sombra del alero
+    // placa amarilla de señalización sobre la caperuza
+    for (let X = ix - 3; X <= ix + 3; X++) for (let Y = iy - 21; Y <= iy - 16; Y++) put(X, Y, wet(U(Y === iy - 21 || Y === iy - 16 || Math.abs(X - ix) === 3 ? '#2a2830' : '#f0c020'), Y, 0.15));
+    put(ix, iy - 19, wet(U('#2a2830'), iy - 19, 0.15)); put(ix, iy - 18, wet(U('#2a2830'), iy - 18, 0.15));
+    // vida incrustada: percebes, algas y esponjas sobre la caperuza y la zapata
+    for (let X = ix - 22; X <= ix + 22; X++) {
+      const h = hash2(X, iy, 41);
+      if (h < 0.18) put(X, iy - 16, wet(U('#4e8a2a'), iy - 16, 0.2));
+      if (h > 0.86) { put(X, iy - 16, wet(U('#f0aa2e'), iy - 16, 0.2)); put(X, iy - 17, wet(U('#ffd860'), iy - 17, 0.2)); }
+      if (h > 0.4 && h < 0.5) put(X, iy + 6, wet(U('#e4e0d8'), iy + 6, 0.2));
+    }
+    for (const dx of [-24, 25]) for (let k = 0; k < 9; k++) put(ix + dx + Math.round(Math.sin(k * 0.5) * 1), iy + 6 - k, wet(U(k % 3 ? '#2e6a22' : '#4e8a2a'), iy, 0.2));
+  }
+
   function build(world, w) {
     const def = world.def, P = def.pf || {};
     const bedAt = P.bedAt || (() => world.h);
@@ -78,7 +231,8 @@ const PFWater = (() => {
     // 3. lecho: arrecife rocoso (cantos en celdas de Worley con tapa iluminada desde la superficie)
     //    y arena con ondas entre los cantos; los cantos asoman por encima de la línea del lecho
     const SW = PFK.P32(SANDW), RK = PFK.P32(ROCKW);
-    const BR = PFK.P32(['#04101e', '#071c30', '#0c2a42', '#123a52', '#1b4e64', '#286676', '#3f8488', '#62a49a', '#9ad4c4']);
+    // r3-coast: cantos del lecho templados (rojizos apagados por el agua) para el contrapunto cálido/frío
+    const BR = PFK.P32(['#0a0c1c', '#161a2e', '#26283e', '#3a3a4c', '#56504e', '#76624e', '#968058', '#b8a070', '#dcc898']);
     const rockAt = (X, Y) => {
       const big = PFK.vn(X * 0.01, Y * 0.01, 79) > 0.55, cw = big ? 26 : 14, ch = big ? 16 : 10, gx = Math.floor(X / cw), gyc = Math.floor(Y / ch);
       let d1 = 9, d2 = 9, sx = 0, sy = 0, rr = 1, id = 0;
@@ -157,21 +311,16 @@ const PFWater = (() => {
     for (let X = x0 + 12; X < x1; X += 26 + r.int(0, 30)) coral(X, r.int(0, 2), 4 + r.int(0, 6));
     // anémonas y estrellas
     for (let X = x0 + 15; X < x1; X += 70 + r.int(0, 50)) { const bed = bedAt(X); put(X, bed - 1, U('#f07a3a')); put(X - 1, bed - 1, U('#ffb86b')); put(X + 1, bed - 1, U('#c84a1a')); put(X, bed - 2, U('#ffb86b')); }
-    // 4. estructuras sumergidas: tubería de toma + cabezal con rejilla; succiones de bombas
+    // 3b. (r3-coast) arrecife rico: repisas de roca cálida a 2–3 profundidades, pilotes traseros,
+    //     jardín de coral / kelp / esponjas cada ~30 px (cálidos frente al agua fría)
     const W_ = P.water || {};
+    r3coastReef(pb, { x0, x1, y0, wy, wd, bedAt, UW, put, r: RNG(4077), W_, maxD });
+    // 4. estructuras sumergidas: tubería de toma + cabezal con rejilla; succiones de bombas
     if (W_.intake) {
       const ix = W_.intake.x, iy = W_.intake.y, top = W_.intake.top || wy - 20;
       const S = PFK.P32(['#04263c', '#07507a', '#0a7fae', '#11bedd', '#3adcf1', '#9cf0f8']);
       for (let Y = top; Y < iy - 6; Y++) for (let k = 0; k < 9; k++) { const dz = clamp((Y - wy) / 120, 0, 1); put(ix - 4 + k, Y, PFK.mixU(S[[0, 3, 5, 4, 3, 2, 2, 1, 0][k]], UW[4], Y > wy ? 0.25 + dz * 0.4 : 0)); }
-      // cabezal: cilindro horizontal con barras verticales sobre zapata de hormigón
-      const hx0 = ix - 16, hx1 = ix + 16;
-      for (let Y = iy - 9; Y <= iy + 6; Y++) for (let X = hx0; X <= hx1; X++) {
-        const f = (Y - iy + 9) / 15;
-        let c = S[clamp([1, 4, 5, 4, 3, 3, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0][Y - iy + 9] ?? 1, 0, 5)];
-        if ((X - hx0) % 3 === 1 && Y > iy - 7 && Y < iy + 5) c = U('#062438');
-        put(X, Y, PFK.mixU(c, UW[3], 0.35));
-      }
-      for (let X = hx0 - 4; X <= hx1 + 4; X++) for (let Y = iy + 7; Y < iy + 11; Y++) put(X, Y, PFK.mixU(U(Y === iy + 7 ? '#a89c92' : '#5a5658'), UW[3], 0.45));
+      r3coastIntakeHead(pb, ix, iy, x0, y0, wy, UW, bedAt(ix));
     }
     for (const sx of (W_.suction || [])) {
       const sTop = wy - 18, sBot = (W_.suctionY || wy + 40);

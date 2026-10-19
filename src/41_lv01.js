@@ -43,15 +43,23 @@ LEVELS[1] = {
     ],
     /** Lecho marino del corte submarino (mundo) */
     bedAt(x) {
-      const B = [[262, 326], [300, 348], [360, 372], [460, 392], [600, 404], [780, 410], [900, 412], [1060, 414], [1150, 418], [1300, 422], [1450, 424], [1600, 420], [1750, 414], [1885, 396], [2000, 336]];
+      // r3-coast: el lecho sube bajo el muelle (arrecife a la vista sobre el borde inferior del encuadre)
+      const B = [[262, 326], [300, 348], [360, 372], [460, 392], [600, 400], [780, 398], [900, 392], [1060, 396], [1150, 386], [1300, 394], [1450, 404], [1600, 390], [1750, 394], [1885, 380], [2000, 336]];
       let i = 0; while (i < B.length - 2 && B[i + 1][0] <= x) i++;
       const t = clamp((x - B[i][0]) / (B[i + 1][0] - B[i][0]), 0, 1);
       return Math.round(lerp(B[i][1], B[i + 1][1], smooth(t)) + Math.sin(x * 0.07) * 2 + (vnoise(x * 0.03, 0, 5) - 0.5) * 8);
     },
     /** Elementos sumergidos: toma con rejilla (bajo la torre), succiones de bombas, arrecifes, cardumen */
-    water: { intake: { x: 1462, y: 408, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 22, schools: 6, fishX: [380, 1980] },
+    water: {
+      intake: { x: 1462, y: 390, top: 262 }, suction: [1198, 1240], suctionY: 334, reef: [[1150, 1330, 16], [1690, 1860, 12], [560, 760, 9], [880, 1040, 8]], fish: 26, schools: 11, fishX: [380, 1980],
+      // r3-coast: repisas de roca a 3 profundidades (x0, x1, y de la tapa, grosor) y pilotes traseros a otro ritmo
+      shelves: [[612, 668, 372, 10], [716, 796, 346, 12], [930, 1030, 356, 12], [1112, 1190, 348, 14], [1290, 1392, 358, 12], [1528, 1622, 336, 12], [1690, 1790, 352, 14], [1830, 1900, 344, 10]],
+      backPiles: [1150, 1214, 1288, 1352, 1410, 1508, 1574, 1652, 1716, 1790, 1850],
+    },
     /** Dentro del corte (tras el agua, antes del terreno): emisario de salmuera con su pluma densa (R2PLANT) */
     waterFx(g, sc) { R2PLANT.drawOutfall(g, R2PLANT_lv1Outfall(), sc.cam.ox, sc.cam.oy, Game.time, { pipe: false }); },
+    /** r3-coast: cada pilote distinto (percebes, mejillones, algas, collarines) y arriostrado en X */
+    decorateFace(pb, world) { R3COAST_L1piles(pb, world); },
     /** Oclusores del plano frontal (f 1,3): abajo en los bordes y dosel arriba-izquierda al inicio */
     fg: [
       { kind: 'canopy', x: -24, y: -8, w: 300, h: 92, seed: 31, side: -1, n: 22, vines: 5 },
@@ -69,8 +77,8 @@ LEVELS[1] = {
   labels: [
     { x: 1226, y: 196, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 212 },
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
-    { x: 1506, y: 372, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1466, ay: 396 },
-    { x: 1250, y: 388, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1232, ay: 408 },
+    { x: 1522, y: 346, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1476, ay: 375 },
+    { x: 1250, y: 362, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1236, ay: 380 },
     { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 448, ay: 318 },
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
@@ -217,7 +225,7 @@ LEVELS[1] = {
   lens(g, sc, cam, k) {
     const ox = cam.x, oy = cam.y, S = sc.state;
     lensBoundary(g, 1110 - ox, 150 - oy, 780, 150, '#ffe14d', 'LÍMITE: CAPTACIÓN + PRETRATAMIENTO');
-    Charts.flow(g, [[1462 - ox, 398 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
+    Charts.flow(g, [[1462 - ox, 380 - oy], [1462 - ox, 238 - oy], [1272 - ox, 238 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
     Charts.flow(g, [[1262 - ox, 254 - oy], [1622 - ox, 254 - oy], [1622 - ox, 218 - oy], [1652 - ox, 218 - oy]], 'seawater', S.gateClosed ? 0 : 1, 3);
     Charts.flow(g, [[1872 - ox, 264 - oy], [1995 - ox, 264 - oy], [1995 - ox, 252 - oy], [2120 - ox, 252 - oy]], 'water', 1, 3);
     Charts.flow(g, [[1138 - ox, 238 - oy], [1182 - ox, 238 - oy]], 'power', 1, 2);
@@ -1053,4 +1061,54 @@ function dosingSkid(pb, x, y) {
   PFInfra.cylH(pb, x + 23, x + 32, y - 8, 2, {});
   PFInfra.pipe(pb, [[x + 4, y - 22], [x + 4, y - 26], [x + 30, y - 26], [x + 30, y - 12]], 1, 'steel', { flange: 0 });
   for (let yy = 0; yy < 7; yy++) for (let xx = 0; xx < 7; xx++) if (Math.abs(xx - 3) + Math.abs(yy - 3) <= 3) PFK.put(pb, x + 26 + xx, y - 22 + yy, U(Math.abs(xx - 3) + Math.abs(yy - 3) === 3 ? '#c02a2a' : '#ffffff'));
+}
+
+/* ---------- r3-coast: pilotes variados (percebes, mejillones, algas, collarines, arriostrado) ---------- */
+/** Recorre los pilotes del muelle con la misma regla que PFTerrain.piles y los decora uno a uno (def.pf.decorateFace) */
+function R3COAST_L1piles(pb, world) {
+  const def = world.def, wl = def.water[0].y, UW = PFK.P32(RAMP.underR);
+  const bed = (x) => def.pf.bedAt(x);
+  const wet = (hex, y, k0 = 0.3) => PFK.mixU(U(hex), UW[clamp(6 - Math.round(clamp((y - wl) / 110, 0, 1) * 5), 0, 7)], y < wl ? 0 : k0 + clamp((y - wl) / 110, 0, 1) * 0.35);
+  const put = (x, y, hex, k0) => { if (PFK.get(pb, x, y) >>> 24) PFK.put(pb, x, y, wet(hex, y, k0)); };
+  const putAny = (x, y, hex, k0) => PFK.put(pb, x, y, wet(hex, y, k0));
+  const holes = [[1108, 1612], [1612, 1885]];
+  const piles = [];
+  for (const [h0, h1] of holes) for (let px0 = h0 + 18, idx = 0; px0 < h1 - 6; px0 += 46, idx++) {
+    const big = idx % 2 === 0, pw = big ? 13 : 7, px = px0 + Math.round((hash1(idx, 31) - 0.5) * 8);
+    piles.push({ px, pw, big, x0: px - (pw >> 1), idx: piles.length });
+  }
+  for (const P of piles) {
+    const r = RNG(9100 + P.px), x0 = P.x0, pw = P.pw, yb = bed(P.px), kind = P.idx % 4;
+    // tinte propio de cada pilote bajo el agua (verdín, óxido cálido o limpio): rompe la repetición
+    const tint = [null, U('#8a5a3a'), U('#3a7a4a'), U('#6a8a9a')][kind];
+    if (tint) for (let y = wl + 1; y < yb; y++) for (let k = 0; k < pw; k++) { const c = PFK.get(pb, x0 + k, y); if (c >>> 24) PFK.put(pb, x0 + k, y, PFK.mixU(c, tint, 0.16 + 0.1 * Math.sin(y * 0.05 + P.px))); }
+    // franja de percebes en la línea de marea (alto variable)
+    const bh = 4 + r.int(0, 6);
+    for (let y = wl - 3; y < wl + bh; y++) for (let k = 0; k < pw; k++) if (hash2(x0 + k, y, P.px) < 0.42) put(x0 + k, y, hash2(x0 + k, y, 3) < 0.5 ? '#e8e2d2' : '#a8a296', 0.12);
+    // mejillones (racimos azul-negro con brillo)
+    for (let m = 0; m < 2 + r.int(0, 3); m++) {
+      const my = wl + 6 + r.int(0, 34), mx = x0 + r.int(0, pw - 3);
+      for (let q = 0; q < 5; q++) { const xx = mx + (q % 3), yy = my + (q > 2 ? 1 : 0); put(xx, yy, '#141a2a', 0.15); if (q === 1) put(xx, yy - 1, '#5a6a8a', 0.15); }
+    }
+    // óxido / manchas verticales en algunos pilotes
+    if (kind === 1 || kind === 3) for (let k = 0; k < pw; k += 3 + r.int(0, 2)) { const L = 6 + r.int(0, 24), sy = wl - 8 - r.int(0, 6); for (let y = sy; y < sy + L; y++) put(x0 + k, y, kind === 1 ? '#7a4a2a' : '#4a5a3a', 0.2); }
+    // collarín de protección catódica (banda oscura con tornillos) a una hondura distinta en cada pilote
+    if (P.big || kind === 2) { const cy = wl + 14 + ((P.idx * 17) % 40); for (let k = -1; k <= pw; k++) { putAny(x0 + k, cy, '#2a2a36', 0.3); putAny(x0 + k, cy + 1, k % 3 === 0 ? '#c8c4b8' : '#4a4a58', 0.3); putAny(x0 + k, cy + 2, '#1a1a24', 0.3); } }
+    // algas: flecos verdes (largos en unos, cortos en otros) y kelp enroscado en uno de cada cuatro
+    const algL = kind === 0 ? 18 : kind === 2 ? 10 : 5;
+    for (let k = 0; k < pw; k++) { const L = 2 + Math.floor(hash2(x0 + k, 2, P.px) * algL); for (let q = 0; q < L; q++) put(x0 + k + (q > 6 && (k & 1) ? 1 : 0), wl + bh + q, q < 3 ? '#4f8a2e' : q < 9 ? '#2e6a26' : '#1e4a20', 0.25 + q * 0.02); }
+    if (kind === 3) for (let y = wl + 10; y < yb - 4; y++) { const xx = x0 + Math.round((Math.sin(y * 0.18) * 0.5 + 0.5) * (pw - 1)); putAny(xx, y, (y >> 2) % 3 ? '#2e6a22' : '#7aae38', 0.3); if ((y & 7) === 0) putAny(xx + 1, y, '#4e8a2a', 0.3); }
+    // vida en el pie: esponjas naranjas, anémonas rosas, estrella de mar
+    for (let k = 0; k < 3; k++) { const xx = x0 + r.int(-2, pw + 1), yy = yb - 2 - r.int(0, 10); const c = ['#f0aa2e', '#e070b0', '#ff7a4a'][k]; putAny(xx, yy, c, 0.3); putAny(xx + 1, yy, c, 0.3); putAny(xx, yy - 1, k === 0 ? '#ffd860' : c, 0.3); }
+  }
+  // arriostrado en X entre pilotes vecinos (acero oscuro), en tramos alternos
+  for (let i = 0; i + 1 < piles.length; i++) {
+    if (i % 3 === 1) continue;
+    const A = piles[i], B = piles[i + 1]; if (B.x0 - (A.x0 + A.pw) > 50) continue;
+    const ya = wl + 22 + (i % 2) * 10, yb2 = ya + 30, xa = A.x0 + A.pw, xb = B.x0 - 1;
+    for (let x = xa; x <= xb; x++) {
+      const t = (x - xa) / Math.max(1, xb - xa);
+      for (const y of [Math.round(ya + (yb2 - ya) * t), Math.round(yb2 - (yb2 - ya) * t)]) { if (!(PFK.get(pb, x, y) >>> 24)) { PFK.put(pb, x, y, wet('#3a3a4a', y, 0.45)); PFK.put(pb, x, y + 1, wet('#1e1e2a', y, 0.45)); } }
+    }
+  }
 }
