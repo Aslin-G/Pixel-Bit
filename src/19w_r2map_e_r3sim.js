@@ -330,7 +330,7 @@ const R3MAPUI = (() => {
       }
     }
     // ---- iones de sal que viajan con la alimentación (más densos hacia la salida)
-    const nSalt = 56, fq = 0.08 + (st.Qf || 100) / 1200;
+    const nSalt = 84, fq = 0.08 + (st.Qf || 100) / 1200;
     for (let i = 0; i < nSalt; i++) {
       const ph = ((t * fq + i / nSalt) % 1);
       if (hash1(i, 3) > 0.38 + ph * clamp(R * 1.2, 0, 0.8)) continue;
@@ -340,7 +340,7 @@ const R3MAPUI = (() => {
       g.drawImage(M.saltDot(ph > 0.6 ? '#f888b8' : '#fffaf0'), Math.round(X0 + ph * (LW - 4)) - 1, Math.round(yy) - 1);
     }
     // ---- moléculas de agua: viajan con la alimentación y cruzan la membrana hacia el tubo central
-    const nW = cip ? 0 : Math.round(clamp((st.Qp || 0) / 1.6, 0, 30));
+    const nW = cip ? 0 : Math.round(clamp((st.Qp || 0) / 1.2, 0, 40));
     for (let i = 0; i < nW; i++) {
       const ph = ((t * 0.45 + hash1(i, 21)) % 1), top = i % 2 === 0;
       const xx = X0 + 10 + Math.round(((i * 0.381966) % 1) * (LW - 24));
@@ -492,16 +492,21 @@ const R3MAPUI = (() => {
     for (let i = 0; i <= ny; i++) frect(g, cx - 3, Math.round(cy + ch - 1 - i * (ch - 1) / ny), 2, 1, '#a8c8ff');
     for (let i = 0; i <= nx; i++) frect(g, Math.round(cx + i * (cw - 1) / nx), cy + ch + 1, 1, 2, '#a8c8ff');
     // series reforzadas: halo de 1 px al 30 % arriba, sombra de 1 px abajo y la línea encima
+    // (la polilínea reforzada se cachea como lienzo por serie: 1 drawImage en vez de 3 pasadas de fline)
     series.forEach((s) => {
       if (s.dashed || s.step) return;
       const Pp = s.data.map((d, i) => Array.isArray(d) ? d : [i, d]);
       if (Pp.length < 2 || Pp.length > 400) return;
-      const dk = shade(s.color, -0.45);
-      g.globalAlpha = 0.3;
-      for (let i = 0; i < Pp.length - 1; i++) fline(g, X(Pp[i][0]), Y(Pp[i][1]) - 1, X(Pp[i + 1][0]), Y(Pp[i + 1][1]) - 1, s.color);
-      g.globalAlpha = 1;
-      for (let i = 0; i < Pp.length - 1; i++) fline(g, X(Pp[i][0]), Y(Pp[i][1]) + 1, X(Pp[i + 1][0]), Y(Pp[i + 1][1]) + 1, dk);
-      for (let i = 0; i < Pp.length - 1; i++) fline(g, X(Pp[i][0]), Y(Pp[i][1]), X(Pp[i + 1][0]), Y(Pp[i + 1][1]), s.color);
+      const pix = []; for (const p of Pp) pix.push(X(p[0]) - x, Y(p[1]) - y);
+      const key = 'ln|' + w + '|' + h + '|' + s.color + '|' + pix.join(',');
+      const c = memo(key, () => {
+        const cc = makeCanvas(w, h), b = cc.g, dk = shade(s.color, -0.45);
+        b.globalAlpha = 0.3; for (let i = 0; i + 3 < pix.length; i += 2) fline(b, pix[i], pix[i + 1] - 1, pix[i + 2], pix[i + 3] - 1, s.color);
+        b.globalAlpha = 1; for (let i = 0; i + 3 < pix.length; i += 2) fline(b, pix[i], pix[i + 1] + 1, pix[i + 2], pix[i + 3] + 1, dk);
+        for (let i = 0; i + 3 < pix.length; i += 2) fline(b, pix[i], pix[i + 1], pix[i + 2], pix[i + 3], s.color);
+        return cc;
+      });
+      g.drawImage(c, x, y);
     });
     if (o.cursor != null) { const xx = X(o.cursor); frect(g, xx - 1, cy, 1, ch, 'rgba(232,246,255,0.35)'); frect(g, xx, cy, 1, ch, '#e8f6ff'); frect(g, xx - 1, cy - 1, 3, 2, '#ffffff'); }
     return r;
