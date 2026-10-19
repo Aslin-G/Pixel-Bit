@@ -36,7 +36,7 @@ const R2TERRAIN_Urban = (() => {
   const TERRA = ['#3a1408', '#5e2210', '#86361a', '#a84e26', '#c86a36', '#e08a4e', '#f2ae70', '#fcd6a0'];
   const PILW = ['#3a2418', '#5e3e2c', '#86604a', '#ab8466', '#c9a482', '#e0c29e', '#f2dcbc', '#fcf0da'];
   const SANDJ = ['#3a2410', '#5a3a1c', '#7a5430', '#9a7046', '#b88c5c', '#d2a874', '#e8c48e'];
-  const ACEQ = ['#06304a', '#0a5a78', '#0f8aa6', '#1ab8cc', '#5edcea', '#b8f4fa', '#ffffff'];
+  const ACEQ = ['#03284a', '#035a80', '#0090b8', '#00b8d8', '#3ee0f0', '#b8f4fa', '#ffffff']; // r3-coast: turquesa más saturado
   const AZUL = ['#0e2a5a', '#1e4a8c', '#3a72b8', '#7aa8dc', '#e8f0fa', '#ffffff'];
   const MOS = ['#a24a2a', '#c8643a', '#f6ead0', '#e8d6b0', '#127a70', '#1aa894', '#2e5a9a', '#3e7ac0', '#f0c040'];
   const MOSS = ['#2e3a14', '#46561c', '#62742a', '#84983a'];
@@ -395,6 +395,8 @@ const R2TERRAIN_Urban = (() => {
    Anclas dinámicas en s._r3cut = {lamps, spouts, pools, galleries}.
    R3COAST_Cistern.paint(pb, world, s, R) · R3COAST_Cistern.draw(g, sc, cam, on)
    ===================================================================== */
+/** Sillar de arenisca más saturado (r3-coast, N0/N11): ocre-naranja como la roca de la referencia */
+const R3COAST_WALLR = ['#2a0c04', '#4a1806', '#782c08', '#a24210', '#c85a18', '#e0742a', '#f09440', '#f8b866', '#fddca4'];
 const R3COAST_Cistern = (() => {
   const K = PFK;
   const P = (a) => a.map(U);
@@ -510,6 +512,25 @@ const R3COAST_Cistern = (() => {
       A.pools.push([Math.max(x0, V.v0), Math.min(x1, V.v1), wl]);
       // musgo y helechos en los arranques
       for (const ex of [V.v0, V.v1 - 1]) for (let k = 0; k < 5; k++) put(ex + (ex === V.v0 ? k % 2 : -(k % 2)), wl - 1 - k, MOSS[2 + (k & 1)]);
+    }
+    // friso de azulejo turquesa y azul bajo la albardilla (contrapunto frío del sillar ocre), sin las pilastras
+    if (o.frieze !== false) {
+      const TQ = P(['#04302e', '#025a58', '#008a84', '#00b4b0', '#00d8e4', '#9cf4f4']), AZ = P(['#061a6a', '#0838b0', '#1068e0', '#58a8f8', '#f0f8ff']);
+      let bj = 0;
+      for (let x = x0; x < x1; x++) {
+        while (bj < R.LY.bays.length - 1 && x >= R.LY.bays[bj + 1].x0) bj++;
+        const b = R.LY.bays[bj]; if (x < b.x0 + b.pw + 2 || x > b.x1 - 3) continue;
+        if (b.kind === 1 && Math.abs(x - b.cx) < b.ar + 6) continue;
+        const gy = gyAt(x), tx = ((x + 4000) % 6), cell = Math.floor((x + 4000) / 6);
+        for (let d = 7; d < 13; d++) {
+          const ty = d - 7, edge = tx === 0 || ty === 0 || ty === 5;
+          const dia = Math.abs(tx - 3) + Math.abs(ty - 2.5) < 2.2;
+          let u = edge ? AZ[0] : dia ? ((cell & 1) ? TQ[4] : AZ[3]) : ((cell & 1) ? AZ[2] : TQ[3]);
+          if (!edge && tx === 2 && ty === 2) u = AZ[4];
+          put(x, gy + d, u);
+        }
+        put(x, gy + 13, AZ[0]);
+      }
     }
     // galerías: algunos arcos ciegos del muro (kind 1) se abren a un interior iluminado con canal de agua
     for (const b of R.LY.bays) {

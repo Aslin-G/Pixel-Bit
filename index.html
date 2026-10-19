@@ -19694,6 +19694,53 @@ const PFCivic = (() => {
   return { truss, speaker, screenFrame, pavilion, stage, bandstand, pergolaPV, bess, glassTank, raisedBed, crop, electrolyzer, h2Bullet, core, miniTurbine, TEAL, NAVY, BLUEC, H2W, H2G, PV };
 })();
 
+/* ---------- r3-coast: calle baja junto al aljibe (cítricos en maceta, cajas, tinajas) y buganvillas en cascada ---------- */
+/** Naranjo o limonero en maceta de terracota (y = base de la maceta) */
+function R3COAST_citrus(pb, x, yb, s, seed, lemon) {
+  const r = RNG(seed), TC = PFK.P32(['#3a1408', '#6a2a10', '#a04a20', '#c86a30', '#e08a48', '#f4b070']);
+  const LF = PFK.P32(['#0e2410', '#1a3a16', '#2a5420', '#3e7228', '#5a9232', '#86b444']);
+  const FR = PFK.P32(lemon ? ['#a07a10', '#e8c020', '#fff070'] : ['#a83a08', '#f07818', '#ffc060']);
+  const pw = Math.round(10 * s), ph = Math.round(8 * s);
+  for (let y = 0; y < ph; y++) { const inset = Math.round(y * 0.25); for (let xx = -pw / 2 + inset; xx < pw / 2 - inset; xx++) PFK.put(pb, Math.round(x + xx), yb - y, TC[clamp(y === ph - 1 ? 5 : 3 - (xx > pw / 2 - inset - 3 ? 2 : 0) + (xx < -pw / 2 + inset + 2 ? 1 : 0), 0, 5)]); }
+  for (let xx = -pw / 2 - 1; xx < pw / 2 + 1; xx++) { PFK.put(pb, Math.round(x + xx), yb - ph, TC[4]); PFK.put(pb, Math.round(x + xx), yb - ph - 1, TC[2]); }
+  const th = Math.round(7 * s); for (let y = 0; y < th; y++) { PFK.put(pb, x, yb - ph - 1 - y, U('#4a2a14')); PFK.put(pb, x + 1, yb - ph - 1 - y, U('#2a1608')); }
+  const cy = yb - ph - th - Math.round(6 * s), rr = 7.5 * s;
+  for (let i = 0; i < 70 * s * s; i++) {
+    const a = r() * TAU, d = Math.sqrt(r()), xx = Math.round(x + Math.cos(a) * d * rr), yy = Math.round(cy + Math.sin(a) * d * rr * 0.85);
+    const lit = -Math.cos(a) * d * 0.6 - Math.sin(a) * d * 0.8;
+    PFK.put(pb, xx, yy, LF[clamp(Math.round(2.6 + lit * 2 + (r() - 0.5)), 0, 5)]); if (r() < 0.5) PFK.put(pb, xx + 1, yy, LF[clamp(Math.round(2 + lit * 2), 0, 5)]);
+  }
+  for (let i = 0; i < 7 * s; i++) { const a = r() * TAU, d = 0.35 + r() * 0.6, xx = Math.round(x + Math.cos(a) * d * rr), yy = Math.round(cy + Math.sin(a) * d * rr * 0.8); PFK.put(pb, xx, yy, FR[1]); PFK.put(pb, xx + 1, yy, FR[0]); PFK.put(pb, xx, yy - 1, FR[2]); }
+}
+/** Buganvilla que cae en cascada por el muro desde el borde de la plaza (y = borde) */
+function R3COAST_bougainFall(pb, x, y, w, L, seed) {
+  const r = RNG(seed), BR = PFK.P32(['#6a0a48', '#a80c6c', '#e01890', '#ff48b0', '#ffa0d8']), LF = PFK.P32(['#0e1c0a', '#1a3414', '#2a4f1e', '#3f6a26', '#5f8a2c']);
+  for (let i = 0; i < w * L * 0.55; i++) {
+    const fx = r(), fy = Math.pow(r(), 1.35), taper = 1 - fy * 0.75 * Math.abs(fx - 0.5) * 2;
+    if (Math.abs(fx - 0.5) * 2 > taper) continue;
+    const xx = Math.round(x + (fx - 0.5) * w + Math.sin(fy * 6 + seed) * 2), yy = Math.round(y + fy * L);
+    const flower = r() < 0.58;
+    PFK.put(pb, xx, yy, flower ? BR[clamp(Math.round(3 - fy * 1.5 + (r() - 0.5) * 1.6 - (fx > 0.6 ? 1 : 0)), 0, 4)] : LF[clamp(Math.round(3 - fy * 2 + (r() - 0.5)), 0, 4)]);
+    if (flower && r() < 0.35) PFK.put(pb, xx + 1, yy, BR[2]);
+  }
+}
+/** Calle baja: un objeto cada ~45 px entre x0 y x1, y cascadas de buganvilla cada ~150 px */
+function R3COAST_streetProps(pb, world, x0, x1, seed, o = {}) {
+  const gy = (x) => Math.round(world.groundAt(x)), r = RNG(seed), wallH = o.wallH ?? 58, skip = o.skip || [];
+  const base = (x) => gy(x) + wallH + 2 + 8 + 6;
+  for (let x = x0 + 16; x < x1 - 16; x += 30 + r.int(0, 30)) {
+    if (skip.some(([a, b]) => x > a && x < b)) continue;
+    const k = r.int(0, 6), y = base(x);
+    if (k === 0 || k === 4) R3COAST_citrus(pb, x, y, 0.85 + r() * 0.3, x, k === 4);
+    else if (k === 1) { PFArch.crate(pb, x - 8, y, 15, 10, 5); if (r() < 0.6) PFArch.crate(pb, x - 5, y - 10, 10, 8, 4, { label: r() < 0.5 ? '#20d6c7' : '#ff6b6b' }); }
+    else if (k === 2) PFArch.barrel(pb, x, y, { r: 5, h: 12 });
+    else if (k === 3) { PFArch.pots(pb, x, y, 2, x); PFFlora.flowerPatch(pb, x + 2, y - 6, 8, x); }
+    else if (k === 5) R3COAST_citrus(pb, x, y, 0.7, x + 3, false);
+    else { PFFlora.bush(pb, x, y, 14, 10, RAMP.foliageR, x); PFFlora.hibiscus(pb, x - 2, y - 7, 2, x); }
+  }
+  for (let x = x0 + 40 + r.int(0, 60); x < x1 - 30; x += 120 + r.int(0, 80)) { if (skip.some(([a, b]) => x > a && x < b)) continue; R3COAST_bougainFall(pb, x, gy(x) + 3, 20 + r.int(0, 18), 20 + r.int(0, 24), x * 3 + 1); }
+}
+
 /* ===== 18m_pfa_plant.js ===== */
 /* =====================================================================
    18m_pfa_plant.js — Equipos industriales del plano jugable (kit PF,
@@ -26643,7 +26690,7 @@ const R2TERRAIN_Urban = (() => {
   const TERRA = ['#3a1408', '#5e2210', '#86361a', '#a84e26', '#c86a36', '#e08a4e', '#f2ae70', '#fcd6a0'];
   const PILW = ['#3a2418', '#5e3e2c', '#86604a', '#ab8466', '#c9a482', '#e0c29e', '#f2dcbc', '#fcf0da'];
   const SANDJ = ['#3a2410', '#5a3a1c', '#7a5430', '#9a7046', '#b88c5c', '#d2a874', '#e8c48e'];
-  const ACEQ = ['#06304a', '#0a5a78', '#0f8aa6', '#1ab8cc', '#5edcea', '#b8f4fa', '#ffffff'];
+  const ACEQ = ['#03284a', '#035a80', '#0090b8', '#00b8d8', '#3ee0f0', '#b8f4fa', '#ffffff']; // r3-coast: turquesa más saturado
   const AZUL = ['#0e2a5a', '#1e4a8c', '#3a72b8', '#7aa8dc', '#e8f0fa', '#ffffff'];
   const MOS = ['#a24a2a', '#c8643a', '#f6ead0', '#e8d6b0', '#127a70', '#1aa894', '#2e5a9a', '#3e7ac0', '#f0c040'];
   const MOSS = ['#2e3a14', '#46561c', '#62742a', '#84983a'];
@@ -27002,6 +27049,8 @@ const R2TERRAIN_Urban = (() => {
    Anclas dinámicas en s._r3cut = {lamps, spouts, pools, galleries}.
    R3COAST_Cistern.paint(pb, world, s, R) · R3COAST_Cistern.draw(g, sc, cam, on)
    ===================================================================== */
+/** Sillar de arenisca más saturado (r3-coast, N0/N11): ocre-naranja como la roca de la referencia */
+const R3COAST_WALLR = ['#2a0c04', '#4a1806', '#782c08', '#a24210', '#c85a18', '#e0742a', '#f09440', '#f8b866', '#fddca4'];
 const R3COAST_Cistern = (() => {
   const K = PFK;
   const P = (a) => a.map(U);
@@ -27117,6 +27166,25 @@ const R3COAST_Cistern = (() => {
       A.pools.push([Math.max(x0, V.v0), Math.min(x1, V.v1), wl]);
       // musgo y helechos en los arranques
       for (const ex of [V.v0, V.v1 - 1]) for (let k = 0; k < 5; k++) put(ex + (ex === V.v0 ? k % 2 : -(k % 2)), wl - 1 - k, MOSS[2 + (k & 1)]);
+    }
+    // friso de azulejo turquesa y azul bajo la albardilla (contrapunto frío del sillar ocre), sin las pilastras
+    if (o.frieze !== false) {
+      const TQ = P(['#04302e', '#025a58', '#008a84', '#00b4b0', '#00d8e4', '#9cf4f4']), AZ = P(['#061a6a', '#0838b0', '#1068e0', '#58a8f8', '#f0f8ff']);
+      let bj = 0;
+      for (let x = x0; x < x1; x++) {
+        while (bj < R.LY.bays.length - 1 && x >= R.LY.bays[bj + 1].x0) bj++;
+        const b = R.LY.bays[bj]; if (x < b.x0 + b.pw + 2 || x > b.x1 - 3) continue;
+        if (b.kind === 1 && Math.abs(x - b.cx) < b.ar + 6) continue;
+        const gy = gyAt(x), tx = ((x + 4000) % 6), cell = Math.floor((x + 4000) / 6);
+        for (let d = 7; d < 13; d++) {
+          const ty = d - 7, edge = tx === 0 || ty === 0 || ty === 5;
+          const dia = Math.abs(tx - 3) + Math.abs(ty - 2.5) < 2.2;
+          let u = edge ? AZ[0] : dia ? ((cell & 1) ? TQ[4] : AZ[3]) : ((cell & 1) ? AZ[2] : TQ[3]);
+          if (!edge && tx === 2 && ty === 2) u = AZ[4];
+          put(x, gy + d, u);
+        }
+        put(x, gy + 13, AZ[0]);
+      }
     }
     // galerías: algunos arcos ciegos del muro (kind 1) se abren a un interior iluminado con canal de agua
     for (const b of R.LY.bays) {
@@ -40623,9 +40691,9 @@ LEVELS[0] = {
   /* ---------------- plano jugable con kit PF ---------------- */
   pf: {
     terrain: [
-      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true }, // r3-coast: aljibe iluminado en corte bajo la calle
-      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false, r3cut: true },
-      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true },
+      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true, wallRamp: R3COAST_WALLR }, // r3-coast: aljibe iluminado en corte bajo la calle; sillar más saturado
+      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false, r3cut: true, wallRamp: R3COAST_WALLR },
+      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true, wallRamp: R3COAST_WALLR },
       { x0: 2120, x1: 2500, surf: 'path', face: 'cliff', depth: 16 },
     ],
     /** Oclusores del primer plano (f 1,3): buganvillas y macetones en los bordes, guirnaldas arriba */
@@ -40639,6 +40707,12 @@ LEVELS[0] = {
       { kind: 'garland', x: 2240, y: -6, w: 280, h: 40, seed: 15, top: true },
       { kind: 'bougain', x: 2700, w: 140, h: 86, seed: 17 },
       { kind: 'clump', x: 3080, w: 130, h: 90, seed: 19, spikes: 5, leaves: 12 },
+      // r3-coast: más plano de encuadre (f 1,3) en las esquinas inferiores a lo largo de toda la plaza
+      { kind: 'bougain', x: 250, w: 110, h: 70, seed: 23 },
+      { kind: 'clump', x: 700, w: 120, h: 78, seed: 25, spikes: 3, leaves: 11 },
+      { kind: 'bougain', x: 1660, w: 120, h: 74, seed: 27 },
+      { kind: 'clump', x: 2330, w: 130, h: 80, seed: 29, spikes: 4, leaves: 12 },
+      { kind: 'bougain', x: 2980, w: 120, h: 72, seed: 31 },
     ],
     fauna: { gulls: [{ x: 500, y: 70, n: 3 }, { x: 1500, y: 60, n: 4 }, { x: 2300, y: 80, n: 3 }], drones: [{ x: 1200, y: 120, r: 30 }, { x: 1900, y: 90, r: 36 }] },
   },
@@ -40658,6 +40732,9 @@ LEVELS[0] = {
     const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
     const A = PFArch, C = PFCivic, F = PFFlora, I = PFInfra, r = RNG(1001);
     const K = LV0_ANCH;
+    // r3-coast: palmeras y naranjos en el fondo de la calle (se dibujan antes: quedan detrás de puestos y escenario)
+    for (const [x, h, l] of [[392, 70, -5], [612, 64, 6], [948, 74, -6], [1488, 66, 5], [1960, 70, -4]]) F.palm(pb, x, back(x) + 1, h, l, x * 7);
+    for (const x of [300, 690, 1210, 1856]) R3COAST_citrus(pb, x, back(x) + 2, 1.1, x, x === 1210);
     // detalle del pavimento: tapas de registro y confeti barrido
     for (const x of [120, 470, 610, 960, 1250, 1600, 1830, 2060]) A.manhole(pb, x, gy(x) - 12);
     for (let x = 400; x < 2100; x += 3) if (hash2(x, 7, 41) < 0.05) PFK.put(pb, x, gy(x) - 3 - Math.floor(hash2(x, 8, 41) * 16), U(['#ff6b6b', '#ffe14d', '#20d6c7', '#8d6bff', '#ffffff'][Math.floor(hash2(x, 9, 41) * 5)]));
@@ -40730,6 +40807,8 @@ LEVELS[0] = {
   /** Primer plano a ras de suelo (delante de los pies) */
   propsFront(pb, world) {
     const gy = (x) => world.groundAt(x), F = PFFlora;
+    // r3-coast: calle baja junto al aljibe (cítricos, cajas, tinajas) y buganvillas que caen por el muro (por delante de la cara)
+    R3COAST_streetProps(pb, world, 0, 2100, 1077);
     for (let x = 2126; x < 2500; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
     for (let x = 1496; x < 1648; x += 13) F.tuft(pb, x, gy(x) + 2, 6, 6, x + 1);
     // macetas de geranios en el bordillo (lejos del centro del camino)

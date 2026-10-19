@@ -381,3 +381,50 @@ const PFCivic = (() => {
   }
   return { truss, speaker, screenFrame, pavilion, stage, bandstand, pergolaPV, bess, glassTank, raisedBed, crop, electrolyzer, h2Bullet, core, miniTurbine, TEAL, NAVY, BLUEC, H2W, H2G, PV };
 })();
+
+/* ---------- r3-coast: calle baja junto al aljibe (cítricos en maceta, cajas, tinajas) y buganvillas en cascada ---------- */
+/** Naranjo o limonero en maceta de terracota (y = base de la maceta) */
+function R3COAST_citrus(pb, x, yb, s, seed, lemon) {
+  const r = RNG(seed), TC = PFK.P32(['#3a1408', '#6a2a10', '#a04a20', '#c86a30', '#e08a48', '#f4b070']);
+  const LF = PFK.P32(['#0e2410', '#1a3a16', '#2a5420', '#3e7228', '#5a9232', '#86b444']);
+  const FR = PFK.P32(lemon ? ['#a07a10', '#e8c020', '#fff070'] : ['#a83a08', '#f07818', '#ffc060']);
+  const pw = Math.round(10 * s), ph = Math.round(8 * s);
+  for (let y = 0; y < ph; y++) { const inset = Math.round(y * 0.25); for (let xx = -pw / 2 + inset; xx < pw / 2 - inset; xx++) PFK.put(pb, Math.round(x + xx), yb - y, TC[clamp(y === ph - 1 ? 5 : 3 - (xx > pw / 2 - inset - 3 ? 2 : 0) + (xx < -pw / 2 + inset + 2 ? 1 : 0), 0, 5)]); }
+  for (let xx = -pw / 2 - 1; xx < pw / 2 + 1; xx++) { PFK.put(pb, Math.round(x + xx), yb - ph, TC[4]); PFK.put(pb, Math.round(x + xx), yb - ph - 1, TC[2]); }
+  const th = Math.round(7 * s); for (let y = 0; y < th; y++) { PFK.put(pb, x, yb - ph - 1 - y, U('#4a2a14')); PFK.put(pb, x + 1, yb - ph - 1 - y, U('#2a1608')); }
+  const cy = yb - ph - th - Math.round(6 * s), rr = 7.5 * s;
+  for (let i = 0; i < 70 * s * s; i++) {
+    const a = r() * TAU, d = Math.sqrt(r()), xx = Math.round(x + Math.cos(a) * d * rr), yy = Math.round(cy + Math.sin(a) * d * rr * 0.85);
+    const lit = -Math.cos(a) * d * 0.6 - Math.sin(a) * d * 0.8;
+    PFK.put(pb, xx, yy, LF[clamp(Math.round(2.6 + lit * 2 + (r() - 0.5)), 0, 5)]); if (r() < 0.5) PFK.put(pb, xx + 1, yy, LF[clamp(Math.round(2 + lit * 2), 0, 5)]);
+  }
+  for (let i = 0; i < 7 * s; i++) { const a = r() * TAU, d = 0.35 + r() * 0.6, xx = Math.round(x + Math.cos(a) * d * rr), yy = Math.round(cy + Math.sin(a) * d * rr * 0.8); PFK.put(pb, xx, yy, FR[1]); PFK.put(pb, xx + 1, yy, FR[0]); PFK.put(pb, xx, yy - 1, FR[2]); }
+}
+/** Buganvilla que cae en cascada por el muro desde el borde de la plaza (y = borde) */
+function R3COAST_bougainFall(pb, x, y, w, L, seed) {
+  const r = RNG(seed), BR = PFK.P32(['#6a0a48', '#a80c6c', '#e01890', '#ff48b0', '#ffa0d8']), LF = PFK.P32(['#0e1c0a', '#1a3414', '#2a4f1e', '#3f6a26', '#5f8a2c']);
+  for (let i = 0; i < w * L * 0.55; i++) {
+    const fx = r(), fy = Math.pow(r(), 1.35), taper = 1 - fy * 0.75 * Math.abs(fx - 0.5) * 2;
+    if (Math.abs(fx - 0.5) * 2 > taper) continue;
+    const xx = Math.round(x + (fx - 0.5) * w + Math.sin(fy * 6 + seed) * 2), yy = Math.round(y + fy * L);
+    const flower = r() < 0.58;
+    PFK.put(pb, xx, yy, flower ? BR[clamp(Math.round(3 - fy * 1.5 + (r() - 0.5) * 1.6 - (fx > 0.6 ? 1 : 0)), 0, 4)] : LF[clamp(Math.round(3 - fy * 2 + (r() - 0.5)), 0, 4)]);
+    if (flower && r() < 0.35) PFK.put(pb, xx + 1, yy, BR[2]);
+  }
+}
+/** Calle baja: un objeto cada ~45 px entre x0 y x1, y cascadas de buganvilla cada ~150 px */
+function R3COAST_streetProps(pb, world, x0, x1, seed, o = {}) {
+  const gy = (x) => Math.round(world.groundAt(x)), r = RNG(seed), wallH = o.wallH ?? 58, skip = o.skip || [];
+  const base = (x) => gy(x) + wallH + 2 + 8 + 6;
+  for (let x = x0 + 16; x < x1 - 16; x += 30 + r.int(0, 30)) {
+    if (skip.some(([a, b]) => x > a && x < b)) continue;
+    const k = r.int(0, 6), y = base(x);
+    if (k === 0 || k === 4) R3COAST_citrus(pb, x, y, 0.85 + r() * 0.3, x, k === 4);
+    else if (k === 1) { PFArch.crate(pb, x - 8, y, 15, 10, 5); if (r() < 0.6) PFArch.crate(pb, x - 5, y - 10, 10, 8, 4, { label: r() < 0.5 ? '#20d6c7' : '#ff6b6b' }); }
+    else if (k === 2) PFArch.barrel(pb, x, y, { r: 5, h: 12 });
+    else if (k === 3) { PFArch.pots(pb, x, y, 2, x); PFFlora.flowerPatch(pb, x + 2, y - 6, 8, x); }
+    else if (k === 5) R3COAST_citrus(pb, x, y, 0.7, x + 3, false);
+    else { PFFlora.bush(pb, x, y, 14, 10, RAMP.foliageR, x); PFFlora.hibiscus(pb, x - 2, y - 7, 2, x); }
+  }
+  for (let x = x0 + 40 + r.int(0, 60); x < x1 - 30; x += 120 + r.int(0, 80)) { if (skip.some(([a, b]) => x > a && x < b)) continue; R3COAST_bougainFall(pb, x, gy(x) + 3, 20 + r.int(0, 18), 20 + r.int(0, 24), x * 3 + 1); }
+}

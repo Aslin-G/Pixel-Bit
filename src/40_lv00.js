@@ -414,9 +414,9 @@ LEVELS[0] = {
   /* ---------------- plano jugable con kit PF ---------------- */
   pf: {
     terrain: [
-      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true }, // r3-coast: aljibe iluminado en corte bajo la calle
-      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false, r3cut: true },
-      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true },
+      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true, wallRamp: R3COAST_WALLR }, // r3-coast: aljibe iluminado en corte bajo la calle; sillar más saturado
+      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false, r3cut: true, wallRamp: R3COAST_WALLR },
+      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true, wallRamp: R3COAST_WALLR },
       { x0: 2120, x1: 2500, surf: 'path', face: 'cliff', depth: 16 },
     ],
     /** Oclusores del primer plano (f 1,3): buganvillas y macetones en los bordes, guirnaldas arriba */
@@ -430,6 +430,12 @@ LEVELS[0] = {
       { kind: 'garland', x: 2240, y: -6, w: 280, h: 40, seed: 15, top: true },
       { kind: 'bougain', x: 2700, w: 140, h: 86, seed: 17 },
       { kind: 'clump', x: 3080, w: 130, h: 90, seed: 19, spikes: 5, leaves: 12 },
+      // r3-coast: más plano de encuadre (f 1,3) en las esquinas inferiores a lo largo de toda la plaza
+      { kind: 'bougain', x: 250, w: 110, h: 70, seed: 23 },
+      { kind: 'clump', x: 700, w: 120, h: 78, seed: 25, spikes: 3, leaves: 11 },
+      { kind: 'bougain', x: 1660, w: 120, h: 74, seed: 27 },
+      { kind: 'clump', x: 2330, w: 130, h: 80, seed: 29, spikes: 4, leaves: 12 },
+      { kind: 'bougain', x: 2980, w: 120, h: 72, seed: 31 },
     ],
     fauna: { gulls: [{ x: 500, y: 70, n: 3 }, { x: 1500, y: 60, n: 4 }, { x: 2300, y: 80, n: 3 }], drones: [{ x: 1200, y: 120, r: 30 }, { x: 1900, y: 90, r: 36 }] },
   },
@@ -449,6 +455,9 @@ LEVELS[0] = {
     const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
     const A = PFArch, C = PFCivic, F = PFFlora, I = PFInfra, r = RNG(1001);
     const K = LV0_ANCH;
+    // r3-coast: palmeras y naranjos en el fondo de la calle (se dibujan antes: quedan detrás de puestos y escenario)
+    for (const [x, h, l] of [[392, 70, -5], [612, 64, 6], [948, 74, -6], [1488, 66, 5], [1960, 70, -4]]) F.palm(pb, x, back(x) + 1, h, l, x * 7);
+    for (const x of [300, 690, 1210, 1856]) R3COAST_citrus(pb, x, back(x) + 2, 1.1, x, x === 1210);
     // detalle del pavimento: tapas de registro y confeti barrido
     for (const x of [120, 470, 610, 960, 1250, 1600, 1830, 2060]) A.manhole(pb, x, gy(x) - 12);
     for (let x = 400; x < 2100; x += 3) if (hash2(x, 7, 41) < 0.05) PFK.put(pb, x, gy(x) - 3 - Math.floor(hash2(x, 8, 41) * 16), U(['#ff6b6b', '#ffe14d', '#20d6c7', '#8d6bff', '#ffffff'][Math.floor(hash2(x, 9, 41) * 5)]));
@@ -521,6 +530,8 @@ LEVELS[0] = {
   /** Primer plano a ras de suelo (delante de los pies) */
   propsFront(pb, world) {
     const gy = (x) => world.groundAt(x), F = PFFlora;
+    // r3-coast: calle baja junto al aljibe (cítricos, cajas, tinajas) y buganvillas que caen por el muro (por delante de la cara)
+    R3COAST_streetProps(pb, world, 0, 2100, 1077);
     for (let x = 2126; x < 2500; x += 23) if ((x * 13) % 5 < 3) F.tuft(pb, x, gy(x) + 3, 7, 7, x);
     for (let x = 1496; x < 1648; x += 13) F.tuft(pb, x, gy(x) + 2, 6, 6, x + 1);
     // macetas de geranios en el bordillo (lejos del centro del camino)
