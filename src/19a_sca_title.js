@@ -159,6 +159,47 @@ const SCATitleArt = (() => {
       V.scatterVeg(pb, (x) => info.top[x] < h - 1 ? info.top[x] + 1 : null, 300, w, 7200, { k, gap: 7, mix: { tree: 5, shrub: 3, palm: 2, flower: 1 }, ramp: V.RAMPS.vegLow });
       FX.fauna.push({ kind: 'drone', x: 470, y: TER_LY + info.top[452] - 14, r: 26 });
     }, { dyn: (g) => V.drawFalls(g, terFalls, 0, 0, Game.time, { speed: 46, alpha: 0.85 }) });
+    /* ---------------- r3-coast: colinas ocres en terrazas con filas FV y depósitos de H₂ (entre acantilado y planta) ---------------- */
+    const TH_LY = 112;
+    B.vplane(0, TH_LY, 114, (pb, w, h) => {
+      const k = 0.06, r = RNG(311), yB = h - 6;
+      const info = V.relief(pb, {
+        yBase: yB, nv: 30, dvy: 0.3, seed: 313, hMax: 84, x0: 176, x1: 452,
+        H: V.massif([
+          { x: 214, v: 12, h: 58, w: 76, d: 16 }, { x: 268, v: 16, h: 94, w: 104, d: 20, k: 0.85 }, { x: 330, v: 14, h: 84, w: 92, d: 18, k: 0.9 },
+          { x: 392, v: 16, h: 92, w: 96, d: 20, k: 0.85 }, { x: 440, v: 10, h: 52, w: 64, d: 14 },
+        ], { seed: 313, rough: 0.42, scale: 0.05, apron: 4, plateaus: [{ x: 392, w: 26, h: 84 }] }),
+        ramp: V.RAMPS.low, contrast: 2.0, t0: 0.54, facet: 0.3, cav: 0.1, haze: { col: '#c8a8b8', k0: 0.05, k: 0.06 }, rim: '#fde0a8', tex: 0.06,
+        veg: { ramp: V.RAMPS.vegLow, density: 0.05, maxSlope: 1.1, minY: 20, size: 2 },
+      });
+      const TA = V.carveTerraces(pb, info, { x0: 190, x1: 440, yTop: 14, yBot: yB - 8, stepH: [8, 11], wallK: 0.45, k, seed: 317, kinds: ['rows', 'vine', 'orchard', 'rows', 'flowers', 'vine', 'rows', 'orchard'] });
+      // filas FV sobre algunos escalones (agrovoltaica en terraza) con brillo animado
+      let nPV = 0;
+      for (const s of TA.steps) {
+        if (nPV >= 3 || !s.spans) continue;
+        for (const [xa, xb] of s.spans) {
+          if (nPV >= 3 || xb - xa < 24 || (s.kind !== 'rows' && s.kind !== 'vine')) continue;
+          const pv = V.pvArray(pb, xa + 4, s.wallTop - 1, { tables: Math.max(1, Math.min(3, Math.floor((xb - xa - 8) / 26))), cols: 6, rows: 1, cw: 4, ch: 3, gap: 2, skew: 2, k, shift: 1 });
+          FX.pv.push(Object.assign(V.shadowCopy(pb, pv.x0 - 2, pv.y0 - 1, pv.x1 - pv.x0 + 6, pv.y1 - pv.y0 + 4), { ly: TH_LY }));
+          FX.glints.push({ x: pv.x0 + 2, y: TH_LY + pv.y0 + 1, len: pv.x1 - pv.x0 - 4, dy: 0, ph: nPV * 0.4, sp: 0.2, a: 0.6 });
+          nPV++;
+        }
+      }
+      // depósitos esféricos y cilíndricos de H₂ en la meseta de la derecha
+      const py = info.yAt(392, 10);
+      if (py != null) {
+        const TK = V.P32(['#3a4a5a', '#6a7a8a', '#a8b8c4', '#d8e4ec', '#f4fbff']), GR = V.P32(['#0e4a2e', '#1a7a48', '#2eaa64', '#5ad48e', '#a8f0c8']);
+        for (const [cx, rr, kind] of [[380, 6, 0], [394, 7, 0], [407, 5, 1]]) {
+          if (kind === 0) V.ellipse(pb, cx, py - rr - 1, rr, rr, (nx, ny) => TK[clamp(Math.round(3 - nx * 1.4 - ny * 1.6), 0, 4)]);
+          else for (let y = py - 14; y < py; y++) for (let x = cx - 3; x <= cx + 3; x++) V.put(pb, x, y, GR[clamp(3 - Math.round((x - cx + 3) / 2) + (y === py - 14 ? 1 : 0), 0, 4)]);
+          for (let x = cx - rr; x <= cx + rr; x++) V.put(pb, x, py, GR[1]);
+          FX.glows.push([cx, TH_LY + py - rr - 1, rr + 3]);
+        }
+        for (let x = 372; x < 414; x++) V.put(pb, x, py - 3, GR[(x >> 1) % 2 ? 3 : 2]); // tubería verde
+      }
+      V.scatterVeg(pb, (x) => info.top[x] < yB - 1 ? info.top[x] + 1 : null, 180, 450, 3190, { k, gap: 11, mix: { tree: 4, shrub: 3, palm: 2, flower: 1 }, ramp: V.RAMPS.vegLow });
+      for (let x = 200; x < 440; x += r.int(30, 60)) { const y = info.onSurf(x, 6); if (y != null && y < yB - 4) V.house(pb, x, y + 1, r.int(6, 9), r.int(4, 6), 3200 + x, { k, roof: x % 3 ? 'solar' : null }); }
+    });
     /* ---------------- costa: FV, H₂, casas y palmeras ---------------- */
     const CO_LY = 148;
     B.vplane(0, CO_LY, 92, (pb, w, h) => {
