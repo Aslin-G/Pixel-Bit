@@ -74,6 +74,7 @@ const EndingScene = {
   },
   update(dt) { this.t += dt; this.ps.update(dt); if (Math.random() < 0.12) this.ps.emit('firefly', Math.random() * W, 70 + Math.random() * 80, 0, 0, 1); },
   render(g) {
+    if (typeof SCBEnd !== 'undefined' && SCBEnd.renderScreen && SCBEnd.renderScreen(this, g)) return; // r3-mapui (19n): pantalla del final
     const E = this.E, t = this.t, st = this.st;
     // ilustración cinematográfica del final (kit VISTA + primer plano con personajes): 19n_scb_ending.js
     if (!this.art || this.art.id !== this.id) this.art = SCBEnd.make(this.id);
