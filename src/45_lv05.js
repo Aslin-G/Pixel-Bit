@@ -7,6 +7,44 @@
 
 const WIND_TURBINES = [760, 900, 1040, 1180];
 
+/* ---------- r3-windstorm: arquitectura del parque (se pinta sobre los bancales, antes que las torres) ---------- */
+const R3WINDSTORM_LV5 = {
+  build(pb, world, c) {
+    const { AR, TA, TB1, TB2, back, N } = c;
+    // centro de control del parque: dos plantas, sala de control iluminada, cubierta ajardinada con pérgola FV
+    const cx = 644, cyb = TA.top(676) - 1;
+    const cb = AR.flat(pb, cx, cyb, 60, 42, 14, { floors: 2, garden: true, pv: true, litFloor: 1, winW: 9, winH: 8, winGap: 5, doorW: 9, doorH: 17, seed: 61, box: '#ec3a5a' });
+    N.r3.lamps.push([cx + 9, cyb - 22, '#ffe8b0', 7]);
+    if (typeof PFB !== 'undefined') PFB.plaque(pb, cx + 30, cyb - 27, 'CONTROL', { center: true, bg: '#1e3a6a', border: '#8ff5c8', col: '#f4fff8', h: 7, screws: false, pad: 6 });
+    // pala de repuesto en cunas sobre la losa de grúa, conos y caja de herramientas
+    const by = back(836) + 6;
+    for (let r = 0; r < 7; r++) for (let x = 800 + Math.round(r * 0.5); x < 878 + Math.round(r * 0.5); x++) { const c0 = PFK.get(pb, x, by - r); if (c0 >>> 24) PFK.put(pb, x, by - r, PFK.mixU(c0, U(r === 6 ? '#e4dcc8' : '#b2a694'), 0.55)); }
+    AR.blade(pb, 802, by, 72);
+    for (const kx of [796, 882]) { for (let q = 0; q < 5; q++) for (let j = -(q >> 1); j <= (q >> 1); j++) PFK.put(pb, kx + j, by - 5 + q, U(q === 2 ? '#ffffff' : '#ff6a2a')); }
+    // subestación colectora en el bancal bajo
+    const sx = 944, syb = TB1.top(978) - 1;
+    const ss = AR.substation(pb, sx, syb, 64, { h: 28, seed: 63 });
+    N.r3.leds.push(...ss.leds); for (const l of ss.lamps) N.r3.lamps.push([l[0], l[1], '#fff2c4', 6]);
+    N.r3.sub = [sx + 12, syb - 26];
+    // nave de mantenimiento con bóveda y portón abierto en el bancal alto
+    const hx = 1086, hyb = TB2.top(1116) - 1;
+    const hg = AR.hangar(pb, hx, hyb, 58, 26, 14, { seed: 65 });
+    N.r3.lamps.push([hg.lamp[0], hg.lamp[1], '#ffd890', 8]);
+    // aldea de la cresta: dos casas encaladas con teja y una de ocre, buganvilla y palmera
+    const v1 = TB2.top(1236) - 1, v2 = TB2.top(1276) - 1;
+    AR.gable(pb, 1222, v1, 28, 20, 12, { seed: 67, shut: AR.R.GREENP, lit: true });
+    PFFlora.palm(pb, 1258, v2 - 2, 30, 0.35, 69);
+    AR.gable(pb, 1264, v2, 30, 22, 12, { seed: 71, ramp: AR.R.OCHRE, shut: AR.R.BLUEP });
+    AR.vines(pb, 1222, 1236, v1 - 19, { seed: 73, L: 9, boug: true, gap: 0.2 });
+    // cable amarillo de evacuación: de cada transformador de pie por la zanja hasta la subestación
+    const ty = (x) => back(x) + 3, pts = [[783, ty(783)], [sx - 2, ty(sx - 2)], [sx - 2, syb + 2], [sx + 2, syb + 2]];
+    AR.cable(pb, pts, { step: 12 });
+    AR.cable(pb, [[1203, ty(1203)], [1012, ty(1012)], [1012, syb + 2], [sx + 64, syb + 2]], { step: 12 });
+    for (const x of [923, 1063]) AR.cable(pb, [[x, ty(x) - 4], [x, ty(x)]], { clamp: false });
+    N.r3.flows.push({ kind: 'power', pts: [[783, ty(783)], [sx - 2, ty(sx - 2)]] }, { kind: 'power', pts: [[1203, ty(1203)], [1012, ty(1012)]] });
+  },
+};
+
 /* ---------- anclas del plano jugable (kit PF + PFAWind) ---------- */
 const LV5_ANCH = { hubs: [], leds: [], lamps: [], cups: [] };
 /** Arenisca rosada de los acantilados eólicos (rampa del acantilado columnar del kit PF) */
@@ -32,7 +70,7 @@ LEVELS[5] = {
     terrain: [
       { x0: 0, x1: 424, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true },
       { x0: 424, x1: 624, surf: 'void', face: 'void', hard: true },
-      { x0: 624, x1: 1304, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true },
+      { x0: 624, x1: 1304, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true, r3b: true },
       { x0: 1304, x1: 1564, surf: 'void', face: 'void', hard: true },
       { x0: 1564, x1: 3000, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true },
     ],
@@ -55,8 +93,9 @@ LEVELS[5] = {
   /** Etiquetas científicas en el mundo */
   labels: [
     { x: 520, y: 186, title: 'CORRIENTE ASCENDENTE', sub: 'El viento sube por el acantilado', kind: 'water', ax: 520, ay: 214 },
-    { x: 832, y: 214, title: 'AEROGENERADOR', sub: (sc) => fmt0(sc.state.parkStopped ? 0 : WindModel.power(sc.state.wind ?? 11)) + ' kW · curva de potencia', kind: 'tech', ax: 816, ay: 226 },
-    { x: 1112, y: 214, title: 'ESTELA', sub: 'Detrás de cada rotor el viento es más lento', kind: 'water', ax: 1100, ay: 150 },
+    { x: 800, y: 174, title: 'AEROGENERADOR', sub: (sc) => fmt0(sc.state.parkStopped ? 0 : WindModel.power(sc.state.wind ?? 11)) + ' kW · curva de potencia', kind: 'tech', ax: 766, ay: 196 },
+    { x: 1150, y: 174, title: 'ESTELA', sub: 'Detrás de cada rotor el viento es más lento', kind: 'water', ax: 1190, ay: 182 },
+    { x: 984, y: 150, title: 'SUBESTACIÓN', sub: 'Eleva la tensión', kind: 'solar', ax: 970, ay: 214 },
     { x: 1436, y: 168, title: 'GARGANTA', sub: 'Planea con la Vela de Brisa', kind: 'water', ax: 1440, ay: 206 },
     { x: 1810, y: 132, title: 'LIDAR EÓLICO', sub: 'Mide el viento a distancia', kind: 'tech', ax: 1824, ay: 176 },
     { x: 2420, y: 132, title: 'MÁSTIL AGUAS ARRIBA', sub: (sc) => fmt(sc.state.wind ?? 11, 1) + ' m/s', kind: 'tech', ax: 2420, ay: 150 },
@@ -73,6 +112,14 @@ LEVELS[5] = {
     // gargantas: pared del fondo en penumbra, mar con espuma al pie y farallones bajo las plataformas de roca
     Wn.gorge(pb, 420, 630, 254, 420, { seed: 3, ramp: LV5_ROCK, stacks: [[503, 234, 34]] });
     Wn.gorge(pb, 1300, 1570, 250, 420, { seed: 7, ramp: LV5_ROCK, stacks: [[1424, 218, 36]] });
+    /* ===== r3-windstorm: bancales detrás del paso con arquitectura en 3/4 (centro de control con cubierta
+       ajardinada, subestación, nave de mantenimiento, aldea de la cresta), en diagonal que sube a la derecha ===== */
+    const AR = R3WINDSTORM;
+    N.r3 = { leds: [], lamps: [], flows: [] };
+    const TA = AR.terrace(pb, 630, 752, back, 11, { seed: 51, dep: 10 });
+    const TB1 = AR.terrace(pb, 790, 1072, back, 8, { seed: 53, dep: 9 });
+    const TB2 = AR.terrace(pb, 1046, 1302, back, (x) => 14 + Math.round(clamp((x - 1060) / 200, 0, 1) * 8), { seed: 55, dep: 11, ends: 10 });
+    R3WINDSTORM_LV5.build(pb, world, { AR, TA, TB1, TB2, back, gy, N });
     // vegetación de cumbre: aulagas floridas, armerias, altramuces y matas peinadas por el viento
     const veg = (x0, x1, sd) => {
       F.scatter(pb, (x) => back(x) + 2, x0, x1, sd, { gap: 12, mix: { tuft: 5, flowers: 2, lupine: 1, bush: 1 } });
@@ -80,7 +127,7 @@ LEVELS[5] = {
     };
     veg(0, 410, 501); veg(640, 1290, 503); veg(1580, 3000, 505);
     /* ===== r2-biomes-a: densidad del plano medio — peñas con liquen, muretes de piedra seca y matas cada ~30 px ===== */
-    const SB = PFASalt, skip5 = [[96, 124], [410, 640], [646, 676], [1290, 1580], [1680, 1860], [2320, 2480], [2910, 2940]];
+    const SB = PFASalt, skip5 = [[96, 124], [410, 640], [790, 890], [646, 676], [1290, 1580], [1680, 1860], [2320, 2480], [2910, 2940]];
     const DSW = PFK.P32(['#2a1a1a', '#4a2e26', '#6e4632', '#946240', '#b88456', '#dcae7a']);
     for (let x = 20; x < 2980; x += 22 + r.int(0, 16)) {
       if (skip5.some(([a, b]) => x > a && x < b) || WIND_TURBINES.some((tx) => Math.abs(tx - x) < 26)) continue;
@@ -168,6 +215,7 @@ LEVELS[5] = {
     if (!this._rot) this._rot = PFAWind.rotor(50);
     for (const [hx, hy] of N.hubs) { const sx = hx - cam.x; if (sx < -70 || sx > W + 70) continue; PFAWind.drawRotor(g, this._rot, sx, hy - cam.y, S.ang + hx * 0.01); }
     PFInfra.drawLeds(g, sc, N.leds);
+    if (N.r3) { PFInfra.drawLeds(g, sc, N.r3.leds); PFInfra.drawFlows(g, sc, N.r3.flows.map(f => Object.assign(f, { rate: S.parkStopped ? 0 : 0.6 + clamp(WindModel.power(v) / 500, 0, 1) }))); }
     // estelas visibles: líneas de viento ralentizadas detrás de cada turbina
     if (sc.lensT > 0 || S.showWake) for (const [hx, hy] of N.hubs) for (let k = 0; k < 6; k++) { const ph = (t * 0.8 + k / 6) % 1; const xx = hx + 20 + ph * 120 - cam.x, yy = hy - cam.y + Math.sin(ph * 6 + k) * (4 + ph * 18); fpx(g, xx, yy, '#ffffff'); }
     // anemómetros desplegados: cazoletas girando
@@ -180,6 +228,7 @@ LEVELS[5] = {
     if (N.ks) { const [x, y, ww] = N.ks.screen; for (let i = 0; i < 3; i++) frect(g, x - cam.x + 2, y - cam.y + 3 + i * 4, 4 + ((i * 7 + Math.floor(t * 3)) % (ww - 6)), 1, '#8ff5c8'); }
     if (N.labScr) for (const [x, y, ww, hh] of N.labScr) { const sx = x - cam.x; if (sx < -30 || sx > W + 10) continue; for (let i = 0; i < ww; i += 2) fpx(g, sx + i, Math.round(y - cam.y + hh * 0.5 - Math.sin((i + t * 20) * 0.2) * hh * 0.3), '#8ff5c8'); }
     PFDyn.glows(g, cam, N.lamps, '#e8fff4', 9, 0.25);
+    if (N.r3) PFDyn.glows(g, cam, N.r3.lamps, '#ffe8b0', 7, 0.22);
     if (N.ctrl) { const [x, y, ww] = N.ctrl; drawText(g, fmt(v, 1) + ' m/s', x - cam.x + ww / 2, y - cam.y + 5, { font: 'tiny', align: 'center', color: v >= 25 ? '#ff4e5d' : '#8ff5c8' }); }
   },
   lens(g, sc, cam, k) {
