@@ -167,8 +167,17 @@ const PFAWind = (() => {
     I.box3q(pb, x - 4, yb, w + 8, 4, 10, { ramp: A.WOOD, skew: 0.6 });
     I.box3q(pb, x, yb - 4, w, h - 4, 10, { ramp: A.WHITE, skew: 0.6, front: (xx, yy, u, v) => { const ly = yy - (yb - h); if (ly < 3) return Wh[7]; if (ly > h - 18) return Wd[(xx - x) % 6 === 0 ? 2 : 4]; return Wh[6 - (PFK.cl(xx, yy, 3, 81) < 0.08 ? 1 : 0)]; } });
     // tejado a dos aguas magenta, puerta de 86 px con cristal, ventana con pantalla
-    PFK.polyFill(pb, [[x - 6, yb - h], [x + w / 2, yb - h - 18], [x + w + 6, yb - h]], (xx, yy) => U(((xx + yy) % 5 === 0) ? '#8a1a7a' : yy < yb - h - 9 ? '#e34ad8' : '#c02ab8'));
-    hline(pb, x - 6, x + w + 6, yb - h, U('#5a0a50'));
+    // r3-windstorm: tejado a dos aguas en 3/4 — faldón izquierdo al sol, faldón derecho en sombra que se aleja,
+    // caballete iluminado, hastial encalado con óculo, tablas de alero magenta y sombra de alero en la fachada
+    { const AR = R3WINDSTORM, ax = x + w / 2, ay = yb - h - 18, dxr = 7, dyr = -12, MG = P32(['#3a0636', '#5a0a50', '#8a1a7a', '#b02aa8', '#c838c0', '#e34ad8', '#f070e0', '#ffa8f4']);
+      AR.shadowR(pb, x, yb, w, 10, 26, -0.26);
+      PFK.polyFill(pb, [[ax, ay], [ax + dxr, ay + dyr], [x + w + 6 + dxr, yb - h + dyr], [x + w + 6, yb - h]], (xx, yy) => MG[clamp(2 + ((xx - yy) % 4 === 0 ? -1 : 0) + ((yy - ay) % 3 === 0 ? 1 : 0), 0, 7)]);
+      PFK.polyFill(pb, [[x - 6, yb - h], [ax, ay], [ax + dxr, ay + dyr], [x - 6 + dxr, yb - h + dyr]], (xx, yy) => MG[clamp(5 + ((xx + yy) % 4 === 0 ? 1 : 0) - ((yy - ay) % 3 === 0 ? 1 : 0), 0, 7)]);
+      for (let k = 0; k <= 7; k++) put(pb, Math.round(ax + k), Math.round(ay + k * dyr / dxr), MG[7]);
+      PFK.polyFill(pb, [[x - 2, yb - h], [ax, ay + 3], [x + w + 2, yb - h]], (xx, yy) => Wh[clamp(6 - ((yy - ay) > 12 ? 1 : 0) + (PFK.cl(xx, yy, 3, 83) < 0.08 ? -1 : 0), 0, 7)]);
+      K.ellipseFn(pb, ax, yb - h - 7, 4, 4, (nx, ny, d) => U(d > 0.7 ? '#5a0a50' : ny < -0.2 ? '#bce6f8' : '#3a84c2'));
+      for (let k = 0; k < 40; k++) { const t = k / 39, lx = Math.round(lerp(x - 6, ax, t)), ly = Math.round(lerp(yb - h, ay, t)), rx = Math.round(lerp(x + w + 6, ax, t)); put(pb, lx, ly, MG[6]); put(pb, lx, ly + 1, MG[3]); put(pb, rx, ly, MG[4]); put(pb, rx, ly + 1, MG[1]); }
+      hline(pb, x - 6, x + w + 6, yb - h, U('#5a0a50')); AR.darken(pb, x, yb - h + 1, w, 2, -0.32); }
     rect(pb, x + 6, yb - 90, 22, 86, Wd[2]); rect(pb, x + 8, yb - 88, 18, 84, Wd[4]); rect(pb, x + 10, yb - 84, 14, 30, U('#6aa0c8')); put(pb, x + 23, yb - 46, U('#f0bc2c'));
     rect(pb, x + 36, yb - 70, 26, 18, U('#1a2a4a')); hline(pb, x + 36, x + 61, yb - 70, U('#6aa0b4'));
     // cometas colgadas en la fachada y carrete
@@ -185,6 +194,13 @@ const PFAWind = (() => {
     A.castShadow(pb, x + 8, yb, w, 18, -0.26);
     I.box3q(pb, x - 4, yb, w + 8, 5, 14, { ramp: PFTerrain.CONC, skew: 0.6 });
     I.box3q(pb, x, yb - 5, w, h - 5, 14, { ramp: A.WHITE, skew: 0.6, front: (xx, yy, u, v) => { const ly = yy - (yb - h); if (ly < 3) return Wh[7]; if (ly === 54 || ly === 55) return U(ly === 54 ? '#8ff5c8' : '#3fae88'); return Wh[6 - (PFK.cl(xx, yy, 3, 91) < 0.07 ? 1 : 0) - ((xx - x) % 40 === 0 ? 2 : 0)]; } });
+    // r3-windstorm: cornisa con luz cálida, sombra de alero, pretil con suelo de cubierta y lateral en sombra violácea
+    { const AR = R3WINDSTORM, C = P32(AR.R.WHITE), dxs = Math.round(14 * 0.6);
+      for (let xx = x - 1; xx < x + w + 1; xx++) { put(pb, xx, yb - h, U('#fff6e2')); put(pb, xx, yb - h + 1, C[8]); }
+      AR.darken(pb, x, yb - h + 2, w, 2, -0.3); AR.darken(pb, x, yb - h + 4, w, 1, -0.12);
+      for (let r = 2; r < 13; r++) { const off = Math.round(r * 0.6), yy = yb - h - 1 - r; for (let xx = x + off + 2; xx < x + w + off - 2; xx++) put(pb, xx, yy, C[clamp(4 - (r === 2 ? 1 : 0) + (hash2(xx >> 1, yy, 9) < 0.18 ? 1 : 0), 0, 9)]); }
+      for (let r = 0; r < 14; r++) for (let yy = yb - h - r; yy < yb - 5 - r; yy++) { const xx = x + w + Math.round(r * 0.6); const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, K.mixU(c, C[2], 0.5)); }
+      for (let r = 0; r < 14; r++) { const xx = x + w + Math.round(r * 0.6) + 1, yy = yb - 5 - r; for (let q = 0; q < 26 - r; q++) { const c = get(pb, xx + q, yy); if (c >>> 24) put(pb, xx + q, yy, K.shU(c, -0.28, 235)); } } }
     // ventanas superiores e inferiores; puerta de 88 px
     for (let k = 0; k < Math.floor((w - 20) / 40); k++) { const wx = x + 10 + k * 40; for (const wy of [yb - h + 12, yb - h + 64]) { rect(pb, wx, wy, 28, 20, U('#1a2a4a')); hline(pb, wx, wx + 27, wy, U('#6aa0b4')); for (let q = 0; q < 10; q++) put(pb, wx + 2 + q, wy + 18 - q, U('#3a5a7a')); screens.push([wx + 3, wy + 4, 22, 12]); } }
     const dx = x + w - 30; rect(pb, dx, yb - 93, 22, 88, U('#3a4256')); rect(pb, dx + 2, yb - 91, 18, 86, U('#7c849a')); rect(pb, dx + 4, yb - 86, 14, 28, U('#a8d4f0')); hline(pb, dx, dx + 21, yb - 93, U('#eef1f6'));
@@ -207,25 +223,59 @@ const PFAWind = (() => {
 
   /* ---------- caseta de control del parque ---------- */
   function controlHut(pb, x, yb) {
-    const Wh = P32(A.WHITE), w = 56, h = 96;
-    A.castShadow(pb, x + 6, yb, w, 14, -0.24);
-    I.box3q(pb, x - 4, yb, w + 8, 4, 10, { ramp: PFTerrain.CONC, skew: 0.6 });
-    I.box3q(pb, x, yb - 4, w, h - 4, 10, { ramp: A.WHITE, skew: 0.6, front: (xx, yy) => { const ly = yy - (yb - h); if (ly < 3) return Wh[7]; if (ly < 7) return U('#e34ad8'); return Wh[6 - (PFK.cl(xx, yy, 3, 95) < 0.07 ? 1 : 0)]; } });
+    // r3-windstorm: volumen en 3/4 con cornisa al sol, banda magenta que dobla al lateral, pretil y cubierta con
+    // máquina de clima, parasol sobre la pantalla, marquesina en la puerta, sombra arrojada y de contacto
+    const AR = R3WINDSTORM, Wr = AR.R.WHITE, C = P32(Wr), n = C.length, w = 56, h = 96, d = 10, sk = 0.6, dxs = Math.round(d * sk);
+    AR.shadowR(pb, x - 4, yb, w + 8, d, 30, -0.3);
+    I.box3q(pb, x - 4, yb, w + 8, 4, 10, { ramp: PFTerrain.CONC, skew: sk });
+    I.box3q(pb, x, yb - 4, w, h - 4, d, { ramp: Wr, skew: sk, ink: '#1a1226',
+      front: (xx, yy, u, v) => { const ly = yy - (yb - h); if (ly < 1) return U('#fff6e2'); if (ly < 3) return C[n - 2]; if (ly < 7) return U(ly < 4 ? '#f070e0' : ly < 6 ? '#e34ad8' : '#a0249a'); if (ly < 9) return C[4 + (ly - 7)]; return C[clamp(n - 3 - Math.round(v * 1.4) + Math.round((K.cl(xx, yy, 3, 95) - 0.5) * 0.8), 0, n - 1)]; },
+      side: (xx, yy, u, v) => { const ly = yy - (yb - h) + Math.round((xx - x - w) / sk); if (ly >= 3 && ly < 7) return U('#7a1a74'); return C[clamp(3 - Math.round(v) + (v > 0.85 ? 1 : 0) + Math.round((K.cl(xx, yy, 3, 96) - 0.5) * 0.8), 0, n - 1)]; },
+      top: (xx, yy, u, v) => C[clamp(n - 2 - Math.round(v), 0, n - 1)] });
+    // pretil: suelo de la cubierta hundido
+    for (let r = 2; r < d - 1; r++) { const off = Math.round(r * sk), yy = yb - h - 1 - r; for (let xx = x + off + 2; xx < x + w + off - 2; xx++) put(pb, xx, yy, C[clamp(4 - (r === 2 ? 1 : 0) + (hash2(xx, yy, 7) < 0.2 ? 1 : 0), 0, n - 1)]); }
+    I.box3q(pb, x + 30, yb - h - 3, 12, 6, 5, { ramp: AR.R.METAL, skew: sk, ink: '#0e1220' });
+    for (let k = 0; k < 4; k++) put(pb, x + 33 + k * 2, yb - h - 6, U('#2a3040'));
+    // pantalla con marco, parasol y alféizar
+    rect(pb, x + 4, yb - 74, 36, 24, C[1]); rect(pb, x + 5, yb - 73, 34, 22, C[n - 1]);
     rect(pb, x + 6, yb - 72, 32, 20, U('#0a1030')); hline(pb, x + 6, x + 37, yb - 72, U('#6aa0b4'));
-    rect(pb, x + 40, yb - 90, 12, 86, U('#3a4256')); rect(pb, x + 41, yb - 89, 10, 30, U('#a8d4f0'));
-    for (let k = 0; k < 4; k++) { vline(pb, x + 10 + k * 8, yb - h - 26 + k * 3, yb - h - 1, U('#c8d8e8')); }
+    I.box3q(pb, x + 2, yb - 76, 40, 2, 5, { ramp: ['#3a0a38', '#6a1464', '#a0249a', '#c838c0', '#e34ad8', '#f490ea'], skew: sk, ink: '#2a0628' });
+    AR.darken(pb, x + 4, yb - 74, 36, 2, -0.3);
+    hline(pb, x + 3, x + 40, yb - 50, C[n - 1]); AR.darken(pb, x + 4, yb - 49, 36, 1, -0.3);
+    // puerta acristalada con marco y marquesina
+    rect(pb, x + 39, yb - 92, 14, 88, C[2]);
+    rect(pb, x + 40, yb - 90, 12, 86, U('#3a4256')); rect(pb, x + 41, yb - 89, 10, 30, U('#a8d4f0')); for (let q = 0; q < 8; q++) put(pb, x + 43 + q, yb - 66 - q, U('#e4f6ff'));
+    put(pb, x + 49, yb - 50, U('#ffe08a'));
+    I.box3q(pb, x + 36, yb - 93, 20, 2, 6, { ramp: Wr, skew: sk, ink: '#1a1226' }); AR.darken(pb, x + 39, yb - 92, 14, 2, -0.35);
+    // aplique y manchas de lluvia bajo la cornisa
+    rect(pb, x + 30, yb - 46, 3, 2, U('#fff2c4')); put(pb, x + 31, yb - 44, U('#5a4c48'));
+    for (const sx of [x + 12, x + 27]) for (let q = 0; q < 6; q++) { const c = get(pb, sx, yb - h + 9 + q); if (c >>> 24) put(pb, sx, yb - h + 9 + q, K.shU(c, -0.08, 235)); }
+    for (let k = 0; k < 4; k++) { vline(pb, x + 10 + k * 8, yb - h - 26 + k * 3, yb - h - 3, U('#c8d8e8')); put(pb, x + 11 + k * 8, yb - h - 26 + k * 3, U('#6c7280')); }
     put(pb, x + 10, yb - h - 27, U('#ff3a3a'));
-    return { screen: [x + 7, yb - 71, 30, 18] };
+    // maceta con agave junto a la puerta
+    I.box3q(pb, x + 26, yb - 1, 9, 7, 4, { ramp: AR.R.TERRA, skew: sk }); PFFlora.agave(pb, x + 30, yb - 8, 6, x);
+    return { screen: [x + 7, yb - 71, 30, 18], lamp: [x + 31, yb - 45] };
   }
   /** Observatorio de aves (escondite de madera con ranura) y cajas nido */
   function birdHide(pb, x, yb) {
-    const Wd = P32(A.WOOD);
-    A.castShadow(pb, x + 4, yb, 46, 12, -0.24);
-    I.box3q(pb, x, yb, 46, 50, 10, { ramp: A.WOOD, skew: 0.6, front: (xx, yy) => Wd[(xx - x) % 5 === 0 ? 2 : 4 - (PFK.cl(xx, yy, 2, 97) < 0.15 ? 1 : 0)] });
-    rect(pb, x + 6, yb - 36, 34, 5, U('#140a06'));
-    PFK.polyFill(pb, [[x - 4, yb - 50], [x + 54, yb - 50], [x + 58, yb - 60], [x + 2, yb - 60]], (xx, yy) => Wd[(yy % 3) ? 5 : 3]);
-    rect(pb, x + 10, yb - 26, 26, 10, U('#e8d8b8')); K.text(pb, 'AVES', x + 13, yb - 25, U('#3a1e10'), { font: 'tiny' });
+    // r3-windstorm: escondite de tablas en 3/4 con cubierta de tablillas (faldón al sol, alero con sombra), ranura
+    // con prismáticos, rótulo, cajas nido y hierba al pie; sombra arrojada y de contacto
+    const AR = R3WINDSTORM, Wd = P32(A.WOOD), sk = 0.6;
+    AR.shadowR(pb, x, yb, 46, 10, 22, -0.3);
+    I.box3q(pb, x, yb, 46, 50, 10, { ramp: A.WOOD, skew: sk, ink: '#140a06',
+      front: (xx, yy, u, v) => Wd[clamp((xx - x) % 5 === 0 ? 2 : 5 - Math.round(v * 1.4) - (PFK.cl(xx, yy, 2, 97) < 0.15 ? 1 : 0), 0, 7)],
+      side: (xx, yy, u, v) => Wd[clamp(((xx - x) % 4 === 0 ? 1 : 2) - Math.round(v * 0.6), 0, 7)] });
+    rect(pb, x + 6, yb - 36, 34, 5, U('#140a06')); hline(pb, x + 5, x + 40, yb - 31, Wd[7]); AR.darken(pb, x + 6, yb - 30, 34, 1, -0.3);
+    for (const bx of [x + 14, x + 30]) { put(pb, bx, yb - 34, U('#3a4256')); put(pb, bx + 2, yb - 34, U('#3a4256')); put(pb, bx + 1, yb - 33, U('#7ab8e8')); }
+    // cubierta de tablillas: faldón que sube hacia el fondo con hiladas, caballete iluminado y alero oscuro
+    const S = P32(['#2a140a', '#44220e', '#5e3214', '#7a4620', '#9a5e2c', '#ba7c40', '#d89c5c', '#f0c084']);
+    PFK.polyFill(pb, [[x - 4, yb - 50], [x + 54, yb - 50], [x + 61, yb - 62], [x + 3, yb - 62]], (xx, yy) => { const rr = (yb - 50 - yy); return S[clamp((rr % 3 === 0 ? 3 : 5) + (rr > 9 ? 2 : 0) - (((xx + (rr / 3 | 0) * 2) % 6) === 0 ? 1 : 0), 0, 7)]; });
+    hline(pb, x + 3, x + 61, yb - 62, S[7]); hline(pb, x - 4, x + 54, yb - 49, S[0]); AR.darken(pb, x, yb - 48, 46, 2, -0.35);
+    PFK.polyFill(pb, [[x + 54, yb - 50], [x + 61, yb - 62], [x + 62, yb - 61], [x + 56, yb - 49]], () => S[1]);
+    rect(pb, x + 10, yb - 26, 26, 10, U('#e8d8b8')); hline(pb, x + 10, x + 35, yb - 26, U('#fff6e0')); K.text(pb, 'AVES', x + 13, yb - 25, U('#3a1e10'), { font: 'tiny' }); AR.darken(pb, x + 11, yb - 16, 26, 1, -0.3);
     for (const [bx, by] of [[x + 60, yb - 36], [x + 72, yb - 28]]) { vline(pb, bx + 3, by + 8, yb, Wd[2]); I.box3q(pb, bx, by + 8, 8, 8, 3, { ramp: A.WOOD }); put(pb, bx + 3, by + 3, U('#140a06')); }
+    AR.vines(pb, x + 1, x + 12, yb - 47, { seed: x, L: 14, gap: 0.3 });
+    for (let xx = x - 2; xx < x + 50; xx += 3) PFFlora.tuft(pb, xx, yb + 1, 5, 4 + (xx % 3), xx);
   }
 
   /* ---------- interior de la garganta: pared del fondo columnar en penumbra, mar con espuma y farallones ---------- */

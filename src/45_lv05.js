@@ -43,6 +43,43 @@ const R3WINDSTORM_LV5 = {
     for (const x of [923, 1063]) AR.cable(pb, [[x, ty(x) - 4], [x, ty(x)]], { clamp: false });
     N.r3.flows.push({ kind: 'power', pts: [[783, ty(783)], [sx - 2, ty(sx - 2)]] }, { kind: 'power', pts: [[1203, ty(1203)], [1012, ty(1012)]] });
   },
+  /** Resto del nivel: casas junto a la estación de Nimbo, taller de palas con grúa tras el laboratorio y aldea del borde */
+  buildMore(pb, world, c) {
+    const { AR, back, N } = c;
+    // 1) junto al inicio: bancal con dos casas encaladas
+    const T0 = AR.terrace(pb, 0, 132, back, 12, { seed: 81, dep: 10, ends: 8 });
+    AR.gable(pb, 4, T0.top(18) - 1, 30, 20, 12, { seed: 83, shut: AR.R.GREENP });
+    const f0 = AR.flat(pb, 46, T0.top(64) - 1, 38, 26, 12, { ramp: AR.R.OCHRE, seed: 85, doorW: 8, doorH: 15, winW: 7, box: true, lip: '#fff2d2' });
+    PFInfra.cylV(pb, 72, f0.roof[1] - 3, 5, 9, { ramp: ['#141414', '#222226', '#34343a', '#4a4a52', '#62626c', '#7e7e8a', '#a0a0ac', '#c8c8d2'], dome: 0.4, stain: false });
+    // tendedero en la azotea
+    for (let k = 0; k < 14; k++) PFK.put(pb, 50 + k + 4, f0.roof[1] - 8 + Math.round(Math.sin(k / 13 * Math.PI) * 1.5), U('#e8e0d0'));
+    for (let k = 0; k < 3; k++) AR.rect(pb, 54 + 3 + k * 4, f0.roof[1] - 7, 3, 4, U(['#56c8e8', '#ffe14d', '#e34ad8'][k]));
+    PFFlora.palm(pb, 40, T0.top(40) - 1, 34, -0.3, 87);
+    // 2) tras el laboratorio: taller de palas con grúa de orugas y contenedores
+    const TL = AR.terrace(pb, 1866, 2196, back, (x) => 10 + Math.round(clamp((x - 1880) / 240, 0, 1) * 10), { seed: 91, dep: 11 });
+    const hx = 1946, hy = TL.top(1986) - 1;
+    const hg = AR.hangar(pb, hx, hy, 78, 32, 16, { seed: 93, vault: 14 });
+    N.r3.lamps.push([hg.lamp[0], hg.lamp[1], '#ffd890', 9]);
+    AR.crane(pb, 2050, TL.top(2066) - 1, { boom: 92, ang: 1.18, hook: 42 });
+    for (let k = 0; k < 3; k++) PFInfra.box3q(pb, 1884 + k * 3, TL.top(1890) - 1 - k * 9, 34, 9, 8, { ramp: [['#3a1208', '#6a2010', '#a8341c', '#d04a2a', '#ec6a3a', '#ff9a62'], ['#0a1a36', '#12305e', '#1c4a8a', '#2a66b0', '#4486d0', '#70aae6'], ['#123010', '#1e4a1a', '#2c6a26', '#3e8a34', '#5aa84a', '#8ccc72']][k], skew: 0.5, ink: '#140c10' });
+    AR.blade(pb, 2104, back(2130) + 6, 64);
+    AR.gable(pb, 2152, TL.top(2168) - 1, 30, 20, 12, { seed: 95, ramp: AR.R.WHITE, shut: AR.R.BLUEP, lit: true });
+    // 3) aldea del borde del acantilado (2610–2900): casas a dos aguas, una de azotea ajardinada y espadaña
+    const TV = AR.terrace(pb, 2606, 2908, back, (x) => 9 + Math.round(Math.sin((x - 2606) / 300 * Math.PI) * 9), { seed: 97, dep: 11 });
+    AR.gable(pb, 2618, TV.top(2632) - 1, 28, 20, 12, { seed: 101, shut: AR.R.GREENP });
+    AR.flat(pb, 2656, TV.top(2676) - 1, 40, 30, 12, { seed: 103, garden: true, tree: false, doorW: 8, doorH: 16, winW: 7, box: true, ramp: AR.R.WHITE });
+    AR.gable(pb, 2708, TV.top(2722) - 1, 30, 22, 12, { seed: 105, ramp: AR.R.OCHRE, shut: AR.R.BLUEP, lit: true });
+    // ermita con espadaña y campana
+    const ex = 2752, ey = TV.top(2770) - 1;
+    const er = AR.flat(pb, ex, ey, 36, 28, 12, { seed: 107, doorW: 9, doorH: 18, winW: 5, winH: 9, parapet: true, doorCol: AR.R.WOOD });
+    const Wh = PFK.P32(AR.R.WHITE);
+    AR.rect(pb, ex + 12, er.roof[1] - 13, 12, 13, (xx, yy, u, v) => Wh[u > 0.85 ? 4 : 8 - (yy === er.roof[1] - 13 ? -1 : 0)]);
+    AR.rect(pb, ex + 15, er.roof[1] - 10, 6, 7, U('#2a2238')); AR.rect(pb, ex + 16, er.roof[1] - 8, 4, 4, U('#d8a030')); PFK.put(pb, ex + 16, er.roof[1] - 8, U('#fff2a8'));
+    for (let q = 0; q < 4; q++) PFK.put(pb, ex + 18, er.roof[1] - 17 + q, U('#3a3448')); PFK.put(pb, ex + 17, er.roof[1] - 16, U('#3a3448')); PFK.put(pb, ex + 19, er.roof[1] - 16, U('#3a3448'));
+    PFFlora.palm(pb, 2800, TV.top(2800) - 1, 38, 0.25, 109);
+    AR.gable(pb, 2818, TV.top(2832) - 1, 26, 18, 12, { seed: 111, shut: AR.R.GREENP, box: true });
+    AR.gable(pb, 2856, TV.top(2872) - 1, 30, 22, 12, { seed: 113, ramp: AR.R.OCHRE, shut: AR.R.GREENP });
+  },
 };
 
 /* ---------- anclas del plano jugable (kit PF + PFAWind) ---------- */
@@ -120,6 +157,7 @@ LEVELS[5] = {
     const TB1 = AR.terrace(pb, 790, 1072, back, 8, { seed: 53, dep: 9 });
     const TB2 = AR.terrace(pb, 1046, 1302, back, (x) => 14 + Math.round(clamp((x - 1060) / 200, 0, 1) * 8), { seed: 55, dep: 11, ends: 10 });
     R3WINDSTORM_LV5.build(pb, world, { AR, TA, TB1, TB2, back, gy, N });
+    R3WINDSTORM_LV5.buildMore(pb, world, { AR, back, gy, N });
     // vegetación de cumbre: aulagas floridas, armerias, altramuces y matas peinadas por el viento
     const veg = (x0, x1, sd) => {
       F.scatter(pb, (x) => back(x) + 2, x0, x1, sd, { gap: 12, mix: { tuft: 5, flowers: 2, lupine: 1, bush: 1 } });
@@ -127,7 +165,7 @@ LEVELS[5] = {
     };
     veg(0, 410, 501); veg(640, 1290, 503); veg(1580, 3000, 505);
     /* ===== r2-biomes-a: densidad del plano medio — peñas con liquen, muretes de piedra seca y matas cada ~30 px ===== */
-    const SB = PFASalt, skip5 = [[96, 124], [410, 640], [790, 890], [646, 676], [1290, 1580], [1680, 1860], [2320, 2480], [2910, 2940]];
+    const SB = PFASalt, skip5 = [[96, 124], [410, 640], [790, 890], [2096, 2172], [646, 676], [1290, 1580], [1680, 1860], [2320, 2480], [2910, 2940]];
     const DSW = PFK.P32(['#2a1a1a', '#4a2e26', '#6e4632', '#946240', '#b88456', '#dcae7a']);
     for (let x = 20; x < 2980; x += 22 + r.int(0, 16)) {
       if (skip5.some(([a, b]) => x > a && x < b) || WIND_TURBINES.some((tx) => Math.abs(tx - x) < 26)) continue;
