@@ -546,6 +546,60 @@ const Sim03 = makeSim({
   /** masa de sal en exceso por hora (kg/h): Qp·(Cf − Cp), independiente de la recuperación */
   massRate() { return 84 * (35 - 0.2); },
   buildBase() {
+    if (typeof VISTA !== 'undefined' && VISTA.ellipse) return this.buildBaseR3();
+    return this.buildBaseFlat();
+  },
+  /** r3-mapui: bahía ilustrada vista desde arriba (misma costa que las celdas del modelo): playa con arena
+   *  mojada y seca, dunas con matorral, canal del emisario y la planta, aguas someras con fondo de arena y
+   *  cáusticas, isóbatas, crestas de ola, espuma, manglar, pradera marina y arrecife iluminados */
+  buildBaseR3() {
+    const V = VISTA, px = BAY.px, pb = new PixelBuffer(BAY.nx * px, BAY.ny * px), d = pb.data, w = pb.w, h = pb.h;
+    const coastC = (cx) => 4 + Math.round(1.5 * Math.sin(cx * 0.35) + (cx < 14 ? 3 : 0));
+    // costa suave que sigue a las celdas (± 3 px)
+    const cy0 = new Float32Array(w);
+    for (let x = 0; x < w; x++) { const cx = x / px; const a = 4 + 1.5 * Math.sin(cx * 0.35) + 3 * (1 - clamp((cx - 12.5) / 2.5, 0, 1)); cy0[x] = a * px; }
+    const canal = (x, y) => x >= 19 * px && x < 22 * px && y >= (coastC(20) - 3) * px;
+    const SAND = V.P32(['#8a5a34', '#a8703e', '#c68a4c', '#dca462', '#ecc07c', '#f6d898', '#fff0c0']);
+    const SEA = V.P32(['#7ad8cc', '#4cc4c0', '#2aaeb4', '#1a96a6', '#147e96', '#106a86', '#0c5676', '#0a4466', '#08345a']);
+    const GR = V.P32(['#0c2a1a', '#123e22', '#1a542a', '#2a6e2e', '#46903a', '#6eb044', '#a4d058']);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = cy0[x], i = y * w + x;
+      if (y < c - 1 && !canal(x, y)) { // tierra: dunas con ondas de viento, arena seca y mojada junto al agua
+        const dd = c - y, rip = Math.sin(x * 0.45 + y * 0.9 + vnoise(x * 0.05, y * 0.05, 3) * 6) > 0.72;
+        let t = 0.62 + (vnoise(x * 0.06, y * 0.06, 5) - 0.5) * 0.35 - (dd < 4 ? 0.28 : 0) + (rip ? 0.12 : 0);
+        d[i] = SAND[V.band(clamp(t, 0, 0.999), SAND.length, x, y, 0.05, 2)];
+      } else { // agua: profundidad según la distancia a la costa, fondo de arena en la orilla y cáusticas
+        const depth = clamp((y - c) / (h * 0.8), 0, 1) + (vnoise(x * 0.02, y * 0.03, 7) - 0.5) * 0.12;
+        // mar de fondo: ondulación larga y racimos de 3×2 un tono arriba o abajo (sin tramado)
+        let t = clamp(depth * 1.05 + Math.sin(x * 0.07 + y * 0.31 + vnoise(x * 0.03, y * 0.05, 8) * 5) * 0.035 + (hash2((x / 3) | 0, (y / 2) | 0, 12) - 0.5) * 0.07, 0, 0.999);
+        const shallow = depth < 0.22;
+        if (shallow && Math.abs(Math.sin(x * 0.21 + Math.sin(y * 0.33) * 2) + Math.sin(y * 0.27 + Math.sin(x * 0.19) * 2)) < 0.12) t = Math.max(0, t - 0.14);
+        d[i] = SEA[V.band(t, SEA.length, x, y, 0.04, 9)];
+      }
+    }
+    // isóbatas tenues (líneas de 1 px punteadas) y crestas de ola
+    for (const k of [0.3, 0.55, 0.8]) for (let x = 0; x < w; x += 2) { const y = Math.round(cy0[x] + k * h * 0.8 + (vnoise(x * 0.02, k * 9, 7) - 0.5) * 10); if (y > 0 && y < h) d[y * w + x] = V.mixU(d[y * w + x], U('#c6fff2'), 0.22); }
+    for (let k = 0; k < 360; k++) { const x = Math.floor(hash2(k, 1, 31) * (w - 6)), yy = Math.floor(cy0[x] + 4 + hash2(k, 2, 31) * (h - cy0[x] - 6)); const L = 3 + (k % 3); for (let q = 0; q < L; q++) { const j = yy * w + x + q; if (j < d.length) d[j] = V.mixU(d[j], U('#e6fdff'), q === 0 || q === L - 1 ? 0.25 : 0.45); } }
+    // espuma en la orilla (con huecos) y labio de arena mojada
+    for (let x = 0; x < w; x++) { const y = Math.round(cy0[x]); if (canal(x, y)) continue; if (y - 1 >= 0) d[(y - 1) * w + x] = U(hash2(x >> 1, 1, 33) < 0.8 ? '#ffffff' : '#c6fff2'); if (hash2(x >> 2, 2, 33) < 0.55) d[y * w + x] = U('#d8f6f4'); }
+    // matorral costero (tabaiba) en las dunas
+    for (let k = 0; k < 70; k++) { const x = Math.floor(hash2(k, 3, 35) * w), y = Math.floor(hash2(k, 4, 35) * (cy0[x] - 6)); if (canal(x, y) || y < 2) continue; V.ellipse(pb, x + 0.5, y + 0.5, 2.6, 2, (nx, ny) => GR[nx + ny < -0.6 ? 6 : nx + ny < 0 ? 4 : nx + ny < 0.6 ? 2 : 1]); V.put(pb, x + 2, y + 2, U('#6a4628')); }
+    // canal del emisario: muros de hormigón y la planta en la costa (tejado claro con banda azul y depósitos)
+    for (let y = Math.round((coastC(20) - 3) * px) - 2; y < cy0[20 * px] + 2; y++) { V.put(pb, 19 * px - 1, y, U('#cebaac')); V.put(pb, 19 * px - 2, y, U('#6e625b')); V.put(pb, 22 * px, y, U('#7b7679')); }
+    { const bx = 13 * px, by = 1; for (let y = 0; y < 9; y++) for (let x = 0; x < 30; x++) V.put(pb, bx + x, by + y, U(y === 0 ? '#ffffff' : y < 3 ? '#e8eef4' : y === 3 ? '#2a62bc' : y < 7 ? '#b8c6d6' : '#6e7a8a'));
+      for (let k = 0; k < 3; k++) V.ellipse(pb, bx + 38 + k * 7, by + 5, 3, 3, (nx, ny) => U(nx + ny < -0.5 ? '#ffffff' : nx + ny < 0.4 ? '#cfe0ee' : '#7a8aa0')); }
+    // manglar: copas densas iluminadas desde arriba-izquierda con sombra en el agua
+    const crown = (cx, cy, r, sd) => { V.ellipse(pb, cx + 1.5, cy + 2, r, r * 0.8, () => U('#0a3a3a')); V.ellipse(pb, cx, cy, r, r * 0.85, (nx, ny) => GR[clamp(Math.round(3.4 - (nx + ny) * 2.2 + (hash2(Math.round(cx + nx * 9), Math.round(cy + ny * 9), sd) - 0.5) * 1.5), 0, 6)]); };
+    for (let i = 0; i < 26; i++) { const a = i * 2.39996, rr = Math.sqrt(i / 26) * 24; crown(8 * px + Math.cos(a) * rr * 1.3, 9 * px + Math.sin(a) * rr * 0.6, 3.5 + (i % 3), i); }
+    // pradera marina: matas de hojas cintadas con puntas claras
+    for (let i = 0; i < 150; i++) { const a = i * 2.39996, rr = Math.sqrt(i / 150); const x = Math.round(27 * px + Math.cos(a) * rr * 24), y = Math.round(16 * px + Math.sin(a) * rr * 11); for (let q = 0; q < 4; q++) V.put(pb, x + (q > 2 && i % 2 ? 1 : 0), y - q, GR[q === 3 ? 6 : q === 2 ? 4 : 2]); }
+    // arrecife: cabezas de coral de colores con luz y sombra, halo de arena alrededor
+    const CO = [['#7a1a4a', '#c83a7a', '#ff8ab8', '#ffd0e4'], ['#7a3a0a', '#d0701e', '#ffb93b', '#fff0a0'], ['#2a5a1a', '#5a9a2a', '#c2f58e', '#f0ffd0'], ['#3a1a6a', '#6a3aa8', '#b49cff', '#e8e0ff']];
+    V.ellipse(pb, 52 * px, 12 * px, 30, 18, (nx, ny, dd) => dd > 0.75 ? U('#3ac0bc') : 0);
+    for (let i = 0; i < 40; i++) { const a = i * 2.39996, rr = Math.sqrt(i / 40); const x = 52 * px + Math.cos(a) * rr * 24, y = 12 * px + Math.sin(a) * rr * 13, C = CO[i % 4], r = 1.6 + (i % 3) * 0.8; V.ellipse(pb, x, y, r, r * 0.9, (nx, ny) => U(C[nx + ny < -0.7 ? 3 : nx + ny < 0 ? 2 : nx + ny < 0.7 ? 1 : 0])); }
+    return pb.toCanvas();
+  },
+  buildBaseFlat() {
     const pb = new PixelBuffer(BAY.nx * BAY.px, BAY.ny * BAY.px);
     for (let y = 0; y < pb.h; y++) for (let x = 0; x < pb.w; x++) {
       const cx = Math.floor(x / BAY.px), cy = Math.floor(y / BAY.px);

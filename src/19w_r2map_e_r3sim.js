@@ -534,5 +534,175 @@ const R3MAPUI = (() => {
       Charts.frame = _orig.frame; Charts.line = _orig.line; Charts.bars = _orig.bars; Charts.tank = _orig.tank; Charts.battery = _orig.battery; Charts.gauge = _orig.gauge;
     }
   };
+
+  /* =================== PIEZAS ILUSTRADAS PARA LOS DEMÁS GEMELOS =================== */
+  /** Barra-prisma iluminada (cara frontal con luz a la izquierda, lateral en sombra, tapa clara) */
+  M.prism = function (g, x, y, w, h, col) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    if (w < 1 || h < 1) return;
+    frect(g, x, y, w, h, col);
+    if (w >= 3) { frect(g, x, y, Math.max(1, Math.round(w * 0.3)), h, mixHex(col, '#ffffff', 0.22)); frect(g, x + w - Math.max(1, Math.round(w * 0.28)), y, Math.max(1, Math.round(w * 0.28)), h, shade(col, -0.32)); }
+    frect(g, x, y, w, 1, mixHex(col, '#ffffff', 0.6));
+    if (h > 3 && w >= 4) frect(g, x + 1, y + 1, 1, h - 2, mixHex(col, '#ffffff', 0.72));
+  };
+  /** Textura granular cacheada (lechos filtrantes, suelos): granos con luz desde arriba */
+  M.granular = function (w, h, ramp, seed = 1) {
+    return memo('gr|' + w + '|' + h + '|' + ramp.join() + '|' + seed, () => {
+      const pb = new PixelBuffer(w, h), R = P(ramp), n = R.length;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const v = hash2(x >> 1, y, seed), t = clamp(0.62 - y / h * 0.3 + (v - 0.5) * 0.5 + (vnoise(x * 0.2, y * 0.3, seed) - 0.5) * 0.3, 0, 0.999);
+        pb.data[y * w + x] = R[Math.floor(t * n)];
+      }
+      for (let i = 0; i < w * h / 14; i++) { const x = Math.floor(hash2(i, 1, seed + 3) * (w - 2)), y = Math.floor(hash2(i, 2, seed + 3) * (h - 2)); pb.data[y * w + x] = R[n - 1]; pb.data[(y + 1) * w + x + 1] = R[0]; }
+      return pb.toCanvas();
+    });
+  };
+  /** Recipiente vertical de acero alrededor de (x,y,w,h): paredes iluminadas con franja especular vertical
+   *  al 25–35 %, casquetes arriba y abajo, bandas azules y remaches; o.win deja una mirilla oscura */
+  M.vesselShell = function (g, x, y, w, h, o = {}) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    const c = memo('vs|' + w + '|' + h + '|' + (o.win || 0), () => {
+      const dh = Math.max(4, Math.round(w * 0.22)), cc = new PixelBuffer(w + 2, h + 2 * dh + 2), S = P(STEEL), nS = S.length, Bl = P(BLUE);
+      const colK = (xx) => { const t = (xx + 0.5) / w; if (Math.abs(t - 0.29) < 1.2 / w) return nS - 1; return clamp(Math.round((t < 0.06 ? 0.3 : t < 0.2 ? 0.72 : t < 0.38 ? 0.8 : t < 0.55 ? 0.6 : t < 0.72 ? 0.42 : t < 0.88 ? 0.22 : 0.36) * (nS - 2)), 0, nS - 2); };
+      for (let xx = 0; xx < w; xx++) {
+        const i = colK(xx);
+        for (let yy = 0; yy < h; yy++) {
+          const band = (yy > 6 && yy < 10) || (yy > h - 11 && yy < h - 7);
+          cc.data[(yy + dh + 1) * cc.w + xx + 1] = band ? Bl[clamp(Math.round(i / (nS - 1) * 6), 0, 6)] : S[i];
+        }
+        const e = Math.sqrt(Math.max(0, 1 - ((xx + 0.5) / w * 2 - 1) ** 2)), up = Math.round(e * dh);
+        for (let k = 0; k < up; k++) cc.data[(dh + 1 - k) * cc.w + xx + 1] = S[clamp(i + (k > up - 2 ? 1 : 0), 0, nS - 1)];
+        for (let k = 0; k < up; k++) cc.data[(h + dh + 1 + k) * cc.w + xx + 1] = S[clamp(i - 2 - (k > up - 2 ? 1 : 0), 0, nS - 1)];
+      }
+      const d = cc.data, ink = U('#000633'), sol = (X, Y) => X >= 0 && Y >= 0 && X < cc.w && Y < cc.h && (d[Y * cc.w + X] >>> 24) === 255, ed = [];
+      for (let Y = 0; Y < cc.h; Y++) for (let X = 0; X < cc.w; X++) if (sol(X, Y) && (!sol(X - 1, Y) || !sol(X + 1, Y) || !sol(X, Y - 1) || !sol(X, Y + 1))) ed.push(Y * cc.w + X);
+      for (const i of ed) d[i] = ink;
+      for (let xx = 3; xx < w - 2; xx += 5) { V.put(cc, xx + 1, dh + 9, S[nS - 1]); V.put(cc, xx + 1, h + dh - 8, S[nS - 2]); }
+      if (o.win) for (let yy = 12; yy < h - 12; yy++) for (let xx = 3; xx < w - 3; xx++) d[(yy + dh + 1) * cc.w + xx + 1] = (xx === 3 || yy === 12) ? U('#000633') : (xx === w - 4 || yy === h - 13) ? S[5] : U('#06122a');
+      return { c: cc.toCanvas(), dh };
+    });
+    g.drawImage(c.c, x - 1, y - c.dh - 1);
+    return { x0: x + 4, y0: y + 13, x1: x + w - 4, y1: y + h - 13 };
+  };
+  /** Balsa de hormigón en 3/4 (borde superior claro, cara frontal con juntas, sombra de contacto) */
+  M.basin = function (g, x, y, w, h) {
+    x = Math.round(x); y = Math.round(y);
+    const c = memo('bs|' + w + '|' + h, () => {
+      const pb = new PixelBuffer(w, h + 3), C = P(['#2a3444', '#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#e2d2c0', '#f5e5c3']);
+      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+        let k = yy < 2 ? 7 : yy < 4 ? 6 : (xx < 3 ? 5 : xx >= w - 3 ? 3 : yy > h - 3 ? 2 : 4);
+        if (yy >= 4 && (xx % 16 === 0 || yy % 9 === 0)) k = Math.max(1, k - 2);
+        if (yy >= 4 && hash2(xx >> 1, yy >> 1, 4) < 0.08) k = Math.max(1, k - 1);
+        pb.data[yy * w + xx] = C[k];
+      }
+      for (let xx = 2; xx < w - 2; xx++) { pb.data[h * w + xx] = U('#020818'); pb.data[(h + 1) * w + xx] = U('#020818'); }
+      return pb.toCanvas();
+    });
+    g.drawImage(c, x, y);
+  };
+  /** Tablero del Nexo: isla de Aridia vista desde arriba, atenuada, bajo una rejilla de plano */
+  M.boardMap = function (w, h, seed = 3) {
+    return memo('bm|' + w + '|' + h + '|' + seed, () => {
+      const pb = new PixelBuffer(w, h), d = pb.data;
+      const SEA = P(['#041a3a', '#062448', '#082e56', '#0a3864', '#0e4472']);
+      const LAND = P(['#2a1a24', '#3a2228', '#4e2c28', '#62382a', '#764630', '#8a5638', '#9c6844']);
+      const GRN = P(['#0e2a1e', '#123624', '#18442a', '#205230', '#2a6236']);
+      const E = (x, y) => { const nx = (x - w * 0.55) / (w * 0.5), ny = (y - h * 0.52) / (h * 0.56); return 1 - Math.sqrt(nx * nx + ny * ny) + (vnoise(x * 0.025, y * 0.025, seed) - 0.5) * 0.5 + (vnoise(x * 0.08, y * 0.08, seed + 1) - 0.5) * 0.12; };
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const e = E(x, y);
+        let u;
+        if (e < 0.02) { const t = clamp(0.6 + e * 2 + (hash2(x >> 2, y, seed) - 0.5) * 0.12, 0, 0.999); u = SEA[Math.floor(t * SEA.length)]; if (e > -0.03 && hash2(x >> 1, y, 7) < 0.5) u = U('#2a6a8a'); }
+        else {
+          const lit = clamp(0.5 + (E(x - 2, y - 2) - e) * -6 + (vnoise(x * 0.09, y * 0.09, seed + 2) - 0.5) * 0.4, 0, 0.999);
+          const green = vnoise(x * 0.04, y * 0.04, seed + 9) > 0.62 && e < 0.4;
+          u = green ? GRN[Math.floor(lit * GRN.length)] : LAND[Math.floor(clamp(lit * 0.8 + e * 0.3, 0, 0.999) * LAND.length)];
+          if (e < 0.05) u = U('#a08a6a');
+        }
+        d[y * w + x] = u;
+      }
+      for (let k = 0; k < 3; k++) { let yy = h * (0.3 + k * 0.22); for (let x = 0; x < w; x++) { yy += Math.sin(x * 0.03 + k) * 0.35; const i = Math.round(yy) * w + x; if (i >= 0 && i < d.length && hash2(x, k, 3) < 0.85 && E(x, yy) > 0.05) d[i] = V.mixU(d[i], U('#c8a878'), 0.5); } }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (x % 16 === 8 || y % 16 === 8) d[i] = V.mixU(d[i], U('#3a6ab0'), 0.28);
+        if ((x % 64 === 8 && Math.abs((y % 64) - 8) < 3) || (y % 64 === 8 && Math.abs((x % 64) - 8) < 3)) d[i] = V.mixU(d[i], U('#8fdfff'), 0.5);
+      }
+      return pb.toCanvas();
+    });
+  };
+  /** Ficha de nodo iluminada (bisel claro arriba-izquierda, sombra abajo-derecha, sombra arrojada, zócalo del icono) */
+  M.nodeTile = function (g, x, y, w, h, pal) {
+    const c = memo('nt|' + w + '|' + h + '|' + pal.join(), () => {
+      const cc = makeCanvas(w + 2, h + 2), b = cc.g;
+      b.globalAlpha = 0.6; b.fillStyle = '#000208'; b.fillRect(2, 2, w, h); b.globalAlpha = 1;
+      b.fillStyle = '#05030f'; b.fillRect(0, 0, w, h);
+      b.fillStyle = pal[0]; b.fillRect(1, 1, w - 2, h - 2);
+      for (let j = 2; j < h - 2; j++) { b.fillStyle = mixHex(pal[1], pal[0], j / h * 0.6); b.fillRect(2, j, w - 4, 1); }
+      b.fillStyle = pal[2]; b.fillRect(1, 1, w - 2, 1); b.fillRect(1, 1, 1, h - 3);
+      b.fillStyle = mixHex(pal[2], '#ffffff', 0.5); b.fillRect(2, 1, 5, 1);
+      b.fillStyle = shade(pal[0], -0.4); b.fillRect(1, h - 2, w - 2, 1); b.fillRect(w - 2, 2, 1, h - 3);
+      b.fillStyle = '#05030f'; b.fillRect(2, 4, 14, 16); b.fillStyle = shade(pal[1], -0.25); b.fillRect(3, 5, 12, 14); b.fillStyle = mixHex(pal[1], pal[2], 0.3); b.fillRect(3, 5, 12, 1);
+      return cc;
+    });
+    g.drawImage(c, Math.round(x), Math.round(y));
+  };
+  /** Ladera eólica vista desde arriba con la rejilla de celdas horneada encima */
+  M.windField = function (w, h, gx, gy, cols, rows, cw, rh) {
+    return memo('wf|' + w + '|' + h + '|' + gx + '|' + gy + '|' + cols + '|' + rows + '|' + cw + '|' + rh, () => {
+      const pb = new PixelBuffer(w, h), d = pb.data;
+      const G = P(['#0a2016', '#10341e', '#174a24', '#22622a', '#34782c', '#4e9030', '#6eaa36', '#94c444']);
+      const Rk = P(['#3a2430', '#5a3840', '#7e5048', '#a06c54', '#bc8a64', '#d4a87a']);
+      const hgt = (x, y) => vnoise(x * 0.018, y * 0.03, 41) * 0.8 + vnoise(x * 0.06, y * 0.08, 42) * 0.2 + Math.sin(y / h * Math.PI) * 0.35;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const s0 = hgt(x, y), sl = (hgt(x - 1, y - 1) - s0) * 18;
+        const t = clamp(0.45 + s0 * 0.35 - sl, 0, 0.999);
+        let u = G[V.band(t, G.length, x, y, 0.05, 3)];
+        if (vnoise(x * 0.07, y * 0.07, 44) > 0.74) u = Rk[V.band(t, Rk.length, x, y, 0.05, 4)];
+        if (hash2(x >> 1, y >> 1, 45) < 0.03) u = G[Math.min(G.length - 1, Math.floor(t * G.length) + 2)];
+        d[y * w + x] = u;
+      }
+      for (let x = 0; x < w; x++) { const yy = Math.round(h - 8 + Math.sin(x * 0.04) * 3); for (let k = 0; k < 3; k++) if (yy + k < h) d[(yy + k) * w + x] = U(k === 0 ? '#f2d8a8' : k === 1 ? '#d4b48a' : '#9a7a5a'); }
+      for (let i = 0; i < w * h / 160; i++) { const x = Math.floor(hash2(i, 5, 46) * w), y = Math.floor(hash2(i, 6, 46) * h); V.ellipse(pb, x + 0.5, y + 0.5, 2.5, 2, (nx, ny) => G[nx + ny < -0.5 ? 6 : nx + ny < 0.3 ? 3 : 1]); }
+      for (let r = 0; r <= rows; r++) for (let x = gx; x < gx + cols * cw; x++) { const yy = gy + r * rh - (r ? 1 : 0); if (yy >= 0 && yy < h) d[yy * w + x] = V.mixU(d[yy * w + x], U('#e8f6ff'), 0.28); }
+      for (let c = 0; c <= cols; c++) for (let y = gy; y < gy + rows * rh; y++) { const xx = gx + c * cw - (c ? 1 : 0); if (xx >= 0 && xx < w) d[y * w + xx] = V.mixU(d[y * w + xx], U('#e8f6ff'), 0.28); }
+      for (let x = 0; x < w; x++) { d[x] = U('#000633'); d[(h - 1) * w + x] = U('#000633'); d[w + x] = V.mixU(d[w + x], U('#ffffff'), 0.3); }
+      for (let y = 0; y < h; y++) { d[y * w] = U('#000633'); d[y * w + w - 1] = U('#000633'); }
+      return pb.toCanvas();
+    });
+  };
+  /** Aerogenerador visto desde arriba: zapata de grava, sombra, góndola y rotor perpendicular al viento */
+  M.turbineTop = function (g, cx, cy, t, sel, P0 = 1) {
+    cx = Math.round(cx); cy = Math.round(cy);
+    frect(g, cx - 5, cy - 5, 11, 11, '#9a7a5a'); frect(g, cx - 4, cy - 4, 9, 9, '#d4b48a'); frect(g, cx - 4, cy - 4, 9, 1, '#f2d8a8');
+    g.globalAlpha = 0.45; frect(g, cx + 3, cy - 6, 2, 15, '#020818'); frect(g, cx - 1, cy + 2, 8, 3, '#020818'); g.globalAlpha = 1;
+    frect(g, cx - 3, cy - 2, 8, 5, '#000633'); frect(g, cx - 2, cy - 1, 6, 3, '#f4f9ff'); frect(g, cx - 2, cy + 1, 6, 1, '#b8c6d6');
+    const L = 8 + Math.round(Math.abs(Math.sin(t * 6 * clamp(P0, 0.1, 1))));
+    frect(g, cx - 5, cy - L, 2, 2 * L + 1, '#000633'); frect(g, cx - 4, cy - L + 1, 1, 2 * L - 1, '#ffffff'); fpx(g, cx - 4, cy, '#ffd23a');
+    if (sel) for (let a = 0; a < 24; a++) { const an = a / 24 * TAU; fpx(g, cx + Math.cos(an) * 10, cy + Math.sin(an) * 10, a % 2 ? '#ffe14d' : '#fff6c0'); }
+  };
+  /** Perfil de suelo ilustrado: horizonte orgánico, arcilla con agregados, piedras y raíces */
+  M.soil = function (w, h) {
+    return memo('soil|' + w + '|' + h, () => {
+      const pb = new PixelBuffer(w, h), d = pb.data;
+      const A = P(['#2a160c', '#3a2012', '#4e2c18', '#62381e', '#7a4a28', '#925c32']), B = P(['#4a2a18', '#62381e', '#7a4e2e', '#946238', '#ae7a46', '#c89458']);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const deep = y > h * 0.55, R = deep ? B : A, t = clamp(0.5 + (hash2(x >> 1, y >> 1, deep ? 3 : 4) - 0.5) * 0.5 + (vnoise(x * 0.15, y * 0.2, 5) - 0.5) * 0.5 - (deep ? 0 : 0.1), 0, 0.999);
+        d[y * w + x] = R[Math.floor(t * R.length)];
+      }
+      for (let i = 0; i < 8; i++) { const x = 6 + Math.floor(hash2(i, 1, 7) * (w - 12)), y = Math.floor(h * 0.6 + hash2(i, 2, 7) * h * 0.35); V.ellipse(pb, x, y, 2.5, 1.8, (nx, ny) => U(nx + ny < -0.4 ? '#d8c0a0' : nx + ny < 0.3 ? '#a08a72' : '#5a4a3a')); }
+      for (let k = 0; k < 5; k++) { let x = 12 + k * (w - 24) / 4, y = 1; for (let s = 0; s < h * 0.7; s++) { x += (hash2(k, s, 9) - 0.5) * 1.6; y += 1; V.put(pb, Math.round(x), y, U(s % 4 ? '#e8d0a0' : '#c8a878')); if (hash2(k, s, 10) < 0.06) for (let q = 1; q < 6; q++) V.put(pb, Math.round(x + q * (k % 2 ? 1 : -1)), y + (q >> 1), U('#d8c090')); } }
+      return pb.toCanvas();
+    });
+  };
+  /** Planta de cultivo (fríjol) con hojas iluminadas */
+  M.crop = function (g, x, y, stress = 0) {
+    const c = memo('crop|' + (stress > 0.5 ? 1 : 0), () => {
+      const pb = new PixelBuffer(13, 15), Gr = stress > 0.5 ? ['#3a3a12', '#6a6a1e', '#9a922a', '#c8b84a'] : ['#0e3a1a', '#1e6a2a', '#3e9a32', '#8cd44a'];
+      for (let yy = 4; yy < 15; yy++) V.put(pb, 6, yy, U('#2e6a22'));
+      const leaf = (cx, cy, rx, ry) => V.ellipse(pb, cx, cy, rx, ry, (nx, ny) => U(Gr[nx + ny < -0.5 ? 3 : nx + ny < 0.2 ? 2 : nx + ny < 0.8 ? 1 : 0]));
+      leaf(3.5, 6, 3.4, 2.4); leaf(9.5, 5, 3.4, 2.4); leaf(6.5, 2.5, 2.6, 2.4); leaf(3.5, 10.5, 2.8, 2); leaf(9.5, 10, 2.8, 2);
+      return pb.toCanvas();
+    });
+    g.drawImage(c, Math.round(x) - 6, Math.round(y) - 14);
+  };
   return M;
 })();

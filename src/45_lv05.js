@@ -536,11 +536,15 @@ const Sim05 = makeSim({
   drawLayout(g, x, y, w, h) {
     frect(g, x, y, w, h, '#0e2a3a'); frect(g, x + 1, y + 1, w - 2, h - 2, '#13405a');
     const cols = 15, rows = 3, cw = Math.floor((w - 40) / cols), rh = Math.floor((h - 30) / rows);
+    // r3-mapui: ladera eólica ilustrada vista desde arriba (pradera, roca, matorral y camino) con la rejilla horneada
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) g.drawImage(R3.windField(w, h, 30, 18, cols, rows, cw, rh), x, y);
+    if (R3) { frect(g, x + 2, y + 2, FONTS.tiny.measure('VIENTO →  ' + fmt0(this.v) + ' m/s (1 celda = 1 diámetro de rotor)') + 8, 11, '#041533'); }
     drawText(g, 'VIENTO →  ' + fmt0(this.v) + ' m/s (1 celda = 1 diámetro de rotor)', x + 6, y + 4, { font: 'tiny', color: '#8ff5c8' });
     const f = this.farm();
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       const cx = x + 30 + c * cw, cy = y + 18 + r * rh;
-      frect(g, cx, cy, cw - 1, rh - 1, ((r + c) % 2) ? '#18506a' : '#1a5a74');
+      if (!R3) frect(g, cx, cy, cw - 1, rh - 1, ((r + c) % 2) ? '#18506a' : '#1a5a74');
       if (!this.done && Gui.button(g, 'cell' + r + '_' + c, cx, cy, cw - 1, rh - 1, '', { noDraw: true })) { if (!this.layout.some(t => t.x === c && t.y === r * 1.5)) { this.layout[this.selT] = { x: c, y: r * 1.5 }; Audio2.sfx('ui'); } }
     }
     // estelas
@@ -565,9 +569,11 @@ const Sim05 = makeSim({
     this.layout.forEach((t, i) => {
       const cx = x + 30 + t.x * cw + cw / 2, cy = y + 18 + (t.y / 1.5) * rh + rh / 2;
       const tb = f.turbines.find(q => q.x === t.x && q.y === t.y);
-      fdisc(g, cx, cy, 6, this.selT === i ? '#ffe14d' : '#ffffff'); fdisc(g, cx, cy, 3, '#1e4aa8');
+      if (R3) R3.turbineTop(g, cx, cy, this.t + i * 0.37, this.selT === i, tb ? clamp(tb.P / 500, 0, 1) : 0.5);
+      else { fdisc(g, cx, cy, 6, this.selT === i ? '#ffe14d' : '#ffffff'); fdisc(g, cx, cy, 3, '#1e4aa8'); }
+      if (R3) { frect(g, cx - 6, cy - 16, 13, 9, '#041533'); if (tb) { const pw = FONTS.tiny.measure(fmt0(tb.P)) + 4; frect(g, cx - Math.ceil(pw / 2), cy + 10, pw, 9, '#041533'); } }
       drawText(g, 'T' + (i + 1), cx, cy - 14, { font: 'tiny', align: 'center', color: '#fffaf0' });
-      if (tb) drawText(g, fmt0(tb.P), cx, cy + 8, { font: 'tiny', align: 'center', color: tb.deficit > 0.05 ? '#ff9a8a' : '#c2f58e' });
+      if (tb) drawText(g, fmt0(tb.P), cx, cy + (R3 ? 12 : 8), { font: 'tiny', align: 'center', color: tb.deficit > 0.05 ? '#ff9a8a' : '#c2f58e' });
       if (!this.done && Gui.button(g, 'tsel' + i, cx - 7, cy - 7, 14, 14, '', { noDraw: true, tip: 'Seleccionar T' + (i + 1) })) { this.selT = i; Audio2.sfx('uiMove'); }
     });
   },

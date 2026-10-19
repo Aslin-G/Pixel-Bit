@@ -33,6 +33,7 @@
   const SAND = ['#7a3a32', '#a85a34', '#cc7c3e', '#e49e50', '#f2be6a', '#fad88e'];
   const CONC = ['#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#f5e5c3'];
   function bandSky(pb, stops, sun, hh) {
+    if (pb.r3noSky) { pb.r3onSky(stops, sun); return; }   // r3-mapui: el cielo lo pinta el ventanal a toda altura
     const R = V.P32(V.expand(stops, 16)), BH2 = hh || pb.h || BH;
     for (let y = 0; y < Math.min(pb.h, BH2); y++) for (let x = 0; x < BW; x++) {
       let t = y / (BH2 * 0.7);
@@ -193,9 +194,29 @@
       if (V.flowerBush) for (const x of [40, 124]) V.flowerBush(pb, x, tops(x) + 2, 6, x, {});
     },
   };
+  /** Ventanal a toda altura para los capítulos sin escena propia: cielo continuo con nubes y una
+   *  cordillera lejana encima, y la escena del capítulo (búfer de 124 px) en su sitio, abajo */
+  function extendScene(win, key, live) {
+    const view = { w: BW, h: BH, data: win.data.subarray(WIN_Y0 * BW), r3noSky: true };
+    view.set = PixelBuffer.prototype.set; view.get = PixelBuffer.prototype.get; view.rect = PixelBuffer.prototype.rect; view.inb = PixelBuffer.prototype.inb;
+    view.hline = PixelBuffer.prototype.hline; view.vline = PixelBuffer.prototype.vline; view.line = PixelBuffer.prototype.line; view.alpha = PixelBuffer.prototype.alpha;
+    for (const k of ['thick', 'disc', 'ellipse', 'ellipseOutline', 'poly', 'dither']) if (PixelBuffer.prototype[k]) view[k] = PixelBuffer.prototype[k];
+    view.r3onSky = (stops, sun) => {
+      const st = [shade(stops[0], -0.32), shade(stops[0], -0.12)].concat(stops);
+      const sn = sun ? [sun[0], Math.round(70 + sun[1] * 0.8), (sun[2] || 9) + 2] : null;
+      bandSky(win, st, sn, WIN_Y0 + 90);
+      const dusk = stops.length > 7 || key === 3 || key === 4 || key === 6 || key === 9 || key === 10;
+      const pal = key === 10 ? ['#3a1408', '#5a2210', '#7a3416', '#9a4a1e', '#c06a2a', '#e08a3a', '#f0b060', '#f8d090'] : dusk ? ['#4a2a6a', '#6a3a7a', '#9a4a7a', '#c86a7a', '#e88a7a', '#f6aa86', '#ffd0a0', '#fff0d0'] : undefined;
+      for (const [x, y, w, h, sd] of [[20, 40, 150, 40, 3], [230, 18, 120, 32, 7], [420, 48, 180, 46, 11], [130, 106, 100, 26, 5], [500, 120, 110, 26, 9]]) V.blit(win, V.cumulus(w, h, sd + key, pal ? { pal } : {}), x, y);
+      const FR = key === 10 ? ['#2a0c06', '#4a1a0c', '#6e2a12', '#94401a', '#b85a24', '#d47a32'] : dusk ? ['#2a1a4a', '#3e2a5e', '#5a3a72', '#7a4a84', '#9a5a8e', '#c07a9a'] : ['#3a4a8a', '#4a5a9a', '#5e6eaa', '#7684ba', '#92a0ca', '#b4bee0'];
+      range(win, WIN_Y0 + 40, [{ x: 100 + key * 17, v: 20, h: 60, w: 170, d: 26 }, { x: 330, v: 22, h: 44, w: 150, d: 22 }, { x: 560 - key * 9, v: 20, h: 66, w: 180, d: 26 }], FR, { seed: 20 + key, rim: dusk ? '#ffd0a0' : '#e8f0ff' });
+    };
+    (SCENES[key] || SCENES[0])(view, live);
+  }
   function fullBackdrop(pb, key, live) {
     const win = new PixelBuffer(BW, FH);
-    FULL[key](win, live);
+    if (FULL[key]) FULL[key](win, live);
+    else { extendScene(win, key, live); for (const l of live.leds) l[1] += WIN_Y0; for (const r of live.rotors) r.y += WIN_Y0; live.r3shifted = true; }
     const GL = U('#9ad6f2'), NV = U('#06122e');
     for (let y = 0; y < FH; y++) for (let x = 0; x < BW; x++) {
       const i = y * BW + x; let u = win.data[i]; if (!(u >>> 24)) u = U('#2a5ab8');
@@ -211,7 +232,7 @@
     if (cache.has(key)) return cache.get(key);
     const live = { rotors: [], leds: [], glints: [] };
     const pb = new PixelBuffer(W, H);
-    const isFull = !!FULL[key];
+    const isFull = true;   // r3-mapui: todos los capítulos con ventanal a toda altura
     if (isFull) { try { fullBackdrop(pb, key, live); } catch (e) { console.warn('R3 fullBackdrop', key, e); } }
     // muro técnico: dos bandas navy con paneles, juntas y rejilla de 16 px tenue
     if (!isFull) {
@@ -279,8 +300,7 @@
       cons.push([sx + 26, sy + 2, ['#3fe0a0', '#ffd23a', '#22dbe7'][(x / 46 | 0) % 3]]);
     }
     // los LED y rotores de la escena vienen en coordenadas del ventanal: pásalos a pantalla
-    for (const l of live.leds) l[1] += WIN_Y0;
-    for (const r of live.rotors) r.y += WIN_Y0;
+    if (!isFull) { for (const l of live.leds) l[1] += WIN_Y0; for (const r of live.rotors) r.y += WIN_Y0; }
     live.leds.push(...cons);
     const out = { c: pb.toCanvas(), live, key, full: isFull };
     cache.set(key, out);

@@ -30985,6 +30985,7 @@ const R2MAP_THUMBTEST = {
   const SAND = ['#7a3a32', '#a85a34', '#cc7c3e', '#e49e50', '#f2be6a', '#fad88e'];
   const CONC = ['#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#f5e5c3'];
   function bandSky(pb, stops, sun, hh) {
+    if (pb.r3noSky) { pb.r3onSky(stops, sun); return; }   // r3-mapui: el cielo lo pinta el ventanal a toda altura
     const R = V.P32(V.expand(stops, 16)), BH2 = hh || pb.h || BH;
     for (let y = 0; y < Math.min(pb.h, BH2); y++) for (let x = 0; x < BW; x++) {
       let t = y / (BH2 * 0.7);
@@ -31145,9 +31146,29 @@ const R2MAP_THUMBTEST = {
       if (V.flowerBush) for (const x of [40, 124]) V.flowerBush(pb, x, tops(x) + 2, 6, x, {});
     },
   };
+  /** Ventanal a toda altura para los capítulos sin escena propia: cielo continuo con nubes y una
+   *  cordillera lejana encima, y la escena del capítulo (búfer de 124 px) en su sitio, abajo */
+  function extendScene(win, key, live) {
+    const view = { w: BW, h: BH, data: win.data.subarray(WIN_Y0 * BW), r3noSky: true };
+    view.set = PixelBuffer.prototype.set; view.get = PixelBuffer.prototype.get; view.rect = PixelBuffer.prototype.rect; view.inb = PixelBuffer.prototype.inb;
+    view.hline = PixelBuffer.prototype.hline; view.vline = PixelBuffer.prototype.vline; view.line = PixelBuffer.prototype.line; view.alpha = PixelBuffer.prototype.alpha;
+    for (const k of ['thick', 'disc', 'ellipse', 'ellipseOutline', 'poly', 'dither']) if (PixelBuffer.prototype[k]) view[k] = PixelBuffer.prototype[k];
+    view.r3onSky = (stops, sun) => {
+      const st = [shade(stops[0], -0.32), shade(stops[0], -0.12)].concat(stops);
+      const sn = sun ? [sun[0], Math.round(70 + sun[1] * 0.8), (sun[2] || 9) + 2] : null;
+      bandSky(win, st, sn, WIN_Y0 + 90);
+      const dusk = stops.length > 7 || key === 3 || key === 4 || key === 6 || key === 9 || key === 10;
+      const pal = key === 10 ? ['#3a1408', '#5a2210', '#7a3416', '#9a4a1e', '#c06a2a', '#e08a3a', '#f0b060', '#f8d090'] : dusk ? ['#4a2a6a', '#6a3a7a', '#9a4a7a', '#c86a7a', '#e88a7a', '#f6aa86', '#ffd0a0', '#fff0d0'] : undefined;
+      for (const [x, y, w, h, sd] of [[20, 40, 150, 40, 3], [230, 18, 120, 32, 7], [420, 48, 180, 46, 11], [130, 106, 100, 26, 5], [500, 120, 110, 26, 9]]) V.blit(win, V.cumulus(w, h, sd + key, pal ? { pal } : {}), x, y);
+      const FR = key === 10 ? ['#2a0c06', '#4a1a0c', '#6e2a12', '#94401a', '#b85a24', '#d47a32'] : dusk ? ['#2a1a4a', '#3e2a5e', '#5a3a72', '#7a4a84', '#9a5a8e', '#c07a9a'] : ['#3a4a8a', '#4a5a9a', '#5e6eaa', '#7684ba', '#92a0ca', '#b4bee0'];
+      range(win, WIN_Y0 + 40, [{ x: 100 + key * 17, v: 20, h: 60, w: 170, d: 26 }, { x: 330, v: 22, h: 44, w: 150, d: 22 }, { x: 560 - key * 9, v: 20, h: 66, w: 180, d: 26 }], FR, { seed: 20 + key, rim: dusk ? '#ffd0a0' : '#e8f0ff' });
+    };
+    (SCENES[key] || SCENES[0])(view, live);
+  }
   function fullBackdrop(pb, key, live) {
     const win = new PixelBuffer(BW, FH);
-    FULL[key](win, live);
+    if (FULL[key]) FULL[key](win, live);
+    else { extendScene(win, key, live); for (const l of live.leds) l[1] += WIN_Y0; for (const r of live.rotors) r.y += WIN_Y0; live.r3shifted = true; }
     const GL = U('#9ad6f2'), NV = U('#06122e');
     for (let y = 0; y < FH; y++) for (let x = 0; x < BW; x++) {
       const i = y * BW + x; let u = win.data[i]; if (!(u >>> 24)) u = U('#2a5ab8');
@@ -31163,7 +31184,7 @@ const R2MAP_THUMBTEST = {
     if (cache.has(key)) return cache.get(key);
     const live = { rotors: [], leds: [], glints: [] };
     const pb = new PixelBuffer(W, H);
-    const isFull = !!FULL[key];
+    const isFull = true;   // r3-mapui: todos los capítulos con ventanal a toda altura
     if (isFull) { try { fullBackdrop(pb, key, live); } catch (e) { console.warn('R3 fullBackdrop', key, e); } }
     // muro técnico: dos bandas navy con paneles, juntas y rejilla de 16 px tenue
     if (!isFull) {
@@ -31231,8 +31252,7 @@ const R2MAP_THUMBTEST = {
       cons.push([sx + 26, sy + 2, ['#3fe0a0', '#ffd23a', '#22dbe7'][(x / 46 | 0) % 3]]);
     }
     // los LED y rotores de la escena vienen en coordenadas del ventanal: pásalos a pantalla
-    for (const l of live.leds) l[1] += WIN_Y0;
-    for (const r of live.rotors) r.y += WIN_Y0;
+    if (!isFull) { for (const l of live.leds) l[1] += WIN_Y0; for (const r of live.rotors) r.y += WIN_Y0; }
     live.leds.push(...cons);
     const out = { c: pb.toCanvas(), live, key, full: isFull };
     cache.set(key, out);
@@ -31840,6 +31860,176 @@ const R3MAPUI = (() => {
       _on = false;
       Charts.frame = _orig.frame; Charts.line = _orig.line; Charts.bars = _orig.bars; Charts.tank = _orig.tank; Charts.battery = _orig.battery; Charts.gauge = _orig.gauge;
     }
+  };
+
+  /* =================== PIEZAS ILUSTRADAS PARA LOS DEMÁS GEMELOS =================== */
+  /** Barra-prisma iluminada (cara frontal con luz a la izquierda, lateral en sombra, tapa clara) */
+  M.prism = function (g, x, y, w, h, col) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    if (w < 1 || h < 1) return;
+    frect(g, x, y, w, h, col);
+    if (w >= 3) { frect(g, x, y, Math.max(1, Math.round(w * 0.3)), h, mixHex(col, '#ffffff', 0.22)); frect(g, x + w - Math.max(1, Math.round(w * 0.28)), y, Math.max(1, Math.round(w * 0.28)), h, shade(col, -0.32)); }
+    frect(g, x, y, w, 1, mixHex(col, '#ffffff', 0.6));
+    if (h > 3 && w >= 4) frect(g, x + 1, y + 1, 1, h - 2, mixHex(col, '#ffffff', 0.72));
+  };
+  /** Textura granular cacheada (lechos filtrantes, suelos): granos con luz desde arriba */
+  M.granular = function (w, h, ramp, seed = 1) {
+    return memo('gr|' + w + '|' + h + '|' + ramp.join() + '|' + seed, () => {
+      const pb = new PixelBuffer(w, h), R = P(ramp), n = R.length;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const v = hash2(x >> 1, y, seed), t = clamp(0.62 - y / h * 0.3 + (v - 0.5) * 0.5 + (vnoise(x * 0.2, y * 0.3, seed) - 0.5) * 0.3, 0, 0.999);
+        pb.data[y * w + x] = R[Math.floor(t * n)];
+      }
+      for (let i = 0; i < w * h / 14; i++) { const x = Math.floor(hash2(i, 1, seed + 3) * (w - 2)), y = Math.floor(hash2(i, 2, seed + 3) * (h - 2)); pb.data[y * w + x] = R[n - 1]; pb.data[(y + 1) * w + x + 1] = R[0]; }
+      return pb.toCanvas();
+    });
+  };
+  /** Recipiente vertical de acero alrededor de (x,y,w,h): paredes iluminadas con franja especular vertical
+   *  al 25–35 %, casquetes arriba y abajo, bandas azules y remaches; o.win deja una mirilla oscura */
+  M.vesselShell = function (g, x, y, w, h, o = {}) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    const c = memo('vs|' + w + '|' + h + '|' + (o.win || 0), () => {
+      const dh = Math.max(4, Math.round(w * 0.22)), cc = new PixelBuffer(w + 2, h + 2 * dh + 2), S = P(STEEL), nS = S.length, Bl = P(BLUE);
+      const colK = (xx) => { const t = (xx + 0.5) / w; if (Math.abs(t - 0.29) < 1.2 / w) return nS - 1; return clamp(Math.round((t < 0.06 ? 0.3 : t < 0.2 ? 0.72 : t < 0.38 ? 0.8 : t < 0.55 ? 0.6 : t < 0.72 ? 0.42 : t < 0.88 ? 0.22 : 0.36) * (nS - 2)), 0, nS - 2); };
+      for (let xx = 0; xx < w; xx++) {
+        const i = colK(xx);
+        for (let yy = 0; yy < h; yy++) {
+          const band = (yy > 6 && yy < 10) || (yy > h - 11 && yy < h - 7);
+          cc.data[(yy + dh + 1) * cc.w + xx + 1] = band ? Bl[clamp(Math.round(i / (nS - 1) * 6), 0, 6)] : S[i];
+        }
+        const e = Math.sqrt(Math.max(0, 1 - ((xx + 0.5) / w * 2 - 1) ** 2)), up = Math.round(e * dh);
+        for (let k = 0; k < up; k++) cc.data[(dh + 1 - k) * cc.w + xx + 1] = S[clamp(i + (k > up - 2 ? 1 : 0), 0, nS - 1)];
+        for (let k = 0; k < up; k++) cc.data[(h + dh + 1 + k) * cc.w + xx + 1] = S[clamp(i - 2 - (k > up - 2 ? 1 : 0), 0, nS - 1)];
+      }
+      const d = cc.data, ink = U('#000633'), sol = (X, Y) => X >= 0 && Y >= 0 && X < cc.w && Y < cc.h && (d[Y * cc.w + X] >>> 24) === 255, ed = [];
+      for (let Y = 0; Y < cc.h; Y++) for (let X = 0; X < cc.w; X++) if (sol(X, Y) && (!sol(X - 1, Y) || !sol(X + 1, Y) || !sol(X, Y - 1) || !sol(X, Y + 1))) ed.push(Y * cc.w + X);
+      for (const i of ed) d[i] = ink;
+      for (let xx = 3; xx < w - 2; xx += 5) { V.put(cc, xx + 1, dh + 9, S[nS - 1]); V.put(cc, xx + 1, h + dh - 8, S[nS - 2]); }
+      if (o.win) for (let yy = 12; yy < h - 12; yy++) for (let xx = 3; xx < w - 3; xx++) d[(yy + dh + 1) * cc.w + xx + 1] = (xx === 3 || yy === 12) ? U('#000633') : (xx === w - 4 || yy === h - 13) ? S[5] : U('#06122a');
+      return { c: cc.toCanvas(), dh };
+    });
+    g.drawImage(c.c, x - 1, y - c.dh - 1);
+    return { x0: x + 4, y0: y + 13, x1: x + w - 4, y1: y + h - 13 };
+  };
+  /** Balsa de hormigón en 3/4 (borde superior claro, cara frontal con juntas, sombra de contacto) */
+  M.basin = function (g, x, y, w, h) {
+    x = Math.round(x); y = Math.round(y);
+    const c = memo('bs|' + w + '|' + h, () => {
+      const pb = new PixelBuffer(w, h + 3), C = P(['#2a3444', '#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#e2d2c0', '#f5e5c3']);
+      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+        let k = yy < 2 ? 7 : yy < 4 ? 6 : (xx < 3 ? 5 : xx >= w - 3 ? 3 : yy > h - 3 ? 2 : 4);
+        if (yy >= 4 && (xx % 16 === 0 || yy % 9 === 0)) k = Math.max(1, k - 2);
+        if (yy >= 4 && hash2(xx >> 1, yy >> 1, 4) < 0.08) k = Math.max(1, k - 1);
+        pb.data[yy * w + xx] = C[k];
+      }
+      for (let xx = 2; xx < w - 2; xx++) { pb.data[h * w + xx] = U('#020818'); pb.data[(h + 1) * w + xx] = U('#020818'); }
+      return pb.toCanvas();
+    });
+    g.drawImage(c, x, y);
+  };
+  /** Tablero del Nexo: isla de Aridia vista desde arriba, atenuada, bajo una rejilla de plano */
+  M.boardMap = function (w, h, seed = 3) {
+    return memo('bm|' + w + '|' + h + '|' + seed, () => {
+      const pb = new PixelBuffer(w, h), d = pb.data;
+      const SEA = P(['#041a3a', '#062448', '#082e56', '#0a3864', '#0e4472']);
+      const LAND = P(['#2a1a24', '#3a2228', '#4e2c28', '#62382a', '#764630', '#8a5638', '#9c6844']);
+      const GRN = P(['#0e2a1e', '#123624', '#18442a', '#205230', '#2a6236']);
+      const E = (x, y) => { const nx = (x - w * 0.55) / (w * 0.5), ny = (y - h * 0.52) / (h * 0.56); return 1 - Math.sqrt(nx * nx + ny * ny) + (vnoise(x * 0.025, y * 0.025, seed) - 0.5) * 0.5 + (vnoise(x * 0.08, y * 0.08, seed + 1) - 0.5) * 0.12; };
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const e = E(x, y);
+        let u;
+        if (e < 0.02) { const t = clamp(0.6 + e * 2 + (hash2(x >> 2, y, seed) - 0.5) * 0.12, 0, 0.999); u = SEA[Math.floor(t * SEA.length)]; if (e > -0.03 && hash2(x >> 1, y, 7) < 0.5) u = U('#2a6a8a'); }
+        else {
+          const lit = clamp(0.5 + (E(x - 2, y - 2) - e) * -6 + (vnoise(x * 0.09, y * 0.09, seed + 2) - 0.5) * 0.4, 0, 0.999);
+          const green = vnoise(x * 0.04, y * 0.04, seed + 9) > 0.62 && e < 0.4;
+          u = green ? GRN[Math.floor(lit * GRN.length)] : LAND[Math.floor(clamp(lit * 0.8 + e * 0.3, 0, 0.999) * LAND.length)];
+          if (e < 0.05) u = U('#a08a6a');
+        }
+        d[y * w + x] = u;
+      }
+      for (let k = 0; k < 3; k++) { let yy = h * (0.3 + k * 0.22); for (let x = 0; x < w; x++) { yy += Math.sin(x * 0.03 + k) * 0.35; const i = Math.round(yy) * w + x; if (i >= 0 && i < d.length && hash2(x, k, 3) < 0.85 && E(x, yy) > 0.05) d[i] = V.mixU(d[i], U('#c8a878'), 0.5); } }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (x % 16 === 8 || y % 16 === 8) d[i] = V.mixU(d[i], U('#3a6ab0'), 0.28);
+        if ((x % 64 === 8 && Math.abs((y % 64) - 8) < 3) || (y % 64 === 8 && Math.abs((x % 64) - 8) < 3)) d[i] = V.mixU(d[i], U('#8fdfff'), 0.5);
+      }
+      return pb.toCanvas();
+    });
+  };
+  /** Ficha de nodo iluminada (bisel claro arriba-izquierda, sombra abajo-derecha, sombra arrojada, zócalo del icono) */
+  M.nodeTile = function (g, x, y, w, h, pal) {
+    const c = memo('nt|' + w + '|' + h + '|' + pal.join(), () => {
+      const cc = makeCanvas(w + 2, h + 2), b = cc.g;
+      b.globalAlpha = 0.6; b.fillStyle = '#000208'; b.fillRect(2, 2, w, h); b.globalAlpha = 1;
+      b.fillStyle = '#05030f'; b.fillRect(0, 0, w, h);
+      b.fillStyle = pal[0]; b.fillRect(1, 1, w - 2, h - 2);
+      for (let j = 2; j < h - 2; j++) { b.fillStyle = mixHex(pal[1], pal[0], j / h * 0.6); b.fillRect(2, j, w - 4, 1); }
+      b.fillStyle = pal[2]; b.fillRect(1, 1, w - 2, 1); b.fillRect(1, 1, 1, h - 3);
+      b.fillStyle = mixHex(pal[2], '#ffffff', 0.5); b.fillRect(2, 1, 5, 1);
+      b.fillStyle = shade(pal[0], -0.4); b.fillRect(1, h - 2, w - 2, 1); b.fillRect(w - 2, 2, 1, h - 3);
+      b.fillStyle = '#05030f'; b.fillRect(2, 4, 14, 16); b.fillStyle = shade(pal[1], -0.25); b.fillRect(3, 5, 12, 14); b.fillStyle = mixHex(pal[1], pal[2], 0.3); b.fillRect(3, 5, 12, 1);
+      return cc;
+    });
+    g.drawImage(c, Math.round(x), Math.round(y));
+  };
+  /** Ladera eólica vista desde arriba con la rejilla de celdas horneada encima */
+  M.windField = function (w, h, gx, gy, cols, rows, cw, rh) {
+    return memo('wf|' + w + '|' + h + '|' + gx + '|' + gy + '|' + cols + '|' + rows + '|' + cw + '|' + rh, () => {
+      const pb = new PixelBuffer(w, h), d = pb.data;
+      const G = P(['#0a2016', '#10341e', '#174a24', '#22622a', '#34782c', '#4e9030', '#6eaa36', '#94c444']);
+      const Rk = P(['#3a2430', '#5a3840', '#7e5048', '#a06c54', '#bc8a64', '#d4a87a']);
+      const hgt = (x, y) => vnoise(x * 0.018, y * 0.03, 41) * 0.8 + vnoise(x * 0.06, y * 0.08, 42) * 0.2 + Math.sin(y / h * Math.PI) * 0.35;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const s0 = hgt(x, y), sl = (hgt(x - 1, y - 1) - s0) * 18;
+        const t = clamp(0.45 + s0 * 0.35 - sl, 0, 0.999);
+        let u = G[V.band(t, G.length, x, y, 0.05, 3)];
+        if (vnoise(x * 0.07, y * 0.07, 44) > 0.74) u = Rk[V.band(t, Rk.length, x, y, 0.05, 4)];
+        if (hash2(x >> 1, y >> 1, 45) < 0.03) u = G[Math.min(G.length - 1, Math.floor(t * G.length) + 2)];
+        d[y * w + x] = u;
+      }
+      for (let x = 0; x < w; x++) { const yy = Math.round(h - 8 + Math.sin(x * 0.04) * 3); for (let k = 0; k < 3; k++) if (yy + k < h) d[(yy + k) * w + x] = U(k === 0 ? '#f2d8a8' : k === 1 ? '#d4b48a' : '#9a7a5a'); }
+      for (let i = 0; i < w * h / 160; i++) { const x = Math.floor(hash2(i, 5, 46) * w), y = Math.floor(hash2(i, 6, 46) * h); V.ellipse(pb, x + 0.5, y + 0.5, 2.5, 2, (nx, ny) => G[nx + ny < -0.5 ? 6 : nx + ny < 0.3 ? 3 : 1]); }
+      for (let r = 0; r <= rows; r++) for (let x = gx; x < gx + cols * cw; x++) { const yy = gy + r * rh - (r ? 1 : 0); if (yy >= 0 && yy < h) d[yy * w + x] = V.mixU(d[yy * w + x], U('#e8f6ff'), 0.28); }
+      for (let c = 0; c <= cols; c++) for (let y = gy; y < gy + rows * rh; y++) { const xx = gx + c * cw - (c ? 1 : 0); if (xx >= 0 && xx < w) d[y * w + xx] = V.mixU(d[y * w + xx], U('#e8f6ff'), 0.28); }
+      for (let x = 0; x < w; x++) { d[x] = U('#000633'); d[(h - 1) * w + x] = U('#000633'); d[w + x] = V.mixU(d[w + x], U('#ffffff'), 0.3); }
+      for (let y = 0; y < h; y++) { d[y * w] = U('#000633'); d[y * w + w - 1] = U('#000633'); }
+      return pb.toCanvas();
+    });
+  };
+  /** Aerogenerador visto desde arriba: zapata de grava, sombra, góndola y rotor perpendicular al viento */
+  M.turbineTop = function (g, cx, cy, t, sel, P0 = 1) {
+    cx = Math.round(cx); cy = Math.round(cy);
+    frect(g, cx - 5, cy - 5, 11, 11, '#9a7a5a'); frect(g, cx - 4, cy - 4, 9, 9, '#d4b48a'); frect(g, cx - 4, cy - 4, 9, 1, '#f2d8a8');
+    g.globalAlpha = 0.45; frect(g, cx + 3, cy - 6, 2, 15, '#020818'); frect(g, cx - 1, cy + 2, 8, 3, '#020818'); g.globalAlpha = 1;
+    frect(g, cx - 3, cy - 2, 8, 5, '#000633'); frect(g, cx - 2, cy - 1, 6, 3, '#f4f9ff'); frect(g, cx - 2, cy + 1, 6, 1, '#b8c6d6');
+    const L = 8 + Math.round(Math.abs(Math.sin(t * 6 * clamp(P0, 0.1, 1))));
+    frect(g, cx - 5, cy - L, 2, 2 * L + 1, '#000633'); frect(g, cx - 4, cy - L + 1, 1, 2 * L - 1, '#ffffff'); fpx(g, cx - 4, cy, '#ffd23a');
+    if (sel) for (let a = 0; a < 24; a++) { const an = a / 24 * TAU; fpx(g, cx + Math.cos(an) * 10, cy + Math.sin(an) * 10, a % 2 ? '#ffe14d' : '#fff6c0'); }
+  };
+  /** Perfil de suelo ilustrado: horizonte orgánico, arcilla con agregados, piedras y raíces */
+  M.soil = function (w, h) {
+    return memo('soil|' + w + '|' + h, () => {
+      const pb = new PixelBuffer(w, h), d = pb.data;
+      const A = P(['#2a160c', '#3a2012', '#4e2c18', '#62381e', '#7a4a28', '#925c32']), B = P(['#4a2a18', '#62381e', '#7a4e2e', '#946238', '#ae7a46', '#c89458']);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const deep = y > h * 0.55, R = deep ? B : A, t = clamp(0.5 + (hash2(x >> 1, y >> 1, deep ? 3 : 4) - 0.5) * 0.5 + (vnoise(x * 0.15, y * 0.2, 5) - 0.5) * 0.5 - (deep ? 0 : 0.1), 0, 0.999);
+        d[y * w + x] = R[Math.floor(t * R.length)];
+      }
+      for (let i = 0; i < 8; i++) { const x = 6 + Math.floor(hash2(i, 1, 7) * (w - 12)), y = Math.floor(h * 0.6 + hash2(i, 2, 7) * h * 0.35); V.ellipse(pb, x, y, 2.5, 1.8, (nx, ny) => U(nx + ny < -0.4 ? '#d8c0a0' : nx + ny < 0.3 ? '#a08a72' : '#5a4a3a')); }
+      for (let k = 0; k < 5; k++) { let x = 12 + k * (w - 24) / 4, y = 1; for (let s = 0; s < h * 0.7; s++) { x += (hash2(k, s, 9) - 0.5) * 1.6; y += 1; V.put(pb, Math.round(x), y, U(s % 4 ? '#e8d0a0' : '#c8a878')); if (hash2(k, s, 10) < 0.06) for (let q = 1; q < 6; q++) V.put(pb, Math.round(x + q * (k % 2 ? 1 : -1)), y + (q >> 1), U('#d8c090')); } }
+      return pb.toCanvas();
+    });
+  };
+  /** Planta de cultivo (fríjol) con hojas iluminadas */
+  M.crop = function (g, x, y, stress = 0) {
+    const c = memo('crop|' + (stress > 0.5 ? 1 : 0), () => {
+      const pb = new PixelBuffer(13, 15), Gr = stress > 0.5 ? ['#3a3a12', '#6a6a1e', '#9a922a', '#c8b84a'] : ['#0e3a1a', '#1e6a2a', '#3e9a32', '#8cd44a'];
+      for (let yy = 4; yy < 15; yy++) V.put(pb, 6, yy, U('#2e6a22'));
+      const leaf = (cx, cy, rx, ry) => V.ellipse(pb, cx, cy, rx, ry, (nx, ny) => U(Gr[nx + ny < -0.5 ? 3 : nx + ny < 0.2 ? 2 : nx + ny < 0.8 ? 1 : 0]));
+      leaf(3.5, 6, 3.4, 2.4); leaf(9.5, 5, 3.4, 2.4); leaf(6.5, 2.5, 2.6, 2.4); leaf(3.5, 10.5, 2.8, 2); leaf(9.5, 10, 2.8, 2);
+      return pb.toCanvas();
+    });
+    g.drawImage(c, Math.round(x) - 6, Math.round(y) - 14);
   };
   return M;
 })();
@@ -44077,6 +44267,60 @@ const Sim03 = makeSim({
   /** masa de sal en exceso por hora (kg/h): Qp·(Cf − Cp), independiente de la recuperación */
   massRate() { return 84 * (35 - 0.2); },
   buildBase() {
+    if (typeof VISTA !== 'undefined' && VISTA.ellipse) return this.buildBaseR3();
+    return this.buildBaseFlat();
+  },
+  /** r3-mapui: bahía ilustrada vista desde arriba (misma costa que las celdas del modelo): playa con arena
+   *  mojada y seca, dunas con matorral, canal del emisario y la planta, aguas someras con fondo de arena y
+   *  cáusticas, isóbatas, crestas de ola, espuma, manglar, pradera marina y arrecife iluminados */
+  buildBaseR3() {
+    const V = VISTA, px = BAY.px, pb = new PixelBuffer(BAY.nx * px, BAY.ny * px), d = pb.data, w = pb.w, h = pb.h;
+    const coastC = (cx) => 4 + Math.round(1.5 * Math.sin(cx * 0.35) + (cx < 14 ? 3 : 0));
+    // costa suave que sigue a las celdas (± 3 px)
+    const cy0 = new Float32Array(w);
+    for (let x = 0; x < w; x++) { const cx = x / px; const a = 4 + 1.5 * Math.sin(cx * 0.35) + 3 * (1 - clamp((cx - 12.5) / 2.5, 0, 1)); cy0[x] = a * px; }
+    const canal = (x, y) => x >= 19 * px && x < 22 * px && y >= (coastC(20) - 3) * px;
+    const SAND = V.P32(['#8a5a34', '#a8703e', '#c68a4c', '#dca462', '#ecc07c', '#f6d898', '#fff0c0']);
+    const SEA = V.P32(['#7ad8cc', '#4cc4c0', '#2aaeb4', '#1a96a6', '#147e96', '#106a86', '#0c5676', '#0a4466', '#08345a']);
+    const GR = V.P32(['#0c2a1a', '#123e22', '#1a542a', '#2a6e2e', '#46903a', '#6eb044', '#a4d058']);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = cy0[x], i = y * w + x;
+      if (y < c - 1 && !canal(x, y)) { // tierra: dunas con ondas de viento, arena seca y mojada junto al agua
+        const dd = c - y, rip = Math.sin(x * 0.45 + y * 0.9 + vnoise(x * 0.05, y * 0.05, 3) * 6) > 0.72;
+        let t = 0.62 + (vnoise(x * 0.06, y * 0.06, 5) - 0.5) * 0.35 - (dd < 4 ? 0.28 : 0) + (rip ? 0.12 : 0);
+        d[i] = SAND[V.band(clamp(t, 0, 0.999), SAND.length, x, y, 0.05, 2)];
+      } else { // agua: profundidad según la distancia a la costa, fondo de arena en la orilla y cáusticas
+        const depth = clamp((y - c) / (h * 0.8), 0, 1) + (vnoise(x * 0.02, y * 0.03, 7) - 0.5) * 0.12;
+        // mar de fondo: ondulación larga y racimos de 3×2 un tono arriba o abajo (sin tramado)
+        let t = clamp(depth * 1.05 + Math.sin(x * 0.07 + y * 0.31 + vnoise(x * 0.03, y * 0.05, 8) * 5) * 0.035 + (hash2((x / 3) | 0, (y / 2) | 0, 12) - 0.5) * 0.07, 0, 0.999);
+        const shallow = depth < 0.22;
+        if (shallow && Math.abs(Math.sin(x * 0.21 + Math.sin(y * 0.33) * 2) + Math.sin(y * 0.27 + Math.sin(x * 0.19) * 2)) < 0.12) t = Math.max(0, t - 0.14);
+        d[i] = SEA[V.band(t, SEA.length, x, y, 0.04, 9)];
+      }
+    }
+    // isóbatas tenues (líneas de 1 px punteadas) y crestas de ola
+    for (const k of [0.3, 0.55, 0.8]) for (let x = 0; x < w; x += 2) { const y = Math.round(cy0[x] + k * h * 0.8 + (vnoise(x * 0.02, k * 9, 7) - 0.5) * 10); if (y > 0 && y < h) d[y * w + x] = V.mixU(d[y * w + x], U('#c6fff2'), 0.22); }
+    for (let k = 0; k < 360; k++) { const x = Math.floor(hash2(k, 1, 31) * (w - 6)), yy = Math.floor(cy0[x] + 4 + hash2(k, 2, 31) * (h - cy0[x] - 6)); const L = 3 + (k % 3); for (let q = 0; q < L; q++) { const j = yy * w + x + q; if (j < d.length) d[j] = V.mixU(d[j], U('#e6fdff'), q === 0 || q === L - 1 ? 0.25 : 0.45); } }
+    // espuma en la orilla (con huecos) y labio de arena mojada
+    for (let x = 0; x < w; x++) { const y = Math.round(cy0[x]); if (canal(x, y)) continue; if (y - 1 >= 0) d[(y - 1) * w + x] = U(hash2(x >> 1, 1, 33) < 0.8 ? '#ffffff' : '#c6fff2'); if (hash2(x >> 2, 2, 33) < 0.55) d[y * w + x] = U('#d8f6f4'); }
+    // matorral costero (tabaiba) en las dunas
+    for (let k = 0; k < 70; k++) { const x = Math.floor(hash2(k, 3, 35) * w), y = Math.floor(hash2(k, 4, 35) * (cy0[x] - 6)); if (canal(x, y) || y < 2) continue; V.ellipse(pb, x + 0.5, y + 0.5, 2.6, 2, (nx, ny) => GR[nx + ny < -0.6 ? 6 : nx + ny < 0 ? 4 : nx + ny < 0.6 ? 2 : 1]); V.put(pb, x + 2, y + 2, U('#6a4628')); }
+    // canal del emisario: muros de hormigón y la planta en la costa (tejado claro con banda azul y depósitos)
+    for (let y = Math.round((coastC(20) - 3) * px) - 2; y < cy0[20 * px] + 2; y++) { V.put(pb, 19 * px - 1, y, U('#cebaac')); V.put(pb, 19 * px - 2, y, U('#6e625b')); V.put(pb, 22 * px, y, U('#7b7679')); }
+    { const bx = 13 * px, by = 1; for (let y = 0; y < 9; y++) for (let x = 0; x < 30; x++) V.put(pb, bx + x, by + y, U(y === 0 ? '#ffffff' : y < 3 ? '#e8eef4' : y === 3 ? '#2a62bc' : y < 7 ? '#b8c6d6' : '#6e7a8a'));
+      for (let k = 0; k < 3; k++) V.ellipse(pb, bx + 38 + k * 7, by + 5, 3, 3, (nx, ny) => U(nx + ny < -0.5 ? '#ffffff' : nx + ny < 0.4 ? '#cfe0ee' : '#7a8aa0')); }
+    // manglar: copas densas iluminadas desde arriba-izquierda con sombra en el agua
+    const crown = (cx, cy, r, sd) => { V.ellipse(pb, cx + 1.5, cy + 2, r, r * 0.8, () => U('#0a3a3a')); V.ellipse(pb, cx, cy, r, r * 0.85, (nx, ny) => GR[clamp(Math.round(3.4 - (nx + ny) * 2.2 + (hash2(Math.round(cx + nx * 9), Math.round(cy + ny * 9), sd) - 0.5) * 1.5), 0, 6)]); };
+    for (let i = 0; i < 26; i++) { const a = i * 2.39996, rr = Math.sqrt(i / 26) * 24; crown(8 * px + Math.cos(a) * rr * 1.3, 9 * px + Math.sin(a) * rr * 0.6, 3.5 + (i % 3), i); }
+    // pradera marina: matas de hojas cintadas con puntas claras
+    for (let i = 0; i < 150; i++) { const a = i * 2.39996, rr = Math.sqrt(i / 150); const x = Math.round(27 * px + Math.cos(a) * rr * 24), y = Math.round(16 * px + Math.sin(a) * rr * 11); for (let q = 0; q < 4; q++) V.put(pb, x + (q > 2 && i % 2 ? 1 : 0), y - q, GR[q === 3 ? 6 : q === 2 ? 4 : 2]); }
+    // arrecife: cabezas de coral de colores con luz y sombra, halo de arena alrededor
+    const CO = [['#7a1a4a', '#c83a7a', '#ff8ab8', '#ffd0e4'], ['#7a3a0a', '#d0701e', '#ffb93b', '#fff0a0'], ['#2a5a1a', '#5a9a2a', '#c2f58e', '#f0ffd0'], ['#3a1a6a', '#6a3aa8', '#b49cff', '#e8e0ff']];
+    V.ellipse(pb, 52 * px, 12 * px, 30, 18, (nx, ny, dd) => dd > 0.75 ? U('#3ac0bc') : 0);
+    for (let i = 0; i < 40; i++) { const a = i * 2.39996, rr = Math.sqrt(i / 40); const x = 52 * px + Math.cos(a) * rr * 24, y = 12 * px + Math.sin(a) * rr * 13, C = CO[i % 4], r = 1.6 + (i % 3) * 0.8; V.ellipse(pb, x, y, r, r * 0.9, (nx, ny) => U(C[nx + ny < -0.7 ? 3 : nx + ny < 0 ? 2 : nx + ny < 0.7 ? 1 : 0])); }
+    return pb.toCanvas();
+  },
+  buildBaseFlat() {
     const pb = new PixelBuffer(BAY.nx * BAY.px, BAY.ny * BAY.px);
     for (let y = 0; y < pb.h; y++) for (let x = 0; x < pb.w; x++) {
       const cx = Math.floor(x / BAY.px), cy = Math.floor(y / BAY.px);
@@ -45820,11 +46064,15 @@ const Sim05 = makeSim({
   drawLayout(g, x, y, w, h) {
     frect(g, x, y, w, h, '#0e2a3a'); frect(g, x + 1, y + 1, w - 2, h - 2, '#13405a');
     const cols = 15, rows = 3, cw = Math.floor((w - 40) / cols), rh = Math.floor((h - 30) / rows);
+    // r3-mapui: ladera eólica ilustrada vista desde arriba (pradera, roca, matorral y camino) con la rejilla horneada
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) g.drawImage(R3.windField(w, h, 30, 18, cols, rows, cw, rh), x, y);
+    if (R3) { frect(g, x + 2, y + 2, FONTS.tiny.measure('VIENTO →  ' + fmt0(this.v) + ' m/s (1 celda = 1 diámetro de rotor)') + 8, 11, '#041533'); }
     drawText(g, 'VIENTO →  ' + fmt0(this.v) + ' m/s (1 celda = 1 diámetro de rotor)', x + 6, y + 4, { font: 'tiny', color: '#8ff5c8' });
     const f = this.farm();
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       const cx = x + 30 + c * cw, cy = y + 18 + r * rh;
-      frect(g, cx, cy, cw - 1, rh - 1, ((r + c) % 2) ? '#18506a' : '#1a5a74');
+      if (!R3) frect(g, cx, cy, cw - 1, rh - 1, ((r + c) % 2) ? '#18506a' : '#1a5a74');
       if (!this.done && Gui.button(g, 'cell' + r + '_' + c, cx, cy, cw - 1, rh - 1, '', { noDraw: true })) { if (!this.layout.some(t => t.x === c && t.y === r * 1.5)) { this.layout[this.selT] = { x: c, y: r * 1.5 }; Audio2.sfx('ui'); } }
     }
     // estelas
@@ -45849,9 +46097,11 @@ const Sim05 = makeSim({
     this.layout.forEach((t, i) => {
       const cx = x + 30 + t.x * cw + cw / 2, cy = y + 18 + (t.y / 1.5) * rh + rh / 2;
       const tb = f.turbines.find(q => q.x === t.x && q.y === t.y);
-      fdisc(g, cx, cy, 6, this.selT === i ? '#ffe14d' : '#ffffff'); fdisc(g, cx, cy, 3, '#1e4aa8');
+      if (R3) R3.turbineTop(g, cx, cy, this.t + i * 0.37, this.selT === i, tb ? clamp(tb.P / 500, 0, 1) : 0.5);
+      else { fdisc(g, cx, cy, 6, this.selT === i ? '#ffe14d' : '#ffffff'); fdisc(g, cx, cy, 3, '#1e4aa8'); }
+      if (R3) { frect(g, cx - 6, cy - 16, 13, 9, '#041533'); if (tb) { const pw = FONTS.tiny.measure(fmt0(tb.P)) + 4; frect(g, cx - Math.ceil(pw / 2), cy + 10, pw, 9, '#041533'); } }
       drawText(g, 'T' + (i + 1), cx, cy - 14, { font: 'tiny', align: 'center', color: '#fffaf0' });
-      if (tb) drawText(g, fmt0(tb.P), cx, cy + 8, { font: 'tiny', align: 'center', color: tb.deficit > 0.05 ? '#ff9a8a' : '#c2f58e' });
+      if (tb) drawText(g, fmt0(tb.P), cx, cy + (R3 ? 12 : 8), { font: 'tiny', align: 'center', color: tb.deficit > 0.05 ? '#ff9a8a' : '#c2f58e' });
       if (!this.done && Gui.button(g, 'tsel' + i, cx - 7, cy - 7, 14, 14, '', { noDraw: true, tip: 'Seleccionar T' + (i + 1) })) { this.selT = i; Audio2.sfx('uiMove'); }
     });
   },
