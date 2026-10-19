@@ -955,50 +955,97 @@ function tidePool(pb, x, y, w, h) {
 }
 /** Cabaña de Tía Marea: palafito en 3/4 con techo de palma, redes, panel y antena */
 function mareaHut(pb, x, y) {
+  // r3-coast: palafito en 3/4 (fachada + lateral en fuga arriba-derecha), tejado a cuatro aguas con faldón
+  // frontal al sol, faldón lateral en sombra, cumbrera, luz de cornisa, sombra del alero y sombra de contacto
   const WD = ['#1e0e06', '#3a1e10', '#5a3420', '#7a4e30', '#9a6a44', '#c08e60', '#e2b88a'];
   const TEAL = ['#06302e', '#0b4e4a', '#127a70', '#1aa894', '#4ccdb8', '#9cecdc'];
-  const TH = ['#3a2408', '#5e3c10', '#8a6020', '#b88a34', '#d8ae4e', '#f0d27a'];
+  const TH = ['#3a2408', '#5e3c10', '#8a6020', '#b88a34', '#d8ae4e', '#f0d27a', '#fae8a8'];
   const Wd = PFK.P32(WD), T = PFK.P32(TEAL), Th = PFK.P32(TH);
-  const floorY = y - 22, w = 82, h = 32, d = 14, dx = 6;
-  // pilotes (4 delante, 2 detrás)
-  for (const [px, back] of [[x + 2, 0], [x + 38, 0], [x + 76, 0], [x + 10 + dx, 1], [x + 70 + dx, 1]]) for (let yy = floorY - (back ? d : 0); yy < y + (back ? -d + 4 : 0); yy++) for (let k = 0; k < 4; k++) PFK.put(pb, px + k, yy, Wd[clamp((k === 0 ? 4 : k === 3 ? 1 : 3) - back, 0, 6)]);
-  // riostras
-  PFK.lineFn(pb, x + 4, floorY + 2, x + 38, y - 4, () => Wd[2]); PFK.lineFn(pb, x + 76, floorY + 2, x + 42, y - 4, () => Wd[2]);
-  // plataforma (cubierta de tablones en 3/4)
-  PFInfra.box3q(pb, x - 6, floorY + 4, w + 14, 4, d + 4, { skew: 0.45, ramp: WD, top: (xx, yy, u, v) => Wd[((xx - x) % 5 === 0) ? 3 : 5 - Math.round(v)] });
-  // paredes de tablas pintadas (frente) y lateral
-  PFInfra.box3q(pb, x, floorY, w, h, d, {
-    skew: 0.45, ramp: TEAL,
-    front: (xx, yy, u, v) => { let k = 3 + ((yy - floorY) % 4 === 0 ? -1 : 0) - (u > 0.86 ? 1 : 0) + (PFK.cl(xx, yy, 2, 5) < 0.12 ? -1 : 0); if (PFK.vn(xx * 0.2, yy * 0.4, 6) > 0.8) return Wd[4]; return T[clamp(k, 0, 5)]; },
-    side: (xx, yy) => T[clamp(1 + ((yy - floorY) % 4 === 0 ? -1 : 0), 0, 5)],
-    top: () => T[2],
+  const put = (xx, yy, u) => PFK.put(pb, xx, yy, u);
+  const SX = -18, SY = -9;                   // vector de profundidad (lateral visible a la izquierda, al sol)
+  const w = 70, h = 30, floorY = y - 22;     // fachada
+  const side = (t) => [Math.round(SX * t), Math.round(SY * t)];
+  // 1. sombra de contacto sobre la arena (paralelogramo bajo la huella de la plataforma) — sólida, sin tramado
+  for (let t = 0; t <= 1.0001; t += 1 / 12) {
+    const [ox, oy] = side(t);
+    for (let xx = x - 8 + ox; xx <= x + w + 10 + ox; xx++) for (let q = 0; q < 2; q++) {
+      const yy = y + oy + q; if (PFK.get(pb, xx, yy) >>> 24) continue;
+      put(xx, yy, U(q === 0 ? '#7a4422' : '#94582c'));
+    }
+  }
+  // 2. pilotes: traseros (más oscuros) y delanteros, con riostras en X
+  const stilt = (px, top, bot, k0) => { for (let yy = top; yy < bot; yy++) for (let k = 0; k < 3; k++) put(px + k, yy, Wd[clamp((k === 0 ? 4 : k === 2 ? 1 : 3) - k0, 0, 6)]); put(px, bot - 1, Wd[0]); };
+  for (const px of [x + 4, x + 34, x + 64]) { const [ox, oy] = side(1); stilt(px + ox, floorY + 3 + oy, y + oy + 1, 2); }
+  for (const px of [x + 1, x + 24, x + 46, x + 67]) stilt(px, floorY + 3, y + 1, 0);
+  PFK.lineFn(pb, x + 3, floorY + 4, x + 25, y - 3, () => Wd[2]); PFK.lineFn(pb, x + 46, floorY + 4, x + 26, y - 3, () => Wd[2]);
+  PFK.lineFn(pb, x + 69, floorY + 4, x + 48, y - 3, () => Wd[2]);
+  // 3. plataforma: tablero (cara superior en 3/4), canto frontal y lateral
+  const DX0 = x - 7, DX1 = x + w + 7;
+  for (let t = 0; t <= 1.0001; t += 1 / 18) {
+    const [ox, oy] = side(t);
+    for (let xx = DX0 + ox; xx <= DX1 + ox; xx++) put(xx, floorY + oy, ((xx - ox - DX0) % 6 === 0) ? Wd[3] : Wd[clamp(5 - Math.round(t * 2), 0, 6)]);
+  }
+  for (let xx = DX0; xx <= DX1; xx++) { put(xx, floorY + 1, Wd[6]); put(xx, floorY + 2, Wd[2]); put(xx, floorY + 3, Wd[1]); }
+  for (let t = 0; t <= 1.0001; t += 1 / 18) { const [ox, oy] = side(t); put(DX0 + ox, floorY + 1 + oy, Wd[5]); put(DX0 + ox, floorY + 2 + oy, Wd[2]); }
+  // 4. muros: lateral (sombra, tablas oblicuas) y fachada (tablas pintadas al sol)
+  for (let t = 0; t <= 1.0001; t += 1 / 30) {
+    const [ox, oy] = side(t);
+    for (let yy = floorY - h; yy < floorY; yy++) {
+      const plank = ((yy - floorY) % 4 === 0);
+      put(x - 1 + ox, yy + oy, T[clamp(4 + (plank ? -1 : 0) + (t > 0.92 ? -1 : 0) + (yy < floorY - h + 3 ? -2 : 0), 0, 5)]);
+    }
+  }
+  // ventanuco lateral con luz cálida
+  for (let t = 0.32; t < 0.66; t += 1 / 30) { const [ox, oy] = side(t); for (let yy = floorY - 21; yy < floorY - 13; yy++) put(x - 1 + ox, yy + oy, U(yy === floorY - 21 || yy === floorY - 14 ? '#3a1e10' : yy < floorY - 18 ? '#bfe6f0' : '#5a8aa0')); }
+  for (let yy = floorY - h; yy < floorY; yy++) for (let xx = x; xx < x + w; xx++) {
+    let k = 3 + ((yy - floorY) % 4 === 0 ? -1 : 0) + (PFK.cl(xx, yy, 2, 5) < 0.12 ? -1 : 0);
+    if (xx > x + w - 4) k--;                                   // arista derecha hacia la sombra
+    if (xx === x) k = 1;                                        // arista que separa lateral (sol) y fachada
+    k -= 0;
+    let u = T[clamp(k, 0, 5)];
+    if (PFK.vn(xx * 0.2, yy * 0.4, 6) > 0.8) u = Wd[4];         // pintura desconchada
+    put(xx, yy, u);
+  }
+  // sombra del alero sobre la fachada (banda sólida de 3 px) y zócalo
+  for (let xx = x; xx < x + w; xx++) { put(xx, floorY - h, T[0]); put(xx, floorY - h + 1, T[0]); put(xx, floorY - h + 2, T[1]); put(xx, floorY - 1, T[1]); }
+  // ventana con contraventanas y puerta con luz cálida
+  PFInfra.windowQ(pb, x + 10, floorY - h + 10, 14, 10);
+  for (let yy = floorY - h + 10; yy < floorY - h + 20; yy++) { put(x + 7, yy, Wd[5]); put(x + 8, yy, Wd[3]); put(x + 26, yy, Wd[5]); put(x + 27, yy, Wd[3]); }
+  for (let yy = floorY - 23; yy < floorY; yy++) for (let xx = x + 44; xx < x + 58; xx++) put(xx, yy, xx === x + 44 ? Wd[0] : (xx - x) % 4 === 0 ? Wd[1] : Wd[2]);
+  for (let yy = floorY - 20; yy < floorY - 12; yy++) for (let xx = x + 47; xx < x + 55; xx++) put(xx, yy, U(yy < floorY - 18 ? '#ffe7a0' : '#ffc860'));
+  put(x + 55, floorY - 10, U('#ffe14d'));
+  // 5. tejado a cuatro aguas: faldón frontal (al sol), faldón lateral (sombra), cumbrera
+  const rt = floorY - h - 1, rh = 20, EL = x - 10, ER = x + w + 10;
+  const [rx2, ry2] = side(1);
+  const RL = EL + 16 + Math.round(SX * 0.5), RR = ER - 16 + Math.round(SX * 0.5), RY = rt - rh + Math.round(SY * 0.5);
+  // faldón lateral (de la arista izquierda del alero hacia el fondo): de cara al sol, el más claro
+  PFK.polyFill(pb, [[EL, rt + 2], [EL + rx2, rt + 2 + ry2], [RL - 2, RY], [RL + 2, RY + 1]], (xx, yy) => {
+    const tier = ((rt + 2 - yy) % 6 === 0), st = (xx * 2 + yy) % 5;
+    return Th[clamp(5 + (tier ? -2 : 0) + (st === 0 ? -1 : 0) + (PFK.cl(xx, yy, 2, 7) < 0.15 ? -1 : 0), 0, 6)];
   });
-  // ventana con contraventanas, puerta con luz cálida
-  PFInfra.windowQ(pb, x + 12, floorY - h + 9, 14, 10);
-  for (let yy = floorY - h + 9; yy < floorY - h + 19; yy++) { PFK.put(pb, x + 9, yy, Wd[5]); PFK.put(pb, x + 10, yy, Wd[3]); PFK.put(pb, x + 28, yy, Wd[5]); PFK.put(pb, x + 29, yy, Wd[3]); }
-  for (let yy = floorY - 25; yy < floorY; yy++) for (let xx = x + 50; xx < x + 64; xx++) PFK.put(pb, xx, yy, xx === x + 50 ? Wd[0] : (xx - x) % 4 === 0 ? Wd[1] : Wd[2]);
-  for (let yy = floorY - 22; yy < floorY - 14; yy++) for (let xx = x + 53; xx < x + 61; xx++) PFK.put(pb, xx, yy, U(yy < floorY - 20 ? '#ffe7a0' : '#ffc860'));
-  PFK.put(pb, x + 61, floorY - 12, U('#ffe14d'));
-  // techo de palma a cuatro aguas visto en 3/4
-  const rt = floorY - h, ry = rt - 22;
-  PFK.polyFill(pb, [[x - 10, rt + 2], [x + w + 10, rt + 2], [x + w + dx + 4, ry + 4], [x + dx - 2, ry + 4]], (xx, yy) => {
-    const v = (rt + 2 - yy) / 22, stripe = (xx + Math.round(yy * 0.6)) % 4;
-    let k = 4 - Math.round(v * 1.2) + (stripe === 0 ? -1 : stripe === 2 ? 1 : 0) + (PFK.cl(xx, yy, 2, 9) < 0.15 ? -1 : 0);
-    if (xx > x + w - 2 + v * 8) k -= 2;
-    return Th[clamp(k, 0, 5)];
+  // faldón frontal (trapecio) con haces de paja inclinados
+  PFK.polyFill(pb, [[EL, rt + 2], [ER, rt + 2], [RR, RY], [RL, RY]], (xx, yy) => {
+    const v = (rt + 2 - yy) / (rt + 2 - RY), tier = ((rt + 2 - yy) % 6), stripe = (xx + (tier < 3 ? 1 : 0)) % 3;
+    // capas de paja horizontales: borde inferior oscuro de cada capa, haces verticales; más luz hacia la cumbrera
+    let k = 3 + Math.round(v * 1.3) + (tier === 0 ? -2 : tier === 1 ? -1 : 0) + (stripe === 0 ? -1 : 0) + (PFK.cl(xx, yy, 2, 9) < 0.12 ? -1 : 0);
+    const lEdge = EL + (RL - EL) * v; if (xx < lEdge + 2) k += 1;      // limatesa izquierda: luz de arista
+    return Th[clamp(k, 0, 6)];
   });
-  for (let xx = x - 10; xx <= x + w + 10; xx++) { PFK.put(pb, xx, rt + 2, Th[1]); if (hash2(xx, 1, 4) < 0.5) PFK.put(pb, xx, rt + 3, Th[2]); if (hash2(xx, 2, 4) < 0.3) PFK.put(pb, xx, rt + 4, Th[1]); }
-  for (let xx = x + dx - 2; xx < x + w + dx + 4; xx++) PFK.put(pb, xx, ry + 4, Th[5]);
-  // panel solar y antena
-  PFInfra.pvPanel(pb, x + 52, ry + 12, 16, 6);
-  for (let yy = ry - 22; yy < ry + 8; yy++) PFK.put(pb, x + 74, yy, U('#c8d8e0'));
-  PFK.put(pb, x + 74, ry - 23, U('#ff4e5d')); for (let k = -3; k <= 3; k++) PFK.put(pb, x + 74 + k, ry - 16, U('#98a8b8'));
-  // escalera de acceso, red colgada, boya
-  for (let yy = floorY + 4; yy < y; yy++) { PFK.put(pb, x + 86, yy, Wd[4]); PFK.put(pb, x + 92, yy, Wd[2]); if ((yy - floorY) % 4 === 0) for (let k = 87; k < 92; k++) PFK.put(pb, x + k, yy, Wd[3]); }
-  for (let k = 0; k < 14; k++) for (let j = 0; j < 12; j++) if ((k + j) % 3 === 0 || (k - j + 30) % 3 === 0) PFK.put(pb, x + 30 + k, floorY - 12 + j + Math.round(Math.sin(k / 13 * Math.PI) * 2), U('#cfe8ee'));
-  PFK.ellipseFn(pb, x + 46, floorY - 6, 2.4, 2.4, (nx, ny) => U(nx + ny < -0.5 ? '#ffc6b4' : '#ff6b6b'));
-  // macetas con plantas en la plataforma
-  for (const px of [x + 4, x + 70]) { PFInfra.box3q(pb, px, floorY + 1, 6, 4, 2, { ramp: ['#3a1408', '#6a2a10', '#a04a20', '#c86a30', '#e08a48'] }); PFFlora.bush(pb, px + 3, floorY - 3, 9, 8, RAMP.foliageR, px); }
+  // cumbrera clara, luz de cornisa (1 px cálido) y fleco de paja del alero
+  for (let xx = RL; xx <= RR; xx++) { put(xx, RY, Th[6]); put(xx, RY + 1, Th[5]); }
+  for (let xx = EL; xx <= ER; xx++) { put(xx, rt + 2, U('#ffe8a8')); put(xx, rt + 3, Th[2]); if (hash2(xx, 1, 4) < 0.55) put(xx, rt + 4, Th[1]); if (hash2(xx, 2, 4) < 0.3) put(xx, rt + 5, Th[0]); }
+  for (let t = 0; t <= 1.0001; t += 1 / 18) { const [ox, oy] = side(t); put(EL + ox, rt + 2 + oy, U('#ffe8a8')); put(EL + ox, rt + 3 + oy, Th[1]); }
+  // sombra arrojada del tejado sobre el lateral (banda de 2 px bajo el alero)
+  for (let t = 0; t <= 1.0001; t += 1 / 30) { const [ox, oy] = side(t); put(x - 1 + ox, floorY - h + oy, T[1]); put(x - 1 + ox, floorY - h + 1 + oy, T[2]); }
+  // panel solar sobre el faldón frontal y antena con luz roja
+  PFInfra.pvPanel(pb, x + 40, RY + 8, 16, 6);
+  for (let yy = RY - 20; yy < RY + 4; yy++) put(x + 66, yy, U('#c8d8e0'));
+  put(x + 66, RY - 21, U('#ff4e5d')); for (let k = -3; k <= 3; k++) put(x + 66 + k, RY - 14, U('#98a8b8'));
+  // 6. escalera de acceso, red colgada, boya y macetas
+  for (let yy = floorY + 4; yy < y; yy++) { put(x + 80, yy, Wd[4]); put(x + 86, yy, Wd[2]); if ((yy - floorY) % 4 === 0) for (let k = 81; k < 86; k++) put(x + k, yy, Wd[3]); }
+  for (let k = 0; k < 14; k++) for (let j = 0; j < 12; j++) if ((k + j) % 3 === 0 || (k - j + 30) % 3 === 0) put(x + 28 + k, floorY - 12 + j + Math.round(Math.sin(k / 13 * Math.PI) * 2), U('#cfe8ee'));
+  PFK.ellipseFn(pb, x + 41, floorY - 6, 2.4, 2.4, (nx, ny) => U(nx + ny < -0.5 ? '#ffc6b4' : '#ff6b6b'));
+  for (const px of [x + 2, x + 62]) { PFInfra.box3q(pb, px, floorY - 1, 6, 4, 2, { ramp: ['#3a1408', '#6a2a10', '#a04a20', '#c86a30', '#e08a48'] }); PFFlora.bush(pb, px + 3, floorY - 5, 9, 8, RAMP.foliageR, px); }
 }
 /** Redes de pesca tendidas entre dos postes con flotadores */
 function nets(pb, x, y) {
