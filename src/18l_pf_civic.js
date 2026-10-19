@@ -428,3 +428,26 @@ function R3COAST_streetProps(pb, world, x0, x1, seed, o = {}) {
   }
   for (let x = x0 + 40 + r.int(0, 60); x < x1 - 30; x += 120 + r.int(0, 80)) { if (skip.some(([a, b]) => x > a && x < b)) continue; R3COAST_bougainFall(pb, x, gy(x) + 3, 20 + r.int(0, 18), 20 + r.int(0, 24), x * 3 + 1); }
 }
+
+/** Jardín vertical en el muro de la plaza (r3-coast, N11): jardineras corridas a media altura con hierbas,
+    flores y frondas que cuelgan, buganvillas que caen desde el borde y trepadoras en las pilastras */
+function R3COAST_wallGarden(pb, world, x0, x1, seed, o = {}) {
+  const gy = (x) => Math.round(world.groundAt(x)), r = RNG(seed), dT = o.dT ?? 30;
+  const TC = PFK.P32(['#3a1408', '#6a2a10', '#a04a20', '#c86a30', '#e08a48', '#f4b070']);
+  const LF = PFK.P32(['#0e2410', '#1a3a16', '#2a5420', '#3e7228', '#5a9232', '#86b444', '#b4d860']);
+  const FL = ['#ff3a6a', '#ffd84a', '#ff8a3a', '#f0f0ff', '#c050f0'].map(U);
+  for (let x = x0 + 10 + r.int(0, 20); x < x1 - 30; x += 70 + r.int(0, 50)) {
+    const w = 30 + r.int(0, 26), y = gy(x) + dT + r.int(-3, 4);
+    // jardinera de terracota en ménsula
+    for (let xx = x; xx < x + w; xx++) for (let k = 0; k < 6; k++) PFK.put(pb, xx, y + k, TC[clamp(k === 0 ? 5 : k === 5 ? 0 : 3 - (xx > x + w - 3 ? 2 : 0) + (xx < x + 2 ? 1 : 0), 0, 5)]);
+    for (const mx of [x + 3, x + w - 5]) for (let k = 0; k < 3; k++) PFK.put(pb, mx + k, y + 6, TC[1]);
+    // plantas: matas, flores y frondas que cuelgan por delante
+    for (let xx = x + 1; xx < x + w - 1; xx++) {
+      const hgt = 3 + Math.floor(PFK.vn(xx * 0.3, 1, seed) * 7);
+      for (let k = 0; k < hgt; k++) if (hash2(xx, k, seed) < 0.75) PFK.put(pb, xx, y - k, LF[clamp(Math.round(4 - k * 0.3 + (hash2(xx, k, 3) - 0.5) * 2), 0, 6)]);
+      if (hash2(xx, 2, seed) < 0.18) { const c = FL[(hash2(xx, 3, seed) * 5) | 0]; PFK.put(pb, xx, y - hgt, c); PFK.put(pb, xx + 1, y - hgt, c); }
+      if (hash2(xx, 4, seed) < 0.3) { const L = 3 + Math.floor(hash2(xx, 5, seed) * 12); for (let k = 0; k < L; k++) PFK.put(pb, xx + (k > 5 && (xx & 1) ? 1 : 0), y + 6 + k, LF[clamp(3 - Math.floor(k / 4), 1, 6)]); }
+    }
+  }
+  for (let x = x0 + 30 + r.int(0, 40); x < x1 - 30; x += 90 + r.int(0, 70)) R3COAST_bougainFall(pb, x, gy(x) + 3, 18 + r.int(0, 16), 16 + r.int(0, 18), x * 5 + seed);
+}

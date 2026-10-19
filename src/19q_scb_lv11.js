@@ -22,9 +22,10 @@ const SCBL11 = (() => {
   const K = { lamps: [], spots: [], lights: null, lanterns: [] };
   const pf = {
     terrain: [
-      { x0: 0, x1: 480, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
-      { x0: 480, x1: 640, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false },
-      { x0: 640, x1: 1500, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
+      // r3-coast: friso de azulejo, galerías abiertas iluminadas y sillar ocre más saturado (R3COAST_Cistern)
+      { x0: 0, x1: 480, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true, wallRamp: R3COAST_WALLR },
+      { x0: 480, x1: 640, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false, r3cut: true, wallRamp: R3COAST_WALLR },
+      { x0: 640, x1: 1500, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true, wallRamp: R3COAST_WALLR },
     ],
     fg: [
       { kind: 'garland', x: -30, y: -6, w: 330, h: 40, seed: 3, top: true },
@@ -33,6 +34,11 @@ const SCBL11 = (() => {
       { kind: 'garland', x: 900, y: -8, w: 300, h: 44, seed: 7, top: true },
       { kind: 'bougain', x: 1320, w: 130, h: 76, seed: 11 },
       { kind: 'clump', x: 1820, w: 130, h: 84, seed: 13, spikes: 4, leaves: 10 },
+      // r3-coast: más plano de encuadre (f 1,3): matas y buganvillas en las esquinas inferiores y un dosel
+      { kind: 'bougain', x: 240, w: 110, h: 68, seed: 21 },
+      { kind: 'clump', x: 900, w: 120, h: 76, seed: 23, spikes: 3, leaves: 11 },
+      { kind: 'canopy', x: 1240, y: -8, w: 220, h: 66, seed: 25, side: 1, n: 12, vines: 3 },
+      { kind: 'bougain', x: 1560, w: 120, h: 72, seed: 27 },
     ],
     fauna: { gulls: [{ x: 400, y: 70, n: 3 }, { x: 1200, y: 60, n: 4 }], drones: [{ x: 900, y: 110, r: 30 }] },
     decorateFace(pb) { SCBK.grade(pb, DUSK); },
@@ -47,6 +53,9 @@ const SCBL11 = (() => {
     const back = (x) => PFTerrain.backEdge(PFTerrain.segAt(segs, x), Math.round(x), gy(x));
     const Ar = A(), Cv = C(), Fl = F(), r = RNG(1101), E = GS.s.ending || 'pacto';
     K.lamps = []; K.spots = []; K.lanterns = [];
+    // r3-coast: palmeras, naranjos y limoneros al fondo de la plaza (antes que puestos y pantalla: quedan detrás)
+    for (const [x, h, l] of [[106, 72, -5], [476, 66, 6], [648, 70, -6], [992, 64, 5], [1312, 74, -4], [1470, 66, 6]]) Fl.palm(pb, x, back(x) + 1, h, l, x * 11);
+    for (const x of [236, 356, 1170, 1396]) R3COAST_citrus(pb, x, back(x) + 2, 1.15, x, x === 356);
     // pavimento: tapas de registro, hojas y granos de maíz barridos
     for (const x of [60, 300, 700, 1040, 1260, 1420]) Ar.manhole(pb, x, gy(x) - 12);
     for (let x = 0; x < 1500; x += 3) if (hash2(x, 7, 51) < 0.05) PFK.put(pb, x, gy(x) - 3 - Math.floor(hash2(x, 8, 51) * 16), U(['#ffe14d', '#e8a030', '#c86a2a', '#86c040', '#ffffff'][Math.floor(hash2(x, 9, 51) * 5)]));
@@ -97,6 +106,8 @@ const SCBL11 = (() => {
   }
   function propsFront(pb, world) {
     const gy = (x) => world.groundAt(x), Fl = F();
+    // r3-coast: jardín vertical en el muro (jardineras corridas, frondas colgantes y buganvillas en cascada)
+    R3COAST_wallGarden(pb, world, 0, 1500, 1131);
     for (let x = 486; x < 636; x += 13) Fl.tuft(pb, x, gy(x) + 2, 6, 6, x + 1);
     for (const x of [6, 104, 476, 646, 996, 1304]) PFArch.pots(pb, x, gy(x) + 4, 1, x);
     // mazorcas y calabazas en el bordillo del mercado
