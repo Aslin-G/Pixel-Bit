@@ -50,32 +50,51 @@ const PFWater = (() => {
       }
       for (let Y = wy + 2; Y < wy + 14; Y++) if (hash2(bx, Y, 5) < 0.5) put(bx + (hash2(bx, Y, 6) < 0.5 ? -1 : 4), Y, wet(U('#2e5a2a'), Y, 0.3));
     }
-    // repisas de roca: masa que sube desde el lecho y se abre en voladizo, tapa iluminada, sombra bajo el vuelo
+    // repisas de roca: masa de cantos redondeados (lit desde arriba, grietas granate) en voladizo sobre un pedestal
     for (const [sx0, sx1, sy, th] of (W_.shelves || [])) {
-      const cx = (sx0 + sx1) / 2, hw = (sx1 - sx0) / 2;
-      const topAt = (X) => { const e = Math.abs(X - cx) / hw; return Math.round(sy + Math.pow(e, 3) * th * 0.9 + (PFK.vn(X * 0.12, 1, sy) - 0.5) * 4 + (hash2(X >> 2, 3, sy) - 0.5) * 2); };
-      for (let X = sx0 - 2; X <= sx1 + 2; X++) {
-        const e = Math.abs(X - cx) / hw; if (e > 1.04) continue;
-        const top = topAt(X), bed = bedAt(X);
-        // tallo central hasta el lecho; extremos solo en voladizo
-        const stem = e < 0.55 + PFK.vn(X * 0.05, 2, sy) * 0.15;
-        const bot = stem ? bed : Math.round(top + th * (1 - e * 0.55) + (PFK.vn(X * 0.2, 3, sy) - 0.5) * 5);
-        for (let Y = top; Y < bot; Y++) {
-          const dy = Y - top;
-          // estratos y grietas
-          const strat = ((Y + Math.round(PFK.vn(X * 0.05, 5, sy) * 6)) % 7 === 0);
-          const crack = PFK.vn(X * 0.3, Y * 0.06, sy + 7) > 0.78;
-          let t = dy < 2 ? 7.4 - dy * 0.8 : 5.2 - dy * 0.11 - e * 1.2 + (PFK.cl(X, Y, 3, sy) - 0.5) * 1.4;
-          if (strat) t -= 1.2;
-          if (crack) t -= 2.2;
-          if (!stem && bot - Y <= 2) t = 1.2; // borde inferior del voladizo
-          putW(X, Y, RK[clamp(Math.round(t), 0, 8)], dy < 2 ? 0.08 : 0.18);
-        }
-        // sombra proyectada bajo el voladizo (agua más oscura)
-        if (!stem) for (let Y = bot; Y < Math.min(bed, bot + 10); Y++) { const i = (Y - y0) * wd + (X - x0); if (i >= 0 && i < pb.data.length) pb.data[i] = PFK.mixU(pb.data[i], UW[1], 0.35 * (1 - (Y - bot) / 10)); }
-        // flecos de algas colgando del voladizo
-        if (!stem && hash2(X, sy, 9) < 0.35) { const L = 2 + Math.floor(hash2(X, sy, 10) * 7); for (let q = 0; q < L; q++) putW(X, bot + q, U(q < 2 ? '#4e8a2a' : '#2e6a22'), 0.2 + q * 0.03); }
+      const cx = (sx0 + sx1) / 2, hw = (sx1 - sx0) / 2, rr = RNG(sx0 * 7 + sy);
+      const nB = Math.max(3, Math.round(hw / 8)), bl = [];
+      for (let i = 0; i < nB; i++) {
+        const f = (i + 0.5) / nB, e = Math.abs(f - 0.5) * 2;
+        bl.push({ x: sx0 + f * (sx1 - sx0) + rr.range(-3, 3), y: sy + th * (0.35 + e * e * 0.35) + rr.range(-2, 2), rx: (sx1 - sx0) / nB * rr.range(0.7, 0.95), ry: th * rr.range(0.45, 0.7) * (1 - e * 0.25) });
       }
+      // segunda fila (más alta, menor) para una silueta irregular
+      for (let i = 0; i < nB - 1; i++) if (rr() < 0.7) { const B0 = bl[i], B1 = bl[i + 1]; bl.push({ x: (B0.x + B1.x) / 2 + rr.range(-2, 2), y: Math.min(B0.y, B1.y) - th * rr.range(0.25, 0.5), rx: B0.rx * rr.range(0.55, 0.8), ry: th * rr.range(0.32, 0.5) }); }
+      const ped0 = cx - hw * rr.range(0.32, 0.45), ped1 = cx + hw * rr.range(0.25, 0.4);
+      let yMin = 9999; for (const B of bl) yMin = Math.min(yMin, Math.floor(B.y - B.ry));
+      for (let X = sx0 - 6; X <= sx1 + 6; X++) {
+        const bed = bedAt(X);
+        let lastIn = -1;
+        for (let Y = yMin; Y <= bed; Y++) {
+          let d1 = 9, d2 = 9, B1 = null;
+          for (const B of bl) { const dx = (X - B.x) / B.rx, dy = (Y - B.y) / B.ry, d = dx * dx + dy * dy; if (d < d1) { d2 = d1; d1 = d; B1 = B; } else if (d < d2) d2 = d; }
+          // pedestal que se ensancha hacia el lecho (estratos horizontales)
+          const pw0 = ped0 - (Y - sy) * 0.18 + (PFK.vn(Y * 0.09, 2, sx0) - 0.5) * 6, pw1 = ped1 + (Y - sy) * 0.15 + (PFK.vn(Y * 0.09, 4, sx0) - 0.5) * 6;
+          const inPed = Y > sy + th * 0.4 && X >= pw0 && X <= pw1;
+          if (d1 < 1) {
+            const nx = (X - B1.x) / B1.rx, ny = (Y - B1.y) / B1.ry, nz = Math.sqrt(Math.max(0, 1 - d1));
+            let t = 3.4 - ny * 2.6 - nx * 1.1 + nz * 1.6 + (PFK.cl(X, Y, 2, sx0) - 0.5) * 0.9;
+            if (d2 - d1 < 0.16 && d2 < 1.6) t = 0.6;           // grieta entre cantos
+            else if (d1 > 0.8 && ny > 0.1) t -= 1.6;           // cara inferior en sombra
+            if (lastIn < Y - 1 && ny < -0.2) t = 8.2;           // canto de luz cálido de 1 px arriba
+            putW(X, Y, RK[clamp(Math.round(t), 0, 8)], ny < -0.4 ? 0.06 : 0.16);
+            lastIn = Y;
+          } else if (inPed) {
+            const ex = (X - pw0) / Math.max(1, pw1 - pw0);
+            let t = 3.2 - ex * 1.6 + (PFK.cl(X, Y, 3, sx0 + 1) - 0.5) * 1.2 - (Y - sy) * 0.01;
+            if ((Y + Math.round(PFK.vn(X * 0.06, 5, sx0) * 5)) % 6 === 0) t -= 1.1;
+            if (ex < 0.08 || ex > 0.94) t -= 1;
+            putW(X, Y, RK[clamp(Math.round(t), 0, 8)], 0.22);
+            lastIn = Y;
+          } else if (lastIn >= 0 && Y - lastIn < 9 && Y > sy) {
+            // sombra bajo el voladizo (agua más oscura) + flecos de algas
+            const i = (Y - y0) * wd + (X - x0);
+            if (i >= 0 && i < pb.data.length) pb.data[i] = PFK.mixU(pb.data[i], UW[1], 0.32 * (1 - (Y - lastIn) / 9));
+            if (Y - lastIn < 1 + Math.floor(hash2(X, sy, 10) * 6) && hash2(X, sy, 9) < 0.4) putW(X, Y, U(Y - lastIn < 3 ? '#4e8a2a' : '#2e6a22'), 0.2);
+          }
+        }
+      }
+      const topAt = (X) => { for (let Y = yMin; Y < sy + th * 2; Y++) for (const B of bl) { const dx = (X - B.x) / B.rx, dy = (Y - B.y) / B.ry; if (dx * dx + dy * dy < 1) return Y; } return sy + th; };
       // vida sobre la repisa (cada ~12 px)
       for (let X = sx0 + 4; X < sx1 - 3; X += 9 + r.int(0, 6)) r3cCluster(pb, put, X, topAt(X), r, wy, UW, 0.6 + r() * 0.5);
     }
@@ -410,9 +429,9 @@ const PFWater = (() => {
   }
   /** Haz de luz inclinado con alfa decreciente */
   function shaftSprite() {
-    const w = 16, h = 120, pb = new PixelBuffer(w + 30, h), u = U('#7ef0f4') & 0xffffff;
+    const w = 18, h = 132, pb = new PixelBuffer(w + 34, h), u = U('#9ff6f8') & 0xffffff;
     for (let y = 0; y < h; y++) {
-      const off = Math.round(y * 0.22), a = 0.5 * (1 - y / h) * (1 - y / h);
+      const off = Math.round(y * 0.22), a = 0.62 * (1 - y / h) * (1 - y / h);
       for (let x = 0; x < w; x++) {
         const edge = Math.min(x, w - 1 - x) / 4;
         const aa = a * clamp(edge, 0, 1) * (0.75 + 0.25 * Math.sin(x * 0.9));

@@ -75,7 +75,7 @@ LEVELS[1] = {
   },
   /** Etiquetas científicas en el mundo (WorldLabels) */
   labels: [
-    { x: 1226, y: 196, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ay: 212 },
+    { x: 1164, y: 204, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ax: 1192, ay: 216 }, // r3-coast: a la izquierda de la casa de bombas (no sobre la jugadora ni KIRU junto al Gemelo)
     { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
     { x: 1522, y: 346, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1476, ay: 375 },
     { x: 1250, y: 362, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1236, ay: 380 },

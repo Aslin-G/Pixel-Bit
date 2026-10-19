@@ -269,11 +269,30 @@ BIOMES.coast = function (L) {
       V.drawRotor(g, tb.rot, x, y, t * tb.sp + tb.ph);
     }
   }
-  // las etiquetas lejanas se ocultan si chocan con las del plano jugable (sc.def.labels)
-  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc);
+  // las etiquetas lejanas se ocultan si chocan con las del plano jugable (sc.def.labels) o, en el caso de
+  // las del proceso, si quedarían fuera de orden (izquierda → derecha) o pegadas al panel de objetivo (r3-coast)
+  for (const Lb of labels) Lb.when = (sc) => !V.labelClash(Lb, sc) && !R3COAST_orderClash(Lb, sc);
   BIOME_LABELS.coast = labels;
   B.vistaInfo = { planes: B.layers.length, ms: Object.assign({}, V.stats.ms) };
   return B;
 };
 
 BIOME_LABELS.coast = BIOME_LABELS.coast || [];
+
+/* ---------- r3-coast: orden de lectura de las etiquetas del proceso ---------- */
+const R3COAST_PROC = { 'CAPTACIÓN': 0, 'BOMBEO': 1, 'PRETRATAMIENTO': 2, 'AGUA PRETRATADA': 2.5, 'MEMBRANAS': 3, 'AGUA POTABLE': 4 };
+/** true si la etiqueta lejana L del proceso quedaría a la izquierda de una etapa anterior visible del
+    plano jugable, o junto al panel de objetivo (esquina superior izquierda) */
+function R3COAST_orderClash(L, sc) {
+  const p = R3COAST_PROC[L.title]; if (p == null || !sc || !sc.def || !sc.cam) return false;
+  const cam = { x: sc.cam.ox ?? sc.cam.x ?? 0, y: sc.cam.oy ?? sc.cam.y ?? 0 };
+  const a = VISTA.labelRect(L, cam, sc); if (!a) return false;
+  if (a[0] < 236 && a[1] < 112) return true; // panel de objetivo (≈ 8–215 × 58–96) y su entorno
+  for (const O of (sc.def.labels || [])) {
+    const q = R3COAST_PROC[O.title]; if (q == null || q >= p) continue;
+    if (O.when && !O.when(sc)) continue;
+    const b = VISTA.labelRect(O, cam, sc); if (!b || b[0] + b[2] < 0 || b[0] > W) continue;
+    if (b[0] + b[2] / 2 > a[0] + a[2] / 2) return true;
+  }
+  return false;
+}
