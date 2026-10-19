@@ -54,11 +54,11 @@
          grietas granate (#602212/#3e0c03) y canto de luz cálido en las crestas;
        · bruma por profundidad con el hazeColor del bioma (o.haze.col) + un velo extra para 'far';
        · 'far' añade una segunda cordillera fantasma más pálida detrás (2 cordilleras apiladas). */
-  V.R3COAST_WARM = ['#3e0c03', '#602212', '#7e3016', '#a24a1f', '#bc5e2a', '#d27636', '#e48e46', '#f0a656', '#f8b864', '#fbc371', '#fdd696'];
+  V.R3COAST_WARM = ['#3e0c03', '#602212', '#7e3016', '#a24a1f', '#b85a28', '#cc6c32', '#dc803c', '#e8964a', '#f2aa58', '#f8bc66', '#fbc371'];
   V.R3COAST_VIOL = ['#2c2048', '#3a2c58', '#4a3a6a', '#5c4c7c', '#6e5e8e', '#7e6e9e', '#8e7daa', '#9e8cb2'];
   V.R3COAST_ERODE = {
     far: { hz: 0.36, hzV: 0.22, ga: 7, gN: 0.16, gTw: 0.7, gcap: 30, ts: 6, tA: 0.62, tk: 0, thr: 0.52, facet: 0.42, contrast: 1.3, ghost: 0.58, cav: 0.08 },
-    mid: { hz: 0.06, hzV: 0.04, ga: 11, gN: 0.15, gTw: 0.9, gcap: 50, ts: 8, tA: 0.6, tk: 0.35, tMax: 0.45, thr: 0.5, facet: 0.4, contrast: 1.3, ghost: 0, cav: 0.1 },
+    mid: { hz: 0.06, hzV: 0.04, ga: 11, gN: 0.13, gTw: 0.9, gcap: 50, ts: 8, tA: 0.6, tk: 0.35, tMax: 0.45, thr: 0.45, facet: 0.4, contrast: 1.3, ghost: 0, cav: 0.1 },
   };
   /** Campo de alturas erosionado: cárcavas radiales (bajan en abanico desde cada cima) +
       estratos en terraza en la falda, sobre H (V.massif expone sus picos en H.r3peaks) */
@@ -75,12 +75,15 @@
       }
       if (bp) {
         const ang = Math.atan2((v - bp.v) * (bp.w / bp.d), x - bp.x);
-        const nG = Math.max(7, Math.round(bp.w * E.gN)), rad = 1 - bq;
-        const f = ang / TAU * nG + (fbm(x * 0.035, v * 0.07, 2, seed + 21) - 0.5) * 1.3 + rad * E.gTw;
-        const fi = Math.floor(f), fr = f - fi;
+        const nG = Math.max(6, Math.round(bp.w * E.gN * (0.7 + 0.6 * hash2(bp.x | 0, bp.v | 0, seed + 25)))), rad = 1 - bq;
+        const wq = (fbm(x * 0.035, v * 0.07, 2, seed + 21) - 0.5) * 1.3 + rad * E.gTw;
+        const f = ang / TAU * nG + wq, fi = Math.floor(f), fr = f - fi;
         const prof = Math.pow(Math.abs(fr * 2 - 1), 0.55);
-        const dep = E.ga * (0.55 + 0.9 * hash2(fi, bp.x | 0, seed + 27)) * smooth(clamp(rad * 2.6, 0, 1)) * (0.4 + 0.6 * hf);
-        h -= dep * (1 - prof);
+        const dep = E.ga * (0.45 + 1.0 * hash2(fi, bp.x | 0, seed + 27)) * smooth(clamp(rad * 2.6, 0, 1)) * (0.4 + 0.6 * hf);
+        // cárcavas secundarias (más finas, solo en la mitad baja de la ladera)
+        const f2 = ang / TAU * nG * 2.6 + wq * 1.7 + 0.37, fi2 = Math.floor(f2), p2 = Math.pow(Math.abs((f2 - fi2) * 2 - 1), 0.6);
+        const dep2 = E.ga * 0.38 * hash2(fi2, bp.x | 0, seed + 29) * smooth(clamp((rad - 0.3) * 2.5, 0, 1));
+        h -= dep * (1 - prof) + dep2 * (1 - p2);
       } else {
         const g = V.ridged(x * 0.08 + (fbm(x * 0.021, v * 0.05, 2, seed + 21) - 0.5) * 5, v * 0.03, 3, seed + 23);
         h -= E.ga * 0.5 * hf * smooth(clamp((g - 0.35) * 1.7, 0, 1));
@@ -143,7 +146,7 @@
       const dn = (y - sy) * 0.03;
       const side = I + j * 0.4 + cav * 0.6;
       if (side >= E.thr) {
-        const t = clamp(0.16 + (side - E.thr) / (1 - E.thr) * E.contrast * 0.78 + cav * 1.6 + hgt - dn, 0, 0.999);
+        const t = clamp(0.24 + (side - E.thr) / (1 - E.thr) * E.contrast * 0.62 + cav * 1.6 + hgt * 0.4 - dn, 0, 0.999);
         return rW[R][V.band(t, nW, x, y, 0.05, seed)];
       }
       const t = clamp(0.2 + (side / E.thr) * 0.75 + cav * 1.4 + hgt * 0.6 - dn * 0.6, 0, 0.999);
