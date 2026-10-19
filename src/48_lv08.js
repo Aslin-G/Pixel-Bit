@@ -612,7 +612,12 @@ const Sim08 = makeSim({
     row('SAR', fmt(b.sar, 1) + ' · riesgo de infiltración ' + fmt0(b.infil * 100) + ' %', b.infil < 0.3, yy + 58);
     // dibujo de suelo según infiltración
     const sx = x + 280, sy = y + 116;
-    frect(g, sx, sy, 110, 64, '#7a4e2e'); frect(g, sx, sy + 40, 110, 24, '#6a4228'); frect(g, sx, sy + 63, 110, 1, '#4a2c1a');
+    if (typeof R3MAPUI !== 'undefined') {
+      // r3-mapui: perfil de suelo ilustrado con raíces y piedras, y una fila de fríjoles encima (marchitos si hay estrés)
+      g.drawImage(R3MAPUI.soil(110, 64), sx, sy); frect(g, sx, sy + 63, 110, 1, '#2a160c');
+      const stress = (b.ec >= 1.0 || b.boron >= 0.75) ? 1 : 0;
+      for (let k = 0; k < 7; k++) R3MAPUI.crop(g, sx + 9 + k * 15, sy + 1, stress);
+    } else { frect(g, sx, sy, 110, 64, '#7a4e2e'); frect(g, sx, sy + 40, 110, 24, '#6a4228'); frect(g, sx, sy + 63, 110, 1, '#4a2c1a'); }
     const depth = Math.round((1 - b.infil) * 60);
     g.globalAlpha = 0.22; frect(g, sx, sy, 110, depth, '#56e5ff'); g.globalAlpha = 0.14; frect(g, sx, sy + Math.round(depth * 0.5), 110, depth - Math.round(depth * 0.5), '#2c8ad8'); g.globalAlpha = 1;
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }

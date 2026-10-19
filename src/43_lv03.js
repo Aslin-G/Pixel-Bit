@@ -571,7 +571,7 @@ const Sim03 = makeSim({
       } else { // agua: profundidad según la distancia a la costa, fondo de arena en la orilla y cáusticas
         const depth = clamp((y - c) / (h * 0.8), 0, 1) + (vnoise(x * 0.02, y * 0.03, 7) - 0.5) * 0.12;
         // mar de fondo: ondulación larga y racimos de 3×2 un tono arriba o abajo (sin tramado)
-        let t = clamp(depth * 1.05 + Math.sin(x * 0.07 + y * 0.31 + vnoise(x * 0.03, y * 0.05, 8) * 5) * 0.035 + (hash2((x / 3) | 0, (y / 2) | 0, 12) - 0.5) * 0.07, 0, 0.999);
+        let t = clamp(depth * 1.05 + Math.sin(x * 0.07 + y * 0.31 + vnoise(x * 0.03, y * 0.05, 8) * 5) * 0.035 + (hash2((x / 3) | 0, (y / 2) | 0, 12) - 0.5) * 0.16, 0, 0.999);
         const shallow = depth < 0.22;
         if (shallow && Math.abs(Math.sin(x * 0.21 + Math.sin(y * 0.33) * 2) + Math.sin(y * 0.27 + Math.sin(x * 0.19) * 2)) < 0.12) t = Math.max(0, t - 0.14);
         d[i] = SEA[V.band(t, SEA.length, x, y, 0.04, 9)];

@@ -845,22 +845,37 @@ const Sim01 = makeSim({
     const pY = Y0 + 34;
     Charts.flow(g, [[X0 + 123, Y0 + 26], [X0 + 123, pY - 10], [X0 + 170, pY - 10]], 'seawater', c.q / 100, 3);
     // coagulación
-    frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48'); frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); frect(g, X0 + 174, pY - 14, 46, 2, '#56c8e8'); g.globalAlpha = clamp(turbIn / 50, 0, 0.6) * 0.75; frect(g, X0 + 174, pY - 14, 46, 30, '#a07a3a'); g.globalAlpha *= 0.5; frect(g, X0 + 174, pY + 2, 46, 14, '#7a5420'); g.globalAlpha = 1;
+    if (typeof R3MAPUI !== 'undefined') { R3MAPUI.basin(g, X0 + 172, pY - 22, 50, 40); frect(g, X0 + 174, pY - 18, 46, 4, '#3a3430'); }
+    else frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48');
+    frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); frect(g, X0 + 174, pY - 14, 46, 2, '#56c8e8');
+    if (typeof R3MAPUI !== 'undefined') { for (let j = 0; j < 30; j += 3) frect(g, X0 + 174, pY - 14 + j, 46, 1, mixHex('#1283bf', '#0a4a7a', j / 30)); frect(g, X0 + 176 + Math.round((Game.time * 6) % 30), pY - 12, 8, 1, '#a6f4ff'); } g.globalAlpha = clamp(turbIn / 50, 0, 0.6) * 0.75; frect(g, X0 + 174, pY - 14, 46, 30, '#a07a3a'); g.globalAlpha *= 0.5; frect(g, X0 + 174, pY + 2, 46, 14, '#7a5420'); g.globalAlpha = 1;
     for (let i = 0; i < 12; i++) { const fx = X0 + 176 + (i * 13 + Game.time * 8) % 42, fy = pY - 10 + (i * 7) % 24; fdisc(g, fx, fy, 1 + c.coag * 1.5, '#c8a860'); }
     drawText(g, 'COAGULACIÓN', X0 + 197, pY - 30, { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.flow(g, [[X0 + 222, pY], [X0 + 240, pY]], 'seawater', c.q / 100, 3);
     // filtro con capas que se ensucian
     const fx0 = X0 + 242, fy0 = pY - 26, fw = 44, fh = 120;
-    frect(g, fx0, fy0, fw, fh, '#477a94'); frect(g, fx0 + 3, fy0 + 3, fw - 6, fh - 6, '#0a1838');
-    frect(g, fx0 + 3, fy0 + 40, fw - 6, 26, '#2a2a3a'); frect(g, fx0 + 3, fy0 + 66, fw - 6, 40, '#e4c088');
-    for (let i = 0; i < 40; i++) fpx(g, fx0 + 4 + (i * 7) % (fw - 8), fy0 + 67 + (i * 11) % 38, '#c49860');
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) {
+      // r3-mapui: recipiente de acero iluminado con lecho de antracita y arena granulares y agua sobrenadante
+      R3.vesselShell(g, fx0, fy0, fw, fh);
+      frect(g, fx0 + 3, fy0 + 3, fw - 6, fh - 6, '#000633');
+      for (let j = 0; j < 36; j++) frect(g, fx0 + 3, fy0 + 4 + j, fw - 6, 1, j < 2 ? '#56c8e8' : mixHex('#1a96c6', '#0e4a7a', j / 36));
+      g.drawImage(R3.granular(fw - 6, 26, ['#0c0c14', '#1a1a26', '#2a2a3a', '#40404e', '#5a5a6a', '#8a8a9a'], 3), fx0 + 3, fy0 + 40);
+      g.drawImage(R3.granular(fw - 6, 40, ['#8a5a2a', '#b07a3e', '#c89858', '#e4c088', '#f2d8a4', '#fff0c8'], 5), fx0 + 3, fy0 + 66);
+      g.drawImage(R3.granular(fw - 6, fh - 109, ['#3a3a3a', '#5a5450', '#7a7068', '#a09488', '#c8bcae'], 7), fx0 + 3, fy0 + 106);
+      g.globalAlpha = 0.35; frect(g, fx0 + 3 + Math.round((fw - 6) * 0.25), fy0 + 4, 1, fh - 8, '#e6fdff'); g.globalAlpha = 1;
+    } else {
+      frect(g, fx0, fy0, fw, fh, '#477a94'); frect(g, fx0 + 3, fy0 + 3, fw - 6, fh - 6, '#0a1838');
+      frect(g, fx0 + 3, fy0 + 40, fw - 6, 26, '#2a2a3a'); frect(g, fx0 + 3, fy0 + 66, fw - 6, 40, '#e4c088');
+      for (let i = 0; i < 40; i++) fpx(g, fx0 + 4 + (i * 7) % (fw - 8), fy0 + 67 + (i * 11) % 38, '#c49860');
+    }
     const dirt = clamp((this.dp - 0.3) / 1.2, 0, 1);
     // suciedad sin tramado: costra sólida que crece sobre el lecho + penetración como velo plano
     const cake = Math.round(1 + 9 * dirt);
     g.globalAlpha = 0.25 + dirt * 0.45; frect(g, fx0 + 3, fy0 + 40, fw - 6, Math.round(26 + 40 * dirt), '#5a3a1a'); g.globalAlpha = 1;
     frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, cake, '#6e4a1c'); frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, 1, '#a8742c'); frect(g, fx0 + 3, fy0 + 39, fw - 6, 1, '#4a2c12');
     if (this.backwashT > 0) for (let i = 0; i < 8; i++) fpx(g, fx0 + 6 + Math.random() * (fw - 12), fy0 + 10 + Math.random() * 30, '#c6fff2');
-    drawText(g, 'FILTRO', fx0 + fw / 2, fy0 - 8, { font: 'tiny', color: '#cfd6f0', align: 'center' });
+    drawText(g, 'FILTRO', fx0 + fw / 2, fy0 - (R3 ? 20 : 8), { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.gauge(g, fx0 + fw / 2, fy0 + fh + 22, 13, clamp(this.dp / 1.6, 0, 1), '#56e5ff', 'ΔP', fmt(this.dp, 2));
     Charts.flow(g, [[fx0 + fw, fy0 + fh - 10], [X0 + 310, fy0 + fh - 10]], r.treatable ? 'permeate' : 'brine', r.treatable ? 1 : 0.3, 3);
     // tanque de reserva

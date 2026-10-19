@@ -40709,9 +40709,11 @@ const NexusSim = makeSim({
   partial() { const miss = this.req().find(k => !this.edges.some(e => e.key === k)); if (miss) { const [a, b] = miss.split('>'); this.addEdge(a, b); this.say('Te muestro una: ' + NX[a].label + ' → ' + NX[b].label + '.'); } },
   draw(g) {
     const X0 = 8, Y0 = 28, WW = 410, HH = 228;
-    // tablero tipo plano/mosaico
-    frect(g, X0, Y0, WW, HH, '#0a1838'); frect(g, X0 + 1, Y0 + 1, WW - 2, HH - 2, '#0e2048');
-    for (let x = X0 + 8; x < X0 + WW; x += 16) for (let y = Y0 + 8; y < Y0 + HH; y += 16) fpx(g, x, y, '#1d346c');
+    // tablero tipo plano/mosaico — r3-mapui: la isla de Aridia vista desde arriba, atenuada, bajo la rejilla de plano
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    frect(g, X0, Y0, WW, HH, '#0a1838');
+    if (R3) g.drawImage(R3.boardMap(WW - 2, HH - 2, this.phase === 'transfer' ? 7 : 3), X0 + 1, Y0 + 1);
+    else { frect(g, X0 + 1, Y0 + 1, WW - 2, HH - 2, '#0e2048'); for (let x = X0 + 8; x < X0 + WW; x += 16) for (let y = Y0 + 8; y < Y0 + HH; y += 16) fpx(g, x, y, '#1d346c'); }
     frect(g, X0, Y0, WW, 1, '#56e5ff'); frect(g, X0, Y0 + HH - 1, WW, 1, '#1d346c');
     const med = this.phase === 'transfer';
     drawText(g, med ? 'RANCHERÍA LOS MÉDANOS' : 'SYNARA · ARIDIA', X0 + 6, Y0 + 4, { font: 'tiny', color: '#56e5ff' });
@@ -40752,7 +40754,8 @@ const NexusSim = makeSim({
       const x = N.x - 24, y = N.y - 12;
       const sel = this.sel === id;
       const pal = N.decoy ? ['#141626', '#1c1f34', '#4a4e70'] : sel ? ['#6a3e0e', '#9a5e12', '#ffe14d'] : ['#121736', '#1d346c', '#56e5ff'];
-      frect(g, x, y + 1, 48, 24, '#05030f'); frect(g, x, y, 48, 24, pal[0]); frect(g, x + 1, y + 1, 46, 22, pal[1]); frect(g, x + 1, y + 1, 46, 1, pal[2]);
+      if (R3) R3.nodeTile(g, x, y, 48, 24, pal);
+      else { frect(g, x, y + 1, 48, 24, '#05030f'); frect(g, x, y, 48, 24, pal[0]); frect(g, x + 1, y + 1, 46, 22, pal[1]); frect(g, x + 1, y + 1, 46, 1, pal[2]); }
       Icons.draw(g, N.icon, x + 2, y + 5);
       const two = FIXSIMS_NX_LINES[id];
       if (two) { drawText(g, two[0], x + 16, y + 5, { font: 'tiny', color: '#fffaf0' }); drawText(g, two[1], x + 16, y + 12, { font: 'tiny', color: '#fffaf0' }); }
@@ -42317,22 +42320,37 @@ const Sim01 = makeSim({
     const pY = Y0 + 34;
     Charts.flow(g, [[X0 + 123, Y0 + 26], [X0 + 123, pY - 10], [X0 + 170, pY - 10]], 'seawater', c.q / 100, 3);
     // coagulación
-    frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48'); frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); frect(g, X0 + 174, pY - 14, 46, 2, '#56c8e8'); g.globalAlpha = clamp(turbIn / 50, 0, 0.6) * 0.75; frect(g, X0 + 174, pY - 14, 46, 30, '#a07a3a'); g.globalAlpha *= 0.5; frect(g, X0 + 174, pY + 2, 46, 14, '#7a5420'); g.globalAlpha = 1;
+    if (typeof R3MAPUI !== 'undefined') { R3MAPUI.basin(g, X0 + 172, pY - 22, 50, 40); frect(g, X0 + 174, pY - 18, 46, 4, '#3a3430'); }
+    else frect(g, X0 + 172, pY - 22, 50, 40, '#1d2a48');
+    frect(g, X0 + 174, pY - 14, 46, 30, '#1283bf'); frect(g, X0 + 174, pY - 14, 46, 2, '#56c8e8');
+    if (typeof R3MAPUI !== 'undefined') { for (let j = 0; j < 30; j += 3) frect(g, X0 + 174, pY - 14 + j, 46, 1, mixHex('#1283bf', '#0a4a7a', j / 30)); frect(g, X0 + 176 + Math.round((Game.time * 6) % 30), pY - 12, 8, 1, '#a6f4ff'); } g.globalAlpha = clamp(turbIn / 50, 0, 0.6) * 0.75; frect(g, X0 + 174, pY - 14, 46, 30, '#a07a3a'); g.globalAlpha *= 0.5; frect(g, X0 + 174, pY + 2, 46, 14, '#7a5420'); g.globalAlpha = 1;
     for (let i = 0; i < 12; i++) { const fx = X0 + 176 + (i * 13 + Game.time * 8) % 42, fy = pY - 10 + (i * 7) % 24; fdisc(g, fx, fy, 1 + c.coag * 1.5, '#c8a860'); }
     drawText(g, 'COAGULACIÓN', X0 + 197, pY - 30, { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.flow(g, [[X0 + 222, pY], [X0 + 240, pY]], 'seawater', c.q / 100, 3);
     // filtro con capas que se ensucian
     const fx0 = X0 + 242, fy0 = pY - 26, fw = 44, fh = 120;
-    frect(g, fx0, fy0, fw, fh, '#477a94'); frect(g, fx0 + 3, fy0 + 3, fw - 6, fh - 6, '#0a1838');
-    frect(g, fx0 + 3, fy0 + 40, fw - 6, 26, '#2a2a3a'); frect(g, fx0 + 3, fy0 + 66, fw - 6, 40, '#e4c088');
-    for (let i = 0; i < 40; i++) fpx(g, fx0 + 4 + (i * 7) % (fw - 8), fy0 + 67 + (i * 11) % 38, '#c49860');
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) {
+      // r3-mapui: recipiente de acero iluminado con lecho de antracita y arena granulares y agua sobrenadante
+      R3.vesselShell(g, fx0, fy0, fw, fh);
+      frect(g, fx0 + 3, fy0 + 3, fw - 6, fh - 6, '#000633');
+      for (let j = 0; j < 36; j++) frect(g, fx0 + 3, fy0 + 4 + j, fw - 6, 1, j < 2 ? '#56c8e8' : mixHex('#1a96c6', '#0e4a7a', j / 36));
+      g.drawImage(R3.granular(fw - 6, 26, ['#0c0c14', '#1a1a26', '#2a2a3a', '#40404e', '#5a5a6a', '#8a8a9a'], 3), fx0 + 3, fy0 + 40);
+      g.drawImage(R3.granular(fw - 6, 40, ['#8a5a2a', '#b07a3e', '#c89858', '#e4c088', '#f2d8a4', '#fff0c8'], 5), fx0 + 3, fy0 + 66);
+      g.drawImage(R3.granular(fw - 6, fh - 109, ['#3a3a3a', '#5a5450', '#7a7068', '#a09488', '#c8bcae'], 7), fx0 + 3, fy0 + 106);
+      g.globalAlpha = 0.35; frect(g, fx0 + 3 + Math.round((fw - 6) * 0.25), fy0 + 4, 1, fh - 8, '#e6fdff'); g.globalAlpha = 1;
+    } else {
+      frect(g, fx0, fy0, fw, fh, '#477a94'); frect(g, fx0 + 3, fy0 + 3, fw - 6, fh - 6, '#0a1838');
+      frect(g, fx0 + 3, fy0 + 40, fw - 6, 26, '#2a2a3a'); frect(g, fx0 + 3, fy0 + 66, fw - 6, 40, '#e4c088');
+      for (let i = 0; i < 40; i++) fpx(g, fx0 + 4 + (i * 7) % (fw - 8), fy0 + 67 + (i * 11) % 38, '#c49860');
+    }
     const dirt = clamp((this.dp - 0.3) / 1.2, 0, 1);
     // suciedad sin tramado: costra sólida que crece sobre el lecho + penetración como velo plano
     const cake = Math.round(1 + 9 * dirt);
     g.globalAlpha = 0.25 + dirt * 0.45; frect(g, fx0 + 3, fy0 + 40, fw - 6, Math.round(26 + 40 * dirt), '#5a3a1a'); g.globalAlpha = 1;
     frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, cake, '#6e4a1c'); frect(g, fx0 + 3, fy0 + 40 - cake, fw - 6, 1, '#a8742c'); frect(g, fx0 + 3, fy0 + 39, fw - 6, 1, '#4a2c12');
     if (this.backwashT > 0) for (let i = 0; i < 8; i++) fpx(g, fx0 + 6 + Math.random() * (fw - 12), fy0 + 10 + Math.random() * 30, '#c6fff2');
-    drawText(g, 'FILTRO', fx0 + fw / 2, fy0 - 8, { font: 'tiny', color: '#cfd6f0', align: 'center' });
+    drawText(g, 'FILTRO', fx0 + fw / 2, fy0 - (R3 ? 20 : 8), { font: 'tiny', color: '#cfd6f0', align: 'center' });
     Charts.gauge(g, fx0 + fw / 2, fy0 + fh + 22, 13, clamp(this.dp / 1.6, 0, 1), '#56e5ff', 'ΔP', fmt(this.dp, 2));
     Charts.flow(g, [[fx0 + fw, fy0 + fh - 10], [X0 + 310, fy0 + fh - 10]], r.treatable ? 'permeate' : 'brine', r.treatable ? 1 : 0.3, 3);
     // tanque de reserva
@@ -44292,7 +44310,7 @@ const Sim03 = makeSim({
       } else { // agua: profundidad según la distancia a la costa, fondo de arena en la orilla y cáusticas
         const depth = clamp((y - c) / (h * 0.8), 0, 1) + (vnoise(x * 0.02, y * 0.03, 7) - 0.5) * 0.12;
         // mar de fondo: ondulación larga y racimos de 3×2 un tono arriba o abajo (sin tramado)
-        let t = clamp(depth * 1.05 + Math.sin(x * 0.07 + y * 0.31 + vnoise(x * 0.03, y * 0.05, 8) * 5) * 0.035 + (hash2((x / 3) | 0, (y / 2) | 0, 12) - 0.5) * 0.07, 0, 0.999);
+        let t = clamp(depth * 1.05 + Math.sin(x * 0.07 + y * 0.31 + vnoise(x * 0.03, y * 0.05, 8) * 5) * 0.035 + (hash2((x / 3) | 0, (y / 2) | 0, 12) - 0.5) * 0.16, 0, 0.999);
         const shallow = depth < 0.22;
         if (shallow && Math.abs(Math.sin(x * 0.21 + Math.sin(y * 0.33) * 2) + Math.sin(y * 0.27 + Math.sin(x * 0.19) * 2)) < 0.12) t = Math.max(0, t - 0.14);
         d[i] = SEA[V.band(t, SEA.length, x, y, 0.04, 9)];
@@ -47668,12 +47686,24 @@ const Sim07 = makeSim({
     const cw = 15, base = y + 150;
     let curH = null;
     drawText(g, 'EXCEDENTE RENOVABLE (amarillo) Y STACKS (verde/rojo) · kW', x + 6, y + 4, { font: 'tiny', color: '#ffe14d' });
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) {
+      // r3-mapui: cielo del día detrás de las columnas (noche, amanecer, mediodía, atardecer) con sol y luna
+      const SKY = ['#0a1030', '#0a1030', '#0a1030', '#0e1640', '#1a2058', '#5a3a6a', '#c86a5a', '#3a6ab8', '#2a5ab8', '#2a62c0', '#2a6ac8', '#2a6ec8', '#2a6ec8', '#2a6ac8', '#2a62c0', '#2a5ab8', '#3a5aa8', '#a8506a', '#d0705a', '#5a3a6a', '#1a2058', '#0e1640', '#0a1030', '#0a1030'];
+      g.globalAlpha = 0.32;
+      for (let hh = 0; hh < 24; hh++) frect(g, x + 20 + hh * cw - 1, y + 14, cw, 138, SKY[hh]);
+      g.globalAlpha = 1;
+      const sx = x + 20 + 12 * cw + 5; g.drawImage(R2MAP.glow('#ffe14d', 8, 0.6), sx - 8, y + 18); fdisc(g, sx, y + 26, 4, '#ffe14d'); fdisc(g, sx - 1, y + 25, 2, '#fff6c0');
+      for (const hm of [1, 22]) { const mx = x + 20 + hm * cw + 5; fdisc(g, mx, y + 24, 3, '#e8e8ff'); fdisc(g, mx + 1, y + 23, 2, SKY[hm]); }
+    }
     for (let h = 0; h < 24; h++) {
       const cx = x + 20 + h * cw;
       const sh = Math.round(H2_SURPLUS[h] / 1000 * 120);
-      frect(g, cx, base - sh, cw - 3, sh, '#5a4a1a'); frect(g, cx, base - sh, cw - 3, 1, '#ffe14d');
+      if (R3) { R3.prism(g, cx, base - sh, cw - 3, sh, '#7a6420'); frect(g, cx, base - sh, cw - 3, 1, '#ffe14d'); }
+      else { frect(g, cx, base - sh, cw - 3, sh, '#5a4a1a'); frect(g, cx, base - sh, cw - 3, 1, '#ffe14d'); }
       const P = this.sched[h] * 300, ph = Math.round(P / 1000 * 120), rh = Math.round(Math.min(P, H2_SURPLUS[h]) / 1000 * 120);
-      if (P) { frect(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); frect(g, cx + 3, base - rh, cw - 9, rh, '#86e36f'); }
+      if (P && R3) { R3.prism(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); if (rh > 0) R3.prism(g, cx + 3, base - rh, cw - 9, rh, '#4cd48e'); }
+      else if (P) { frect(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); frect(g, cx + 3, base - rh, cw - 9, rh, '#86e36f'); }
       if (h % 3 === 0) drawText(g, String(h), cx, base + 4, { font: 'tiny', color: '#8a8fb8' });
       if (!this.done || this.phase === 'free') {
         if (Gui.button(g, 'hs' + h, cx, y + 16, cw - 2, 136, '', { noDraw: true, tip: h + ':00 · ' + this.sched[h] + ' stacks' })) { this.sched[h] = (this.sched[h] + 1) % 4; Audio2.sfx('ui'); }
@@ -48352,7 +48382,12 @@ const Sim08 = makeSim({
     row('SAR', fmt(b.sar, 1) + ' · riesgo de infiltración ' + fmt0(b.infil * 100) + ' %', b.infil < 0.3, yy + 58);
     // dibujo de suelo según infiltración
     const sx = x + 280, sy = y + 116;
-    frect(g, sx, sy, 110, 64, '#7a4e2e'); frect(g, sx, sy + 40, 110, 24, '#6a4228'); frect(g, sx, sy + 63, 110, 1, '#4a2c1a');
+    if (typeof R3MAPUI !== 'undefined') {
+      // r3-mapui: perfil de suelo ilustrado con raíces y piedras, y una fila de fríjoles encima (marchitos si hay estrés)
+      g.drawImage(R3MAPUI.soil(110, 64), sx, sy); frect(g, sx, sy + 63, 110, 1, '#2a160c');
+      const stress = (b.ec >= 1.0 || b.boron >= 0.75) ? 1 : 0;
+      for (let k = 0; k < 7; k++) R3MAPUI.crop(g, sx + 9 + k * 15, sy + 1, stress);
+    } else { frect(g, sx, sy, 110, 64, '#7a4e2e'); frect(g, sx, sy + 40, 110, 24, '#6a4228'); frect(g, sx, sy + 63, 110, 1, '#4a2c1a'); }
     const depth = Math.round((1 - b.infil) * 60);
     g.globalAlpha = 0.22; frect(g, sx, sy, 110, depth, '#56e5ff'); g.globalAlpha = 0.14; frect(g, sx, sy + Math.round(depth * 0.5), 110, depth - Math.round(depth * 0.5), '#2c8ad8'); g.globalAlpha = 1;
     if (b.infil > 0.3) { frect(g, sx, sy - 4, 110, 4, '#7fd0e8'); drawText(g, 'encharca', sx + 55, sy - 12, { font: 'tiny', align: 'center', color: '#ff9a8a' }); }

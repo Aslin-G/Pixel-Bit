@@ -257,9 +257,11 @@ const NexusSim = makeSim({
   partial() { const miss = this.req().find(k => !this.edges.some(e => e.key === k)); if (miss) { const [a, b] = miss.split('>'); this.addEdge(a, b); this.say('Te muestro una: ' + NX[a].label + ' → ' + NX[b].label + '.'); } },
   draw(g) {
     const X0 = 8, Y0 = 28, WW = 410, HH = 228;
-    // tablero tipo plano/mosaico
-    frect(g, X0, Y0, WW, HH, '#0a1838'); frect(g, X0 + 1, Y0 + 1, WW - 2, HH - 2, '#0e2048');
-    for (let x = X0 + 8; x < X0 + WW; x += 16) for (let y = Y0 + 8; y < Y0 + HH; y += 16) fpx(g, x, y, '#1d346c');
+    // tablero tipo plano/mosaico — r3-mapui: la isla de Aridia vista desde arriba, atenuada, bajo la rejilla de plano
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    frect(g, X0, Y0, WW, HH, '#0a1838');
+    if (R3) g.drawImage(R3.boardMap(WW - 2, HH - 2, this.phase === 'transfer' ? 7 : 3), X0 + 1, Y0 + 1);
+    else { frect(g, X0 + 1, Y0 + 1, WW - 2, HH - 2, '#0e2048'); for (let x = X0 + 8; x < X0 + WW; x += 16) for (let y = Y0 + 8; y < Y0 + HH; y += 16) fpx(g, x, y, '#1d346c'); }
     frect(g, X0, Y0, WW, 1, '#56e5ff'); frect(g, X0, Y0 + HH - 1, WW, 1, '#1d346c');
     const med = this.phase === 'transfer';
     drawText(g, med ? 'RANCHERÍA LOS MÉDANOS' : 'SYNARA · ARIDIA', X0 + 6, Y0 + 4, { font: 'tiny', color: '#56e5ff' });
@@ -300,7 +302,8 @@ const NexusSim = makeSim({
       const x = N.x - 24, y = N.y - 12;
       const sel = this.sel === id;
       const pal = N.decoy ? ['#141626', '#1c1f34', '#4a4e70'] : sel ? ['#6a3e0e', '#9a5e12', '#ffe14d'] : ['#121736', '#1d346c', '#56e5ff'];
-      frect(g, x, y + 1, 48, 24, '#05030f'); frect(g, x, y, 48, 24, pal[0]); frect(g, x + 1, y + 1, 46, 22, pal[1]); frect(g, x + 1, y + 1, 46, 1, pal[2]);
+      if (R3) R3.nodeTile(g, x, y, 48, 24, pal);
+      else { frect(g, x, y + 1, 48, 24, '#05030f'); frect(g, x, y, 48, 24, pal[0]); frect(g, x + 1, y + 1, 46, 22, pal[1]); frect(g, x + 1, y + 1, 46, 1, pal[2]); }
       Icons.draw(g, N.icon, x + 2, y + 5);
       const two = FIXSIMS_NX_LINES[id];
       if (two) { drawText(g, two[0], x + 16, y + 5, { font: 'tiny', color: '#fffaf0' }); drawText(g, two[1], x + 16, y + 12, { font: 'tiny', color: '#fffaf0' }); }
