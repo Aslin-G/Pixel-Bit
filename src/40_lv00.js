@@ -414,9 +414,9 @@ LEVELS[0] = {
   /* ---------------- plano jugable con kit PF ---------------- */
   pf: {
     terrain: [
-      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
-      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false },
-      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58 },
+      { x0: 0, x1: 1490, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true }, // r3-coast: aljibe iluminado en corte bajo la calle
+      { x0: 1490, x1: 1650, surf: 'meadow', face: 'plazaWall', depth: 18, wallH: 58, path: false, r3cut: true },
+      { x0: 1650, x1: 2120, surf: 'plaza', face: 'plazaWall', depth: 22, wallH: 58, r3cut: true },
       { x0: 2120, x1: 2500, surf: 'path', face: 'cliff', depth: 16 },
     ],
     /** Oclusores del primer plano (f 1,3): buganvillas y macetones en los bordes, guirnaldas arriba */
@@ -651,6 +651,8 @@ LEVELS[0] = {
       }
     }
     PFDyn.wallLamps(g, sc, cam, S.dark ? 0.9 : 0.35);
+    // r3-coast: aljibe en corte (faroles, reflejos y caños animados; los faroles se apagan con el apagón)
+    if (typeof R3COAST_Cistern !== 'undefined') R3COAST_Cistern.draw(g, sc, cam, !S.dark);
     // confeti durante la celebración
     if (S.party > 0 && Math.random() < 0.6) sc.world.ps.emit('confetti', cam.x + Math.random() * W, cam.y - 4, 0, 30, 1);
   },

@@ -341,6 +341,7 @@ const R2TERRAIN_Urban = (() => {
   /* ---------------- vegetación y objetos del muro ---------------- */
   function wallPost(pb, world, s) {
     const R = s._r2u; if (!R) return;
+    if (s.r3cut && typeof R3COAST_Cistern !== 'undefined') R3COAST_Cistern.paint(pb, world, s, R); // r3-coast: aljibe en corte
     const r = RNG((s.seed | 0) * 17 + 3), gyAt = (x) => Math.round(world.ground[clamp(Math.round(x), 0, world.w)]);
     const inSeg = (x) => x >= s.x0 + 4 && x < s.x1 - 4;
     const LF = ['#0e1c0a', '#1a3414', '#2a4f1e', '#3f6a26', '#5f8a2c', '#86ac3a'].map(U), BR = RAMP.bougainR.concat(['#ff8ad0']).map(U);
@@ -374,10 +375,181 @@ const R2TERRAIN_Urban = (() => {
     }
     // matas en las juntas del adoquinado y al pie del muro
     for (let x = s.x0 + 6 + r.int(0, 20); x < s.x1 - 6; x += 18 + r.int(0, 40)) {
-      const gy = gyAt(x), y = gy + R.wallH + R.gut + 6 + r.int(4, 60); if (y > world.h - 4) continue;
+      const gy = gyAt(x), y = gy + R.wallH + R.gut + 6 + (s.r3cut ? r.int(0, 2) : r.int(4, 60)); if (y > world.h - 4) continue;
       if (r() < 0.6) PFFlora.tuft(pb, x, y, 4 + r() * 4, 3 + r() * 4, x + y, RAMP.grassR);
       else if (r() < 0.5) PFFlora.flowerPatch(pb, x, y, 5, x * 3 + y);
     }
   }
   return { shade, wall, wallPix, wallPost, layout, ASHLAR, KERB, COBW };
+})();
+
+/* =====================================================================
+   r3-coast · R3COAST_Cistern — corte iluminado de ALJIBE bajo la plaza
+   (opcional por tramo 'plazaWall': s.r3cut = true | {zc, seed}).
+   Bajo el bordillo y una hilada de adoquín, la tierra se abre en sección:
+   franja de tierra con raíces, bóvedas de ladrillo sobre pilares de
+   sillería, interior cálido iluminado por faroles, láminas de agua
+   turquesa con reflejos, tubería con válvulas, hornacinas con velas,
+   musgo en la línea de agua. Además, algunos arcos ciegos del muro se
+   abren a una galería iluminada con canal de agua.
+   Anclas dinámicas en s._r3cut = {lamps, spouts, pools, galleries}.
+   R3COAST_Cistern.paint(pb, world, s, R) · R3COAST_Cistern.draw(g, sc, cam, on)
+   ===================================================================== */
+const R3COAST_Cistern = (() => {
+  const K = PFK;
+  const P = (a) => a.map(U);
+  const BRICK = P(['#2a0e08', '#4a1a10', '#6e2a18', '#923c20', '#b4542a', '#d07038', '#e8925a', '#f6b884']);
+  const STONE = P(['#24161a', '#3a2a2a', '#5a463e', '#7a6452', '#9a8268', '#b8a080', '#d2bc9a', '#ecd8b8']);
+  const WAT = P(['#062a48', '#0a4a70', '#0f7aa0', '#14a4c4', '#1ec8d8', '#5ee8ee', '#c8fbff']);
+  const IN = P(['#140a12', '#20121a', '#2e1a1e', '#422620', '#5e3624', '#80502e', '#a8703c', '#d29a52', '#f4c878']);
+  const SOIL = P(['#1e120c', '#2e1c12', '#44291a', '#5c3a24']);
+  const ROOT = P(['#2a1a0e', '#4a3018', '#6a4826', '#8a6434']);
+  const MOSS = P(['#1e3a14', '#2e5a1c', '#4a7a26', '#6e9a34', '#9cc048']);
+  const PIPE = P(['#0c2a30', '#145058', '#1e7a80', '#3aa8aa', '#8adcd4']);
+  const VALV = P(['#4a0a10', '#a01c24', '#e0383a', '#ff8a6a']);
+  function paint(pb, world, s, R) {
+    const o = typeof s.r3cut === 'object' ? s.r3cut : {};
+    const zc = o.zc ?? 7, seed = (o.seed ?? s.wallSeed ?? 7) | 0, r = RNG(seed * 7 + 5);
+    const gyAt = (x) => Math.round(world.ground[clamp(Math.round(x), 0, world.w)]);
+    const H = world.h, put = (x, y, u) => { if (y >= 0 && y < H) K.put(pb, x, y, u); };
+    const A = { lamps: [], spouts: [], pools: [], galleries: [] };
+    const x0 = Math.ceil(s.x0), x1 = Math.floor(s.x1);
+    // bóvedas: anchos 52–76 con pilares de 12–16, en coordenadas de mundo (casan entre tramos)
+    const vaults = [];
+    for (let x = x0 - 30 - ((x0 * 7) % 40); x < x1 + 40;) {
+      const pw = 12 + Math.floor(hash1(x, seed + 1) * 5), vw = 52 + Math.floor(hash1(x, seed + 2) * 25);
+      vaults.push({ p0: x, p1: x + pw, v0: x + pw, v1: x + pw + vw, cx: x + pw + vw / 2, ri: vw / 2 - 5, lamp: hash1(x, seed + 3) < 0.75, spout: hash1(x, seed + 4) < 0.35, niche: hash1(x, seed + 5) < 0.5, valve: hash1(x, seed + 6) < 0.6, id: vaults.length });
+      x += pw + vw;
+    }
+    let vi = 0;
+    for (let x = x0; x < x1; x++) {
+      while (vi < vaults.length - 1 && x >= vaults[vi + 1].p0) vi++;
+      const V = vaults[vi], gy = gyAt(x), yS = gy + R.wallH + 2 + R.gut + zc;
+      if (yS >= H) continue;
+      const crown = yS + 6, spring = crown + V.ri, wl = spring + 13;
+      const inPier = x < V.p1;
+      for (let y = yS; y < H; y++) {
+        const d = y - yS;
+        let u;
+        if (d < 5) {
+          // franja de tierra con guijarros (el adoquín de arriba descansa en ella)
+          u = SOIL[clamp(2 - (d === 4 ? 1 : 0) + (hash2(x >> 1, y, seed + 9) < 0.12 ? 1 : 0) - (d === 0 ? 1 : 0), 0, 3)];
+          if (hash2(x, y, seed + 10) < 0.04) u = STONE[5];
+        } else if (inPier) {
+          // pilar de sillería: hiladas de 7 px, juntas, arista izquierda al sol, sombra a la derecha
+          const px = x - V.p0, pw = V.p1 - V.p0, course = Math.floor((d - 5) / 7), jy = (d - 5) % 7 === 0;
+          const jx = (px + (course & 1) * 6) % 12 === 0;
+          let k = 4 + (px < 2 ? 2 : px >= pw - 2 ? -2 : 0) + (jy || jx ? -2 : 0) + (hash2(course, V.id, seed + 11) - 0.5) * 1.4 - Math.max(0, d - 40) * 0.03;
+          u = STONE[clamp(Math.round(k), 0, 7)];
+          if (y > wl - 3 && y < wl + 4) u = K.mixU(u, MOSS[1 + (hash2(x, y, 12) < 0.5 ? 1 : 0)], 0.75); // musgo en la línea de agua
+          if (y >= wl + 4) u = K.mixU(u, WAT[1], 0.45);
+        } else {
+          const ax = x - V.cx, ay = y - spring, rr = Math.hypot(ax, Math.min(0, ay));
+          const inside = ay < 0 ? rr < V.ri : Math.abs(ax) < V.ri;
+          const ring = !inside && (ay < 0 ? rr < V.ri + 5 : Math.abs(ax) < V.ri + 5);
+          if (ring) {
+            // dovelas de ladrillo (juntas radiales) y jambas
+            const ang = Math.atan2(Math.min(0, ay), ax), seg = Math.floor((ang + Math.PI) / 0.2), jr = ay < 0 ? Math.abs((ang + Math.PI) / 0.2 - Math.round((ang + Math.PI) / 0.2)) < 0.12 : (d % 5 === 0);
+            const edge = ay < 0 ? rr - V.ri : Math.abs(ax) - V.ri;
+            let k = 5 - (edge > 3.5 ? 1 : 0) + (edge < 1 ? 1 : 0) + (jr ? -3 : 0) + (hash2(seg, V.id, seed + 13) - 0.5) * 1.6 + (ax < 0 ? 0.6 : -0.8);
+            u = BRICK[clamp(Math.round(k), 0, 7)];
+            if (y >= wl + 2) u = K.mixU(u, WAT[2], 0.5);
+          } else if (!inside) {
+            // enjuta de sillería entre el anillo y la tierra
+            const course = Math.floor((d - 5) / 6), jy = (d - 5) % 6 === 0, jx = ((x + course * 9) % 16) === 0;
+            u = STONE[clamp(Math.round(3 + (jy || jx ? -2 : 0) + (hash2(course, x >> 4, seed + 14) - 0.5) * 1.4), 0, 7)];
+          } else if (y < wl) {
+            // interior cálido: farol colgado en la clave; fondo de ladrillo tenue
+            const lx = V.cx, ly = crown + 9, dl = Math.hypot((x - lx) * 0.8, y - ly);
+            let k = V.lamp ? 7.6 - dl * 0.24 : 2.2 - d * 0.01;
+            if ((d % 5 === 0) || ((x + Math.floor(d / 5) * 4) % 9 === 0)) k -= 0.9;
+            k += (hash2(x >> 1, y >> 1, seed + 15) - 0.5) * 0.5;
+            u = IN[clamp(Math.round(k), 0, 8)];
+          } else {
+            // lámina de agua turquesa: línea de superficie clara, bandas, reflejo del farol
+            const q = y - wl;
+            let k = q === 0 ? 6 : q === 1 ? 5 : 4 - Math.floor(q / 6) + (Math.sin(x * 0.35 + q * 1.3) > 0.82 ? 1 : 0);
+            if (V.lamp && Math.abs(x - V.cx) < 3 && q > 1 && q % 2 === 0) u = U('#f4d070');
+            else u = WAT[clamp(k, 0, 6)];
+          }
+        }
+        put(x, y, u);
+      }
+    }
+    // tubería corrida con bridas en los pilares y válvulas; hornacinas con vela; raíces; caños
+    for (const V of vaults) {
+      if (V.v0 > x1 || V.v1 < x0) continue;
+      const gy = gyAt(V.cx), yS = gy + R.wallH + 2 + R.gut + zc; if (yS >= H - 10) continue;
+      const crown = yS + 6, spring = crown + V.ri, wl = spring + 13, py = spring + 4;
+      for (let x = Math.max(x0, V.p0); x < Math.min(x1, V.v1); x++) for (let k = 0; k < 4; k++) put(x, py + k, PIPE[[3, 4, 2, 0][k]]);
+      for (let k = -2; k < 6; k++) { put(V.p1 - 1, py + k, PIPE[1]); put(V.p1, py + k, PIPE[3]); }
+      if (V.valve && V.p0 >= x0 && V.p1 < x1) {
+        const vx = V.p0 + ((V.p1 - V.p0) >> 1), vy = py - 6;
+        for (let k = 0; k < 6; k++) put(vx, vy + k, PIPE[0]);
+        for (let a = 0; a < 16; a++) { const an = a / 16 * TAU; put(Math.round(vx + Math.cos(an) * 4), Math.round(vy + Math.sin(an) * 3), VALV[a < 8 ? 2 : 1]); }
+        put(vx - 1, vy - 3, VALV[3]); put(vx, vy, VALV[3]); put(vx + 1, vy + 1, VALV[1]);
+      }
+      if (V.niche && V.p0 >= x0 && V.p1 < x1) {
+        const nx = V.p0 + 3, ny = yS + 9, nw = V.p1 - V.p0 - 6;
+        for (let y = ny; y < ny + 10; y++) for (let x = nx; x < nx + nw; x++) { const top = y - ny < 2 && (x === nx || x === nx + nw - 1); if (top) continue; put(x, y, IN[clamp(7 - Math.round(Math.hypot(x - nx - nw / 2, y - ny - 6) * 0.9), 1, 8)]); }
+        put(nx + (nw >> 1), ny + 7, U('#fff2c0')); put(nx + (nw >> 1), ny + 8, U('#f4e0b0')); put(nx + (nw >> 1), ny + 6, U('#ffb040'));
+        A.lamps.push([nx + (nw >> 1), ny + 6, 4]);
+      }
+      if (V.lamp) {
+        for (let y = crown; y < crown + 6; y++) put(Math.round(V.cx), y, U('#2a1a14'));
+        for (let y = crown + 6; y < crown + 11; y++) for (let x = Math.round(V.cx) - 2; x <= Math.round(V.cx) + 2; x++) put(x, y, (y === crown + 6 || y === crown + 10) ? U('#3a2a20') : (Math.abs(x - V.cx) < 1.5 ? U('#fff0b0') : U('#f0b048')));
+        A.lamps.push([Math.round(V.cx), crown + 8, 9]);
+      }
+      // raíces que cuelgan de la franja de tierra en la clave
+      for (let k = 0; k < 4; k++) {
+        let xx = Math.round(V.cx - V.ri * 0.7 + hash1(V.id * 4 + k, seed + 17) * V.ri * 1.4); const L = 3 + Math.floor(hash1(V.id * 4 + k, seed + 18) * 10);
+        for (let q = 0; q < L; q++) { if (hash2(xx, q, 19) < 0.2) xx += hash2(xx, q, 20) < 0.5 ? -1 : 1; const yy = yS + 5 + q; put(xx, yy, ROOT[q < 2 ? 2 : q % 3 === 0 ? 0 : 1]); }
+      }
+      // caño de la acequia que vierte en el aljibe (anima en draw)
+      if (V.spout) { const sx = Math.round(V.cx + V.ri * 0.45); for (let y = yS + 1; y < crown + 4; y++) { put(sx - 1, y, STONE[6]); put(sx + 2, y, STONE[2]); put(sx, y, WAT[4]); put(sx + 1, y, WAT[3]); } A.spouts.push([sx, crown + 4, wl]); }
+      A.pools.push([Math.max(x0, V.v0), Math.min(x1, V.v1), wl]);
+      // musgo y helechos en los arranques
+      for (const ex of [V.v0, V.v1 - 1]) for (let k = 0; k < 5; k++) put(ex + (ex === V.v0 ? k % 2 : -(k % 2)), wl - 1 - k, MOSS[2 + (k & 1)]);
+    }
+    // galerías: algunos arcos ciegos del muro (kind 1) se abren a un interior iluminado con canal de agua
+    for (const b of R.LY.bays) {
+      if (b.kind !== 1) continue; const cx = Math.round(b.cx); if (cx < x0 + 20 || cx > x1 - 20) continue;
+      const gy = gyAt(cx), ar = b.ar - 3, ys = 10 + b.ar, bot = R.LY.plinth - 1;
+      for (let x = cx - ar; x <= cx + ar; x++) for (let d = ys - ar; d < bot; d++) {
+        const ax = x - cx, ay = d - ys; if (ay < 0 && Math.hypot(ax, ay) >= ar) continue;
+        const y = gy + d, dl = Math.hypot(ax * 0.9, d - (ys - ar * 0.4));
+        let u = IN[clamp(Math.round(7.8 - dl * 0.26 + (hash2(x >> 1, y >> 1, seed + 21) - 0.5) * 0.6 - (((d % 5) === 0) ? 0.8 : 0)), 0, 8)];
+        if (d >= bot - 5) u = d === bot - 5 ? WAT[6] : WAT[clamp(5 - (bot - 1 - d), 2, 5)];        // canal
+        else if (d >= bot - 9 && d < bot - 6 && Math.abs(ax) < ar - 1) u = PIPE[[3, 4, 1][d - bot + 9]]; // tubería del fondo
+        put(x, y, u);
+      }
+      // farol en la clave y válvula roja en la tubería
+      const ly = gy + ys - ar + 4;
+      for (let y = gy + ys - ar; y < ly; y++) put(cx, y, U('#2a1a14'));
+      for (let y = ly; y < ly + 4; y++) for (let x = cx - 1; x <= cx + 1; x++) put(x, y, x === cx ? U('#fff0b0') : U('#f0b048'));
+      const vx = cx + Math.round(ar * 0.5), vy = gy + bot - 11; for (let a = 0; a < 12; a++) { const an = a / 12 * TAU; put(Math.round(vx + Math.cos(an) * 3), Math.round(vy + Math.sin(an) * 2), VALV[a < 6 ? 2 : 1]); }
+      A.lamps.push([cx, ly + 2, 8]); A.galleries.push([cx - ar + 1, cx + ar - 1, gy + bot - 5]);
+    }
+    s._r3cut = A;
+    return A;
+  }
+  /** Dinámico: faroles que titilan, reflejos que corren en las láminas, chorros que caen */
+  function draw(g, sc, cam, on = true) {
+    const t = Game.time, segs = (sc.def.pf && sc.def.pf.terrain) || [];
+    for (const s of segs) {
+      const A = s._r3cut; if (!A) continue;
+      if (on) for (const [x, y, rr] of A.lamps) { const sx = x - cam.x, sy = y - cam.y; if (sx < -20 || sx > W + 20 || sy > H + 20 || sy < -20) continue; K.drawGlow(g, sx + 0.5, sy + 0.5, rr, '#ffc060', 0.34 + 0.08 * Math.sin(t * 7 + x)); }
+      g.fillStyle = '#c8fbff';
+      for (const [a, b, y] of A.pools.concat(A.galleries)) {
+        const sy = y - cam.y; if (sy < 0 || sy > H) continue;
+        for (let k = 0; k < 3; k++) { const X = a + ((t * 14 + k * 23 + a) % Math.max(1, b - a)); const sx = Math.round(X - cam.x); if (sx < 0 || sx > W) continue; g.fillRect(sx, sy + 1 + k, 3, 1); }
+      }
+      for (const [x, y0, y1] of A.spouts) {
+        const sx = x - cam.x; if (sx < -4 || sx > W + 4) continue;
+        for (let y = y0; y < y1; y++) { const ph = (y - t * 70) % 8; g.fillStyle = ph < -5 || (ph > 0 && ph < 3) ? '#e6fdff' : '#3adcf1'; g.fillRect(sx, y - cam.y, 2, 1); }
+        g.fillStyle = '#ffffff'; for (let i = 0; i < 3; i++) { const ph = (t * 2 + i / 3) % 1; g.fillRect(Math.round(sx - 2 + i * 2 + ph * 2), Math.round(y1 - cam.y - ph * 3), 1, 1); }
+      }
+    }
+  }
+  return { paint, draw };
 })();
