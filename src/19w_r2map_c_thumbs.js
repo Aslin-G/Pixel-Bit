@@ -109,8 +109,21 @@ function R3THUMB_rotor(pb, hx, hy, R, ang, k = 0) {
       // mar lejano con el reflejo del sol y el emisario
       sea(pb, 58, 70, { stops: ['#f8c0a0', '#e09aa0', '#a87aa8', '#6a6aa8', '#4a5a9a', '#3a4a8a', '#34428a', '#2e3a80'] });
       for (let x = 132; x < 172; x++) if (hash2(x >> 1, 1, 5) < 0.6) V.put(pb, x, 62 + (x % 3), U('#ffe0b0'));
-      // salinas en terrazas (rosa → blanco según concentración), con muretes iluminados
-      if (V.r2baPans) V.r2baPans(pb, { x0: 30, x1: 186, y0: 70, rows: 4, seed: 5, k: 0, sky: '#f8c0a0', skew: 4 });
+      // llano salino cálido y salinas en perspectiva: de turquesa (agua de mar) a rosa (salmuera) y blanco (sal)
+      ground(pb, () => 70, ['#6a3a4a', '#8a4a50', '#b0645a', '#d08a6a', '#e8ac80', '#f6cc9c'], { depth: 60, rim: '#ffe0b0' });
+      const POND = [['#2a8a94', '#46b4b4', '#8ad8d0'], ['#7a5a8a', '#b07aa0', '#e0a8c0'], ['#c84a7a', '#e87aa8', '#ffb8d0'], ['#d8b8c8', '#f4e0ea', '#ffffff']];
+      for (let r = 0; r < 4; r++) {
+        const y0 = 72 + r * 10 + r * r, ph = 7 + r * 2, n = 3 + (r > 1 ? 1 : 0);
+        for (let c = 0; c < n; c++) {
+          const pw = Math.round((150 - r * 6) / n) - 4, x0 = 22 + c * (pw + 5) - r * 6 + (r % 2) * 3, P = POND[(c + r) % 4];
+          for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+            const edge = y === 0 || x === 0, low = y === ph - 1 || x === pw - 1;
+            V.put(pb, x0 + x, y0 + y, U(edge ? '#fff0d8' : low ? '#7a4a4a' : (y < 2 ? P[2] : (x + y * 3) % 23 === 0 ? P[2] : y < ph / 2 ? P[1] : P[0])));
+          }
+          // reflejo del sol poniente en cada balsa
+          for (let x = 4; x < pw - 4; x += 3) V.put(pb, x0 + x, y0 + 2, U('#ffe6c0'));
+        }
+      }
       // pila de sal y casa de bombas en 3/4
       V.poly(pb, [[132, 96], [150, 74], [170, 96]], U('#fff6fa')); V.poly(pb, [[150, 74], [170, 96], [154, 96]], U('#d8bcd8')); V.poly(pb, [[150, 74], [140, 86], [146, 86]], U('#ffffff'));
       for (let y = 0; y < 14; y++) for (let x = 0; x < 20; x++) V.put(pb, 176 + x, 84 + y, U(y < 3 ? (x < 10 ? '#f4d0a0' : '#c89070') : x < 14 ? (y % 5 === 4 ? '#a87a5a' : '#e8c09a') : '#8a5a48'));
@@ -122,7 +135,8 @@ function R3THUMB_rotor(pb, hx, hy, R, ang, k = 0) {
       range(pb, 123, [{ x: -6, v: 10, h: 100, w: 30, d: 14, k: 0.7 }], CAN, { rim: '#ffd8a0', seed: 8, nv: 24, dvy: 0.6 });
       if (V.saltVeins) V.saltVeins(pb, { seed: 3, k: 0, col: '#fff2f8', every: 9, y0: 20, y1: 123 });
       // flamencos en las balsas
-      for (const [fx, fy] of [[70, 84], [82, 86], [104, 92], [116, 80]]) { V.rect(pb, fx, fy - 6, 3, 3, U('#ff7aa8')); V.put(pb, fx + 3, fy - 8, U('#ff9ac0')); V.put(pb, fx + 3, fy - 9, U('#ff9ac0')); V.put(pb, fx + 4, fy - 9, U('#2a1a2a')); V.put(pb, fx + 1, fy - 3, U('#c84a7a')); V.put(pb, fx + 1, fy - 2, U('#c84a7a')); V.put(pb, fx, fy - 6, U('#ffc0d8')); }
+      // flamencos (a 3×: cuerpo 7×4, cuello y patas) en las balsas
+      for (const [fx, fy] of [[60, 98], [76, 100], [98, 112], [114, 96]]) { V.ellipse(pb, fx, fy - 9, 4, 2.6, (nx, ny) => U(nx + ny < -0.3 ? '#ffc0d8' : nx + ny < 0.5 ? '#ff7aa8' : '#c84a7a')); V.line(pb, fx + 3, fy - 10, fx + 5, fy - 17, () => U('#ff9ac0')); V.rect(pb, fx + 5, fy - 18, 2, 2, U('#ff9ac0')); V.put(pb, fx + 7, fy - 17, U('#2a1a2a')); V.line(pb, fx, fy - 7, fx, fy, () => U('#c84a7a')); V.line(pb, fx + 2, fy - 7, fx + 2, fy, () => U('#a83a6a')); }
       // salicornia y juncos en primer plano
       if (V.reeds) V.reeds(pb, 40, 140, 122, { seed: 7, h: 12, density: 0.6 });
       for (let k = 0; k < 18; k++) { const x = 34 + k * 8, y = 118 + (k % 3); V.shrub(pb, x, y, 2 + (k % 2), k + 40, { ramp: ['#2a1a1a', '#5a2a2a', '#8a3a3a', '#b05a4a', '#d07a5a'] }); }
@@ -141,7 +155,14 @@ function R3THUMB_rotor(pb, hx, hy, R, ang, k = 0) {
       V.tracker(pb, 62, 102, 86, { rows: 3, ch: 6, cw: 8, tilt: 14 });
       V.tracker(pb, -14, 122, 118, { rows: 4, ch: 8, cw: 11, tilt: 18 });
       // luz de borde del sol bajo: destellos dorados en los marcos de los módulos
-      for (let y = 60; y < SH; y++) for (let x = 0; x < SW; x++) { const u = pb.data[y * SW + x], b = (u >>> 16) & 255, r = u & 255; if (b > 150 && r < 120 && hash2(x, y, 8) < 0.06) pb.data[y * SW + x] = U('#ffd890'); }
+      // módulos: rejilla gruesa (sobrevive a la reducción 3:1) y reflejo cálido del cielo del ocaso arriba
+      for (let y = 66; y < SH; y++) for (let x = 0; x < SW; x++) {
+        const i = y * SW + x, u = pb.data[i], b = (u >>> 16) & 255, gg = (u >>> 8) & 255, r = u & 255;
+        if (!(b > r + 30 && b > 90)) continue;
+        if (((x + Math.round(y * 0.45)) % 12) < 2 || (y % 9) < 2) pb.data[i] = V.mixU(u, U('#d8e8ff'), 0.55);
+        else pb.data[i] = V.mixU(u, U(y < 96 ? '#f0907a' : '#6a7ad8'), y < 96 ? 0.3 : 0.12);
+        if (hash2(x >> 1, y >> 1, 8) < 0.025) pb.data[i] = U('#ffe6a8');
+      }
       // primer plano: pita, cardón y matas
       if (V.agave) V.agave(pb, 196, 120, 10, 3, {});
       if (V.cardon) V.cardon(pb, 172, 122, 20, 4, {});
