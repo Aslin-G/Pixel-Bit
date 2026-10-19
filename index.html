@@ -3322,50 +3322,78 @@ UIK.island = function (seed = 1) {
   }, 40);
 };
 UIK._mmCache = new Map();
+/* r3-mapui: menos nodos y más grandes (iconos de 16 px sobre islas de 18 px), cada uno con su anillo de
+   neón de 1 px al 50 % y halo en el color de su sistema, y enlaces en cadena (eslabones ovalados que
+   alternan de orientación) como el minimapa de la referencia. Coordenadas en el espacio 96×62 del panel. */
+const R3MAPUI_MMNODES = [
+  { id: 'solar', levels: [4], icon: 'sun', ring: '#ffd23a', x: 16, y: 31 },
+  { id: 'bess', levels: [6], icon: 'battery', ring: '#b6f05a', x: 50, y: 16 },
+  { id: 'wind', levels: [5], icon: 'turbine', ring: '#9fe6ff', x: 82, y: 19 },
+  { id: 'h2', levels: [7], icon: 'h2', ring: '#40d0d4', x: 84, y: 46 },
+  { id: 'agro', levels: [8], icon: 'plant', ring: '#4ccb70', x: 52, y: 50 },
+  { id: 'water', levels: [1, 2, 3], icon: 'water', ring: '#56e5ff', x: 18, y: 54 },
+  { id: 'core', levels: [0, 9, 10], icon: 'mosaic', ring: '#b49cff', x: 0, y: 0, hidden: true },
+];
+const R3MAPUI_MMLINKS = [['solar', 'bess'], ['bess', 'wind'], ['wind', 'h2'], ['h2', 'agro'], ['agro', 'water'], ['water', 'solar']];
+UIK._r3mmCache = new Map();
+/** Isla grande 22×13 para el minimapa: tapa de pradera, roca cálida en cono, raíz violeta */
+UIK.r3island = function (seed = 1, ring = '#56e5ff') {
+  return _cacheGet(UIK._r3mmCache, 'isl|' + seed + '|' + ring, () => {
+    const pb = new PixelBuffer(22, 14), r = RNG(seed * 31 + 7);
+    for (let y = 4; y < 14; y++) { const hw = Math.round(10 - (y - 4) * 1.05 + r.range(-0.5, 0.5)); for (let x = 11 - hw; x < 11 + hw; x++) pb.set(x, y, y < 6 ? '#a24a1f' : (x < 11 - hw + 2 ? '#d07530' : y > 10 ? '#3e2448' : (x + y) % 4 === 0 ? '#602212' : '#813417')); }
+    for (let x = 1; x < 21; x++) { const t = 1 + Math.round(Math.sin(x * 0.8 + seed) * 0.6); for (let y = t; y < 6; y++) pb.set(x, y, y === t ? '#bfd52c' : y === t + 1 ? '#7b981a' : '#597611'); }
+    pb.set(4, 1, '#efd83f'); pb.set(16, 2, '#efd83f'); pb.set(9, 7, '#fbc371'); pb.set(12, 12, ring);
+    pb.outline(n => darkOf(n, -0.6));
+    return pb.toCanvas();
+  }, 40);
+};
 UIK.minimapPanel = function (g, x = 532, y = 4, w = 104, h = 70, o = {}) {
   const s = PANEL_STYLES.hud;
   const lv = o.level ?? (GS.s.level || 0);
   const un = GS.s.unlocked.slice().sort((a, b) => a - b).join(','), done = GS.s.completed.slice().sort((a, b) => a - b).join(',');
-  const N = (id) => SYSTEM_NODES.find(n => n.id === id);
-  const cur = SYSTEM_NODES.find(n => n.levels.includes(lv)) || SYSTEM_NODES[3];
+  const NODES = R3MAPUI_MMNODES.filter(n => !n.hidden);
+  const N = (id) => NODES.find(n => n.id === id);
+  const cur = NODES.find(n => n.levels.includes(lv)) || null;
   const kx = (w - 8) / 96, ky = (h - 8) / 62;
   const P = (nd) => [Math.round(4 + nd.x * kx), Math.round(4 + nd.y * ky)];
-  const st = _cacheGet(UIK._mmCache, w + '|' + h + '|' + un + '|' + done + '|' + cur.id, () => {
+  const st = _cacheGet(UIK._mmCache, 'r3|' + w + '|' + h + '|' + un + '|' + done + '|' + (cur ? cur.id : '-'), () => {
     const c = makeCanvas(w, h); const b = c.getContext('2d'); b.imageSmoothingEnabled = false;
     UIK.drawFrame(b, 0, 0, w, h, s, null, { chamfer: 3, key: false });
     frect(b, 4, 4, w - 8, h - 8, '#051a36');
     for (let i = 4 + 8; i < w - 4; i += 8) frect(b, i, 4, 1, h - 8, '#0a2444');
     for (let j = 4 + 8; j < h - 4; j += 8) frect(b, 4, j, w - 8, 1, '#0a2444');
-    // enlaces en cadena: eslabones ovalados claros con hueco navy
-    for (const [a2, b2] of SYSTEM_LINKS) {
-      const [ax, ay] = P(N(a2)), [bx, by] = P(N(b2));
-      const on = N(a2).levels.some(l => GS.s.unlocked.includes(l)) && N(b2).levels.some(l => GS.s.unlocked.includes(l));
-      const L = dist(ax, ay, bx, by), n = Math.max(2, Math.round(L / 6));
-      const hz = Math.abs(bx - ax) >= Math.abs(by - ay);
+    // núcleo SYNARA en el centro (rombo de mosaico tenue): el sistema que une a los demás
+    { const cx = Math.round(w / 2) + 1, cy = Math.round(h / 2) + 5; b.globalAlpha = 0.5; for (let k = 0; k < 6; k++) frect(b, cx - k, cy - 6 + k, 2 * k + 1, 1, ['#3a2a6a', '#4a3a8a'][k % 2]); for (let k = 0; k < 6; k++) frect(b, cx - 5 + k, cy + k, 11 - 2 * k, 1, ['#3a2a6a', '#4a3a8a'][k % 2]); b.globalAlpha = 1; }
+    // enlaces en cadena: eslabones ovalados (claros con hueco navy) que alternan horizontal / vertical
+    for (const [a2, b2] of R3MAPUI_MMLINKS) {
+      const A = N(a2), B = N(b2); if (!A || !B) continue;
+      const [ax, ay] = P(A), [bx, by] = P(B);
+      const on = A.levels.some(l => GS.s.unlocked.includes(l)) && B.levels.some(l => GS.s.unlocked.includes(l));
+      const L = dist(ax, ay, bx, by), n = Math.max(3, Math.round(L / 5));
       for (let k = 1; k < n; k++) {
-        const t = k / n; if (t < 0.18 || t > 0.82) continue;
-        const px = Math.round(lerp(ax, bx, t)), py = Math.round(lerp(ay, by, t)) + 5;
-        const lw = hz ? 4 : 3, lh = hz ? 3 : 4;
+        const t = k / n; if (t < 0.26 || t > 0.74) continue;
+        const px = Math.round(lerp(ax, bx, t)), py = Math.round(lerp(ay, by, t)) + 4;
+        const hz = k % 2 === 0, lw = hz ? 5 : 3, lh = hz ? 3 : 5;
         frect(b, px - 1 - (lw >> 1), py - 1 - (lh >> 1), lw + 2, lh + 2, '#000633');
         frect(b, px - (lw >> 1), py - (lh >> 1), lw, lh, on ? '#e8f6ff' : '#4a6a9a');
-        fpx(b, px - (lw >> 1) + 1, py - (lh >> 1) + 1, '#000633'); if (lw > 3) fpx(b, px - (lw >> 1) + 2, py - (lh >> 1) + 1, '#000633');
+        frect(b, px - (lw >> 1) + 1, py - (lh >> 1) + 1, lw - 2, lh - 2, '#000633');
+        if (on) fpx(b, px - (lw >> 1), py - (lh >> 1), '#ffffff');
       }
     }
-    for (const nd of SYSTEM_NODES) {
+    for (const nd of NODES) {
       const [nx, ny] = P(nd);
       const unl = nd.levels.some(l => GS.s.unlocked.includes(l)), dn = nd.levels.every(l => GS.s.completed.includes(l));
-      // halo de neón bajo la isla (elipses sólidas translúcidas, sin tramado)
-      b.globalAlpha = unl ? 0.3 : 0.1; b.fillStyle = nd.ring; b.beginPath(); b.ellipse(nx, ny + 9, 13, 5, 0, 0, TAU); b.fill();
-      b.globalAlpha = 1; b.fillStyle = '#051a36'; b.beginPath(); b.ellipse(nx, ny + 9, 10, 3, 0, 0, TAU); b.fill();
-      // anillo de neón de 1 px (pixelado, sin suavizado)
-      if (unl) for (let a = 0; a < 40; a++) { const an = a / 40 * TAU; fpx(b, nx + Math.cos(an) * 10.5, ny + 9 + Math.sin(an) * 3.6, a % 5 === 0 ? '#ffffff' : nd.ring); }
-      b.globalAlpha = unl ? 1 : 0.75; b.drawImage(UIK.island(nd.x + nd.y), nx - 9, ny); b.globalAlpha = 1;
-      // icono del sistema con brillo; atenuado si el capítulo está bloqueado
-      if (unl) { b.globalAlpha = 0.28; b.fillStyle = nd.ring; b.beginPath(); b.arc(nx, ny - 6, 9, 0, TAU); b.fill(); b.globalAlpha = 0.4; b.beginPath(); b.arc(nx, ny - 6, 6, 0, TAU); b.fill(); b.globalAlpha = 1; }
+      // halo de neón bajo la isla (elipses translúcidas) y anillo de 1 px al 50 % en el color del sistema
+      b.globalAlpha = unl ? 0.32 : 0.1; b.fillStyle = nd.ring; b.beginPath(); b.ellipse(nx, ny + 10, 14, 5, 0, 0, TAU); b.fill();
+      b.globalAlpha = 1; b.fillStyle = '#051a36'; b.beginPath(); b.ellipse(nx, ny + 10, 10, 3, 0, 0, TAU); b.fill();
+      if (unl) { b.globalAlpha = 0.5; for (let a = 0; a < 48; a++) { const an = a / 48 * TAU; fpx(b, nx + Math.cos(an) * 12.5, ny + 10 + Math.sin(an) * 4.4, nd.ring); } b.globalAlpha = 1; for (let a = 0; a < 48; a += 8) { const an = a / 48 * TAU; fpx(b, nx + Math.cos(an) * 12.5, ny + 10 + Math.sin(an) * 4.4, '#ffffff'); } }
+      b.globalAlpha = unl ? 1 : 0.7; b.drawImage(UIK.r3island(nd.x + nd.y, nd.ring), nx - 11, ny); b.globalAlpha = 1;
+      // icono de 16 px con resplandor en dos escalones de alfa; atenuado y con candado si está bloqueado
+      if (unl) { b.globalAlpha = 0.22; b.fillStyle = nd.ring; b.beginPath(); b.arc(nx, ny - 5, 11, 0, TAU); b.fill(); b.globalAlpha = 0.36; b.beginPath(); b.arc(nx, ny - 5, 7, 0, TAU); b.fill(); b.globalAlpha = 1; }
       const ic = Icons.hasBig(nd.icon) ? Icons.mid(nd.icon) : Icons.get(nd.icon);
-      b.globalAlpha = unl ? 1 : 0.6; b.drawImage(ic, Math.round(nx - ic.width / 2), ny - ic.height + 3); b.globalAlpha = 1;
-      if (!unl) { frect(b, nx + 3, ny - 4, 5, 4, '#000633'); frect(b, nx + 4, ny - 3, 3, 2, '#c8861a'); fpx(b, nx + 4, ny - 5, '#9ab4be'); fpx(b, nx + 6, ny - 5, '#9ab4be'); fpx(b, nx + 5, ny - 6, '#9ab4be'); }
-      if (dn) { fpx(b, nx + 6, ny - 10, '#ffd23a'); fpx(b, nx + 7, ny - 11, '#fff2a0'); fpx(b, nx + 8, ny - 10, '#ffd23a'); fpx(b, nx + 7, ny - 9, '#ffd23a'); }
+      b.globalAlpha = unl ? 1 : 0.55; b.drawImage(ic, Math.round(nx - ic.width / 2), ny - ic.height + 4); b.globalAlpha = 1;
+      if (!unl) { frect(b, nx + 4, ny - 4, 6, 5, '#000633'); frect(b, nx + 5, ny - 3, 4, 3, '#c8861a'); fpx(b, nx + 5, ny - 5, '#9ab4be'); fpx(b, nx + 8, ny - 5, '#9ab4be'); fpx(b, nx + 6, ny - 6, '#9ab4be'); fpx(b, nx + 7, ny - 6, '#9ab4be'); }
+      if (dn) { fpx(b, nx + 8, ny - 12, '#ffd23a'); fpx(b, nx + 9, ny - 13, '#fff2a0'); fpx(b, nx + 10, ny - 12, '#ffd23a'); fpx(b, nx + 9, ny - 11, '#ffd23a'); fpx(b, nx + 9, ny - 12, '#ffffff'); }
     }
     // pestaña «MAPA»
     frect(b, 6, 5, 36, 13, '#000633'); frect(b, 7, 6, 34, 11, '#94acbf'); frect(b, 8, 7, 32, 9, '#041d3b'); frect(b, 8, 7, 32, 3, '#082650');
@@ -3373,9 +3401,11 @@ UIK.minimapPanel = function (g, x = 532, y = 4, w = 104, h = 70, o = {}) {
     return c;
   }, 12);
   g.drawImage(st, x, y);
-  // nodo actual: anillo dorado pulsante
-  const t = Game.time, [cx, cy] = P(cur), pr = 11 + Math.sin(t * 4) * 1;
-  for (let a = 0; a < 22; a++) { const an = a / 22 * TAU + t * 0.8; fpx(g, x + cx + Math.cos(an) * pr, y + cy + 3 + Math.sin(an) * pr * 0.62, a % 2 ? '#ffd23a' : '#fff2a0'); }
+  // nodo actual: anillo dorado pulsante (en el núcleo central para los capítulos 0, 9 y 10)
+  const t = Game.time;
+  const [cx, cy] = cur ? P(cur) : [Math.round(w / 2) + 1, Math.round(h / 2) - 1];
+  const pr = 13 + Math.sin(t * 4) * 1;
+  for (let a = 0; a < 26; a++) { const an = a / 26 * TAU + t * 0.8; fpx(g, x + cx + Math.cos(an) * pr, y + cy + 3 + Math.sin(an) * pr * 0.6, a % 2 ? '#ffd23a' : '#fff2a0'); }
   // progreso del nivel (franja inferior)
   if (o.sc && o.sc.world && o.sc.player) {
     const px0 = x + 6, pw = w - 12, py = y + h - 7;
