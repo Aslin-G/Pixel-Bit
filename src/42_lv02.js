@@ -766,69 +766,29 @@ const Sim02 = makeSim({
     const r = this.last && this.phase === 'auto' ? this.last : this.solve();
     if (this.phase !== 'auto') this.last = r;
     const t = this.t;
-    // --- corte del módulo de membrana (izquierda)
+    // --- corte del módulo de membrana (izquierda): recipiente a presión ilustrado sobre cristal ahumado (R3MAPUI)
     const X0 = 8, Y0 = 28, WW = 380, HH = 196;
-    Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
-    const fy = Y0 + 34, fh = 54, my = fy + fh, mh = 10, py = my + mh, ph = 40;
-    // canal de alimentación → concentrado (sal que aumenta a lo largo)
-    // alimentación turquesa que se oscurece hacia grafito-índigo en el concentrado (bandas, sin degradado continuo)
-    { const NB = 10, bw = Math.ceil((WW - 60) / NB), kR = clamp(r.R / 0.6, 0, 1);
-      for (let b = 0; b < NB; b++) {
-        const k = (b / (NB - 1)) * kR, c = mixHex('#16a6cf', '#2c2c5e', k);
-        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), fh, c);
-        frect(g, X0 + 30 + b * bw, fy, Math.min(bw, WW - 60 - b * bw), 2, mixHex(c, '#bff8ff', 0.35));
-        frect(g, X0 + 30 + b * bw, fy + 2, Math.min(bw, WW - 60 - b * bw), 12, mixHex(c, '#56e5ff', 0.12));
-      }
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) R3.glassPlate(g, X0, Y0, WW, HH, 0.5); else Charts.frame(g, X0, Y0, WW, HH, '#0a1838');
+    const VX = X0 + 6, VY = Y0 + 56, VW = WW - 12, VH = 90;
+    const ves = R3 ? R3.roVessel(g, VX, VY, VW, VH, { R: r.R, Qp: r.Qp, Qf: r.Qf, Qc: r.Qc, P: r.P, foul: this.foul || 0, scale: r.scaleIdx, cip: this.cipT > 0 }, t) : null;
+    if (ves) {
+      // manómetro en la entrada de alta presión
+      R3.dial(g, VX + 9, ves.inlet.y - 11, 6, clamp(r.P / 90, 0, 1), { red: 82 / 90 });
+      frect(g, VX + 8, ves.inlet.y - 5, 2, 2, '#56647f');
+      // etiquetas del mundo con tallo (fuera del cuerpo: las partículas nunca pasan por el texto)
+      R3.tag(g, VX + 2, VY - 18, 'ALIMENTACIÓN → CONCENTRADO', '#22bdd0', { stem: [VX + 30, ves.feedTop + 6] });
+      R3.tag(g, X0 + WW / 2 + 20, VY - 18, 'MEMBRANA SEMIPERMEABLE', '#8d6bff', { align: 'center', stem: [X0 + WW / 2 + 40, ves.membTop + 2] });
+      R3.tag(g, X0 + WW - 6, VY - 18, 'CONCENTRADO', '#bc3e92', { align: 'right', stem: [ves.conc.x - 8, ves.conc.y - 4] });
+      R3.tag(g, X0 + WW - 6, VY + VH + 6, 'PERMEADO', '#48b6ec', { align: 'right', stem: [ves.perm.x - 10, ves.perm.y + 3] });
     }
-    const nSalt = 90, LW = WW - 60;
-    for (let i = 0; i < nSalt; i++) {
-      const ph2 = ((t * (0.08 + r.Qf / 1200) + i / nSalt) % 1);
-      // la densidad de sal crece hacia la salida (concentración)
-      if (hash1(i, 3) > 0.35 + ph2 * clamp(r.R, 0, 0.8)) continue;
-      const x = X0 + 30 + ph2 * LW, y = fy + 6 + ((i * 37) % (fh - 12)) + Math.sin(t * 3 + i) * 1.5;
-      frect(g, Math.round(x), Math.round(y), 2, 2, ph2 > 0.6 ? '#f888b8' : '#fffaf0');
-    }
-    // capa de polarización: sal rechazada que se acumula junto a la membrana
-    PFDyn.veil(g, X0 + 30, fy + fh - 6, LW, 6, "#f888b8", clamp(0.1 + r.R * 0.7, 0, 0.6));
-    // moléculas de agua que viajan con la alimentación y atraviesan la membrana
-    const nW0 = 40;
-    for (let i = 0; i < nW0; i++) { const ph2 = ((t * 0.15 + i / nW0) % 1); fpx(g, X0 + 30 + ph2 * LW, fy + 4 + ((i * 53) % (fh - 8)), '#6cf0db'); }
-    // membrana: capas, ensuciamiento e incrustación
-    frect(g, X0 + 30, my, WW - 60, mh, '#5a44a8'); for (let x = 0; x < WW - 60; x += 4) frect(g, X0 + 30 + x, my + 1, 2, mh - 2, '#8d6bff');
-    frect(g, X0 + 30, my, WW - 60, 1, '#b49cff'); frect(g, X0 + 30, my + mh - 1, WW - 60, 1, '#3a2a7a');
-    const foulH = Math.round(clamp(this.foul || 0, 0, 1) * 8);
-    if (foulH) PFDyn.veil(g, X0 + 30, my - foulH, WW - 60, foulH, "#7a5a2a", 0.7);
-    if (r.scaleIdx > 0) for (let i = 0; i < 40 * clamp(r.scaleIdx, 0, 1.5); i++) frect(g, X0 + 30 + (WW - 60) * (0.5 + (i * 0.618 % 0.5)), my - 2 - (i % 3), 2, 2, '#ffffff');
-    // canal de permeado
-    // canal de permeado: fondo cian en bandas + corriente cian luminosa (#48b6ec) con halo de 1 px y chevrones blancos
-    frect(g, X0 + 30, py, WW - 60, ph, '#0f3f66'); frect(g, X0 + 30, py, WW - 60, 3, '#1f6fa8'); frect(g, X0 + 30, py + ph - 8, WW - 60, 8, '#0b3152');
-    { const on = clamp(r.Qp / 40, 0, 1), sy = py + Math.round(ph / 2) - 3;
-      if (on > 0.02) {
-        g.globalAlpha = 0.35 + 0.4 * on; frect(g, X0 + 30, sy - 1, WW - 60, 1, '#8fe0ff'); frect(g, X0 + 30, sy + 6, WW - 60, 1, '#8fe0ff');
-        g.globalAlpha = 0.55 + 0.45 * on; frect(g, X0 + 30, sy, WW - 60, 6, '#48b6ec'); frect(g, X0 + 30, sy, WW - 60, 1, '#a6f4ff'); g.globalAlpha = 1;
-        const step = 26, off = (t * 20 * (0.5 + on)) % step;
-        for (let cx = X0 + 30 + off; cx < X0 + WW - 34; cx += step) { const qx = Math.round(cx); fpx(g, qx, sy + 1, '#ffffff'); fpx(g, qx + 1, sy + 2, '#ffffff'); fpx(g, qx + 2, sy + 3, '#ffffff'); fpx(g, qx + 1, sy + 4, '#ffffff'); fpx(g, qx, sy + 5, '#ffffff'); }
-      }
-    }
-    const nW = Math.round(clamp(r.Qp / 2, 0, 34));
-    for (let i = 0; i < nW; i++) {
-      const ph3 = ((t * 0.7 + i / Math.max(1, nW)) % 1);
-      const x = X0 + 40 + ((i * 53) % (WW - 80));
-      if (ph3 < 0.5) frect(g, x, Math.round(my - 6 + ph3 * 2 * (mh + 10)), 2, 2, '#a6f4ff');
-      else frect(g, Math.round(x + (ph3 - 0.5) * 30), Math.round(py + 4 + (ph3 - 0.5) * 2 * (ph - 10)), 2, 2, '#e6fdff');
-    }
-    for (let i = 0; i < Math.round(tdsToEC(r.Cp) / 120); i++) fpx(g, X0 + 40 + ((i * 71 + Math.floor(t * 20)) % (WW - 80)), py + 8 + (i * 13) % (ph - 12), '#ffffff');
-    Charts.flow(g, [[X0 + WW - 30, py + ph / 2], [X0 + WW - 4, py + ph / 2]], 'permeate', r.Qp / 40, 3);
-    Charts.flow(g, [[X0 + 4, fy + fh / 2], [X0 + 30, fy + fh / 2]], 'seawater', r.Qf / 100, 3);
-    Charts.flow(g, [[X0 + WW - 30, fy + fh / 2], [X0 + WW - 4, fy + fh / 2]], 'brine', r.Qc / 60, 3);
-    drawText(g, 'ALIMENTACIÓN → CONCENTRADO', X0 + 34, fy + 2, { font: 'tiny', color: '#cfe8ee' });
-    drawText(g, 'MEMBRANA SEMIPERMEABLE', X0 + WW / 2, my + 2, { font: 'tiny', align: 'center', color: '#fffaf0' });
-    drawText(g, 'PERMEADO', X0 + 34, py + ph - 9, { font: 'tiny', color: '#a6f4ff' });
     // flechas de presión: aplicada vs osmótica
     const ax = X0 + 12, base = Y0 + 6;
     const pW = clamp(r.P / 85, 0, 1) * (WW - 40), piW = clamp(r.piAvg / 85, 0, 1) * (WW - 40);
-    frect(g, ax, base, pW, 5, '#ffe14d'); drawText(g, 'P aplicada ' + fmt0(r.P) + ' bar', ax + 2, base + 7, { font: 'tiny', color: '#ffe14d' });
-    frect(g, ax, base + 16, piW, 3, '#f888b8'); drawText(g, 'π media ' + fmt0(r.piAvg) + ' bar', ax + piW + 4, base + 14, { font: 'tiny', color: '#f888b8' });
+    if (R3) R3.litBar(g, ax, base, pW, 5, '#ffe14d'); else frect(g, ax, base, pW, 5, '#ffe14d');
+    drawText(g, 'P aplicada ' + fmt0(r.P) + ' bar', ax + 2, base + 7, { font: 'tiny', color: '#ffe14d' });
+    if (R3) R3.litBar(g, ax, base + 16, piW, 3, '#f888b8'); else frect(g, ax, base + 16, piW, 3, '#f888b8');
+    drawText(g, 'π media ' + fmt0(r.piAvg) + ' bar', ax + piW + 4, base + 14, { font: 'tiny', color: '#f888b8' });
     drawText(g, 'Presión neta ≈ ' + fmt(r.NDP, 1) + ' bar', X0 + WW - 6, base + 7, { font: 'tiny', align: 'right', color: r.NDP > 0 ? '#86e36f' : '#ff4e5d' });
     // balances
     const by = Y0 + HH - 30;
@@ -881,7 +841,7 @@ const Sim02 = makeSim({
     } else {
       const pts = [], ecs = [];
       for (let P = (this.phase === 'transfer' ? 5 : 20); P <= (this.phase === 'transfer' ? 45 : 90); P += 2) { const rr = ROModel.solve(Object.assign(this.params(), { P })); pts.push([P, rr.Qp * (this.phase === 'transfer' ? 2 : 1)]); ecs.push([P, Math.min(100, tdsToEC(rr.Cp) / 15)]); }
-      Charts.line(g, CX, 182, CW, 110, [{ data: pts, color: '#56e5ff', label: this.phase === 'transfer' ? 'Qp×2' : 'Qp m³/h' }, { data: ecs, color: '#ff9a8a', label: 'cond./15' }], { xMin: this.phase === 'transfer' ? 5 : 20, xMax: this.phase === 'transfer' ? 45 : 90, yMin: 0, yMax: 100, legend: true, xLabel: 'bar', cursor: this.cfg.P });
+      Charts.line(g, CX, 182, CW, 110, [{ data: pts, color: '#56e5ff', label: this.phase === 'transfer' ? 'Qp×2' : 'Qp m³/h' }, { data: ecs, color: '#f888b8', label: 'cond./15' }], { xMin: this.phase === 'transfer' ? 5 : 20, xMax: this.phase === 'transfer' ? 45 : 90, yMin: 0, yMax: 100, legend: true, xLabel: 'bar', cursor: this.cfg.P });
     }
     // veredicto
     if (this.verdict) {

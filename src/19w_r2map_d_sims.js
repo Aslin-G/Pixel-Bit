@@ -32,10 +32,11 @@
   const GRASS = ['#123a30', '#1c5228', '#2e6e22', '#4c8c1e', '#76aa22', '#a4c62a', '#d0de44'];
   const SAND = ['#7a3a32', '#a85a34', '#cc7c3e', '#e49e50', '#f2be6a', '#fad88e'];
   const CONC = ['#443930', '#6e625b', '#7b7679', '#ac9b82', '#cebaac', '#f5e5c3'];
-  function bandSky(pb, stops, sun) {
-    const R = V.P32(V.expand(stops, 16));
-    for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
-      let t = y / (BH * 0.7);
+  function bandSky(pb, stops, sun, hh) {
+    if (pb.r3noSky) { pb.r3onSky(stops, sun); return; }   // r3-mapui: el cielo lo pinta el ventanal a toda altura
+    const R = V.P32(V.expand(stops, 16)), BH2 = hh || pb.h || BH;
+    for (let y = 0; y < Math.min(pb.h, BH2); y++) for (let x = 0; x < BW; x++) {
+      let t = y / (BH2 * 0.7);
       if (sun) { const d = Math.hypot((x - sun[0]) * 0.7, y - sun[1]); t += Math.max(0, 1 - d / 90) ** 2 * 0.35; }
       pb.data[y * BW + x] = R[V.band(clamp(t, 0, 0.999), 16, x, y, 0.04, 3)];
     }
@@ -44,7 +45,7 @@
   const range = (pb, yBase, peaks, rp, o = {}) => V.relief(pb, Object.assign({ yBase, nv: 40, dvy: 0.5, H: V.massif(peaks, { seed: o.seed || 3, rough: 0.6, scale: 0.04 }), ramp: rp, seed: o.seed || 3, rim: o.rim || '#f4c8b0', contrast: 1.5 }, o));
   const ground = (pb, yFn, rp, o = {}) => {
     const R = V.P32(rp), n = R.length;
-    for (let x = 0; x < BW; x++) { const top = Math.round(yFn(x)); for (let y = Math.max(0, top); y < BH; y++) { const t = clamp((o.t0 ?? 0.78) - (y - top) / (o.depth || 50) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.16, 0, 0.999); pb.data[y * BW + x] = R[V.band(t, n, x, y, 0.05, 7)]; } if (o.rim && top >= 0 && top < BH) pb.data[top * BW + x] = U(o.rim); }
+    for (let x = 0; x < BW; x++) { const top = Math.round(yFn(x)); for (let y = Math.max(0, top); y < pb.h; y++) { const t = clamp((o.t0 ?? 0.78) - (y - top) / (o.depth || 50) + (hash2(x >> 1, y >> 1, 3) - 0.5) * 0.16, 0, 0.999); pb.data[y * BW + x] = R[V.band(t, n, x, y, 0.05, 7)]; } if (o.rim && top >= 0 && top < BH) pb.data[top * BW + x] = U(o.rim); }
   };
   /* ---------- maquinaria por capítulo (en el búfer del ventanal, 640×124) ---------- */
   const SCENES = {
@@ -144,12 +145,97 @@
       for (let i = 0; i < 160; i++) V.put(pb, (i * 53) % BW, (i * 29) % BH, U(i % 3 ? '#f0c070' : '#fff0c0'));
     },
   };
+  /* ---------- r3-mapui: ventanal a toda altura (la planta se ve detrás de los paneles, atenuada) ---------- */
+  const FH = WIN_Y1;           // 0…320: el ventanal ocupa toda la pantalla sobre la consola
+  const WARM = ['#3a1a2e', '#5a2430', '#843a2e', '#a24a1f', '#c8662a', '#e08a3a', '#f4b05a', '#fbc371'];
+  /** Peñascos redondeados de roca cálida con remate de pradera; devuelve top(x) (cima por columna) */
+  function R3_boulders(pb, list) {
+    const R = V.P32(V.RAMPS.cliffR2), n = R.length, Gr = V.P32(V.RAMPS.meadowR2), nG = Gr.length;
+    const top = new Int16Array(pb.w).fill(32767);
+    for (const [cx, cy, rx, ry, sd] of list) {
+      for (let y = Math.max(0, cy - ry); y <= Math.min(pb.h - 1, cy + ry); y++) for (let x = Math.max(0, cx - rx); x <= Math.min(pb.w - 1, cx + rx); x++) {
+        const nx = (x + 0.5 - cx) / rx, ny = (y + 0.5 - cy) / ry, rr = nx * nx + ny * ny;
+        const wob = (vnoise(x * 0.09, y * 0.09, sd * 7) - 0.5) * 0.35;
+        if (rr > 1 + wob) continue;
+        const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, rr)));
+        let l = -nx * 0.5 - ny * 0.62 + nz * 0.6;
+        const fac = vnoise(x * 0.16, y * 0.05, sd * 3 + 1);
+        l += (fac - 0.5) * 0.4;                                        // facetas
+        const crack = Math.abs(vnoise(x * 0.07, y * 0.16, sd * 5 + 2) - 0.5) < 0.035;
+        let t = clamp(0.2 + l * 0.62, 0, 0.999);
+        if (crack) t = 0.02;
+        V.put(pb, x, y, R[V.band(t, n, x, y, 0.05, sd)]);
+        if (y < top[x]) top[x] = y;
+      }
+    }
+    // pradera y luz de borde cálida en las cimas
+    for (let x = 0; x < pb.w; x++) {
+      const y = top[x]; if (y === 32767) continue;
+      const gh = 2 + ((hash2(x >> 2, 1, 5) * 3) | 0);
+      for (let q = 0; q < gh; q++) V.put(pb, x, y + q - 1, Gr[q === 0 ? nG - 1 : q === 1 ? nG - 3 : 3]);
+      if (hash2(x, 9, 2) < 0.25) V.put(pb, x, y - 2, Gr[nG - 2]);
+    }
+    return (x) => { const xx = clamp(Math.round(x), 0, pb.w - 1); return top[xx] === 32767 ? pb.h : top[xx]; };
+  }
+  const FULL = {
+    2(pb, L) { // OI: la planta protagonista de cerca sobre el mar, cordillera ocre y costa con palmeras
+      bandSky(pb, ['#1a3a90', '#2a5ab8', '#3470c8', '#4686d4', '#5c9ade', '#78aee4', '#a4c4e8', '#d4dcec'], [92, 46, 11], 190);
+      const cl = [[30, 22, 150, 40, 3], [250, 8, 120, 34, 7], [430, 34, 170, 46, 11], [150, 82, 90, 24, 5]];
+      for (const [x, y, w, h, sd] of cl) V.blit(pb, V.cumulus(w, h, sd, {}), x, y);
+      range(pb, 150, [{ x: 120, v: 20, h: 40, w: 150, d: 22 }, { x: 330, v: 22, h: 30, w: 120, d: 20 }, { x: 560, v: 20, h: 46, w: 160, d: 24 }], FARM, { seed: 9 });
+      range(pb, 168, [{ x: 60, v: 20, h: 34, w: 120, d: 20 }, { x: 250, v: 22, h: 26, w: 110, d: 20 }, { x: 470, v: 20, h: 30, w: 140, d: 22 }], WARM, { seed: 4, rim: '#ffe0a0' });
+      V.seaFar(pb, 170, FH, { seed: 5 });
+      const I = R2PLANT.hero(pb, 636, 292, { s: 1.32, k: 0, from: 'pretrat', workers: true, lights: true });
+      L.hero = I;
+      // costa izquierda: peñascos cálidos esculpidos (luz arriba-izquierda, grietas granate), pradera y palmeras
+      const tops = R3_boulders(pb, [[30, 286, 46, 44, 1], [96, 300, 40, 36, 2], [-6, 262, 30, 40, 3], [150, 314, 30, 20, 4]]);
+      for (const [x, h, sd] of [[22, 46, 3], [62, 40, 8], [104, 30, 5]]) V.palm(pb, x, tops(x) + 2, h, x % 2 ? 3 : -3, sd, {});
+      if (V.agave) V.agave(pb, 84, tops(84) + 3, 9, 4, {});
+      if (V.flowerBush) for (const x of [40, 124]) V.flowerBush(pb, x, tops(x) + 2, 6, x, {});
+    },
+  };
+  /** Ventanal a toda altura para los capítulos sin escena propia: cielo continuo con nubes y una
+   *  cordillera lejana encima, y la escena del capítulo (búfer de 124 px) en su sitio, abajo */
+  function extendScene(win, key, live) {
+    const view = { w: BW, h: BH, data: win.data.subarray(WIN_Y0 * BW), r3noSky: true };
+    view.set = PixelBuffer.prototype.set; view.get = PixelBuffer.prototype.get; view.rect = PixelBuffer.prototype.rect; view.inb = PixelBuffer.prototype.inb;
+    view.hline = PixelBuffer.prototype.hline; view.vline = PixelBuffer.prototype.vline; view.line = PixelBuffer.prototype.line; view.alpha = PixelBuffer.prototype.alpha;
+    for (const k of ['thick', 'disc', 'ellipse', 'ellipseOutline', 'poly', 'dither']) if (PixelBuffer.prototype[k]) view[k] = PixelBuffer.prototype[k];
+    view.r3onSky = (stops, sun) => {
+      const st = [shade(stops[0], -0.32), shade(stops[0], -0.12)].concat(stops);
+      const sn = sun ? [sun[0], Math.round(70 + sun[1] * 0.8), (sun[2] || 9) + 2] : null;
+      bandSky(win, st, sn, WIN_Y0 + 90);
+      const dusk = stops.length > 7 || key === 3 || key === 4 || key === 6 || key === 9 || key === 10;
+      const pal = key === 10 ? ['#3a1408', '#5a2210', '#7a3416', '#9a4a1e', '#c06a2a', '#e08a3a', '#f0b060', '#f8d090'] : dusk ? ['#4a2a6a', '#6a3a7a', '#9a4a7a', '#c86a7a', '#e88a7a', '#f6aa86', '#ffd0a0', '#fff0d0'] : undefined;
+      for (const [x, y, w, h, sd] of [[20, 40, 150, 40, 3], [230, 18, 120, 32, 7], [420, 48, 180, 46, 11], [130, 106, 100, 26, 5], [500, 120, 110, 26, 9]]) V.blit(win, V.cumulus(w, h, sd + key, pal ? { pal } : {}), x, y);
+      const FR = key === 10 ? ['#2a0c06', '#4a1a0c', '#6e2a12', '#94401a', '#b85a24', '#d47a32'] : dusk ? ['#2a1a4a', '#3e2a5e', '#5a3a72', '#7a4a84', '#9a5a8e', '#c07a9a'] : ['#3a4a8a', '#4a5a9a', '#5e6eaa', '#7684ba', '#92a0ca', '#b4bee0'];
+      range(win, WIN_Y0 + 40, [{ x: 100 + key * 17, v: 20, h: 60, w: 170, d: 26 }, { x: 330, v: 22, h: 44, w: 150, d: 22 }, { x: 560 - key * 9, v: 20, h: 66, w: 180, d: 26 }], FR, { seed: 20 + key, rim: dusk ? '#ffd0a0' : '#e8f0ff' });
+    };
+    (SCENES[key] || SCENES[0])(view, live);
+  }
+  function fullBackdrop(pb, key, live) {
+    const win = new PixelBuffer(BW, FH);
+    if (FULL[key]) FULL[key](win, live);
+    else { extendScene(win, key, live); for (const l of live.leds) l[1] += WIN_Y0; for (const r of live.rotors) r.y += WIN_Y0; live.r3shifted = true; }
+    const GL = U('#9ad6f2'), NV = U('#06122e');
+    for (let y = 0; y < FH; y++) for (let x = 0; x < BW; x++) {
+      const i = y * BW + x; let u = win.data[i]; if (!(u >>> 24)) u = U('#2a5ab8');
+      const diag = ((x + y * 0.8) % 200);
+      if (diag < 20) u = V.mixU(u, GL, diag < 7 ? 0.12 : 0.06);
+      // atenuación: más fuerte arriba (detrás de los paneles), más suave abajo, donde la planta se ve entre paneles
+      u = V.mixU(u, NV, 0.32 - Math.min(1, y / FH) * 0.24);
+      pb.data[i] = u;
+    }
+  }
   /** Sala de control con ventanal panorámico (640×360), cacheada por capítulo */
   M.simBackdrop = function (key) {
     if (cache.has(key)) return cache.get(key);
     const live = { rotors: [], leds: [], glints: [] };
     const pb = new PixelBuffer(W, H);
+    const isFull = true;   // r3-mapui: todos los capítulos con ventanal a toda altura
+    if (isFull) { try { fullBackdrop(pb, key, live); } catch (e) { console.warn('R3 fullBackdrop', key, e); } }
     // muro técnico: dos bandas navy con paneles, juntas y rejilla de 16 px tenue
+    if (!isFull) {
     const WALL = V.P32(['#020a1c', '#041027', '#061632', '#081c3c', '#0a2246', '#0d2850', '#11305c']);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       // planchas de 80×48 con degradado propio, vetas de cepillado horizontales en clusters y juntas
@@ -178,12 +264,18 @@
       u = V.mixU(u, U('#0a1a3a'), 0.12 + (1 - y / BH) * 0.1);
       pb.data[(y + WIN_Y0) * W + x] = u;
     }
+    }
     // marco de acero del ventanal: travesaño superior, montantes y alféizar
     const STEEL = ['#0a1226', '#1a2a46', '#2e4468', '#4a6a94', '#86a8d0', '#cfe4ff'];
     const bar = (x, y, w, h, vert) => { for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const k = vert ? xx / Math.max(1, w - 1) : yy / Math.max(1, h - 1); pb.set(x + xx, y + yy, STEEL[clamp(Math.round(vert ? 4.6 - k * 4 : 4.6 - k * 4.2), 0, 5)]); } };
-    bar(0, WIN_Y0 - 6, W, 6, false);
-    for (let x = 0; x <= W; x += 160) bar(Math.min(W - 5, Math.max(0, x - 2)), WIN_Y0, 5, BH, true);
-    for (let x = 0; x < W; x++) { pb.set(x, WIN_Y0 - 7, '#000633'); pb.set(x, WIN_Y0 - 1, '#cfe4ff'); }
+    if (!isFull) {
+      bar(0, WIN_Y0 - 6, W, 6, false);
+      for (let x = 0; x <= W; x += 160) bar(Math.min(W - 5, Math.max(0, x - 2)), WIN_Y0, 5, BH, true);
+      for (let x = 0; x < W; x++) { pb.set(x, WIN_Y0 - 7, '#000633'); pb.set(x, WIN_Y0 - 1, '#cfe4ff'); }
+    } else {
+      // ventanal a toda altura: montantes finos (detrás de los paneles casi no se ven)
+      for (const x of [0, 636]) bar(Math.min(W - 4, Math.max(0, x - 2)), 0, 4, WIN_Y1, true);
+    }
     // consola bajo el ventanal: tablero inclinado con pantallas, botones y LED
     const cons = [];
     const DESK = ['#06102a', '#0a1a3e', '#10264e', '#1a3664', '#2a4c82', '#5a86c0'];
@@ -208,21 +300,28 @@
       cons.push([sx + 26, sy + 2, ['#3fe0a0', '#ffd23a', '#22dbe7'][(x / 46 | 0) % 3]]);
     }
     // los LED y rotores de la escena vienen en coordenadas del ventanal: pásalos a pantalla
-    for (const l of live.leds) l[1] += WIN_Y0;
-    for (const r of live.rotors) r.y += WIN_Y0;
+    if (!isFull) { for (const l of live.leds) l[1] += WIN_Y0; for (const r of live.rotors) r.y += WIN_Y0; }
     live.leds.push(...cons);
-    const out = { c: pb.toCanvas(), live, key };
+    const out = { c: pb.toCanvas(), live, key, full: isFull };
     cache.set(key, out);
     return out;
   };
   /** Capa viva: rotores de los aerogeneradores, LED que laten y un destello que recorre el cristal */
   M.drawSimLive = function (g, B, t) {
     if (!B || !B.live) return;
+    // r3-mapui: la planta del ventanal sigue viva (chevrones del permeado, LED, destellos y espuma)
+    if (B.live.hero && typeof R2PLANT !== 'undefined') { try { R2PLANT.drawFx(g, B.live.hero, 0, 0, t, { lamps: false }); } catch (e) { B.live.hero = null; } }
+    // ventanal a toda altura: destellos del mar entre los paneles y bandada de gaviotas
+    if (B.full) {
+      if (V.drawSeaFx) V.drawSeaFx(g, 150, 232, 260, 70, t, { density: 0.8 });
+      if (V.drawFlock) { V.drawFlock(g, { x: 300, y: 214, n: 5, sp: 12, span: 800 }, 0, 0, t); V.drawFlock(g, { x: 120, y: 236, n: 3, sp: -8, span: 700, ph: 200 }, 0, 0, t); }
+    }
     for (const R of B.live.rotors) V.drawRotor(g, R.rot, R.x, R.y, t * 2.4 + R.ph);
     for (let i = 0; i < B.live.leds.length; i++) { const [x, y, col] = B.live.leds[i]; if (Math.sin(t * 3 + i * 1.7) > -0.2) { g.drawImage(M.glow(col, 3, 0.7), x - 3, y - 3); fpx(g, x, y, '#ffffff'); } }
     const gx = ((t * 40) % 900) - 130;
     g.globalAlpha = 0.1; g.fillStyle = '#cfe4ff';
-    for (let k = 0; k < 4; k++) g.fillRect(Math.round(gx + k * 3), WIN_Y0, 2, BH);
+    if (B.full) for (let k = 0; k < 4; k++) g.fillRect(Math.round(gx + k * 4), 0, 2 + (k & 1), WIN_Y1);
+    else for (let k = 0; k < 4; k++) g.fillRect(Math.round(gx + k * 3), WIN_Y0, 2, BH);
     g.globalAlpha = 1;
   };
   /* ---------- textura de paneles durante el dibujo del simulador ---------- */
@@ -256,11 +355,14 @@
     _icon = icon || null;
     if (on && !_orig) {
       _orig = UIK.panel;
+      // r3-mapui: relleno de cristal al 84 % con bisel; gráficos, tanques y baterías iluminados
+      const glass = typeof R3MAPUI !== 'undefined' ? R3MAPUI.glassPanel(_orig) : null;
+      if (typeof R3MAPUI !== 'undefined') R3MAPUI.simCharts(true);
       UIK.panel = function (g, x, y, w, h, style = 'tech', accent = null, o = {}) {
-        _orig.call(UIK, g, x, y, w, h, style, accent, o);
+        if (glass) glass(g, x, y, w, h, style, accent, o); else _orig.call(UIK, g, x, y, w, h, style, accent, o);
         if (w >= 64 && h >= 40 && !(o && o.alpha != null && o.alpha < 1)) g.drawImage(panelTex(Math.round(w), Math.round(h), style), Math.round(x), Math.round(y));
       };
-    } else if (!on && _orig) { UIK.panel = _orig; _orig = null; }
+    } else if (!on && _orig) { UIK.panel = _orig; _orig = null; if (typeof R3MAPUI !== 'undefined') R3MAPUI.simCharts(false); }
   };
   /** Guía entero (KIRU flotando con su estela) junto al globo de diálogo */
   M.drawGuide = function (g, x, y, t, who) {

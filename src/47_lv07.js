@@ -781,12 +781,24 @@ const Sim07 = makeSim({
     const cw = 15, base = y + 150;
     let curH = null;
     drawText(g, 'EXCEDENTE RENOVABLE (amarillo) Y STACKS (verde/rojo) · kW', x + 6, y + 4, { font: 'tiny', color: '#ffe14d' });
+    const R3 = typeof R3MAPUI !== 'undefined' ? R3MAPUI : null;
+    if (R3) {
+      // r3-mapui: cielo del día detrás de las columnas (noche, amanecer, mediodía, atardecer) con sol y luna
+      const SKY = ['#0a1030', '#0a1030', '#0a1030', '#0e1640', '#1a2058', '#5a3a6a', '#c86a5a', '#3a6ab8', '#2a5ab8', '#2a62c0', '#2a6ac8', '#2a6ec8', '#2a6ec8', '#2a6ac8', '#2a62c0', '#2a5ab8', '#3a5aa8', '#a8506a', '#d0705a', '#5a3a6a', '#1a2058', '#0e1640', '#0a1030', '#0a1030'];
+      g.globalAlpha = 0.32;
+      for (let hh = 0; hh < 24; hh++) frect(g, x + 20 + hh * cw - 1, y + 14, cw, 138, SKY[hh]);
+      g.globalAlpha = 1;
+      const sx = x + 20 + 12 * cw + 5; g.drawImage(R2MAP.glow('#ffe14d', 8, 0.6), sx - 8, y + 18); fdisc(g, sx, y + 26, 4, '#ffe14d'); fdisc(g, sx - 1, y + 25, 2, '#fff6c0');
+      for (const hm of [1, 22]) { const mx = x + 20 + hm * cw + 5; fdisc(g, mx, y + 24, 3, '#e8e8ff'); fdisc(g, mx + 1, y + 23, 2, SKY[hm]); }
+    }
     for (let h = 0; h < 24; h++) {
       const cx = x + 20 + h * cw;
       const sh = Math.round(H2_SURPLUS[h] / 1000 * 120);
-      frect(g, cx, base - sh, cw - 3, sh, '#5a4a1a'); frect(g, cx, base - sh, cw - 3, 1, '#ffe14d');
+      if (R3) { R3.prism(g, cx, base - sh, cw - 3, sh, '#7a6420'); frect(g, cx, base - sh, cw - 3, 1, '#ffe14d'); }
+      else { frect(g, cx, base - sh, cw - 3, sh, '#5a4a1a'); frect(g, cx, base - sh, cw - 3, 1, '#ffe14d'); }
       const P = this.sched[h] * 300, ph = Math.round(P / 1000 * 120), rh = Math.round(Math.min(P, H2_SURPLUS[h]) / 1000 * 120);
-      if (P) { frect(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); frect(g, cx + 3, base - rh, cw - 9, rh, '#86e36f'); }
+      if (P && R3) { R3.prism(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); if (rh > 0) R3.prism(g, cx + 3, base - rh, cw - 9, rh, '#4cd48e'); }
+      else if (P) { frect(g, cx + 3, base - ph, cw - 9, ph, '#ff4e5d'); frect(g, cx + 3, base - rh, cw - 9, rh, '#86e36f'); }
       if (h % 3 === 0) drawText(g, String(h), cx, base + 4, { font: 'tiny', color: '#8a8fb8' });
       if (!this.done || this.phase === 'free') {
         if (Gui.button(g, 'hs' + h, cx, y + 16, cw - 2, 136, '', { noDraw: true, tip: h + ':00 · ' + this.sched[h] + ' stacks' })) { this.sched[h] = (this.sched[h] + 1) % 4; Audio2.sfx('ui'); }
