@@ -49610,9 +49610,12 @@ LEVELS[8] = {
     for (let k = 0; k < 5; k++) { const px = 912 + k * 16; PFB.rect(pb, px, gy(px) - 14, 10, 6, U('#c9622e')); PFB.rect(pb, px, gy(px) - 14, 10, 1, U('#e88a52')); A.put(pb, ['tomate', 'aji', 'frijol', 'girasol', 'aji'][k], px + 5, gy(px) - 14, 0.35, 0, k); }
     /* ===== 4. BANCO DE SEMILLAS (1006–1156) sobre zócalo de piedra; secadero = plataforma ===== */
     const sbY = 236;
-    I.box3q(pb, 1004, back(1080) + 4, 152, back(1080) + 4 - sbY, 18, { ramp: PFB.R.STONE, front: (xx, yy) => PFBGround.wallPix(xx, yy - sbY, 40, 61, PFK.P32(PFB.R.STONE), { rh: 7, sw: 14 }) });
+    I.box3q(pb, 1004, back(1080) + 4, 160, back(1080) + 4 - sbY, 30, { ramp: PFB.R.STONE, front: (xx, yy) => PFBGround.wallPix(xx, yy - sbY, 40, 61, PFK.P32(PFB.R.STONE), { rh: 7, sw: 14 }) });
     for (let k = 0; k < 5; k++) PFB.rect(pb, 1020 + k * 28, sbY + 10, 8, 4, U('#140a06'));
-    A.seedBank(pb, 1010, sbY - 2, 140, 112, 22);
+    // r4-l8: banco de semillas en 3/4 (cubierta visible, lateral en sombra, sombra arrojada)
+    const sb = R4L8_seedBank(pb, 1010, sbY - 2, 140, 112, 28);
+    R4L8_BANK.fan = sb.fan; R4L8_BANK.vents = sb.vents;
+    LV8_GLOWS.push({ x: sb.led[0], y: sb.led[1], r: 3, col: '#3fe0a0', a: 0.7, mode: 'blink', hz: 0.8, ph: 5, core: '#b0ffd8' });
     for (let k = 0; k < 6; k++) { const tx = 1036 + k * 18; PFB.rect(pb, tx, sbY - 3, 14, 2, U(['#e8c040', '#c8562a', '#86b03a', '#f4e8d6', '#a03a2a', '#e8a040'][k])); PFB.rect(pb, tx, sbY - 1, 14, 1, U('#4a2a14')); }
     /* ===== 5. ESTANQUE (1172–1268): juncos, eneas, nenúfares ===== */
     for (let x = 1166; x < 1276; x += 7) { if (x > 1186 && x < 1256) continue; F.tuft(pb, x, back(x) + 4, 9, 18 + (x % 3) * 6, x, ['#22300e', '#344812', '#4c6418', '#688020', '#88a02a', '#acbc3e', '#d0d460']); }
@@ -49803,6 +49806,8 @@ function FIXLB_rainGauge(pb, x, yb) {
   return top;
 }
 const LV8_CHANNELS = new Int16Array(2801).fill(-1);
+/** r4-l8: piezas vivas del banco de semillas (ventilador de la unidad de frío, extractores) */
+const R4L8_BANK = { fan: null, vents: [] };
 /** Espantapájaros de la milpa (≈66 px): cruz de palos, camisa de colores y sombrero de paja */
 function lv8Scarecrow(pb, x, y) {
   const s = PFB.sprite(34, 72), b = 70, Wd = PFK.P32(PFB.R.WOODG);
@@ -49823,6 +49828,169 @@ function lv8Basket(pb, x, y) {
   for (let yy = b - 8; yy < b; yy++) for (let xx = 2; xx < 18; xx++) PFK.put(s, xx, yy, U(((xx + yy) % 3 === 0) ? '#6a4220' : (yy - b) % 2 ? '#c89458' : '#a87440'));
   for (let k = 0; k < 4; k++) PFK.ellipseFn(s, 5 + k * 3.5, b - 9, 2, 1.6, (nx, ny) => U(k % 2 ? (ny < 0 ? '#ff8a6a' : '#c8281e') : (ny < 0 ? '#ffe070' : '#d8a428')));
   PFB.finish(s); PFB.stamp(pb, s, x - 10, y - b); PFB.contact(pb, x, y, 9, 1.5);
+}
+
+/* =====================================================================
+   r4-l8 — Banco de semillas en 3/4 (sustituye a la caja frontal de PFAgro.seedBank solo en N8)
+   Adobe con fachada al sol, lateral en sombra violácea, cornisa con banda de sombra de 3 px,
+   cubierta visible con pretil, filas FV, torre captavientos y extractores; puertas de colores
+   rehundidas, friso pintado, celosías, placa legible, unidad de frío; borde cálido #fbc371 en las
+   aristas al sol y sombra arrojada abajo-derecha sobre el zócalo y el suelo.
+   Devuelve { led:[x,y], fan:[x,y,r], vents:[[x,y]…] } en coordenadas de mundo.
+   ===================================================================== */
+function R4L8_seedBank(pb, x, yb, w, h, d) {
+  const K = PFK, B = PFB, put = K.put, get = K.get, SK = 0.5, dx = Math.round(d * SK);
+  const A = K.P32(B.R.ADOBE), nA = A.length;
+  const SIDE = K.P32(['#22101c', '#341a26', '#4a2832', '#60363c', '#764646', '#8c5850', '#a06a5a', '#b47e66']);
+  const ROOF = K.P32(['#4a2a1a', '#6a3e26', '#8a5634', '#a86e44', '#c48a58', '#d8a46c', '#e8be86', '#f4d4a2', '#fde6c0']);
+  const RIM = U('#fbc371'), INK = U('#2a1206');
+  const sh = (u, a) => B.shS(u, a, 250);
+  const darken = (s, xx, yy, a) => { const c = get(s, xx, yy); if (c >>> 24) put(s, xx, yy, sh(c, a)); };
+  const M = 8, s = B.sprite(w + dx + M * 2 + 4, h + d + 50), by = s.h - 3, X0 = M, yt = by - h;
+  const off = (r) => Math.round(r * SK), yF = (r) => yt - 1 - r;
+  const out = { vents: [] };
+  /* --- lateral en sombra (violeta pardo; rebote cálido del suelo abajo) --- */
+  K.polyFill(s, [[X0 + w, yt], [X0 + w + dx, yt - d], [X0 + w + dx, by - d], [X0 + w, by]], (xx, yy) => {
+    const u = (xx - X0 - w) / dx, yTop = yt - (xx - X0 - w) / SK, v = (yy - yTop) / h;
+    let k = 5 - Math.round(v * 1.8) + (u > 0.85 ? 1 : 0) + (u < 0.12 ? -1 : 0) + Math.round((K.vn(xx * 0.3, yy * 0.08, 32) - 0.5) * 1.6) + Math.round((K.cl(xx, yy, 2, 31) - 0.5) * 0.9);
+    if (((yy + Math.round((xx - X0 - w) / SK)) % 7) === 0 && K.cl(xx, yy, 3, 33) < 0.35) k -= 1;
+    let c = SIDE[clamp(k, 0, SIDE.length - 1)];
+    if (v > 0.9) c = K.mixU(c, U('#b0603a'), (v - 0.9) * 2.2);
+    return c;
+  });
+  /* --- fachada al sol: adobe con remiendos de revoco, hiladas tenues, zócalo salpicado --- */
+  for (let yy = yt; yy < by; yy++) for (let xx = X0; xx < X0 + w; xx++) {
+    const u = (xx - X0) / w, v = (yy - yt) / h;
+    let k = 6 - Math.round(v * 1.4) - (u > 0.94 ? 1 : 0) + (u < 0.03 ? 1 : 0) + Math.round((K.vn(xx * 0.12, yy * 0.09, 35) - 0.5) * 1.6) + Math.round((K.cl(xx, yy, 2, 36) - 0.5) * 0.8);
+    if ((yy - yt) % 8 === 0 && K.cl(xx, yy, 3, 37) < 0.32) k -= 1;
+    if (yy > by - 7) k -= 1 + (K.cl(xx, yy, 2, 38) < 0.4 ? 1 : 0);
+    put(s, xx, yy, A[clamp(k, 1, nA - 2)]);
+  }
+  // grietas finas (paseo aleatorio) y manchas de agua bajo las gárgolas
+  { const r = RNG(41); for (let c = 0; c < 7; c++) { let xx = X0 + r.int(6, w - 6), yy = yt + r.int(12, h - 20); for (let q = 0; q < r.int(5, 11); q++) { darken(s, xx, yy, -0.32); yy++; if (r() < 0.4) xx += r() < 0.5 ? -1 : 1; } } }
+  /* --- cubierta: suelo de barro claro con pretil; sombra del pretil izquierdo; paramento trasero --- */
+  for (let r = 0; r < d; r++) for (let xx = X0 + off(r); xx < X0 + w + off(r); xx++) {
+    const yy = yF(r), u = (xx - X0 - off(r)) / w;
+    let k = 6 - Math.round(r / d * 1.5) + Math.round((K.cl(xx, yy, 2, 43) - 0.5) * 0.9) + ((xx - off(r)) % 9 === 0 ? -1 : 0) + Math.round((K.vn(xx * 0.09, r * 0.2, 44) - 0.55) * 2.2);
+    if (r < 3 || r >= d - 3 || u < 0.025 || u > 0.975) k = r < 2 || r >= d - 1 || u > 0.985 ? 8 : 7;
+    else if (u < 0.05) k -= 2;
+    else if (r < 5) k -= 1;
+    put(s, xx, yy, ROOF[clamp(k, 0, ROOF.length - 1)]);
+  }
+  for (let xx = X0 + off(d - 3); xx < X0 + w + off(d - 3); xx++) { put(s, xx, yF(d - 3) + 1, ROOF[5]); put(s, xx, yF(d - 3) + 2, ROOF[4]); }
+  // filas de baldosa (juntas) en la cubierta
+  for (let r = 5; r < d - 4; r += 4) for (let xx = X0 + off(r) + 4; xx < X0 + w + off(r) - 4; xx++) darken(s, xx, yF(r), -0.12);
+  /* --- objetos de la cubierta (de atrás hacia delante) --- */
+  const onRoof = (fx, r) => [X0 + fx + off(r), yF(r)];
+  // torre captavientos (badgir) al fondo a la derecha: refresca la cámara de semillas sin máquinas
+  { const tw = 18, th = 30, td = 8, [tx, ty] = onRoof(w - 36, d - 9);
+    for (let q = 0; q < 10; q++) for (let xx = tx + tw; xx < tx + tw + 9 + q; xx++) darken(s, xx, ty - q * 0.5, -0.22);
+    PFInfra.box3q(s, tx, ty, tw, th, td, { skew: SK, ramp: B.R.ADOBE, ink: '#2a1206',
+      front: (xx, yy, u, v) => A[clamp(7 - Math.round(v * 1.5) + Math.round((K.cl(xx, yy, 2, 47) - 0.5)), 2, 9)],
+      side: (xx, yy, u, v) => SIDE[clamp(4 - Math.round(v * 1.4), 0, 7)], top: () => ROOF[7] });
+    for (let k = 0; k < 3; k++) { const sx = tx + 3 + k * 5; for (let yy = ty - th + 5; yy < ty - th + 18; yy++) { put(s, sx, yy, U('#1a0a10')); put(s, sx + 1, yy, U(yy < ty - th + 7 ? '#2a1420' : '#3a2028')); put(s, sx + 2, yy, A[8]); } }
+    for (let xx = tx - 1; xx < tx + tw + 1; xx++) { put(s, xx, ty - th, RIM); put(s, xx, ty - th + 1, A[8]); darken(s, xx, ty - th + 2, -0.3); }
+    out.vents.push([x - X0 + tx + 9, yb - by + ty - th + 4]); }
+  // dos filas FV inclinadas hacia el sol (marco claro, celdas azules con destello, patas y sombra en la cubierta)
+  const pv = (fx, r, pw) => {
+    const [px, py] = onRoof(fx, r), ph = 7, lean = 3;
+    for (let q = 0; q < pw + 3; q++) for (let z = 1; z <= 3; z++) darken(s, px + q + lean + 1, py - ph + z + 1, -0.28);
+    for (const lx of [px + 2, px + pw - 3]) for (let z = 0; z < ph - 1; z++) put(s, lx + lean, py - z, U(z < 2 ? '#2a2e3a' : '#5a6070'));
+    for (let rr = 0; rr < ph; rr++) for (let q = 0; q < pw; q++) {
+      const xx = px + q + Math.round(rr * lean / ph), yy = py - 1 - rr;
+      const edge = rr === ph - 1 || q === 0 || q === pw - 1, grid = q % 6 === 0 || rr === 3;
+      const glint = ((q + rr * 2) % 17) < 2;
+      put(s, xx, yy, edge ? U(rr === ph - 1 ? '#eef6ff' : '#9aa6b8') : grid ? U('#0e1c36') : glint ? U('#a6d4f2') : U(['#163a6e', '#1c4a84', '#22589a', '#2a68ae', '#3a7cc0', '#4a8ed0', '#5aa0dc'][clamp(Math.round(6 - rr * 0.7 - q / pw * 1.5), 0, 6)]));
+    }
+    for (let q = 0; q < pw; q++) put(s, px + q, py, U('#141a28'));
+  };
+  pv(10, d - 12, 56); pv(72, d - 13, 30); pv(8, d - 24, 58); pv(72, d - 25, 30);
+  // extractores eólicos (cabeza giratoria; el brillo vivo lo pone el nivel) y lucernario
+  for (const [fx, r] of [[112, 8], [126, 14]]) {
+    const [vx, vy] = onRoof(fx, r), S = K.P32(B.R.STEEL);
+    for (let z = 0; z < 4; z++) { put(s, vx, vy - z, S[3]); put(s, vx + 1, vy - z, S[2]); }
+    K.ellipseFn(s, vx + 0.5, vy - 7, 3.2, 3.4, (nx, ny) => S[clamp(Math.round(6 - nx * 2.5 - ny * 1.5 + ((Math.round((nx + 1) * 4)) % 2 ? -1 : 0)), 1, 8)]);
+    put(s, vx - 1, vy - 10, RIM); put(s, vx, vy - 11, S[8]);
+    for (let q = 0; q < 6; q++) darken(s, vx + 3 + q, vy - 1 - (q >> 1), -0.25);
+    out.vents.push([x - X0 + vx, yb - by + vy - 7]);
+  }
+  { const [lx, ly] = onRoof(102, 22); for (let rr = 0; rr < 6; rr++) for (let q = 0; q < 14; q++) put(s, lx + q + off(rr), ly - rr, rr === 5 || q === 0 ? U('#f4fbff') : U(q === 13 ? '#3a6a8a' : (q + rr) % 7 === 0 ? '#bce6f8' : '#5a9ec8')); }
+  /* --- pretil delantero y cornisa: labio al sol, vuelo y banda de sombra de 3 px en la fachada --- */
+  for (let xx = X0 - 2; xx < X0 + w + 2; xx++) {
+    put(s, xx, yt - 1, RIM); put(s, xx, yt, A[8]); put(s, xx, yt + 1, A[7]); put(s, xx, yt + 2, A[4]);
+    if (xx >= X0 && xx < X0 + w) { darken(s, xx, yt + 3, -0.42); darken(s, xx, yt + 4, -0.3); darken(s, xx, yt + 5, -0.16); }
+  }
+  put(s, X0 - 2, yt, A[9]); put(s, X0 - 2, yt + 1, A[6]); put(s, X0 - 2, yt + 2, A[3]);
+  // gárgolas de madera con chorreón
+  for (const gx of [X0 + 22, X0 + Math.round(w / 2), X0 + w - 22]) {
+    for (let q = 0; q < 4; q++) { put(s, gx + q - 1, yt + 2, U('#7a4a24')); put(s, gx + q - 1, yt + 3, U('#3e2412')); }
+    for (let yy = yt + 4; yy < yt + 4 + 12; yy++) darken(s, gx + (yy % 5 === 0 ? 1 : 0), yy, yy < yt + 10 ? -0.2 : -0.1);
+  }
+  /* --- friso pintado de semillas (rombos en los cuatro colores de las puertas) --- */
+  const FR = ['#2ac0b0', '#e0584a', '#ecc040', '#7a64d0'];
+  for (let k = 0, xx = X0 + 6; xx < X0 + w - 6; xx += 8, k++) {
+    const cx = xx, cy = yt + 9, c = U(FR[k % 4]), cl = U(mixHex(FR[k % 4], '#ffffff', 0.4)), cd = U(mixHex(FR[k % 4], '#2a1020', 0.45));
+    put(s, cx, cy - 2, cl); put(s, cx - 1, cy - 1, cl); put(s, cx, cy - 1, c); put(s, cx + 1, cy - 1, c); put(s, cx - 2, cy, c); put(s, cx - 1, cy, c); put(s, cx, cy, c); put(s, cx + 1, cy, cd); put(s, cx + 2, cy, cd); put(s, cx - 1, cy + 1, c); put(s, cx, cy + 1, cd); put(s, cx + 1, cy + 1, cd); put(s, cx, cy + 2, cd);
+  }
+  for (let xx = X0 + 2; xx < X0 + w - 2; xx++) { put(s, xx, yt + 13, A[3]); put(s, xx, yt + 14, A[8]); }
+  /* --- celosías altas a ambos lados de la placa (ventilación cruzada de la cámara) --- */
+  const wW = 12, wH = 10;
+  for (const wx of [X0 + 9, X0 + w - 21]) {
+    const wy = yt + 17;
+    for (let yy = wy - 1; yy < wy + wH + 1; yy++) for (let xx = wx - 1; xx < wx + wW + 1; xx++) put(s, xx, yy, (yy === wy - 1 || xx === wx - 1) ? A[3] : A[8]);
+    for (let yy = wy; yy < wy + wH; yy++) for (let xx = wx; xx < wx + wW; xx++) {
+      const lat = ((xx - wx) + (yy - wy)) % 4 === 0 || ((xx - wx) - (yy - wy) + 40) % 4 === 0;
+      put(s, xx, yy, lat ? U(yy - wy < 2 || xx - wx < 2 ? '#6a4020' : '#a8743c') : U(yy - wy < 2 || xx - wx < 1 ? '#140810' : '#2a1626'));
+    }
+    for (let xx = wx - 2; xx < wx + wW + 2; xx++) { put(s, xx, wy + wH + 1, A[9]); darken(s, xx, wy + wH + 2, -0.3); }
+  }
+  /* --- puertas de colores rehundidas (granero de variedades) con semilla pintada --- */
+  const DC = [['#06302e', '#0a4a4a', '#18a294', '#2ac0b0', '#56dcc6', '#a0f0e0'], ['#3a0810', '#6a1424', '#c8384a', '#e0584a', '#ff7a6a', '#ffb0a0'], ['#4a3204', '#7a5a0a', '#d8a428', '#ecc040', '#ffe070', '#fff0b0'], ['#160e3a', '#2a1e6a', '#5a44b8', '#7a64d0', '#a08ef0', '#d0c8ff']];
+  const dh = Math.min(80, h - 32), dw = 18, gap = Math.round((w - 4 * dw) / 5);
+  for (let k = 0; k < 4; k++) {
+    const ddx = X0 + gap + k * (dw + gap);
+    B.door(s, ddx, by, dw, dh, DC[k], { arch: true, frame: B.R.ADOBE, panels: true });
+    // derrame: jamba izquierda y dintel en sombra (luz arriba-izquierda), jamba derecha iluminada
+    for (let yy = by - dh; yy < by - 3; yy++) { darken(s, ddx, yy, -0.38); darken(s, ddx + 1, yy, -0.2); put(s, ddx + dw - 1, yy, K.mixU(get(s, ddx + dw - 1, yy), U('#fff0c8'), 0.25)); }
+    for (let xx = ddx; xx < ddx + dw; xx++) for (let q = 0; q < 3; q++) { const yy = by - dh + 4 + q; darken(s, xx, yy, q === 0 ? -0.36 : -0.2); }
+    // semilla/hoja pintada en la hoja de la puerta
+    const sx = ddx + Math.round(dw / 2) - 1, sy = by - Math.round(dh * 0.62), L = K.P32(DC[k]);
+    for (const [ax, ay, kk] of [[0, 0, 5], [1, -1, 5], [1, 0, 4], [0, 1, 4], [1, 1, 3], [2, 0, 3], [1, 2, 3], [2, -2, 5], [-1, 1, 5]]) put(s, sx + ax, sy + ay, L[kk]);
+  }
+  // placa (legible) con sombra arrojada
+  const pyq = yt + 17, pw = B.plaque(s, X0 + Math.round(w / 2), pyq, 'BANCO DE SEMILLAS', { center: true, font: 'tiny', bold: true, bg: '#5a2c1a', border: '#ecbe86', col: '#fdeccc', h: 12 });
+  for (let xx = X0 + Math.round(w / 2 - pw / 2) + 1; xx < X0 + Math.round(w / 2 + pw / 2) + 2; xx++) { darken(s, xx, pyq + 13, -0.36); darken(s, xx, pyq + 14, -0.16); }
+  for (let yy = pyq; yy < pyq + 13; yy++) darken(s, X0 + Math.round(w / 2 + pw / 2) + 1, yy, -0.3);
+  // termohigrómetro con LED junto a la primera puerta
+  { const hx = X0 + 2, hy = by - 64; for (let yy = hy; yy < hy + 12; yy++) for (let xx = hx; xx < hx + 8; xx++) put(s, xx, yy, (xx === hx || yy === hy) ? U('#c8ccd8') : (xx === hx + 7 || yy === hy + 11) ? U('#1a1e2a') : (yy > hy + 1 && yy < hy + 7 && xx > hx + 1 && xx < hx + 6) ? U((xx + yy) % 2 ? '#0a3a3a' : '#1ec0b0') : U('#3a4252'));
+    put(s, hx + 3, hy + 9, U('#3fe0a0')); out.led = [x - X0 + hx + 3, yb - by + hy + 9]; }
+  // zócalo de piedra al pie de la fachada
+  for (let xx = X0; xx < X0 + w; xx++) for (let q = 0; q < 4; q++) { const yy = by - 1 - q, bk = Math.floor((xx - X0 + (q > 1 ? 5 : 0)) / 10); const S = K.P32(B.R.STONE); put(s, xx, yy, ((xx - X0 + (q > 1 ? 5 : 0)) % 10 === 0) ? S[2] : S[clamp(q === 3 ? 7 : 5 - (q === 0 ? 1 : 0) + Math.round((hash2(bk, q >> 1, 51) - 0.5) * 2), 1, 9)]); }
+  /* --- lateral: unidad de frío con ventilador, bajante y rejilla --- */
+  { const ux = X0 + w + 3, uy = by - 30; // caja metálica adosada (en sombra)
+    PFInfra.box3q(s, ux, uy, 12, 14, 4, { skew: SK, ramp: ['#141a26', '#1e2636', '#2a3448', '#38445c', '#4a5872', '#5e6e8a', '#7a8aa4'] });
+    K.ellipseFn(s, ux + 6, uy - 7, 4.4, 4.4, (nx, ny) => U((Math.abs(nx) < 0.18 || Math.abs(ny) < 0.18) ? '#7a8aa4' : nx * nx + ny * ny > 0.7 ? '#4a5872' : '#0e121c'));
+    out.fan = [x - X0 + ux + 6, yb - by + uy - 7, 4];
+    for (let yy = yt - 4; yy < by - 2; yy++) { const xx = X0 + w + dx - 3; put(s, xx, yy - Math.round(0), U('#5a3a24')); put(s, xx + 1, yy, U('#2e1a10')); }
+    for (let k = 0; k < 4; k++) for (let q = 0; q < 6; q++) put(s, X0 + w + 4 + q, by - 64 + k * 2 - Math.round(q * 2), U(k % 2 ? '#1a0e18' : '#4a2c3a'));
+    // ventanuco lateral con postigo (sigue el plano del lateral)
+    for (let q = 0; q < dx - 6; q++) for (let rr = 0; rr < 12; rr++) { const xx = X0 + w + 3 + q, yy = yt + 20 + rr - q * 2; put(s, xx, yy, rr === 0 || q === 0 ? U('#1a0a14') : U(rr < 3 ? '#4a6a8a' : '#24324a')); }
+    for (let q = 0; q < dx - 5; q++) put(s, X0 + w + 2 + q, yt + 33 - q * 2, U('#a8705e'));
+  }
+  // trampilla de acceso a la cubierta
+  { const [hx, hy] = onRoof(96, 6); for (let rr = 0; rr < 5; rr++) for (let q = 0; q < 9; q++) put(s, hx + q + off(rr), hy - rr, (rr === 4 || q === 0) ? U('#e8c08a') : U(q === 8 || rr === 0 ? '#3a2416' : '#7a5232')); }
+  /* --- acabado: contorno selectivo y luz de borde cálida; arista izquierda y canto de cubierta --- */
+  B.finish(s, { rimCol: '#fbc371', rimK: 0.5 });
+  for (let yy = yt; yy < by - 4; yy++) put(s, X0, yy, K.mixU(get(s, X0, yy), RIM, 0.55));
+  for (let r = 0; r < d; r++) put(s, X0 + off(r), yF(r), RIM);
+  for (let xx = X0 + off(d - 1); xx < X0 + w + off(d - 1); xx++) put(s, xx, yF(d - 1), K.mixU(get(s, xx, yF(d - 1)), RIM, 0.6));
+  /* --- sombra arrojada abajo-derecha (zócalo y suelo) y contacto --- */
+  const wx0 = x + w, gy = yb;
+  for (let r = 0; r <= d + 4; r++) { const yy = gy - r, x0 = wx0 + off(r) - 1, L = Math.round(34 * (1 - r / (d + 12))); for (let xx = x0; xx < x0 + L; xx++) { const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, B.shS(c, xx > x0 + L - 4 ? -0.18 : -0.36, 250)); } }
+  for (let yy = gy; yy < gy + 48; yy++) for (let xx = wx0 + 4; xx < wx0 + 4 + Math.max(0, 22 - Math.round((yy - gy) * 0.3)); xx++) { const c = get(pb, xx, yy); if (c >>> 24) put(pb, xx, yy, B.shS(c, -0.22, 250)); }
+  K.blit(pb, s, x - X0, yb - by);
+  for (let xx = x - 1; xx < x + w + dx; xx++) { const c = get(pb, xx, yb + 1); if (c >>> 24) put(pb, xx, yb + 1, B.shS(c, -0.34, 250)); const c2 = get(pb, xx, yb + 2); if (c2 >>> 24) put(pb, xx, yb + 2, B.shS(c2, -0.16, 250)); }
+  return out;
 }
 
 /* ---------------- piezas del guion del nivel 08 ---------------- */
