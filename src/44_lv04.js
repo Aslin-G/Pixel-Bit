@@ -76,6 +76,9 @@ LEVELS[4] = {
     { x: 2580, y: 200, title: 'CERCAS DE ARENA', sub: 'Fijan las dunas', kind: 'green', ax: 2580, ay: 236 },
     { x: 712, y: 311, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 712, ay: 324 },
   ],
+  // r4-labels: la etiqueta lejana del bioma (f 0,28) sube a las terrazas FV del fondo; en su sitio original caía sobre
+  // los strings del plano jugable (tapaba los rótulos S3–S5 y su tallo señalaba la fila delantera)
+  labelOffsets: { 'FOTOVOLTAICA': { dy: -68, ady: -70 } },
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
     const t0 = nowMs();
