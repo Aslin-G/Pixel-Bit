@@ -13,6 +13,12 @@
    La cámara del nivel queda en cam.y = 0 (suelo jugable en y ≈ 282).
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+/** r4-l8: parámetros de erosión (17d) propios del oasis: menos bruma en la lejana para que
+    lea ocre-naranja al sol y violeta en sombra; la media con cárcavas profundas y estratos */
+const R4L8_ERODE = {
+  far: Object.assign({}, VISTA.R3COAST_ERODE.far, { hz: 0.26, hzV: 0.16, ga: 10, gN: 0.13, gTw: 0.9, facet: 0.45, contrast: 1.35, thr: 0.6, ghost: 0.52 }),
+  mid: Object.assign({}, VISTA.R3COAST_ERODE.mid, { hz: 0.04, hzV: 0.02, ga: 13, gN: 0.13, ts: 7, tk: 0.45, tMax: 0.55, contrast: 1.4, thr: 0.52 }),
+};
 
 BIOMES.oasis = function (L) {
   const V = VISTA;
@@ -44,22 +50,26 @@ BIOMES.oasis = function (L) {
   B.cloudDeck({ n: 7, seed: 37, f: [0.03, 0.07], y: [-6, 56], w: [50, 124], bias: 0.6, speed: [2, 3.5], sunX: SUN.x });
   /* ---------------- cúmulos bajos (tras la cordillera) ---------------- */
   B.cloudDeck({ n: 6, seed: 41, f: [0.08, 0.11], y: [54, 100], w: [86, 130], speed: [1.4, 2.4], sunX: SUN.x, tall: true, haze: 0.08, hazeCol: '#e0d0d8' });
-  /* ---------------- cordillera lila lejana con ARIDIA (0,06) ---------------- */
+  /* ---------------- cordillera lejana erosionada con ARIDIA (0,06) ----------------
+     r4-l8: crestas erosionadas como en la referencia (c_mount): caras al sol ocre-naranja,
+     sombras violeta, cárcavas en abanico y una cordillera fantasma más pálida detrás */
   const farGl = [];
-  B.vplane(0.06, at(0.06, HZ - 74), 76, (pb, w, h) => {
+  B.vplane(0.06, at(0.06, HZ - 90), 92, (pb, w, h) => {
     const r = RNG(171), peaks = [];
     for (let x = -40; x < w + 60;) {
-      if (r.chance(0.25)) { x += r.int(50, 120); continue; }
-      const ww = r.int(44, 120);
-      peaks.push({ x: x + ww * 0.5, v: r.int(14, 34), h: r.int(20, 60), w: ww, d: r.int(16, 30) });
-      x += r.int(30, 80);
+      if (r.chance(0.2)) { x += r.int(40, 100); continue; }
+      const ww = r.int(54, 130);
+      peaks.push({ x: x + ww * 0.5, v: r.int(14, 34), h: r.int(28, 70), w: ww, d: r.int(18, 32), k: r.range(0.85, 1.25) });
+      if (r.chance(0.5)) peaks.push({ x: x + ww * r.range(0.1, 0.9), v: r.int(4, 12), h: r.int(16, 30), w: ww * 0.5, d: 16 });
+      x += r.int(34, 84);
     }
-    peaks.push({ x: 236, v: 20, h: 48, w: 90, d: 24, k: 0.9 });
+    peaks.push({ x: 236, v: 20, h: 50, w: 90, d: 24, k: 0.9 });
     const info = V.relief(pb, {
-      yBase: h - 1, nv: 44, dvy: 0.32, seed: 173, hMax: 60,
-      H: V.massif(peaks, { seed: 173, rough: 0.5, scale: 0.05, apron: 5, spurs: 5, spurW: 0.4, plateaus: [{ x: 236, w: 22, h: 44 }] }),
-      ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55,
-      haze: { col: '#c4bcdc', k0: 0.02, k: 0.22 }, mist: { col: '#d4c8dc', h: 14, k: 0.55 }, rim: '#f0c8b4', tex: 0.04,
+      yBase: h - 1, nv: 44, dvy: 0.32, seed: 173, hMax: 74,
+      H: V.massif(peaks, { seed: 173, rough: 0.5, scale: 0.05, apron: 5, spurs: 6, spurW: 0.45, plateaus: [{ x: 236, w: 22, h: 46 }] }),
+      ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55, facet: 0.4,
+      erode: R4L8_ERODE.far,
+      haze: { col: '#c2b8dc', k0: 0.0, k: 0.2 }, mist: { col: '#d8c8d8', h: 16, k: 0.5 }, rim: '#f8cc98', rimK: 0.5, tex: 0.05,
     });
     // ARIDIA muy lejos: cúpula y torres diminutas, casi disueltas en la bruma
     const dc = V.domeCity(pb, 236, info.top[236] + 9, { k: 0.52, s: 0.27, label: false });
@@ -68,7 +78,7 @@ BIOMES.oasis = function (L) {
   /* ---------------- mar de dunas (0,12) ---------------- */
   let duneCrests = [];
   B.vplane(0.12, at(0.12, 126), 62, (pb, w, h) => {
-    const D = V.dunes(pb, { y0: 30, y1: 56, rows: 3, hBack: 14, hFront: 26, wMin: 60, wMax: 150, k0: 0.36, k1: 0.12, hazeCol: '#dccad6', seed: 121 });
+    const D = V.dunes(pb, { y0: 30, y1: 56, rows: 3, hBack: 14, hFront: 26, wMin: 60, wMax: 150, k0: 0.3, k1: 0.08, hazeCol: '#d8c4c8', seed: 121 });
     duneCrests = D.crests.filter(c => c[2] === 2).map(([x, y]) => [x, y]);
     // caravana diminuta sobre la duna delantera (silueta cálida)
     const C = V.P32(['#3a2418', '#6a4028', '#9a6038']);
@@ -76,20 +86,24 @@ BIOMES.oasis = function (L) {
   }, { tag: 'dunes', dyn: (g, cam, Ly) => { const [ox, oy] = B.vofs(Ly, cam); V.drawSandWisps(g, duneCrests, ox, oy, T(), { n: 3, a: 0.5 }); } });
   /* ---------------- mesetas con energía y tubería de permeado (0,2) ---------------- */
   const mesaT = [], mesaFx = { flow: [], pv: [], glows: [] };
-  B.vplane(0.2, at(0.2, 92), 116, (pb, w, h) => {
+  B.vplane(0.2, at(0.2, 80), 128, (pb, w, h) => {
     const r = RNG(201), peaks = [], plats = [];
     for (let x = -20; x < w + 60;) {
-      const ww = r.int(70, 140), hh = r.int(28, 62);
-      peaks.push({ x: x + ww * 0.5, v: r.int(10, 26), h: hh, w: ww, d: r.int(20, 32), k: 0.7 });
-      if (r.chance(0.6)) plats.push({ x: x + ww * 0.5, w: ww * 0.28, h: hh * 0.82 });
+      const ww = r.int(70, 140), hh = r.int(30, 64);
+      const mesa = r.chance(0.6);
+      // r4-l8: mesetas con turbinas y, entre ellas, picos erosionados más altos (cordillera media)
+      peaks.push({ x: x + ww * 0.5, v: r.int(10, 26), h: mesa ? hh : hh + r.int(14, 30), w: ww, d: r.int(20, 32), k: mesa ? 0.7 : r.range(0.95, 1.3) });
+      if (mesa) plats.push({ x: x + ww * 0.5, w: ww * 0.28, h: hh * 0.82 });
+      else peaks.push({ x: x + ww * r.range(0.2, 0.8), v: r.int(2, 8), h: Math.round(hh * 0.5), w: ww * 0.45, d: 14 });
       x += r.int(100, 170) + (r.chance(0.45) ? r.int(60, 130) : 0);
     }
     const info = V.relief(pb, {
-      yBase: h - 1, nv: 48, dvy: 0.36, seed: 203, hMax: 70,
-      H: V.massif(peaks, { seed: 203, rough: 0.55, scale: 0.04, apron: 6, spurs: 6, spurW: 0.5, plateaus: plats }),
-      ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.56, facet: 0.34, cav: 0.1,
-      haze: { col: '#c8a8c0', k0: 0.12, k: 0.16 }, mist: { col: '#e4cccc', h: 22, k: 0.55 }, rim: '#ffdcae', tex: 0.05,
-      veg: { ramp: V.RAMPS.vegMid, density: 0.02, maxSlope: 0.5, minY: 50 },
+      yBase: h - 1, nv: 48, dvy: 0.36, seed: 203, hMax: 92,
+      H: V.massif(peaks, { seed: 203, rough: 0.55, scale: 0.04, apron: 6, spurs: 7, spurW: 0.5, plateaus: plats }),
+      ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.56, facet: 0.36, cav: 0.1,
+      erode: R4L8_ERODE.mid,
+      haze: { col: '#c8a8c0', k0: 0.02, k: 0.12 }, mist: { col: '#e8d0c8', h: 22, k: 0.5 }, rim: '#fbc371', rimK: 0.65, tex: 0.05,
+      veg: { ramp: V.RAMPS.vegMid, density: 0.02, maxSlope: 0.5, minY: 56 },
     });
     // aerogeneradores en las mesetas
     for (const P of plats) {
