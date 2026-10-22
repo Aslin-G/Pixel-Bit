@@ -51472,6 +51472,8 @@ LEVELS[10] = {
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, ox = cam.x, oy = cam.y, D = LV10;
     const ntu = S.ntu ?? 60;
+    // cinta de arena rasante, parte alta (detrás de terreno y personajes)
+    { const storm = 1 - (S.clearK || 0); if (storm > 0.02) R3FIN_driftRows(g, sc, cam, storm, 0, 18); }
     // conos de luz de la nave de OI
     g.globalCompositeOperation = 'lighter';
     for (const [x, y, w0, w1, h] of D.cones) { if (x + w1 < ox || x - w1 > ox + W) continue; g.drawImage(VISTA.lightCone(w0, w1, h, '#fff0c8', 0.14), Math.round(x - w1 / 2 - ox), Math.round(y - oy)); }
@@ -51550,8 +51552,9 @@ LEVELS[10] = {
     // arena en vuelo: estrías en 3 planos como sprites pequeños (≈130 drawImage, 0 pasadas completas)
     FIXLB_STORM.t += Game.dt * (0.55 + 0.9 * (S.gust || 0));
     R2BB_drawSand(g, FIXLB_STORM.t, cam, storm * (0.75 + 0.25 * (S.gust || 0)));
-    // arena rasante: cinta de saltación pegada al suelo
-    { const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = -FIXLB_STORM.t * 330 - cam.x; FIXLB_drawTile(g, R2BB_groundDrift(), d, null, 0.8 * storm, gy); }
+    // arena rasante: delante de los personajes solo la franja de los tobillos (filas 18–25 de la cinta);
+    // el resto de la cinta se dibuja en renderMid, detrás, para que las piernas de Amaya no queden veladas
+    R3FIN_driftRows(g, sc, cam, storm, 18, 8);
     // visibilidad reducida (≈200 m): viñeta de polvo con claro amplio alrededor de Amaya y KIRU; el cielo
     // (el coloso) queda casi libre y los bordes bajos se hunden en granate
     const P = sc.player; if (!P) return;
@@ -51769,6 +51772,15 @@ function R2BB_drawSand(g, T, cam, a) {
       const s = spr[v]; g.drawImage(atlas, s[0], s[1], s[2], s[3], Math.round(x), Math.round(y), s[2], s[3]);
     }
   }
+  g.globalAlpha = 1;
+}
+/** Dibuja las filas [sy, sy+sh) de la cinta de arena rasante (26 px, apoyada 4 px bajo el suelo) */
+function R3FIN_driftRows(g, sc, cam, storm, sy, sh) {
+  const c = R2BB_groundDrift(), a = 0.8 * storm; if (a <= 0.01) return;
+  const gy = Math.round(sc.world.groundAt(cam.x + W / 2) - cam.y) - 22, d = -FIXLB_STORM.t * 330 - cam.x;
+  const x = Math.round((((d % c.width) + c.width) % c.width) - c.width);
+  g.globalAlpha = Math.min(1, a);
+  for (const ox of [0, c.width]) g.drawImage(c, 0, sy, c.width, sh, x + ox, gy + sy, c.width, sh);
   g.globalAlpha = 1;
 }
 /** Cinta de arena rasante (26 px, periódica en x): lámina en bandas más densa abajo y estrías con la cabeza a la izquierda */
