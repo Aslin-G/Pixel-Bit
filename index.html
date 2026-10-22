@@ -49547,7 +49547,7 @@ LEVELS[8] = {
       { kind: 'clump', x: 3260, w: 150, h: 92, seed: 93, spikes: 6, leaves: 11 }, // r4-l8: deja ver las raíces del cují
       { kind: 'canopy', x: 3300, y: -6, w: 220, h: 70, seed: 95, side: 1, n: 12, vines: 3 },
     ],
-    fauna: { drones: [{ x: 1380, y: 120, r: 30 }] },
+    fauna: { drones: [{ x: 1380, y: 120, r: 30 }], eagle: { x0: 500, x1: 2500, y: 64 } },
     // r4-l8: corte de suelo iluminado y denso bajo los tramos 'soilcut'
     decorateFace(pb, world, segs) { R4L8_soilCut(pb, world, segs); },
   },
@@ -49591,9 +49591,13 @@ LEVELS[8] = {
       [728, 874, ['sorgo', 'nopal'], { seed: 37, spacing: 24, frame: PFB.R.STONE }],
     ];
     LV8_DRIPS.length = 0; LV8_FLOWS.length = 0; LV8_GLOWS.length = 0; LV8_FALLS.length = 0;
+    // r4-l8: los cultivos que asoman sobre la tabla trasera se mecen con el viento (R4L8_SWAY)
+    const SW = R4L8_swayKit(pb);
     for (const [x0, x1, crops, o] of plots) {
       const yb = back(x0) + 3;
+      const sg = SW.begin(x0 - 14, x1 + 22, yb - 104, yb - 32);
       const bd = A.bed(pb, x0, x1, yb, Object.assign({ crops, depth: 20, board: 10, rows: 3 }, o));
+      SW.end(sg);
       LV8_DRIPS.push(...bd.drips);
     }
     // sensores de suelo decorativos (el de la huerta es la estación)
@@ -49657,7 +49661,9 @@ LEVELS[8] = {
     const bx = 1902, by = back(bx) + 4;
     I.box3q(pb, bx - 22, by, 44, 10, 8, { ramp: PFB.R.STONE });
     PFB.rect(pb, bx - 20, by - 17, 40, 5, (xx, yy) => U(yy === by - 17 ? '#bde9f2' : (xx + yy) % 7 === 0 ? '#3adcf1' : '#11a0c0'));
-    for (let x = 1980; x < 2240; x += 9) A.put(pb, ['girasol', 'flor', 'flor', 'girasol', 'flor'][Math.floor(x / 9) % 5], x, back(x) + 2, 0.8 + (x % 3) * 0.1, 0, x);
+    { const sg = SW.begin(1972, 2252, back(2100) - 66, back(2100) - 6);
+      for (let x = 1980; x < 2240; x += 9) A.put(pb, ['girasol', 'flor', 'flor', 'girasol', 'flor'][Math.floor(x / 9) % 5], x, back(x) + 2, 0.8 + (x % 3) * 0.1, 0, x);
+      SW.end(sg); }
     for (const [x, sd] of [[2000, 0], [2022, 1], [2044, 2]]) A.hive(pb, x, back(x) + 2, sd);
     for (const [x, h, f] of [[2096, 70, '#ff9a2a'], [2160, 62, '#ffd83a'], [2226, 74, '#f05a3a']]) A.fruitTree(pb, x, back(x) + 3, h, x, f);
     /* ===== 9. CUJÍ ANTIGUO (2250–2610) y PUERTA DE EVIDENCIA ===== */
@@ -49666,7 +49672,9 @@ LEVELS[8] = {
     for (const [x, h] of [[2560, 66]]) F.palm(pb, x, back(x) + 2, h, x % 2 ? 5 : -5, x);
     // bombeo solar: pozo con panel → tubería → segundo bancal con goteo (la ciencia también en la pradera)
     const wl = A.well(pb, 2272, back(2272) + 3);
+    const sg2 = SW.begin(2310, 2400, back(2322) + 3 - 100, back(2322) + 3 - 29);
     const bd2 = A.bed(pb, 2322, 2378, back(2322) + 3, { crops: ['frijol', 'maiz', 'ahuyama'], depth: 18, board: 9, rows: 2, mulch: true, seed: 59, spacing: 18 });
+    SW.end(sg2);
     LV8_DRIPS.push(...bd2.drips);
     I.pipe(pb, [[2306, wl.pipeY], [2316, wl.pipeY], [2316, back(2322) - 12], [2376, back(2322) - 12]], 1, 'irrig', { flange: 0 });
     LV8_FLOWS.push({ pts: [[2306, wl.pipeY], [2316, wl.pipeY], [2316, back(2322) - 12], [2376, back(2322) - 12]], kind: 'irrig', rate: 0.6 });
@@ -49681,6 +49689,7 @@ LEVELS[8] = {
     LV8_CHANNELS.fill(-1);
     for (let x = 0; x < world.w; x++) { const sg = PFBGround.segAt(segs, x); if (sg.face !== 'terrace') continue; const ti = PFBGround.tierInfo(sg, x, gy(x)); const c = ti.find(q => q.channel); if (c) LV8_CHANNELS[x] = c.topY + c.topH - 3; }
     for (const sg of segs) if (sg.face === 'terrace') for (const fx of (sg.falls || [])) { const ti = PFBGround.tierInfo(sg, fx, gy(fx)); const i = ti.findIndex(q => q.channel); if (i >= 0 && ti[i + 1]) LV8_FALLS.push([fx, ti[i].topY + ti[i].topH - 3, ti[i + 1].topY]); }
+    SW.finish();
     LEVELS[8]._propsMs = Math.round(nowMs() - t0);
   },
   /** Primer plano a ras de suelo: pasto, flores y juncos delante de los pies */
@@ -49695,6 +49704,8 @@ LEVELS[8] = {
   renderMid(g, sc, cam) {
     const S = sc.state, t = Game.time, w = sc.world, ox = cam.x, oy = cam.y;
     const gy = (x) => w.groundAt(x) - oy;
+    // r4-l8: cultivos que se mecen (copas recortadas del prerender, 5 cuadros de cizalla)
+    R4L8_drawSway(g, sc);
     // goteo: gotas que caen de los emisores de cada hilera
     g.fillStyle = '#9cf0f8';
     for (const [x0, x1, yb] of LV8_DRIPS) { if (x1 - ox < 0 || x0 - ox > W) continue; for (let x = x0, i = 0; x < x1; x += 10, i++) { const ph = (t * 1.1 + i * 0.37) % 1; if (ph < 0.5) g.fillRect(Math.round(x - ox), Math.round(yb - oy + ph * 4), 1, 1 + (ph > 0.3 ? 1 : 0)); } }
@@ -49703,8 +49714,8 @@ LEVELS[8] = {
     PFB.glows(g, sc, LV8_GLOWS);
     // cabras de Doña Celia (escala de personaje)
     for (let i = 0; i < 5; i++) { const gx = 1700 + i * 34 + Math.sin(t * 0.25 + i * 1.7) * 16; PFAgro.drawGoat(g, gx - ox, gy(gx) - 2, t + i, Math.cos(t * 0.25 + i * 1.7) >= 0 ? 1 : -1, i * 1.3); }
-    // mariposas y abejas en el corredor y la milpa
-    for (let i = 0; i < 14; i++) { const bx = (i < 9 ? 1980 : 380) + ((t * 18 + i * 61) % (i < 9 ? 260 : 480)) - ox, by = (i < 9 ? gy(2000) - 30 : gy(400) - 46) - Math.abs(Math.sin(t * 3 + i)) * 12; if (bx < -4 || bx > W + 4) continue; const wing = Math.floor(t * 10 + i) % 2; fpx(g, bx, by, i % 3 ? '#ffe14d' : '#f6a0d0'); fpx(g, bx + 1, by - wing, i % 3 ? '#fff6a0' : '#ffe0f0'); fpx(g, bx - 1, by - wing, i % 3 ? '#fff6a0' : '#ffe0f0'); }
+    // r4-l8: mariposas, abejas, libélulas, golondrinas, agua que brilla y piezas vivas del banco
+    R4L8_drawLife(g, sc);
     // brillo del compartimento de KIRU en el cují
     if (S.memGlow) VISTA.drawGlow(g, 2422 - ox, gy(2420) - 46, 22, '#b49cff', 0.5 + 0.25 * Math.sin(t * 4));
   },
@@ -49995,6 +50006,67 @@ function R4L8_seedBank(pb, x, yb, w, h, d) {
   K.blit(pb, s, x - X0, yb - by);
   for (let xx = x - 1; xx < x + w + dx; xx++) { const c = get(pb, xx, yb + 1); if (c >>> 24) put(pb, xx, yb + 1, B.shS(c, -0.34, 250)); const c2 = get(pb, xx, yb + 2); if (c2 >>> 24) put(pb, xx, yb + 2, B.shS(c2, -0.16, 250)); }
   return out;
+}
+
+/* =====================================================================
+   r4-l8 — Cultivos que se mecen. En props se fotografía la caja de cada grupo antes y
+   después de dibujarlo y al final: los píxeles nuevos, sobre vacío y no tapados después,
+   son «copa». Al primer cuadro (ya reiluminado por R2LIGHT) se recortan de propsC a una
+   capa propia con 5 cuadros de cizalla (±2 px arriba, 0 en la base) y se dibujan en renderMid.
+   ===================================================================== */
+const R4L8_SWAY = { groups: [], c: null };
+function R4L8_swayKit(pb) {
+  const S = R4L8_SWAY; S.groups.length = 0; S.c = null;
+  const grab = (G) => { const o = new Uint32Array(G.w * G.h); for (let yy = 0; yy < G.h; yy++) { const Y = G.y + yy; if (Y < 0 || Y >= pb.h) continue; for (let xx = 0; xx < G.w; xx++) { const X = G.x + xx; if (X >= 0 && X < pb.w) o[yy * G.w + xx] = pb.data[Y * pb.w + X]; } } return o; };
+  return {
+    begin(x0, x1, yTop, yBot) { const G = { x: Math.round(x0), y: Math.round(yTop), w: Math.round(x1 - x0), h: Math.round(yBot - yTop) }; G.pre = grab(G); return G; },
+    end(G) { G.post = grab(G); S.groups.push(G); },
+    finish() {
+      for (const G of S.groups) {
+        const fin = grab(G), m = new Uint8Array(G.w * G.h); let n = 0;
+        for (let i = 0; i < m.length; i++) if ((G.post[i] >>> 24) && G.post[i] !== G.pre[i] && !(G.pre[i] >>> 24) && fin[i] === G.post[i]) { m[i] = 1; n++; }
+        G.mask = m; G.n = n; G.pre = G.post = null; G.frames = null;
+      }
+    },
+  };
+}
+function R4L8_swayInit(sc) {
+  const S = R4L8_SWAY; S.c = sc.propsC; if (!S.c) return;
+  const Gs = S.groups.filter(G => G.mask && G.n); if (!Gs.length) return;
+  // copia de la unión de las cajas en un lienzo auxiliar de lectura (propsC no se relee: ya lo leyó R2LIGHT)
+  const ux0 = Math.max(0, Math.min(...Gs.map(G => G.x))), uy0 = Math.max(0, Math.min(...Gs.map(G => G.y)));
+  const ux1 = Math.min(S.c.width, Math.max(...Gs.map(G => G.x + G.w))), uy1 = Math.min(S.c.height, Math.max(...Gs.map(G => G.y + G.h)));
+  const UW = ux1 - ux0, UH = uy1 - uy0, tmp = document.createElement('canvas'); tmp.width = UW; tmp.height = UH;
+  const tctx = tmp.getContext('2d', { willReadFrequently: true }); tctx.drawImage(S.c, ux0, uy0, UW, UH, 0, 0, UW, UH);
+  const D = new Uint32Array(tctx.getImageData(0, 0, UW, UH).data.buffer), ctx = S.c.getContext('2d');
+  for (const G of Gs) {
+    const src = new Uint32Array(G.w * G.h);
+    for (let y = 0; y < G.h; y++) {
+      let run = -1;
+      for (let x = 0; x <= G.w; x++) {
+        const i = y * G.w + x, on = x < G.w && G.mask[i];
+        if (on) { const X = G.x + x - ux0, Y = G.y + y - uy0; if (X >= 0 && Y >= 0 && X < UW && Y < UH) src[i] = D[Y * UW + X]; if (run < 0) run = x; }
+        else if (run >= 0) { ctx.clearRect(G.x + run, G.y + y, x - run, 1); run = -1; }
+      }
+    }
+    G.frames = [];
+    for (let a = -2; a <= 2; a++) {
+      const f = new PixelBuffer(G.w + 4, G.h);
+      for (let y = 0; y < G.h; y++) { const sx = Math.round(a * Math.pow((G.h - y) / G.h, 1.4)); for (let x = 0; x < G.w; x++) { const u = src[y * G.w + x]; if (u) f.data[y * (G.w + 4) + x + 2 + sx] = u; } }
+      G.frames.push(f.toCanvas());
+    }
+  }
+}
+function R4L8_drawSway(g, sc) {
+  const S = R4L8_SWAY; if (!S.groups.length) return;
+  if (S.c !== sc.propsC) R4L8_swayInit(sc);
+  const t = Game.time, ox = sc.cam.ox, oy = sc.cam.oy;
+  for (const G of S.groups) {
+    if (!G.frames || G.x + G.w - ox < -4 || G.x - ox > W + 4) continue;
+    // ráfagas que recorren el campo de oeste a este + temblor corto
+    const gust = Math.sin(t * 0.9 - G.x * 0.008) * 0.6 + Math.sin(t * 2.3 + G.x * 0.05) * 0.4;
+    g.drawImage(G.frames[clamp(Math.round(gust * 2.2) + 2, 0, 4)], Math.round(G.x - 2 - ox), Math.round(G.y - oy));
+  }
 }
 
 /* =====================================================================
@@ -50341,6 +50413,89 @@ function R4L8_drawSoil(g, sc) {
     if (!vis(x)) continue;
     g.fillStyle = '#d4f8fc';
     for (let k = 0; k < 3; k++) { const ph = (t * 0.8 + k / 3) % 1; g.fillRect(Math.round(x - ox + (k - 1) * 2), Math.round(y0 - ph * (y0 - y1) - oy), 1, 1); }
+  }
+}
+
+/* =====================================================================
+   r4-l8 — Vida del plano jugable (renderMid): mariposas con aleteo de 2 cuadros en milpa,
+   huerta y corredor; abejas que orbitan las colmenas; libélulas sobre el estanque; bandadas de
+   golondrinas; anillos y destellos en estanque y bebedero; ventilador de la unidad de frío y
+   extractores giratorios del banco de semillas. Solo fillRect/drawImage de lo visible.
+   ===================================================================== */
+const R4L8_LIFE = { swallow: null };
+function R4L8_swallowStrip() {
+  return PFK.strip(4, 9, 5, (pb, i) => {
+    const lift = [-2, -1, 1, 0][i], K_ = U('#141a2e'), B_ = U('#2a3456'), Wt = U('#f0e6dc');
+    for (const sd of [-1, 1]) for (let k = 1; k <= 4; k++) { const y = 2 + Math.round(lift * k / 4); PFK.put(pb, 4 + sd * k, y, k > 2 ? K_ : B_); }
+    PFK.put(pb, 4, 2, B_); PFK.put(pb, 4, 3, Wt); PFK.put(pb, 5, 2, U('#c84a2a')); PFK.put(pb, 3, 3, K_); PFK.put(pb, 2, 4, K_);
+  });
+}
+function R4L8_drawLife(g, sc) {
+  const t = Game.time, ox = sc.cam.ox, oy = sc.cam.oy, w = sc.world;
+  const gy = (x) => w.groundAt(x) - oy;
+  const R = (x, y, ww, hh) => g.fillRect(Math.round(x), Math.round(y), ww, hh);
+  // mariposas: rutas en lazo sobre las flores (monarca, limonera, blanca y azul)
+  const BF = [['#ff8a1e', '#ffd070', '#3a1a08'], ['#ffe14d', '#fff6b0', '#4a3a08'], ['#f4f0ff', '#ffffff', '#3a3a4a'], ['#5aa8ff', '#bfe0ff', '#14204a']];
+  const zones = [[380, 520, 52, 5], [560, 700, 40, 4], [730, 870, 50, 3], [1610, 1950, 20, 5], [1980, 2240, 34, 7], [2300, 2400, 40, 3]];
+  let id = 0;
+  for (const [a, b, hgt, n] of zones) {
+    if (b - ox < -10 || a - ox > W + 10) { id += n; continue; }
+    for (let i = 0; i < n; i++, id++) {
+      const u = t * (0.05 + (id % 5) * 0.012) + id * 0.37, span = b - a;
+      const x = a + span * (0.5 + 0.5 * Math.sin(u * TAU * 0.6 + id)) + Math.sin(t * 2.7 + id) * 6 - ox;
+      const y = gy(a + span * 0.5) - hgt - Math.abs(Math.sin(u * TAU * 1.3 + id * 2)) * 18 + Math.sin(t * 7 + id) * 1.5;
+      if (x < -4 || x > W + 4) continue;
+      const C = BF[id % 4], open = Math.floor(t * 9 + id * 1.7) % 3 !== 0;
+      g.fillStyle = C[2]; R(x, y - 1, 1, 3);
+      g.fillStyle = C[0];
+      if (open) { R(x - 2, y - 2, 2, 2); R(x + 1, y - 2, 2, 2); g.fillStyle = C[1]; R(x - 2, y - 2, 1, 1); R(x + 2, y - 2, 1, 1); g.fillStyle = C[0]; R(x - 1, y, 1, 1); R(x + 1, y, 1, 1); }
+      else { R(x - 1, y - 3, 1, 2); R(x + 1, y - 3, 1, 2); }
+    }
+  }
+  // abejas alrededor de las colmenas (2000–2044) y de las flores del corredor
+  for (let i = 0; i < 12; i++) {
+    const hx = [2000, 2022, 2044][i % 3], ang = t * (1.6 + (i % 4) * 0.35) + i * 1.9, rr = 7 + (i % 5) * 3;
+    const x = hx + Math.cos(ang) * rr + Math.sin(t * 0.7 + i) * 10 - ox, y = gy(hx) - 18 + Math.sin(ang * 1.3) * rr * 0.5 - (i % 3) * 3;
+    if (x < -2 || x > W + 2) continue;
+    g.fillStyle = '#ffd23a'; R(x, y, 2, 1); g.fillStyle = '#1a1408'; R(x + 1, y, 1, 1);
+    if (Math.floor(t * 20 + i) % 2) { g.fillStyle = '#f4fbff'; R(x, y - 1, 1, 1); }
+  }
+  // libélulas sobre el estanque (vuelo a tirones, alas que vibran)
+  for (let i = 0; i < 3; i++) {
+    const ph = Math.floor(t * 0.8 + i * 0.37), f = (t * 0.8 + i * 0.37) - ph, jx = (hash1(ph, i + 3) - 0.5) * 60, jy = (hash1(ph, i + 7) - 0.5) * 12;
+    const jx0 = (hash1(ph - 1, i + 3) - 0.5) * 60, jy0 = (hash1(ph - 1, i + 7) - 0.5) * 12, e = f < 0.25 ? smooth(f / 0.25) : 1;
+    const x = 1220 + jx0 + (jx - jx0) * e - ox, y = gy(1220) - 22 + jy0 + (jy - jy0) * e + Math.sin(t * 5 + i) * 0.8;
+    if (x < -6 || x > W + 6) continue;
+    g.fillStyle = ['#1ec0d8', '#3fe0a0', '#c8384a'][i]; R(x - 3, y, 6, 1); g.fillStyle = '#0a2a3a'; R(x + 2, y, 1, 1);
+    g.globalAlpha = 0.7; g.fillStyle = '#e8f8ff'; const fl = Math.floor(t * 24 + i) % 2; R(x - 1, y - 1 - fl, 3, 1); R(x - 1, y + 1 + fl, 3, 1); g.globalAlpha = 1;
+  }
+  // estanque: anillos que se abren donde salta un pez o se posa un insecto
+  for (let i = 0; i < 3; i++) {
+    const per = 3.1 + i * 0.9, q = ((t + i * 1.3) % per) / per, k = Math.floor((t + i * 1.3) / per);
+    const cx = 1192 + hash1(k, i + 11) * 56 - ox, cy = gy(1220) - 6 - hash1(k, i + 13) * 10, r = 1 + q * 6;
+    if (cx < -8 || cx > W + 8 || q > 0.85) continue;
+    g.globalAlpha = 0.7 * (1 - q); g.fillStyle = '#e8fff8';
+    for (let a = 0; a < 8; a++) { const an = a / 8 * TAU; R(cx + Math.cos(an) * r, cy + Math.sin(an) * r * 0.35, 1, 1); }
+    g.globalAlpha = 1;
+  }
+  // bebedero de la pradera: destellos que corren por la lámina de agua
+  { const bx = 1902, by = w.groundAt(bx) - 1 - oy; if (bx - ox > -30 && bx - ox < W + 30) { g.fillStyle = '#f0ffff'; for (let k = 0; k < 3; k++) R(bx - 18 + ((t * 7 + k * 13) % 36) - ox, by - 16 + (k % 2) * 2, 2, 1); } }
+  // golondrinas: dos bandadas que barren los bancales y la pradera a baja altura
+  if (!R4L8_LIFE.swallow) R4L8_LIFE.swallow = R4L8_swallowStrip();
+  for (const [x0, span, y0, n, sp] of [[360, 620, 150, 5, 34], [1620, 760, 140, 6, -30]]) for (let i = 0; i < n; i++) {
+    const u = ((t * sp + i * 23 + 4000) % (span + 200)) - 100, x = x0 + (sp > 0 ? u : span - u) - ox * 0.97;
+    const y = y0 + Math.sin(t * 1.4 + i * 1.1) * 12 + Math.sin(u * 0.03 + i) * 10 + (i % 3) * 6 - oy;
+    if (x < -10 || x > W + 10) continue;
+    PFK.drawStrip(g, R4L8_LIFE.swallow, Math.floor(t * 12 + i * 1.3) % 4, Math.round(x - 4), Math.round(y - 2), sp < 0);
+  }
+  // banco de semillas: ventilador de la unidad de frío (3 palas) y extractores que giran
+  const B = R4L8_BANK;
+  if (B.fan && B.fan[0] - ox > -20 && B.fan[0] - ox < W + 20) {
+    const [fx, fy] = B.fan, a0 = t * 9;
+    g.fillStyle = '#8f9cb4';
+    for (let k = 0; k < 3; k++) { const an = a0 + k * TAU / 3; for (let q = 1; q <= 3; q++) R(fx + Math.cos(an) * q - ox, fy + Math.sin(an) * q - oy, 1, 1); }
+    g.fillStyle = '#e8eef6'; R(fx - ox, fy - oy, 1, 1);
+    for (const [vx, vy] of B.vents) { const p = Math.floor(t * 6 + vx) % 3; g.fillStyle = '#f2f6fa'; R(vx - 2 + p * 2 - ox, vy - 1 - oy, 1, 2); g.fillStyle = '#4b5668'; R(vx - 1 + ((p + 1) % 3) * 2 - 2 - ox, vy - oy, 1, 1); }
   }
 }
 
