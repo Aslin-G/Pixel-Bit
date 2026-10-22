@@ -41,7 +41,12 @@ const R2LIGHT_TOD = {
     grade: { map: ['#1a1040', '#38245e', '#6a4060', '#b86a52', '#f6a058', '#ffe2a8'], mapK: 0.14, shade: '#2c1a5c', shadeK: 0.2, lift: '#ffb468', liftK: 0.3, sat: 1.14, warmMag: 0.5, vgrad: [0.03, -0.07] },
     rim: { col: '#ffb070', k: 0.62, side: 1, terrain: 0.6 },
     cast: { col: '#4a2a7a', a: 0.5, len: 1.7, maxLen: 110, hMax: 64, lit: '#ffa860', litK: 0.22 },
-    char: { mul: '#ffdccc', mulK: 0.3, shade: '#3a1d62', shadeK: 0.22, lift: '#ffc090', liftK: 0.22, rim: '#ffc27a', rimK: 0.8, shadowCol: '#2a1040', shadowA: 0.66, cast: 1.6, castA: 0.44 },
+    // r3-light: personajes reiluminados al ocaso: borde cálido #ffc070 de 1 px (lado del sol, coronilla y coleta),
+    // multiplicar violeta #2a1a50 en el lado contrario (2 escalones) y sombra arrojada larga
+    char: { mul: '#ffdcc4', mulK: 0.26, shade: '#3a1d62', shadeK: 0.14, lift: '#ffc090', liftK: 0.2, rim: '#ffc070', rimK: 0.9, rimMix: 0.78, rimOutline: 0.82, rimInner: 0.4, crown: 0.95, top: 0.55, crownH: 0.36,
+      side: { col: '#2a1a50', k: 0.17, from: 0.5, soft: 0.1 }, warm: { col: '#ffc070', k: 0.1, to: 0.36 },
+      shadowCol: '#1c0c36', shadowA: 0.66, cast: 1.6, castA: 0.58 },
+    charEnv: 'none',
     glow: 1.3,
   },
   storm: {
@@ -59,6 +64,10 @@ const R2LIGHT_TOD = {
     glow: 1.35,
   },
 };
+
+/** r3-light: halos de emisivos en anillos planos: r1 px a a1 y hasta r2 px a a2 (en el tono del emisivo);
+    bloom = fracción del resplandor aditivo ancho de la ronda 2 que se conserva */
+const R3LIGHT_RINGS = { r1: 2, r2: 3, a1: 0.5, a2: 0.25, bloom: 0.55, col: [null, '#48b6ec', '#4cd48e', '#ff5ad8'] };
 
 /* ---------- datos por nivel (sobrescriben el preajuste) ---------- */
 const R2LIGHT_CFG = {
@@ -318,16 +327,73 @@ const R2LIGHT = (() => {
     }
     stats.glowPx = n;
     if (!n) return null;
+    // r3-light: clase emisiva por píxel → anillos de halo de 2–3 px en 2 escalones planos (≈50 % / 25 %)
+    // en el tono del emisivo, compuestos con normal (no queman a blanco); el resplandor aditivo ancho solo
+    // aclara el entorno (no los propios emisivos: el vidrio y los paneles grandes no se lavan)
+    const E = new Uint8Array(w * h);
+    for (const L of layers) {
+      if (!L) continue;
+      const D = L.D;
+      for (let i = 0; i < w * h; i++) { const u = D[i]; if (!(u >>> 24) || E[i]) continue; const e = emissiveOf(u & 255, (u >>> 8) & 255, (u >>> 16) & 255); if (e && ok[e]) E[i] = e; }
+    }
+    const RG = R3LIGHT_RINGS, RD = RG.r2 + 0.35, rk = [];
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const d = Math.hypot(dx, dy); if (d > 0 && d <= RD) rk.push(dx, dy, d); }
+    const DM = new Float32Array(w * h).fill(99), CM = new Uint8Array(w * h);
+    // superficies emisivas grandes (vidrio, láminas de agua): no emiten anillo (tabla de áreas sumadas, ventana 9×9)
+    const sat = (M) => { const S = new Int32Array((w + 1) * (h + 1)); for (let y = 0; y < h; y++) { let row = 0; for (let x = 0; x < w; x++) { row += M[y * w + x] ? 1 : 0; S[(y + 1) * (w + 1) + x + 1] = S[y * (w + 1) + x + 1] + row; } } return S; };
+    const box = (S, x, y, R) => { const xa = Math.max(0, x - R), xb = Math.min(w, x + R + 1), ya = Math.max(0, y - R), yb = Math.min(h, y + R + 1); return [S[yb * (w + 1) + xb] - S[ya * (w + 1) + xb] - S[yb * (w + 1) + xa] + S[ya * (w + 1) + xa], (xb - xa) * (yb - ya)]; };
+    const SA = sat(E), IN = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (!E[y * w + x]) continue; const [s, a] = box(SA, x, y, 4); if (s >= a * (RG.panel ?? 0.86)) IN[y * w + x] = 1; }
+    const SI = sat(IN), PZ = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (box(SI, x, y, 6)[0] > 0) PZ[y * w + x] = 1;
+    // cuerpo del objeto emisivo: el emisivo + sus filas de sombra del mismo tono + su contorno oscuro (hasta 3 px);
+    // el halo empieza fuera de la silueta del tubo, no encima de su sombreado
+    const OB = new Uint8Array(E), HC = [0, 192, 146, 314];
+    const pix = (i) => { for (const L of layers) if (L && L.D[i] >>> 24) return L.D[i]; return 0; };
+    for (let it = 0; it < 3; it++) {
+      const add = [];
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x; if (OB[i]) continue;
+        const e = OB[i - 1] || OB[i + 1] || OB[i - w] || OB[i + w]; if (!e) continue;
+        const u = pix(i); if (!u) continue;
+        const r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        if (mx < 58) { add.push(i, e); continue; }   // contorno
+        const sv = (mx - mn) / mx; if (sv < 0.42) continue;
+        let hu; const dd = mx - mn; if (mx === r) hu = ((g - b) / dd) % 6; else if (mx === g) hu = (b - r) / dd + 2; else hu = (r - g) / dd + 4; hu *= 60; if (hu < 0) hu += 360;
+        const dh = Math.abs(hu - HC[e]); if (Math.min(dh, 360 - dh) <= 30) add.push(i, e);
+      }
+      for (let q = 0; q < add.length; q += 2) OB[add[q]] = add[q + 1];
+    }
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x, e = OB[i]; if (!e) continue;
+      if (OB[i - 1] && OB[i + 1] && OB[i - w] && OB[i + w]) continue;   // solo el borde del objeto emite anillo
+      if (PZ[i]) continue;
+      for (let q = 0; q < rk.length; q += 3) {
+        const xx = x + rk[q], yy = y + rk[q + 1]; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const j = yy * w + xx; if (OB[j] || PZ[j]) continue;
+        if (rk[q + 2] < DM[j]) { DM[j] = rk[q + 2]; CM[j] = e; }
+      }
+    }
+    const ringC = makeCanvas(w, h), rimg = ringC.g.createImageData(w, h), RO = new Uint32Array(rimg.data.buffer), Ar = new Uint8Array(w * h);
+    const hue = [null, rgb(RG.col[1]), rgb(RG.col[2]), rgb(RG.col[3])], a1 = Math.round(255 * Math.min(0.62, RG.a1 * k / 0.55)), a2 = Math.round(255 * Math.min(0.34, RG.a2 * k / 0.55));
+    for (let i = 0; i < w * h; i++) {
+      const d = DM[i]; if (d > RD) continue;
+      // también en el aire: sobre el fondo el halo se lee igual que sobre los accesorios
+      const cc = hue[CM[i]], a = d <= RG.r1 + 0.35 ? a1 : a2;
+      RO[i] = ((a << 24) | (cc[2] << 16) | (cc[1] << 8) | cc[0]) >>> 0; Ar[i] = 1;
+    }
+    ringC.g.putImageData(rimg, 0, 0);
     const c = makeCanvas(w, h), img = c.g.createImageData(w, h), O = new Uint32Array(img.data.buffer), Am = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) {
+      if (E[i]) continue;
       const j = i * 3, m = Math.max(acc[j], acc[j + 1], acc[j + 2]); if (m < 18) continue;
       // intensidad en 3 bandas sólidas (sin tramado)
-      const lv = m > 150 ? 0.62 : m > 70 ? 0.42 : 0.24, s = lv * k * 255 / m;
+      const lv = m > 150 ? 0.62 : m > 70 ? 0.42 : 0.24, s = lv * k * RG.bloom * 255 / m;
       O[i] = ((255 << 24) | (cl8(acc[j + 2] * s) << 16) | (cl8(acc[j + 1] * s) << 8) | cl8(acc[j] * s)) >>> 0;
       Am[i] = 1;
     }
     c.g.putImageData(img, 0, 0);
-    return { c, S: spans(Am, w, h) };
+    return { c, S: spans(Am, w, h), ring: { c: ringC, S: spans(Ar, w, h) } };
   }
   /* ---------- personajes: sombra de contacto, sombra arrojada y luz del lado del sol ----------
      drawChar se llama tal cual (cuadro, parpadeo y fase son del rig); durante esa llamada se intercepta
@@ -355,6 +421,23 @@ const R2LIGHT = (() => {
     if (facing < 0) { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) D[y * w + x] = S[y * w + (w - 1 - x)]; } else D.set(S);
     const grade = st.charGrade, rc = C.rim ? rgb(C.rim) : null, rk = C.rimK || 0, sx = -st.sd;
     const src = new Uint32Array(D), A = (i) => src[i] >>> 24 > 8, Lu = (u) => (0.299 * (u & 255) + 0.587 * ((u >>> 8) & 255) + 0.114 * ((u >>> 16) & 255)) / 255;
+    // r3-light: modelado de dos lados (atardecer): el lado del sol se calienta y el lado contrario recibe
+    // un multiplicar violeta en 2 escalones planos; el terminador sigue la silueta (extremos de fila ±2)
+    const SDc = C.side, WMc = C.warm, rimMix = C.rimMix ?? 0.6;
+    let XL = null, XR = null, yTop = h, crownY = -1;
+    if (SDc || C.crown) {
+      XL = new Int16Array(h).fill(-1); XR = new Int16Array(h).fill(-1);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (A(y * w + x)) { if (XL[y] < 0) XL[y] = x; XR[y] = x; if (y < yTop) yTop = y; }
+      const fyS = CHARS[CC.charId].oy ?? 78;
+      crownY = yTop + Math.round((Math.min(h, fyS) - yTop) * (C.crownH ?? 0.34));
+    }
+    const sideCol = SDc ? rgb(SDc.col).map(v => v / 255) : null, warmCol = WMc ? rgb(WMc.col) : null;
+    const sideOf = (x, y) => {
+      let l = 9999, r = -1;
+      for (let k = Math.max(0, y - 2); k <= Math.min(h - 1, y + 2); k++) if (XL[k] >= 0) { if (XL[k] < l) l = XL[k]; if (XR[k] > r) r = XR[k]; }
+      const wd = r - l + 1; if (wd < 5) return -1;
+      return (sx > 0 ? r - x : x - l) / wd;   // 0 = borde del lado del sol · 1 = borde contrario
+    };
     // ¿el vecino hacia (dx,dy) es exterior? (transparente, o contorno oscuro con exterior detrás)
     const outside = (x, y, dx, dy) => {
       const x1 = x + dx, y1 = y + dy; if (x1 < 0 || y1 < 0 || x1 >= w || y1 >= h) return true;
@@ -365,15 +448,38 @@ const R2LIGHT = (() => {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const i = y * w + x, u = src[i]; if (!A(i)) continue;
       let r = u & 255, g = (u >>> 8) & 255, b = (u >>> 16) & 255;
-      const L0 = Lu(u);
+      const L0 = Lu(u), emis = emissiveOf(r, g, b) || L0 > 0.92;
       if (grade && L0 > 0.1) { const o = grade(r, g, b, 0); r = o[0]; g = o[1]; b = o[2]; }
-      if (rc && rk && L0 > 0.22 && L0 < 0.95) {
+      if ((SDc || WMc) && !emis) {
+        const v = sideOf(x, y);
+        if (v >= 0) {
+          if (SDc && v >= (SDc.from ?? 0.5) - (SDc.soft ?? 0.1)) {
+            const k = (SDc.k ?? 0.15) * (v >= (SDc.from ?? 0.5) ? 1 : 0.5);
+            r *= 1 - k + k * sideCol[0]; g *= 1 - k + k * sideCol[1]; b *= 1 - k + k * sideCol[2];
+          } else if (WMc && v < (WMc.to ?? 0.34) && L0 > 0.12) {
+            const k = WMc.k ?? 0.1;   // luz cálida (pantalla) en el lado del sol
+            r += (255 - r) * k * warmCol[0] / 255; g += (255 - g) * k * warmCol[1] / 255; b += (255 - b) * k * warmCol[2] / 255;
+          }
+        }
+      }
+      // r3-light: contorno oscuro del lado del sol (y de la coronilla) → línea de luz cálida de 1 px (selout)
+      if (C.rimOutline && rc && L0 <= 0.22) {
+        const ex = (dx, dy) => { const x1 = x + dx, y1 = y + dy; return x1 < 0 || y1 < 0 || x1 >= w || y1 >= h || !A(y1 * w + x1); };
+        const sOut = ex(sx, 0), tOut = ex(0, -1);
+        const k = sOut ? C.rimOutline : tOut ? C.rimOutline * (y <= crownY ? (C.crown ?? 0.5) : (C.top ?? 0.5)) : 0;
+        if (k > 0) { r += (rc[0] * 0.92 - r) * k; g += (rc[1] * 0.86 - g) * k; b += (rc[2] * 0.8 - b) * k; }
+      }
+      if (rc && rk && L0 > 0.22 && L0 < 0.95 && !(emis && L0 > 0.6)) {
         const side = outside(x, y, sx, 0), top = outside(x, y, 0, -1);
         if (side || top) {
           // borde del sol: sube hacia el color de la luz conservando algo del tono del material
-          const k = rk * (side && top ? 1 : side ? 0.85 : 0.5);
+          // (r3-light: la coronilla y la coleta llevan el borde casi completo; C.top regula el resto de bordes altos)
+          const topK = y <= crownY ? (C.crown ?? 0.5) : (C.top ?? 0.5);
+          // con selout el contorno ya lleva la luz: el píxel interior solo se aclara un poco (C.rimInner)
+          const inner = C.rimOutline && !((side && (x + sx < 0 || x + sx >= w || !A(y * w + x + sx))) || (top && (y < 1 || !A(i - w)))) ? (C.rimInner ?? 1) : 1;
+          const k = rk * inner * (side && top ? 1 : side ? 0.85 : topK);
           const m = Math.max(r, g, b, 1), lift = Math.min(1.5, 235 / m);
-          r += (Math.min(255, rc[0] * 0.6 + r * lift * 0.4) - r) * k; g += (Math.min(255, rc[1] * 0.6 + g * lift * 0.4) - g) * k; b += (Math.min(255, rc[2] * 0.6 + b * lift * 0.4) - b) * k;
+          r += (Math.min(255, rc[0] * rimMix + r * lift * (1 - rimMix)) - r) * k; g += (Math.min(255, rc[1] * rimMix + g * lift * (1 - rimMix)) - g) * k; b += (Math.min(255, rc[2] * rimMix + b * lift * (1 - rimMix)) - b) * k;
         }
       }
       D[i] = ((u & 0xff000000) | (cl8(b) << 16) | (cl8(g) << 8) | cl8(r)) >>> 0;
@@ -690,7 +796,9 @@ const R2LIGHT = (() => {
     st.charGrade = compileGrade(C.char);
     CHR.contact.clear();
     // ambiente de la luz de borde del rig
-    if (typeof SpriteCache !== 'undefined') { st.env0 = SpriteCache.env; if (C.env) { SpriteCache.env = C.env; st.envSet = true; } else st.envSet = false; }
+    // r3-light: C.charEnv sustituye al ambiente del rig (p. ej. 'none' al ocaso: sin contraluz fijo en la espalda; la luz
+    // de borde la pone litSprite del lado del sol)
+    if (typeof SpriteCache !== 'undefined') { st.env0 = SpriteCache.env; const ev = C.charEnv || C.env; if (ev) { SpriteCache.env = ev; st.envSet = true; } else st.envSet = false; }
     // capas estáticas: reiluminar y recortar
     const L = {};
     for (const [key, role] of [['propsC', 'props'], ['terrainC', 'terrain'], ['propsFrontC', 'front']]) {
@@ -722,6 +830,8 @@ const R2LIGHT = (() => {
     g.globalCompositeOperation = 'lighter';
     g.globalAlpha = 0.88 + 0.12 * Math.sin(Game.time * 1.7);
     blitSpans(g, st.glow.c, st.glow.S, sc.cam.ox, sc.cam.oy);
+    // r3-light: anillos de halo (normal, 2 escalones planos) con un pulso lento
+    if (st.glow.ring) { g.globalCompositeOperation = 'source-over'; g.globalAlpha = 0.9 + 0.1 * Math.sin(Game.time * 1.7); blitSpans(g, st.glow.ring.c, st.glow.ring.S, sc.cam.ox, sc.cam.oy); }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
   return { cfg, prepare, release, on, blit, glowLayer, drawChar: drawCharLit, floorLights, airLights, lampAt, backdrop, stats, _st: st, _il: IL, _compileGrade: compileGrade, _spans: spans, _blitSpans: blitSpans };
@@ -793,19 +903,28 @@ const R2LIGHT_GLOW = (() => {
     for (const L of list) {
       const x = L.x - ox, y = L.y - oy; if (x < -6 || x > W + 6 || y < -6 || y > H + 6) continue;
       if (Math.sin((t * (L.hz || 1.5) + (L.ph || 0)) * TAU) <= -0.2) continue;
-      let c = led.get(L.col); if (!c) { c = PFK.glow(4, L.col, 3, 0.55); led.set(L.col, c); }
-      g.drawImage(c, Math.round(x) - 4, Math.round(y) - 4);
+      let c = led.get(L.col); if (!c) { c = dotRing(L.col); led.set(L.col, c); }
+      g.drawImage(c, Math.round(x) - c.R, Math.round(y) - c.R);
     }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
-  /** Resplandor de pantalla: dentro 0,12 · borde 1–2 px 0,24 · 3–4 px 0,12 · 5–6 px 0,05 */
+  /** Halo de un LED (r3-light): núcleo 0,7 · 1–2 px 0,5 · 3 px 0,25 (bandas planas, distancia euclídea) */
+  function dotRing(col) {
+    const R = R3LIGHT_RINGS.r2, n = 2 * R + 1, c = makeCanvas(n, n), img = c.g.createImageData(n, n), D = img.data, [r, g, b] = hexToRgb(col);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const d = Math.hypot(x - R, y - R), a = d < 0.5 ? 0.7 : d <= R3LIGHT_RINGS.r1 + 0.35 ? R3LIGHT_RINGS.a1 : d <= R + 0.35 ? R3LIGHT_RINGS.a2 : 0;
+      const i = (y * n + x) * 4; D[i] = r; D[i + 1] = g; D[i + 2] = b; D[i + 3] = Math.round(a * 255);
+    }
+    c.g.putImageData(img, 0, 0); c.R = R; return c;
+  }
+  /** Resplandor de pantalla (r3-light): dentro 0,1 · borde 1–2 px 0,5 · 3 px 0,25 (2 escalones planos) */
   function screenGlow(w, h, col) {
     const k = w + 'x' + h + col; let c = scr.get(k); if (c) return c;
-    const P = 6, cw = w + 2 * P, ch = h + 2 * P, [r, g, b] = hexToRgb(col);
+    const P = 4, cw = w + 2 * P, ch = h + 2 * P, [r, g, b] = hexToRgb(col), RG = R3LIGHT_RINGS;
     c = makeCanvas(cw, ch); const img = c.g.createImageData(cw, ch), D = img.data;
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-      const dx = Math.max(P - x, x - (P + w - 1), 0), dy = Math.max(P - y, y - (P + h - 1), 0), d = Math.max(dx, dy) + Math.min(dx, dy) * 0.5;
-      const a = d === 0 ? 0.12 : d <= 2 ? 0.24 : d <= 4 ? 0.12 : d <= 6 ? 0.05 : 0;
+      const dx = Math.max(P - x, x - (P + w - 1), 0), dy = Math.max(P - y, y - (P + h - 1), 0), d = Math.hypot(dx, dy);
+      const a = d === 0 ? 0.1 : d <= RG.r1 + 0.35 ? RG.a1 : d <= RG.r2 + 0.35 ? RG.a2 : 0;
       const i = (y * cw + x) * 4; D[i] = r; D[i + 1] = g; D[i + 2] = b; D[i + 3] = Math.round(a * 255);
     }
     c.g.putImageData(img, 0, 0); c.P = P; scr.set(k, c); return c;
@@ -825,23 +944,24 @@ const R2LIGHT_GLOW = (() => {
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
   /** Tira de pluma desenfocada (radio 3) en 3 bandas sólidas, magenta */
+  /** Halo de la pluma (r3-light): cuerpo de la pluma 0,15 · anillo exterior 1–2 px 0,45 · 3 px 0,22, magenta,
+      calculado por cuadro (no se mezclan cuadros vecinos) */
   function plumeGlow(strip) {
     if (strip._r2g !== undefined) return strip._r2g;
-    const w = strip.c.width, h = strip.c.height, R = 3, n = strip.n, fw = strip.w;
+    const w = strip.c.width, h = strip.c.height, n = strip.n, fw = strip.w, RG = R3LIGHT_RINGS;
     const rd = document.createElement('canvas'); rd.width = w; rd.height = h;
     const rg = rd.getContext('2d', { willReadFrequently: true }); rg.drawImage(strip.c, 0, 0);
-    const src = rg.getImageData(0, 0, w, h).data, A = new Float32Array(w * h), tmp = new Float32Array(w * h);
-    for (let i = 0; i < w * h; i++) A[i] = src[i * 4 + 3] / 255;
-    // desenfoque de caja separable dentro de cada cuadro (no se mezclan cuadros vecinos)
+    const src = rg.getImageData(0, 0, w, h).data, P = new Uint8Array(w * h), DM = new Float32Array(w * h).fill(99);
+    for (let i = 0; i < w * h; i++) P[i] = src[i * 4 + 3] > 64 ? 1 : 0;
+    const ker = []; for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const d = Math.hypot(dx, dy); if (d > 0 && d <= RG.r2 + 0.35) ker.push([dx, dy, d]); }
     for (let f = 0; f < n; f++) for (let y = 0; y < h; y++) for (let x = 0; x < fw; x++) {
-      let s = 0; for (let k = -R; k <= R; k++) { const xx = x + k; if (xx >= 0 && xx < fw) s += A[y * w + f * fw + xx]; }
-      tmp[y * w + f * fw + x] = s / (2 * R + 1);
+      const i = y * w + f * fw + x; if (!P[i]) continue;
+      for (const [dx, dy, d] of ker) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= fw || yy >= h) continue; const j = yy * w + f * fw + xx; if (!P[j] && d < DM[j]) DM[j] = d; }
     }
     const out = makeCanvas(w, h), img = out.g.createImageData(w, h), D = img.data;
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      let s = 0; for (let k = -R; k <= R; k++) { const yy = y + k; if (yy >= 0 && yy < h) s += tmp[yy * w + x]; }
-      const v = s / (2 * R + 1), a = v > 0.45 ? 0.3 : v > 0.2 ? 0.2 : v > 0.06 ? 0.1 : 0;
-      if (a) { const i = (y * w + x) * 4; D[i] = 255; D[i + 1] = 90; D[i + 2] = 216; D[i + 3] = Math.round(a * 255); }
+    for (let i = 0; i < w * h; i++) {
+      const a = P[i] ? 0.15 : DM[i] <= RG.r1 + 0.35 ? 0.45 : DM[i] <= RG.r2 + 0.35 ? 0.22 : 0;
+      if (a) { D[i * 4] = 255; D[i * 4 + 1] = 90; D[i * 4 + 2] = 216; D[i * 4 + 3] = Math.round(a * 255); }
     }
     out.g.putImageData(img, 0, 0);
     return (strip._r2g = { c: out, n, w: fw, h: strip.h });
