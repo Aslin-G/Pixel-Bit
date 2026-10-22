@@ -22,8 +22,12 @@ Fuentes: `src/*.js` concatenados en orden alfabético por `tools/build.js` dentr
 - 16_biomes.js      biomas base (sustituidos por los panoramas 1c/1d/1e)
 - 17a_kit_palette   paleta oficial (rampas de la referencia)
 - 17b–17r          kit VISTA de panoramas (cielo, nubes, relieve, ciudad, energía, vida, luz, interiores, desierto, acantilados, salinas, agro, H2, polvo)
+- 17s              planta desaladora protagonista en 3/4 (R2PLANT)
 - 18a–18x          kit PF del plano jugable (terreno 3/4, flora, agua en corte, infraestructura, rótulos y WorldLabels, fauna, estaciones, kits por nivel)
+- 18y              terreno esculpido (R2TERRAIN_Rock, R2TERRAIN_Urban, R2TERRAIN_Salt)
 - 19a–19y          escenas ilustradas (título, prólogo, dron, tarjetas, créditos, finales, poscréditos, epílogo)
+- 19w              mapa en diorama, miniaturas de capítulo y sala de control de los simuladores (R2MAP)
+- 19z              iluminación por nivel (R2LIGHT)
 - 1c/1d/1e_bio_*   panoramas de los once biomas
 - 20_models.js      modelos científicos (OI, salmuera, FV, eólica, BESS, H2, agro, microrred, multiobjetivo) + validación
 - 21_learning.js    dominio por concepto, SOLO, pistas, feedback, analítica, adversarios conceptuales
@@ -48,6 +52,7 @@ Fuentes: `src/*.js` concatenados en orden alfabético por `tools/build.js` dentr
 - [x] Fase F título, mapa, finales (4), epílogo, créditos, poscréditos, docente, accesibilidad, audio
 - [x] Fase G QA: tests de modelos, banco y Calima en Node; prueba de humo en navegador (tools/smoke.js)
 - [x] Fase H rediseño visual según la referencia (docs/art/): análisis medido y STYLE LOCK, vertical slice del Nivel 1 evaluado (≈ 4,0), panoramas VISTA de los once biomas, planos jugables PF de los niveles 0–11, personajes, retratos, interfaz, título, prólogo, finales y poscréditos; auditoría de 105 hallazgos por cuatro revisores y corrección por áreas; evaluación final en docs/art/analisis/06_evaluacion_final.md
+- [x] Fase I rondas de arte 2 y 3 frente al juicio independiente: terreno esculpido, planta protagonista, iluminación local, personajes y retratos en 3/4, biomas débiles, interiores, mapa, miniaturas, simuladores y finales ilustrados (cerrada a petición; pendientes anotados en 06_evaluacion_final.md)
 
 ## QA
 - `node tests/models.test.js` · `node tests/bank.test.js` · `node tests/calima.test.js`

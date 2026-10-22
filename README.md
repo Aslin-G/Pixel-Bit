@@ -92,8 +92,12 @@ Parámetros de prueba útiles (solo para desarrollo): `?test=level&lv=N&px=X&noc
 | `06c_ui_widgets` | piezas de interfaz del estilo de la referencia: bloque de retrato del HUD, minimapa, globos, panel PREGUNTA, tarjetas de capítulo |
 | `10_rig` – `16_biomes` | rig de personajes v2 por materiales, personajes y NPC, accesorios, fondos base, retratos 96 px con busto de HUD, tecnología y biomas base |
 | `17a` – `17r` | paleta oficial y kit VISTA de panoramas: cielo, nubes, relieve, ciudad, energía, vida, luz, interiores, desierto, acantilados, salinas, agro, H2, polvo |
+| `17s` | planta desaladora protagonista en 3/4 (`R2PLANT`): título, Nivel 1 y finales, con corrientes luminosas y penacho de salmuera |
 | `18a` – `18x` | kit PF del plano jugable: terreno en 3/4, flora, agua en corte, infraestructura, rótulos y etiquetas en el mundo, fauna, estaciones y kits por nivel |
+| `18y` | terreno esculpido por campo de alturas: roca (`R2TERRAIN_Rock`), muros y calles urbanos (`R2TERRAIN_Urban`) y banco salino (`R2TERRAIN_Salt`) |
 | `19a` – `19y` | escenas ilustradas: título, prólogo, dron, tarjetas, créditos, finales, poscréditos y epílogo |
+| `19w` | mapa del Nexo en diorama (`R2MAP`), miniaturas ilustradas de capítulo y sala de control de los simuladores |
+| `19z` | iluminación por nivel (`R2LIGHT`): gradación, sombras de contacto y arrojadas, luz de borde, halos emisivos, haces interiores |
 | `1c` – `1e_bio_*` | panoramas de cada bioma construidos con el kit VISTA |
 | `20_models` | modelos científicos (OI, salmuera, FV, eólica, BESS, H2, agro, microrred, multiobjetivo) y su validación |
 | `21_learning` – `24_codex_more` | aprendizaje, SOLO, banco de preguntas, extras y Atlas del Nexo |

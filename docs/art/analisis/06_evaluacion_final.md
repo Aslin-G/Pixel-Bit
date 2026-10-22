@@ -10,6 +10,52 @@ Escala: 5 = indistinguible en calidad de la referencia · 4 = mismo universo gr�
 menores · 3 = reconocible como inspirado en ella, pero visiblemente más débil · 2 = pixel art
 genérico · 1 = plataformas retro sencillo.
 
+## Ronda 3 (cierre del rediseño)
+
+Tercera y última ronda, dirigida a las carencias de la ronda 2. Se cerró a petición del
+usuario tras completar la iteración en curso; **no se ha vuelto a convocar a los jueces
+independientes**, de modo que las notas vigentes siguen siendo las de la ronda 2 y no se
+afirma que el umbral del STYLE LOCK §16 esté superado.
+
+Hecho en esta ronda:
+
+- **Personajes**: KIRU con orejas-aleta, torso y vainas; Amaya en reposo y diálogo en 3/4 con
+  ambos brazos y poses de tristeza y frustración distintas; retratos y busto del HUD en 3/4 con
+  parpadeo y boca al hablar; geometría de cabeza propia por PNJ; poses de reposo por PNJ y
+  vestuario de Dante por nivel; sombra de contacto opaca en el tono más oscuro del suelo.
+- **Bandas inferiores y naturaleza**: N3 (salinas por etapas, cuevas de cristales, marisma con
+  manglar, emisario con difusor y pluma que se hunde y diluye), N4 (diorama agrivoltaico,
+  subestación, hangar, vivero, corrientes CC/CA animadas, seguidores que giran), N0 (aljibe
+  iluminado bajo la plaza), N1 (repisas de roca, jardín de coral, rejilla de toma), N11 (jardín
+  vertical y galerías iluminadas).
+- **Interiores**: N2 (color pintado, siete planos de profundidad, galería inferior llena e
+  iluminada), N6 (ventanales en arco con vistas multiplano, hiedra, luz cálida), N7 (terraza
+  ajardinada, cubiertas verdes, frondas en primer plano, ocaso), N9 (haces nítidos con charcos de
+  luz, patio de zellige con acequia, logia con palmeras y naranjos, consejeros que conversan).
+- **Cordilleras** erosionadas en ocre y violeta; título con colinas en terrazas, filas FV y
+  depósitos de H2; acantilado de N1 en cantos esculpidos y palafito en 3/4.
+- **Mapa, miniaturas, simuladores y finales**: barrancos, oasis, balsas y aldeas en el mapa;
+  miniaturas 3–7 en tres planos; recipiente a presión ilustrado e iluminado en el simulador de
+  OI y ventanal a toda altura en todos los simuladores; final con ilustración al 64 %, título
+  con tratamiento de logotipo, panel ≤ 35 % y fichas con icono y barra.
+- **N5**: bancales con centro de control ajardinado, subestación con cable amarillo animado,
+  nave de mantenimiento, taller de palas con grúa y aldea con ermita, cubiertas en 3/4.
+- **Iluminación**: personajes reiluminados al ocaso (borde cálido del lado del sol, sombra
+  violeta en el lado contrario); halos emisivos de 2–3 px en dos escalones.
+- **Corrección**: los seis vecinos de fondo del epílogo eran invisibles (usaban un sprite
+  inexistente); ahora se dibujan.
+
+Pendiente al cerrar (no abordado):
+
+- N5: la mitad inferior sigue siendo un único frente de acantilado; estelas de los rotores.
+- N10: arena que vela las piernas de Amaya, más vegetación y chabolas en 3/4.
+- N8: cordillera propia, corte de suelo y banco de semillas en 3/4.
+- Revisión general de solapes de etiquetas (WorldLabels) y repaso global de luz por nivel.
+- Nueva evaluación independiente de los doce criterios.
+
+Pruebas al cierre: humo («Humo OK»), 77/77 pruebas científicas, banco válido y 19/19
+comprobaciones de la Calima; sin errores de consola.
+
 ## Ronda 2 (estado de `7ff1c3b`)
 
 Segunda ronda de arte: roca esculpida por campo de alturas, muros urbanos y banco salino; planta
@@ -158,3 +204,4 @@ pasadas a pantalla completa: 4 en los niveles 1, 4 y 7 y unas 16 en el Nivel 10.
   áreas (interfaz, simuladores, niveles 0–5, niveles 6–11), con humo y pruebas en verde.
 - Ronda 1: jueces independientes sobre el estado de `8bbc72f`.
 - Ronda 2: jueces independientes sobre el estado de `7ff1c3b`.
+- Ronda 3: cerrada sin nueva evaluación independiente (ver «Ronda 3»).

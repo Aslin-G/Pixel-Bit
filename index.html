@@ -52432,7 +52432,7 @@ LEVELS[11] = {
     A('limen', 'limen', 980, { fly: true, y: 210, talkable: false });
     A('ruth', 'consejal', 300); A('celia', 'pastora', 420, { facing: 1 }); A('marea', 'marea', 1400); A('cobre', 'cobre', 230, { facing: 1 }); A('ivan', 'operador', 1100);
     A('nina', 'alma', 760, { facing: 1 });
-    for (let k = 0; k < 6; k++) sc.actor('crowd' + k, 'crowd', 160 + k * 150 + (k % 2) * 40, { facing: k % 2 ? 1 : -1, variant: k + 3, wander: 20 });
+    for (let k = 0; k < 6; k++) sc.actor('crowd' + k, 'crowd' + (k + 3), 160 + k * 150 + (k % 2) * 40, { facing: k % 2 ? 1 : -1, variant: k + 3, wander: 20 });
     const W2 = (id) => sc.world.find(id);
     W2('ruth').onTalk = async (s2) => s2.say([['consejal', 'smile', 'El consejo ahora tiene sillas para comunidades, operadores, agricultura y ambiente. Las reuniones duran más. Las decisiones también.']]);
     W2('celia').onTalk = async (s2) => s2.say([['pastora', 'happy', 'Las rancherías del borde reciben el agua a la misma hora que la plaza. Eso también es una cosecha.']]);
