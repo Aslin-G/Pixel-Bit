@@ -36704,8 +36704,8 @@ var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
 /** r4-l8: parámetros de erosión (17d) propios del oasis: menos bruma en la lejana para que
     lea ocre-naranja al sol y violeta en sombra; la media con cárcavas profundas y estratos */
 const R4L8_ERODE = {
-  far: Object.assign({}, VISTA.R3COAST_ERODE.far, { hz: 0.26, hzV: 0.16, ga: 10, gN: 0.13, gTw: 0.9, facet: 0.45, contrast: 1.35, thr: 0.6, ghost: 0.52 }),
-  mid: Object.assign({}, VISTA.R3COAST_ERODE.mid, { hz: 0.04, hzV: 0.02, ga: 13, gN: 0.13, ts: 7, tk: 0.45, tMax: 0.55, contrast: 1.4, thr: 0.52 }),
+  far: Object.assign({}, VISTA.R3COAST_ERODE.far, { hz: 0.24, hzV: 0.22, ga: 10, gN: 0.13, gTw: 0.9, facet: 0.45, contrast: 1.35, thr: 0.6, ghost: 0.52 }),
+  mid: Object.assign({}, VISTA.R3COAST_ERODE.mid, { hz: 0.04, hzV: 0.1, ga: 13, gN: 0.13, ts: 7, tk: 0.45, tMax: 0.55, contrast: 1.4, thr: 0.52 }),
 };
 
 BIOMES.oasis = function (L) {
@@ -36757,7 +36757,7 @@ BIOMES.oasis = function (L) {
       H: V.massif(peaks, { seed: 173, rough: 0.5, scale: 0.05, apron: 5, spurs: 6, spurW: 0.45, plateaus: [{ x: 236, w: 22, h: 46 }] }),
       ramp: V.RAMPS.far, contrast: 2.0, t0: 0.55, facet: 0.4,
       erode: R4L8_ERODE.far,
-      haze: { col: '#c2b8dc', k0: 0.0, k: 0.2 }, mist: { col: '#d8c8d8', h: 16, k: 0.5 }, rim: '#f8cc98', rimK: 0.5, tex: 0.05,
+      haze: { col: '#cca2c2', k0: 0.0, k: 0.2 }, mist: { col: '#dcc4d4', h: 16, k: 0.5 }, rim: '#f8cc98', rimK: 0.5, tex: 0.05,
     });
     // ARIDIA muy lejos: cúpula y torres diminutas, casi disueltas en la bruma
     const dc = V.domeCity(pb, 236, info.top[236] + 9, { k: 0.52, s: 0.27, label: false });
@@ -36790,7 +36790,7 @@ BIOMES.oasis = function (L) {
       H: V.massif(peaks, { seed: 203, rough: 0.55, scale: 0.04, apron: 6, spurs: 7, spurW: 0.5, plateaus: plats }),
       ramp: V.RAMPS.hill, contrast: 2.2, t0: 0.56, facet: 0.36, cav: 0.1,
       erode: R4L8_ERODE.mid,
-      haze: { col: '#c8a8c0', k0: 0.02, k: 0.12 }, mist: { col: '#e8d0c8', h: 22, k: 0.5 }, rim: '#fbc371', rimK: 0.65, tex: 0.05,
+      haze: { col: '#d0a0b4', k0: 0.02, k: 0.12 }, mist: { col: '#e8d0c8', h: 22, k: 0.5 }, rim: '#fbc371', rimK: 0.65, tex: 0.05,
       veg: { ramp: V.RAMPS.vegMid, density: 0.02, maxSlope: 0.5, minY: 56 },
     });
     // aerogeneradores en las mesetas
