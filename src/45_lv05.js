@@ -104,12 +104,19 @@ LEVELS[5] = {
   /* Cámara: el mundo crece 60 px hacia abajo (acantilados de estratos y gargantas hasta el mar) */
   cam: { look: 60, vy: 0.6 },
   pf: {
+    /* r4-l5: la cara bajo el paso es un DIORAMA de acantilado (R4L5_CLIFF, 18o): cabos escalonados, calas con el mar
+       al pie, cuevas, sendas, conducciones del parque y colonia de aves. coves: [x0, x1, línea de agua al fondo, tipo];
+       paths: [[x, dy bajo el canto]..] */
     terrain: [
-      { x0: 0, x1: 424, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true },
+      { x0: 0, x1: 424, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true,
+        r4: { coves: [[150, 240, 352, 'beach'], [300, 352, 358, 'stack']], paths: [[[116, 1], [92, 22], [128, 46], [160, 72]]] } },
       { x0: 424, x1: 624, surf: 'void', face: 'void', hard: true },
-      { x0: 624, x1: 1304, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true, r3b: true },
+      { x0: 624, x1: 1304, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true,
+        r4: { coves: [[688, 744, 358, 'stack'], [904, 1000, 348, 'landing'], [1122, 1196, 354, 'cave']], conduit: { from: [760, 900, 1040, 1180], to: 952, d: 5 } } },
       { x0: 1304, x1: 1564, surf: 'void', face: 'void', hard: true },
-      { x0: 1564, x1: 3000, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true },
+      { x0: 1564, x1: 3000, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true,
+        r4: { coves: [[1606, 1662, 356, 'stack'], [1756, 1846, 350, 'cave'], [1986, 2080, 352, 'cave'], [2196, 2270, 356, 'stack'], [2380, 2470, 348, 'birds'], [2640, 2792, 348, 'jetty'], [2880, 2948, 354, 'stack']],
+          birds: [2364, 2566], paths: [[[2622, 1], [2600, 26], [2634, 52], [2612, 76], [2650, 104]], [[1716, 1], [1700, 20], [1730, 44], [1760, 70]]] } },
     ],
     /** Primer plano: matas costeras con altramuces en los bordes inferiores */
     fg: [
@@ -120,11 +127,6 @@ LEVELS[5] = {
       { kind: 'clump', x: 3100, w: 140, h: 92, seed: 13, spikes: 5, leaves: 12 },
       { kind: 'clump', x: 3700, w: 130, h: 84, seed: 15, spikes: 4, leaves: 10 },
     ],
-    /** r2-biomes-a: la cara del acantilado deja de ser un muro uniforme (degradado de profundidad, cornisas con vegetación en diagonal, gaviotas y senderos en zigzag) */
-    decorateFace(pb, world) {
-      PFAWind.cliffDress(pb, world, { segs: [[0, 424], [624, 1304], [1564, 3000]], R: LV5_ROCK, seed: 5101, skip: [[396, 650], [1280, 1590]],
-        paths: [[[1186, 10], [1060, 52], [1120, 92], [1040, 126]], [[2690, 8], [2560, 50], [2640, 92], [2560, 128]], [[392, 8], [300, 44], [356, 84]]] });
-    },
     fauna: { eagle: { x0: 400, x1: 2600, y: 60 }, gulls: [{ x: 520, y: 150, n: 4 }, { x: 1420, y: 140, n: 5 }, { x: 2480, y: 110, n: 4 }] },
   },
   /** Etiquetas científicas en el mundo */

@@ -22415,6 +22415,584 @@ const R3WINDSTORM = (() => {
   return { R, rect, darken, shadowR, terrace, win, door, vines, flat, garden, gable, hangar, insulator, transformer, substation, cable, blade, crane, nest };
 })();
 
+/* =====================================================================
+   r4-l5 (ronda 4) — DIORAMA DEL ACANTILADO bajo el paso del Nivel 5.
+   Sustituye el muro continuo por un corte esculpido en 3/4, como los
+   acantilados de la referencia:
+     · muro del fondo en macizos columnares (facetas a la luz / en sombra,
+       muescas, repisas y voladizos, cuevas y cuevas marinas al pie);
+     · cabos y contrafuertes escalonados (capas z1–z3) que bajan en diagonal
+       hacia la izquierda: cabezas de columna al sol en 3/4, caras
+       frontales de bloques biselados y sombra arrojada granate sobre lo
+       que queda detrás (marcha hacia la luz en el campo de alturas);
+     · calas con el mar al pie: espuma pegada a la roca, turquesa →
+       azul con rizos, reflejo roto del acantilado, sombra de los cabos;
+       farallones, playa de cantos, embarcadero y caseta de amarre.
+   Luz arriba-izquierda (Lambert), oclusión por cavidad, rampa de 17 tonos
+   con desvío a granate en sombra. Sin tramado (ruido en clusters).
+   Cara registrada en PFTerrain: face:'r4l5cliff' con s.r4 = {coves:[[x0,x1,
+   wy,kind]], paths, conduit, jetty, birds}. kind: 'beach'|'cave'|'stack'|
+   'landing'|'jetty'|'birds'.
+   API (R4L5_CLIFF): face(s,x,y,gy,world) · post(pb,world,s) · info[seed]
+     → {x,y,frames,spray,birds} (espuma animada y rocío para el nivel) ·
+     tabaiba(pb,x,y,s,seed) · cardon(pb,x,y,h,seed) · hanger(pb,x,y,L,seed,flor)
+     · trail(pb,pts,seed) · boat(pb,x,y,w,seed,o) · fgFrame(o) (oclusor f 1,3)
+   ===================================================================== */
+const R4L5_CLIFF = (() => {
+  const K = PFK, put = K.put, get = K.get, P32 = K.P32;
+  const NONE = -999, ZH = 30;
+  const LV = (() => { const v = [-0.42, -0.84, 0.36], m = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / m); })();
+  const LXY = Math.hypot(LV[0], LV[1]), SDX = LV[0] / LXY, SDY = LV[1] / LXY, SLOPE = LV[2] / LXY;
+  /** Mar de las calas: navy profundo → azul → turquesa → cian → espuma */
+  const WAT = ['#04234a', '#05467e', '#0a5f9e', '#0a74bc', '#0692d5', '#0aa6dc', '#11bedd', '#3adcf1', '#7cdfec', '#c8f4fa', '#ffffff'];
+  const SANDR = ['#5a3418', '#86502d', '#b07440', '#cf9658', '#e8b878', '#f6d49a', '#fde9bd'];
+  const info = {};
+  const _r17 = new Map();
+  function ramp17(ramp) {
+    let o = _r17.get(ramp); if (o) return o;
+    const P = P32(ramp), n = P.length, N = 17, lit = new Uint32Array(N), sh = new Uint32Array(N), V = U('#3a0a12');
+    for (let i = 0; i < N; i++) {
+      const a = i / (N - 1) * (n - 1), i0 = Math.floor(a), i1 = Math.min(n - 1, i0 + 1);
+      lit[i] = K.mixU(P[i0], P[i1], a - i0);
+      sh[i] = K.mixU(lit[i], V, 0.2 + 0.28 * (1 - i / (N - 1)));
+    }
+    o = { lit, sh }; _r17.set(ramp, o); return o;
+  }
+  /** Columnas de un macizo: ancho, perfil, biseles y roturas de bloque inclinadas */
+  function mkCols(r, xa, xb, cMin, cMax, o = {}) {
+    const C = [];
+    for (let x = xa; x < xb;) {
+      let cw = r.int(cMin, cMax); if (xb - (x + cw) < cMin) cw = xb - x;
+      const br = []; let d = r.int(o.b0 ?? 8, o.b1 ?? 24), acc = 0;
+      while (d < 190) { acc += r() < 0.22 ? -(1 + r() * 2.2) : 0.3 + r() * 1.9; br.push({ d, tilt: (r() - 0.5) * 0.55, off: acc, bt: r.int(2, 5), joint: r() < 0.8, jw: r() < 0.4 ? 2 : 1, rc: r.int(2, 5) }); d += r.int(o.s0 ?? 11, o.s1 ?? 28); }
+      C.push({ x0: x, x1: x + cw, pro: (r() - 0.5) * 3.6, bl: r.int(2, 4), brw: r.int(1, 3), sd: r.int(1, 1e6), br, fused: r() < 0.26, off0: (r() - 0.5) * 2, hang: r() < 0.22, top: 0, hh: 0, tilt: 0 });
+      x += cw;
+    }
+    return C;
+  }
+
+  /* ---------- composición: calas, cabos escalonados, contrafuertes, farallones, macizos del muro ---------- */
+  function layout(s, gyAt) {
+    const r = RNG((s.seed | 0) * 7919 + 131), o = s.r4 || {};
+    const x0 = s.x0, x1 = s.x1, eL = s.edgeL ?? null, eR = s.edgeR ?? null;
+    const lo = eL != null ? eL + 6 : x0, hi = eR != null ? eR - 6 : x1;
+    const coves = (o.coves || []).map(([a, b, wy, kind]) => ({ x0: a, x1: b, wy: wy ?? 356, kind: kind || null })).sort((p, q) => p.x0 - q.x0);
+    const footBase = o.foot ?? 394;
+    // pie del muro: alto en el fondo de las calas (más lejos), bajo detrás de los cabos (≈ mar de las gargantas)
+    const Wy = new Int16Array(x1 - x0 + 9);
+    for (let x = x0 - 4; x <= x1 + 4; x++) {
+      let f = footBase;
+      for (const c of coves) { const e = Math.min(x - c.x0, c.x1 - x); if (e > -16) f = Math.min(f, Math.round(lerp(footBase, c.wy, clamp((e + 16) / 26, 0, 1)))); }
+      Wy[x - x0 + 4] = f + Math.round((vnoise(x * 0.09, 0.5, s.seed | 0) - 0.5) * 4);
+    }
+    const tiers = [];
+    const tier = (xa, xb, top, z, foot, o2 = {}) => {
+      xa = Math.max(xa, lo); xb = Math.min(xb, hi); if (xb - xa < 10) return null;
+      top = Math.min(top, foot - 18);
+      const T = { id: tiers.length, x0: xa, x1: xb, yT: top, z, foot, tL: o2.tL ?? 0.08 + r() * 0.16, tR: o2.tR ?? 0.05 + r() * 0.12, ridge: xa + (xb - xa) * (0.25 + r() * 0.5), kL: 0.03 + r() * 0.07, kR: 0.06 + r() * 0.1, alb: 0.08 + z * 0.03 + (r() - 0.5) * 0.08, pro: 0, cave: null, stack: !!o2.stack, sd: r.int(1, 1e6) };
+      T.cols = mkCols(r, xa, xb, o2.cMin ?? 8, o2.cMax ?? 20, { b0: 5, b1: 14, s0: 9, s1: 22 });
+      // cabezas en 3/4: plano superior hondo (el cabo se adelanta), hombros redondeados en los extremos
+      for (const c of T.cols) { const e = Math.min(c.x0 - xa, xb - c.x1); c.top = top + r.int(-2, 2) + (e < 5 ? r.int(2, 6) : 0); c.hh = o2.stack ? 5 + r.int(0, 2) : 7 + Math.min(z, 3) * 2 + r.int(0, 3) - (e < 5 ? 2 : 0); c.tilt = (r() - 0.5) * 0.12; }
+      if (!o2.stack && r() < 0.34 && xb - xa > 40) T.cave = { cx: xa + (xb - xa) * (0.3 + r() * 0.4), cy: top + 16 + r.int(0, 18), rx: r.int(5, 10), ry: r.int(4, 8), dep: 7 + r() * 6 };
+      tiers.push(T); return T;
+    };
+    // tramos de tierra entre calas → cabos escalonados y contrafuertes
+    const land = []; let a = lo;
+    for (const c of coves) { if (c.x0 - a > 14) land.push([a, c.x0]); a = Math.max(a, c.x1); }
+    if (hi - a > 14) land.push([a, hi]);
+    for (const [la, lb] of land) {
+      let x = la + r.int(0, 6);
+      while (x < lb - 12) {
+        let gw = Math.min(lb - x, r.int(o.wMin ?? 64, o.wMax ?? 150)); if (lb - (x + gw) < 30) gw = lb - x;
+        const xa = x, xb = x + gw, g0 = gyAt((xa + xb) >> 1);
+        if (gw < 58 && r() < 0.65) tier(xa + 1, xb - 1, g0 + r.int(5, 14), 1, footBase + r.int(4, 10), { cMin: 8, cMax: 15 });
+        else {
+          const n = gw > 104 ? r.int(2, 3) : r.int(1, 2), down = r() < 0.72 ? -1 : 1;
+          let ta = xa + r.int(0, 6), tb = xb - r.int(0, 6), top = g0 + r.int(18, 40);
+          for (let k = 0; k < n; k++) {
+            tier(ta, tb, top, k + 1, footBase + 4 + k * 3 + r.int(0, 4));
+            const w2 = Math.round((tb - ta) * (0.44 + r() * 0.26));
+            if (down < 0) { ta -= r.int(2, 14); tb = ta + w2; } else { tb += r.int(2, 14); ta = tb - w2; }
+            top += r.int(16, 30);
+          }
+        }
+        x = xb + r.int(6, 26);
+      }
+    }
+    // farallones en las calas
+    for (const c of coves) if (c.kind === 'stack') { const cx = Math.round((c.x0 + c.x1) / 2 + (r() - 0.5) * (c.x1 - c.x0) * 0.3), ww = r.int(12, 22); tier(cx - (ww >> 1), cx + (ww >> 1), c.wy - r.int(16, 30), 3, c.wy + r.int(24, 34), { stack: true, cMin: 5, cMax: 9, tL: 0.1, tR: 0.08 }); }
+    tiers.sort((p, q) => p.z - q.z || p.x0 - q.x0);
+    // macizos del muro (todas las columnas en una sola lista: sin huecos entre macizos)
+    const ms = [], wcols = [];
+    for (let x = x0 - 4 - r.int(0, 20); x < x1 + 4;) {
+      const mw = r.int(50, 150), m = { i: ms.length, x0: x, x1: x + mw, ridge: x + mw * (0.25 + r() * 0.5), kL: 0.04 + r() * 0.1, kR: 0.1 + r() * 0.22, alb: -0.12 + (r() - 0.5) * 0.12, pro: r() * 5, gw: r.int(2, 5), band: null, cave: null, c0: wcols.length };
+      if (r() < 0.5) m.band = { d: r.int(14, 44), kind: r() < 0.55 ? 1 : -1, amt: r.int(4, 8), xa: x + r.int(0, mw >> 2), xb: x + mw - r.int(0, mw >> 2) };
+      if (r() < 0.3) m.cave = { cx: x + mw * (0.25 + r() * 0.5), cy: gyAt(x + (mw >> 1)) + r.int(22, 54), rx: r.int(5, 9), ry: r.int(4, 7), dep: 9 + r() * 5 };
+      for (const c of mkCols(r, x, x + mw, 12, 28)) { c.m = m; wcols.push(c); }
+      m.c1 = wcols.length; ms.push(m); x += mw;
+    }
+    // cuevas marinas al pie del muro en las calas
+    for (const c of coves) if (c.kind === 'cave' || (c.kind === 'birds' && r() < 0.6)) {
+      const cx = c.x0 + (c.x1 - c.x0) * (0.3 + r() * 0.4), m = ms.find(mm => cx >= mm.x0 && cx < mm.x1);
+      if (m) m.cave = { cx, cy: c.wy, rx: r.int(9, 15), ry: r.int(15, 22), dep: 15, sea: true };
+    }
+    return { coves, tiers, ms, wcols, Wy, footBase, lo, hi };
+  }
+
+  /* ---------- horneado del tramo ---------- */
+  function build(s, world) {
+    const t0 = nowMs();
+    const G = world.ground, HH = world.h;
+    const gyAt = (x) => G[clamp(Math.round(x), 0, world.w)];
+    const L_ = layout(s, gyAt);
+    const bx0 = s.x0 - 4, w = s.x1 - s.x0 + 8;
+    let gmin = 1e9; for (let x = bx0; x < bx0 + w; x++) gmin = Math.min(gmin, gyAt(x));
+    const by0 = gmin, h = HH - by0, N = w * h;
+    const H = new Float32Array(N).fill(NONE), A = new Float32Array(N), F = new Uint8Array(N), Zb = new Int8Array(N).fill(-1), FD = new Uint8Array(N);
+    const sd = ((s.seed | 0) * 131 + 29) & 0xffff;
+    const gyA = new Int16Array(w); for (let i = 0; i < w; i++) gyA[i] = gyAt(bx0 + i);
+    const WyAt = (x) => L_.Wy[clamp(x - s.x0 + 4, 0, L_.Wy.length - 1)];
+    const clip = (x, d) => (s.edgeR != null && x >= s.edgeR - Math.round(Math.min(d * 0.2, 3 + vnoise(d * 0.06, 1, sd) * 7))) || (s.edgeL != null && x < s.edgeL + Math.round(Math.min(d * 0.16, 2 + vnoise(d * 0.06, 2, sd) * 6)));
+    function paint(M, isWall) {
+      const C = M.cols, nC = C.length, E = new Int32Array(nC + 1);
+      let yA = by0, yB = by0 + h;
+      if (!isWall) { yA = Math.max(by0, Math.min(...C.map(c => c.top)) - 2); yB = Math.min(by0 + h, M.foot + 4); }
+      for (let y = yA; y < yB; y++) {
+        for (let j = 0; j < nC; j++) E[j] = C[j].x0 + Math.round((vnoise(y * 0.06, (C[j].sd & 1023) * 0.37, 3) - 0.5) * 4.4);
+        E[nC] = C[nC - 1].x1;
+        if (!isWall) {
+          const dy = Math.max(0, y - M.yT);
+          E[0] = C[0].x0 + Math.round((vnoise(y * 0.08, M.sd & 1023, 4) - 0.5) * 3 - dy * M.tL);
+          E[nC] = C[nC - 1].x1 + Math.round((vnoise(y * 0.08, (M.sd & 1023) + 5.5, 4) - 0.5) * 3 + dy * M.tR);
+        }
+        for (let j = 1; j <= nC; j++) if (E[j] < E[j - 1] + 3) E[j] = E[j - 1] + 3;
+        const row = (y - by0) * w;
+        for (let j = 0; j < nC; j++) {
+          const c = C[j], Lx = E[j], Rx = E[j + 1], m = isWall ? c.m : M;
+          const xs = Math.max(Lx, bx0), xe = Math.min(Rx, bx0 + w);
+          for (let x = xs; x < xe; x++) {
+            const xi = x - bx0, gy = gyA[xi];
+            let top, foot;
+            if (isWall) { top = gy; foot = WyAt(x); }
+            else { top = Math.max(gy + 3, c.top + Math.round(c.tilt * (x - (c.x0 + c.x1) * 0.5))); foot = M.foot + Math.round((vnoise(x * 0.12, M.sd & 1023, 6) - 0.5) * 4); }
+            const d = y - top; if (d < 0 || y >= foot) continue;
+            if (clip(x, y - gy)) continue;
+            const dl = x - Lx, dr = Rx - 1 - x, u = clamp(dl / Math.max(3, Rx - Lx - 1), 0, 1);
+            let hg = M.z * ZH + c.pro + (isWall ? m.pro : 0), alb = 1 + (hash1(c.sd, 5) - 0.5) * 0.1 + m.alb, fl = 0;
+            { const rx = x - m.ridge; hg -= rx < 0 ? -rx * m.kL : rx * m.kR; }
+            if (!isWall && d < c.hh) { fl = d === c.hh - 1 ? 6 : d === 0 ? 7 : 2; hg += 0.6; alb = d / Math.max(1, c.hh - 1); }
+            else {
+              const dd = isWall ? d : d - c.hh, cap = isWall ? 4 : 2;
+              // columna cilíndrica: el flanco izquierdo mira a la luz, el derecho se hunde en sombra
+              { const cw = Math.max(4, Rx - Lx); hg -= 0.7 * cw * (u - 0.35) * (u - 0.35); }
+              if (dd < cap) { const q = cap - dd; hg -= q * q * (isWall ? 0.5 : 0.6); if (isWall && d === 0) fl = 4; }
+              if (isWall && j === m.c0 && dl < m.gw) { hg -= 9 - dl * 1.8; fl = 1; }
+              else {
+                const cm = (Lx + Rx) * 0.5, B = c.br;
+                let bi = -1, btop = 0, bbot = 1e9;
+                for (let k = 0; k < B.length; k++) { const bd = B[k].d + Math.round(B[k].tilt * (x - cm) + (vnoise(x * 0.21, k * 3.1, sd + 40) - 0.5) * 4); if (bd <= dd) { bi = k; btop = bd; } else { bbot = bd; break; } }
+                const b = bi >= 0 ? B[bi] : null, nb = B[bi + 1];
+                hg += b ? b.off : c.off0;
+                const dt = dd - btop, db = bbot - 1 - dd;
+                const wob = (vnoise(y * 0.23, x * 0.05, sd + 41) - 0.5) * 3, el = dl + Math.round(wob), er = dr - Math.round(wob * 0.7);
+                const nc = C[j + 1], fusedL = c.fused && j > 0 && !(isWall && j === m.c0), fusedR = nc && nc.fused && !(isWall && nc.m !== m);
+                const exL = fusedL ? 99 : el, exR = fusedR ? 99 : er + 1;
+                const eyT = b && b.joint ? dt - b.jw + 1 : dt + 99, eyB = nb && nb.joint ? db + 1 : db + 99;
+                const ex = Math.min(exL, exR), ey = Math.min(eyT, eyB), rc = b ? b.rc : 3;
+                const e = (ex < rc && ey < rc) ? rc - Math.hypot(rc - ex, rc - ey) : Math.min(ex, ey);
+                if (e <= (isWall ? 1.1 : 0.9)) { hg -= 5.5; fl = 1; }
+                else {
+                  const bh = Math.max(6, bbot - btop);
+                  const Rt = Math.min(bh * (0.2 + (b ? b.bt : 3) * 0.06), 13) * (1.25 - u * 0.6) + 1.5, Rb = 1.8, Rl = c.bl + 1, Rr = c.brw + 1;
+                  const tp = ey <= ex, Rad = tp ? (eyT <= eyB ? Rt : Rb) : (exL <= exR ? Rl : Rr);
+                  if (e < Rad) { const q = Rad - e; hg -= q * q / Rad * (tp && eyT <= eyB ? 1.15 : tp ? 1.6 : (exL <= exR ? 1.4 : 1.25)); }
+                }
+              }
+              hg += (vnoise(x * 0.16, y * 0.11, sd + 7) - 0.5) * 2.2;
+              alb += (hash1(Math.floor((d + (vnoise(x * 0.012, 3.3, sd) - 0.5) * 22) / 21), sd + 5) - 0.5) * 0.1;
+              if (isWall && m.band && x >= m.band.xa && x < m.band.xb) {
+                const T = m.band, td = T.d + Math.round((vnoise(x * 0.06, m.i + 0.5, 11) - 0.5) * 5);
+                if (T.kind > 0) { if (d >= td + 4) hg += T.amt; else if (d >= td) hg += T.amt * (d - td + 1) / 5; }
+                else { if (d < td - 1) hg += T.amt; else if (d < td + 1) hg += T.amt * (td + 1 - d) / 3; }
+              }
+              const cv = m.cave;
+              if (cv) {
+                const ex2 = (x - cv.cx) / cv.rx, ey2 = (y - cv.cy) / cv.ry, nz = (vnoise(x * 0.2, y * 0.2, sd + 50) - 0.5) * 0.5;
+                const rr = cv.sea ? (y >= cv.cy - 2 ? ex2 * ex2 + nz : ex2 * ex2 + ey2 * ey2 + nz) : ex2 * ex2 + ey2 * ey2 + nz;
+                if (rr < 1) { hg -= cv.dep * Math.sqrt(1 - rr); alb -= 0.08; if (rr < 0.55) fl = 3; }
+              }
+              if (foot - y < 4 && fl !== 3) { alb -= 0.1; if (fl === 0) fl = 5; }
+            }
+            const i = row + xi; H[i] = hg; A[i] = alb; F[i] = fl; Zb[i] = M.z; FD[i] = Math.min(255, foot - y);
+          }
+        }
+      }
+    }
+    paint({ z: 0, cols: L_.wcols }, true);
+    // playa de cantos al fondo de las calas 'beach' (capa 0, plana)
+    for (const c of L_.coves) if (c.kind === 'beach') for (let x = c.x0 + 4; x < c.x1 - 4; x++) {
+      const f = WyAt(x), bh = Math.round(7 + Math.sin(clamp((x - c.x0) / (c.x1 - c.x0), 0, 1) * Math.PI) * 6 + (vnoise(x * 0.1, 3, sd) - 0.5) * 3);
+      for (let y = f; y < f + bh && y < by0 + h; y++) { const i = (y - by0) * w + (x - bx0); H[i] = 0.5; A[i] = 1; F[i] = 9; Zb[i] = 0; FD[i] = f + bh - y; }
+    }
+    for (const T of L_.tiers) paint(T, false);
+    // mar: desde el último sólido de cada columna hasta abajo
+    for (let xi = 0; xi < w; xi++) {
+      const x = xi + bx0, gy = gyA[xi];
+      for (let y = by0 + h - 1; y > gy + 8; y--) { const i = (y - by0) * w + xi; if (Zb[i] !== -1) break; if (clip(x, y - gy)) break; Zb[i] = -2; H[i] = -0.6; F[i] = 8; }
+    }
+    // cavidad (imagen integral de H sobre los sólidos)
+    const SW = w + 1, S = new Float64Array(SW * (h + 1)), Cn = new Uint32Array(SW * (h + 1));
+    for (let y = 0; y < h; y++) { let rs = 0, rc = 0; for (let x = 0; x < w; x++) { const v = H[y * w + x]; if (v > NONE) { rs += v; rc++; } S[(y + 1) * SW + x + 1] = S[y * SW + x + 1] + rs; Cn[(y + 1) * SW + x + 1] = Cn[y * SW + x + 1] + rc; } }
+    // distancias del agua a la roca (vertical desde el sólido de arriba; horizontal ×1,6)
+    const dist = new Uint16Array(N).fill(999), vd = new Uint16Array(N).fill(999);
+    for (let x = 0; x < w; x++) { let last = -999; for (let y = 0; y < h; y++) { const i = y * w + x; if (Zb[i] >= 0) last = y; else if (Zb[i] === -2) { vd[i] = Math.min(999, y - last); dist[i] = vd[i]; } } }
+    for (let y = 0; y < h; y++) {
+      let last = -9999; for (let x = 0; x < w; x++) { const i = y * w + x; if (Zb[i] >= 0) last = x; else if (Zb[i] === -2) dist[i] = Math.min(dist[i], Math.round((x - last) * 1.6)); }
+      last = 99999; for (let x = w - 1; x >= 0; x--) { const i = y * w + x; if (Zb[i] >= 0) last = x; else if (Zb[i] === -2) dist[i] = Math.min(dist[i], Math.round((last - x) * 1.6)); }
+    }
+    const RR = ramp17(s.ramp || RAMP.rockWarmR), W32 = P32(WAT), SA = P32(SANDR), buf = new Uint32Array(N);
+    const LIP = U('#fde3a8'), WET = U('#2a1c18'), SEAB = U('#2a6a9a'), GUANO = U('#3a2a1c');
+    for (let y = 0; y < h; y++) {
+      const ya = Math.max(0, y - 4), yb = Math.min(h, y + 5);
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x, z = Zb[i]; if (z === -1) continue;
+        const h0 = H[i];
+        let sh = 0;
+        for (let k = 2; k <= 44; k += 2) {
+          const sx = x + Math.round(SDX * k), sy = y + Math.round(SDY * k); if (sx < 0 || sy < 0 || sx >= w) break;
+          const hs = H[sy * w + sx]; if (hs <= NONE || (z === -2 && Zb[sy * w + sx] < 1)) continue;
+          const ex = hs - h0 - SLOPE * k; if (ex > 0) { sh = Math.max(sh, Math.min(1, ex / 1.6)); if (sh >= 1) break; }
+        }
+        if (z === -2) {
+          // agua: espuma pegada a la roca, turquesa somero → azul; rizos; sombra de los cabos; reflejo roto del acantilado
+          const dd = dist[i], X = x + bx0;
+          let k = dd <= 1 ? 10 : dd <= 2 ? 9 : dd <= 4 ? 8 : dd <= 7 ? 7 : dd <= 11 ? 6 : dd <= 17 ? 5 : dd <= 26 ? 4 : dd <= 38 ? 3 : 2;
+          if (dd <= 3 && vnoise(X * 0.45, y * 0.6, sd + 60) < 0.4) k = 8;
+          const rp = vnoise(X * 0.11, y * 0.9, sd + 61);
+          if (dd > 3 && rp > 0.68) k += 1; else if (dd > 6 && rp < 0.2) k -= 1;
+          k -= Math.round(sh * 2.4);
+          let u = W32[clamp(k, 0, 10)];
+          const q = vd[i];
+          if (q > 1 && q < 12 && ((y + (X >> 3)) % 3) !== 0) { const sy = y - 2 * q + 1; if (sy >= 0) { const src = buf[sy * w + x]; if (src && Zb[sy * w + x] >= 0) u = K.mixU(u, src, 0.34 * (1 - q / 12)); } }
+          buf[i] = u; continue;
+        }
+        const hl = x > 0 && Zb[i - 1] === z ? H[i - 1] : h0, hr = x < w - 1 && Zb[i + 1] === z ? H[i + 1] : h0;
+        const hu = y > 0 && Zb[i - w] === z ? H[i - w] : h0, hd = y < h - 1 && Zb[i + w] === z ? H[i + w] : h0;
+        const nx = clamp((hl - hr) * 0.5, -2.6, 2.6), ny = clamp((hu - hd) * 0.5, -2.6, 2.6);
+        let lam = (nx * LV[0] + ny * LV[1] + LV[2]) / Math.sqrt(nx * nx + ny * ny + 1); if (lam < 0) lam = 0;
+        const xa = Math.max(0, x - 4), xb = Math.min(w, x + 5);
+        const cnt = Cn[yb * SW + xb] - Cn[ya * SW + xb] - Cn[yb * SW + xa] + Cn[ya * SW + xa];
+        const mean = cnt ? (S[yb * SW + xb] - S[ya * SW + xb] - S[yb * SW + xa] + S[ya * SW + xa]) / cnt : h0;
+        const ao = Math.min(0.22, Math.max(0, mean - h0) * 0.03);
+        const fl = F[i], d = y + by0 - gyA[x];
+        if (fl === 9) { // playa: cantos y arena húmeda hacia el agua
+          let kk = 4 - (FD[i] < 3 ? 2 : 0) + Math.round((K.cl(x, y, 2, sd + 80) - 0.5) * 2) - Math.round(sh * 2);
+          if (hash2(x >> 1, y >> 1, sd + 81) < 0.18) kk += 2;
+          buf[i] = SA[clamp(kk, 0, 6)]; continue;
+        }
+        let t;
+        if (fl === 2 || fl === 6 || fl === 7) t = (fl === 6 ? 1 : fl === 7 ? 0.52 : 0.72 + A[i] * 0.2 + (K.cl(x, y, 2, sd + 9) - 0.5) * 0.12) * (1 - 0.6 * sh) - ao * 0.5;
+        else t = Math.min(1, A[i] * (0.2 + 1.45 * lam * (1 - 0.82 * sh))) - ao - clamp((d - 70) / 240, 0, 0.1);
+        t += (hash2((x + bx0) >> 1, y >> 1, sd + 31) - 0.5) * 0.045;
+        if (fl === 1) t = Math.min(t, 0.2); else if (fl === 3) t = Math.min(t, 0.07 + lam * 0.08);
+        const k = clamp(Math.round(t * 16), 1, 16);
+        const cool = clamp(sh * 0.95 + (lam < 0.3 ? (0.3 - lam) * 1.8 : 0) + (fl === 1 ? 0.5 : fl === 3 ? 0.9 : 0), 0, 1);
+        let u = cool > 0.04 ? K.mixU(RR.lit[k], RR.sh[k], cool) : RR.lit[k];
+        if (z === 0 && fl !== 4) u = K.mixU(u, RR.sh[Math.max(1, k - 2)], 0.35);
+        if (fl === 4 && k > 10) u = K.mixU(u, LIP, 0.6);
+        else if (fl === 6 && sh < 0.5) u = K.mixU(u, LIP, 0.5);
+        else if (fl === 5) u = K.mixU(u, (FD[i] & 1) ? WET : GUANO, 0.5);
+        if (FD[i] < 20 && fl !== 6 && fl !== 7 && fl !== 2) u = K.mixU(u, SEAB, 0.16 * (1 - FD[i] / 20) * (0.4 + cool));
+        buf[i] = u;
+      }
+    }
+    // espuma animada: 4 cuadros de lamida que avanza y retrocede (solo filas con agua)
+    let wy0 = h, wy1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (Zb[y * w + x] === -2) { if (y < wy0) wy0 = y; wy1 = y; break; }
+    const frames = [], spray = [], FO = [U('#ffffff'), U('#e6fbff'), U('#bff2fa')];
+    if (wy1 >= wy0) {
+      const fh = wy1 - wy0 + 1;
+      for (let f = 0; f < 4; f++) {
+        const pb = new PixelBuffer(w, fh);
+        for (let y = wy0; y <= wy1; y++) for (let x = 0; x < w; x++) {
+          const i = y * w + x; if (Zb[i] !== -2) continue;
+          const dd = dist[i]; if (dd > 9) continue;
+          const X = x + bx0, ph = X * 0.13 + vnoise(X * 0.04, y * 0.08, sd + 70) * 5 + f * Math.PI / 2;
+          const reach = 1.2 + (Math.sin(ph) * 0.5 + 0.5) * 5;
+          let c = 0;
+          if (dd <= reach && dd > reach - 1.6) c = FO[dd < 3 ? 0 : 1];
+          else if (dd < reach - 1.6 && vnoise(X * 0.5, y * 0.7 + f * 1.7, sd + 71) < 0.32) c = FO[2];
+          if (c) pb.data[(y - wy0) * w + x] = (c & 0xffffff | ((dd < 3 ? 235 : 170) << 24)) >>> 0;
+        }
+        frames.push(pb.toCanvas());
+      }
+      for (const T of L_.tiers) { const fx = Math.round((T.x0 + T.x1) / 2); if (T.foot < by0 + h - 2) spray.push([fx, T.foot - 1, T.z]); if (T.x1 - T.x0 > 40) spray.push([T.x0 + 4, T.foot - 2, T.z]); }
+    }
+    info[s.seed | 0] = { x: bx0, y: by0 + wy0, frames, spray, birds: (s.r4 && s.r4.birds) || null, coves: L_.coves };
+    const R = { bx0, by0, w, h, buf, Zb, F, FD, L: L_, gyA, sd, ms: 0 };
+    R.ms = Math.round(nowMs() - t0);
+    return R;
+  }
+  function face(s, x, y, gy, world) {
+    let R = s._r4; if (!R) R = s._r4 = build(s, world);
+    const xi = x - R.bx0, yi = y - R.by0; if (xi < 0 || xi >= R.w || yi < 0 || yi >= R.h) return 0;
+    return R.buf[yi * R.w + xi];
+  }
+
+  /* ---------- flora de acantilado canaria ---------- */
+  const TAB_ST = ['#2e2620', '#4a3e32', '#6e5e4a', '#94826a'], TAB_LF = ['#1e3a10', '#2e5a14', '#4a7e1c', '#6ea02a', '#9cc23c', '#c8e070'];
+  /** Tabaiba dulce: cojín de tallos grises ramificados con rosetas verde lima en las puntas */
+  function tabaiba(pb, x, y, s, seed) {
+    const r = RNG(seed), ST = P32(TAB_ST), LF = P32(TAB_LF), tips = [];
+    const grow = (px, py, a, len, dep) => {
+      for (let k = 0; k < len; k++) { px += Math.cos(a); py += Math.sin(a); put(pb, Math.round(px), Math.round(py), ST[clamp(1 + (dep > 1 ? 0 : 1) + (Math.cos(a) < 0 ? 1 : 0), 0, 3)]); }
+      if (dep > 0) { grow(px, py, a - 0.42 - r() * 0.3, len * 0.72, dep - 1); grow(px, py, a + 0.42 + r() * 0.3, len * 0.72, dep - 1); } else tips.push([px, py]);
+    };
+    const n = s > 11 ? 3 : 2;
+    for (let i = 0; i < n; i++) grow(x + (i - (n - 1) / 2) * 2, y, -Math.PI / 2 + (i - (n - 1) / 2) * 0.55, s * 0.3, 2);
+    tips.sort((p, q) => p[1] - q[1]);
+    for (const [tx, ty] of tips) {
+      for (let q = 0; q < 8; q++) { const a = q / 8 * TAU, rr = 1.5 + (q % 2) * 0.9; put(pb, Math.round(tx + Math.cos(a) * rr), Math.round(ty + Math.sin(a) * rr * 0.7), LF[clamp(3 + (Math.cos(a) < 0 ? 1 : -1) + (Math.sin(a) < 0 ? 1 : 0), 0, 5)]); }
+      put(pb, Math.round(tx), Math.round(ty), LF[5]); put(pb, Math.round(tx) - 1, Math.round(ty), LF[4]);
+    }
+  }
+  /** Cardón: candelabro de columnas verdes acanaladas con frutos rojos */
+  function cardon(pb, x, y, hgt, seed) {
+    const r = RNG(seed), C = P32(['#10220c', '#1a3612', '#2a5218', '#3e7024', '#5a9034', '#86b44e']), n = 3 + r.int(0, 2);
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n - 1) / 2), cx = x + Math.round(off * 3.4), hh = Math.max(4, Math.round(hgt * (0.62 + r() * 0.38) * (1 - Math.abs(off) / n * 0.7)));
+      for (let k = 0; k < hh; k++) { const yy = y - k, bend = k < 3 ? Math.round(-off * (3 - k) * 0.4) : 0; for (let q = 0; q < 3; q++) put(pb, cx + q + bend, yy, C[clamp((q === 0 ? 4 : q === 1 ? 3 : 1) + (k > hh - 2 ? 1 : 0), 0, 5)]); }
+      put(pb, cx + 1, y - hh, C[5]); if (r() < 0.5) put(pb, cx + 1, y - hh - 1, U('#d8402a'));
+    }
+    for (let q = -n * 2; q <= n * 2; q++) put(pb, x + 1 + q, y + 1, C[0]);
+  }
+  /** Planta colgante (verode / corazoncillo) que cae de una repisa, con flores */
+  function hanger(pb, x, y, L, seed, bloom) {
+    const r = RNG(seed), V = P32(['#10260e', '#1c3c14', '#2c5a1c', '#468024', '#6ea436', '#9cc84a']);
+    let xx = x;
+    for (let k = 0; k < L; k++) {
+      if (r() < 0.25) xx += r() < 0.5 ? -1 : 1;
+      put(pb, xx, y + k, V[k % 3 === 0 ? 1 : 2]);
+      if (k % 2 === 1) put(pb, xx + (k % 4 === 1 ? 1 : -1), y + k, V[3 + (k % 4 === 1 ? 1 : 0)]);
+      if (bloom && r() < 0.2) put(pb, xx + (r() < 0.5 ? -1 : 1), y + k, U(bloom));
+    }
+    put(pb, xx, y + L, V[5]);
+  }
+  /** Mata baja de flores amarillas (verode) o rosadas */
+  function bloomBush(pb, x, y, wd, seed, col) {
+    PFFlora.cluster(pb, x, y - 3, wd * 0.5, 3.5, ['#0e2410', '#173a16', '#22521c', '#2f6a22', '#43842a', '#62a032', '#8cbc44'], seed, { density: 0.7, leaf: [2, 3] });
+    const r = RNG(seed + 3); for (let k = 0; k < Math.round(wd * 0.6); k++) { const fx = Math.round(x + (r() - 0.5) * wd), fy = Math.round(y - 3 - r() * 4); put(pb, fx, fy, U(col)); if (r() < 0.4) put(pb, fx, fy - 1, U('#fff6c8')); }
+  }
+  const BLOOMS = ['#ffd84a', '#ffd84a', '#f47ab8', '#ffffff', '#ff9a3a', '#c89ae8'];
+  /** Vegetación de una repisa o cabeza de cabo (cadena variada cada ~7 px) */
+  function vegRun(pb, x0, x1, yAt, seed, ok, o = {}) {
+    const r = RNG(seed);
+    for (let x = x0 + r.int(1, 4); x < x1 - 2; x += o.gap ?? (5 + r.int(0, 6))) {
+      const y = yAt(x); if (y == null || !ok(x, y)) continue;
+      const k = r();
+      if (k < 0.24) PFFlora.tuft(pb, x, y, 6 + r() * 5, 5 + r() * 5, x * 3 + y, RAMP.grassR, { wind: 0.6 });
+      else if (k < 0.4) tabaiba(pb, x, y, 9 + r.int(0, 6), x + y * 7);
+      else if (k < 0.52) PFFlora.agave(pb, x, y, 4 + r.int(0, 3), x + y, ['#0c2020', '#123230', '#1c4a40', '#2a6450', '#3e7e60', '#5a9a74', '#86bc94']);
+      else if (k < 0.62) bloomBush(pb, x, y, 7 + r.int(0, 5), x * 5 + y, r.pick(BLOOMS));
+      else if (k < 0.7 && !o.small) cardon(pb, x, y, 7 + r.int(0, 6), x + y * 3);
+      else if (k < 0.82) PFFlora.flowerPatch(pb, x, y, 7, x + y);
+      else PFAWind.thrift(pb, x, y + 1, x + y);
+    }
+  }
+
+  /* ---------- sendas, escaleras, conducciones, embarcadero, barcas ---------- */
+  const TRR = ['#3a1e14', '#6a3e28', '#9a6a44', '#c69a68', '#e4c290', '#f8e2b8'], WDR = ['#2a1608', '#4a2a12', '#6e421e', '#94602e', '#b88044', '#d4a060'];
+  /** Sendero tallado: huella al sol, corte en sombra encima, canto y sombra debajo; peldaños con contrahuella donde baja
+      fuerte; barandilla de postes y cuerda del lado del vacío. pts: [[x,y]..] */
+  function trail(pb, pts, seed, o = {}) {
+    const TR = P32(TRR), Wd = P32(WDR), SHD = U('#2e0e14'), tread = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [xa, ya] = pts[i], [xb, yb] = pts[i + 1], n = Math.max(1, Math.abs(xb - xa)), dir = Math.sign(xb - xa) || 1, steep = Math.abs(yb - ya) / n > 0.42;
+      const sw = steep ? 4 : 1;
+      for (let q = 0; q <= n; q++) { const x = xa + q * dir, qq = steep ? Math.min(n, Math.floor(q / sw) * sw) : q; tread.push([x, Math.round(lerp(ya, yb, qq / n))]); }
+    }
+    let py = null;
+    for (const [x, y] of tread) {
+      for (let k = 1; k <= 5; k++) { const c = get(pb, x, y - k); if (c >>> 24) put(pb, x, y - k, K.mixU(c, SHD, 0.42 * (1 - k / 6))); }
+      if (py != null && y > py + 1) for (let yy = py + 1; yy < y; yy++) { put(pb, x, yy, TR[yy === y - 1 ? 2 : 1]); }
+      put(pb, x, y, TR[5]); put(pb, x, y + 1, TR[4]); put(pb, x, y + 2, TR[2]); put(pb, x, y + 3, TR[0]);
+      for (let k = 4; k < 7; k++) { const c = get(pb, x, y + k); if (c >>> 24) put(pb, x, y + k, K.mixU(c, SHD, 0.45 * (1 - (k - 4) / 3))); }
+      py = y;
+    }
+    if (o.rail === false) return tread;
+    let prev = null;
+    for (let i = 0; i < tread.length; i += 9) {
+      const [x, y] = tread[i];
+      for (let k = 1; k < 7; k++) { put(pb, x, y - k + 1, Wd[k < 3 ? 2 : 4]); put(pb, x + 1, y - k + 1, Wd[1]); } put(pb, x, y - 6, Wd[5]);
+      if (prev) { const [qx, qy] = prev; for (let xx = Math.min(qx, x); xx <= Math.max(qx, x); xx++) { const t = (xx - qx) / ((x - qx) || 1); put(pb, xx, Math.round(lerp(qy - 4, y - 4, t) + Math.sin(t * Math.PI) * 1.4), U('#e0c890')); } }
+      prev = [x, y];
+    }
+    return tread;
+  }
+  /** Bandeja de cables en la pared: sombra arrojada, bandeja de acero, cable amarillo y ménsulas */
+  function conduit(pb, pts) {
+    const SHD = U('#2e0e14');
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [xa, ya] = pts[i], [xb, yb] = pts[i + 1], n = Math.max(1, Math.abs(xb - xa), Math.abs(yb - ya));
+      for (let q = 0; q <= n; q++) { const x = Math.round(lerp(xa, xb, q / n)), y = Math.round(lerp(ya, yb, q / n)); for (let k = 1; k <= 3; k++) { const c = get(pb, x + k, y + k + 1); if (c >>> 24) put(pb, x + k, y + k + 1, K.mixU(c, SHD, 0.5 - k * 0.12)); } }
+    }
+    R3WINDSTORM.cable(pb, pts, { tray: true, step: 12 });
+  }
+  /** Barca de pesca: casco blanco con franja, cabina, regala; línea de flotación con espuma */
+  function boat(pb, x, y, w, seed, o = {}) {
+    const r = RNG(seed), stripe = o.stripe || r.pick(['#2a6ad0', '#c83a2a', '#18a088', '#f0bc2c']);
+    for (let i = 0; i < w; i++) {
+      const u = i / (w - 1), lift = Math.round(Math.max(0, (u - 0.72) / 0.28) * 3 + Math.max(0, (0.1 - u) / 0.1) * 1.5);
+      for (let k = 0; k < 6 - lift; k++) { const yy = y - 6 + lift + k; put(pb, x + i, yy, U(k === 0 ? '#ffffff' : k === 1 ? stripe : k === 2 ? '#f4f2ea' : k >= 4 ? '#8a94a6' : '#d8dce4')); }
+      put(pb, x + i, y - 7 + lift, U(i % 5 === 0 ? '#6a4a2a' : '#94602e'));
+    }
+    const cx = x + Math.round(w * 0.32), cw = Math.max(5, Math.round(w * 0.3));
+    for (let i = 0; i < cw; i++) for (let k = 0; k < 5; k++) put(pb, cx + i, y - 12 + k, U(k === 0 ? stripe : (k === 2 && i > 0 && i < cw - 1) ? '#5ab8e8' : i === cw - 1 ? '#c8c4ba' : '#f4f0e6'));
+    if (o.mast) for (let k = 0; k < 10; k++) put(pb, cx + 1, y - 13 - k, U('#5a4a3a'));
+    for (let i = -1; i <= w; i++) if (hash2(x + i, y, seed) < 0.7) put(pb, x + i, y, U('#e6fbff'));
+  }
+  /** Embarcadero de madera sobre pilotes con reflejo, noray, escalerilla y farol */
+  function jetty(pb, x0, x1, y, seed) {
+    const Wd = P32(R3WINDSTORM.R.WOOD), SHD = U('#0a2a4a');
+    for (let x = x0 + 2; x < x1; x += 9) for (let k = 0; k < 16; k++) { put(pb, x, y + k, Wd[k < 2 ? 4 : 2]); put(pb, x + 1, y + k, Wd[1]); if (k > 3 && (k & 1)) { const c = get(pb, x + 2, y + k); if (c >>> 24) put(pb, x + 2, y + k, K.mixU(c, SHD, 0.4)); } }
+    for (let x = x0; x < x1; x++) { put(pb, x, y - 3, Wd[7]); put(pb, x, y - 2, Wd[(x - x0) % 6 === 0 ? 3 : 6]); put(pb, x, y - 1, Wd[4]); put(pb, x, y, Wd[2]); put(pb, x, y + 1, Wd[0]); for (let k = 2; k < 5; k++) { const c = get(pb, x, y + k); if (c >>> 24) put(pb, x, y + k, K.mixU(c, SHD, 0.45 - k * 0.08)); } }
+    for (const bx of [x0 + 6, x1 - 8]) { put(pb, bx, y - 5, U('#3a3a44')); put(pb, bx, y - 4, U('#2a2a32')); put(pb, bx + 1, y - 5, U('#6a6a76')); }
+    for (let k = 0; k < 9; k++) { put(pb, x1 - 2, y - 14 + k, U('#2a2a32')); } put(pb, x1 - 3, y - 15, U('#fff2c4')); put(pb, x1 - 2, y - 15, U('#ffe08a')); put(pb, x1 - 1, y - 15, U('#fff2c4'));
+  }
+
+  /* ---------- decoración del tramo (sobre el lienzo del terreno) ---------- */
+  function post(pb, world, s) {
+    const R = s._r4; if (!R) return;
+    const { bx0, by0, w, h, Zb, F, L: L_, gyA, sd } = R, o = s.r4 || {};
+    const r = RNG(sd * 3 + 17), gy = (x) => gyA[clamp(x - bx0, 0, w - 1)];
+    const Zat = (x, y) => { const xi = x - bx0, yi = y - by0; return xi < 0 || xi >= w || yi < 0 || yi >= h ? -9 : Zb[yi * w + xi]; };
+    const Fat = (x, y) => { const xi = x - bx0, yi = y - by0; return xi < 0 || xi >= w || yi < 0 || yi >= h ? 0 : F[yi * w + xi]; };
+    const inSeg = (x) => x > (s.edgeL ?? s.x0) + 4 && x < (s.edgeR ?? s.x1) - 4;
+    // 1) canto del paso: flecos de hierba, raíces colgantes y flores (en matas)
+    const GR = P32(RAMP.grassR), FL = [U('#f47a90'), U('#ffd84a'), U('#fff2c0'), U('#e94a64')];
+    for (let x = s.x0 + 2; x < s.x1 - 2; x++) {
+      if (!inSeg(x)) continue;
+      const v = K.vn(x * 0.09, 0.5, sd + 61); if (v < 0.48) continue;
+      const g0 = gy(x), Lg = 1 + Math.floor((v - 0.48) * 10 * hash2(x, 7, 3)) + (hash2(x, 8, 3) < 0.12 ? 3 : 0);
+      for (let q = 0; q < Lg; q++) put(pb, x + (q > 2 && hash2(x, 9, 3) < 0.5 ? 1 : 0), g0 + 1 + q, GR[clamp(GR.length - 2 - q, 1, GR.length - 1)]);
+      if (hash2(x, 10, 3) < 0.04) { const c = FL[Math.floor(hash2(x, 11, 3) * 4)]; put(pb, x, g0 + 1 + Lg, c); put(pb, x + 1, g0 + 1 + Lg, c); }
+    }
+    for (const c of L_.wcols) { if (!c.hang) continue; const x = c.x0 + 2 + r.int(0, Math.max(1, c.x1 - c.x0 - 4)); if (!inSeg(x) || Zat(x, gy(x) + 6) !== 0) continue; R2TERRAIN_Rock.hangRoot(pb, x, gy(x) + 3, 5 + r.int(0, 12), c.sd); }
+    // 2) muro: repisas con vegetación, raíces bajo los voladizos, matas en las muescas, nidos en las cuevas
+    for (const m of L_.ms) {
+      const T = m.band;
+      if (T) {
+        const tdAt = (x) => gy(x) + T.d + Math.round((K.vn(x * 0.06, m.i + 0.5, 11) - 0.5) * 5);
+        if (T.kind > 0) vegRun(pb, Math.max(T.xa, s.x0), Math.min(T.xb, s.x1), (x) => tdAt(x) + 1, m.i * 31 + sd, (x, y) => inSeg(x) && Zat(x, y + 2) === 0 && Zat(x, y - 6) === 0, { small: true });
+        else for (let x = T.xa + 2 + r.int(0, 6); x < T.xb - 2; x += 5 + r.int(0, 10)) { const y = tdAt(x) + 1; if (inSeg(x) && Zat(x, y) === 0 && Zat(x, y + 8) === 0 && r() < 0.7) hanger(pb, x, y, 4 + r.int(0, 12), x * 13 + y, r() < 0.3 ? r.pick(BLOOMS) : null); }
+      }
+      const c0 = L_.wcols[m.c0];
+      if (c0 && r() < 0.75) { const x = c0.x0 + 1, y = gy(x) + 10 + r.int(0, 50); if (inSeg(x) && Zat(x, y) === 0 && Zat(x, y - 5) === 0) { if (r() < 0.5) PFFlora.fern(pb, x, y, 7 + r.int(0, 5), x + y * 3); else PFFlora.tuft(pb, x, y, 6 + r() * 4, 5 + r() * 4, x + y); } }
+      const cv = m.cave;
+      if (cv && !cv.sea) { const x = Math.round(cv.cx), y = Math.round(cv.cy + cv.ry * 0.55); if (inSeg(x) && Zat(x, y) === 0) { R3WINDSTORM.nest(pb, x, y, x + y); if (r() < 0.5) PFAWind.perchedGull(pb, x + 3, y - 1, x); } }
+    }
+    // 3) cabos: vegetación en las cabezas al sol (cadenas), plantas colgantes del canto, nidos y gaviotas
+    const birds = o.birds;
+    for (const T of L_.tiers) {
+      const ok = (x, y) => inSeg(x) && Zat(x, y) === T.z && Zat(x, y - 6) <= T.z && Zat(x - 3, y - 4) <= T.z;
+      const headAt = (x, f) => { for (const c of T.cols) if (x >= c.x0 && x < c.x1) return Math.max(gy(x) + 3, c.top + Math.round(c.tilt * (x - (c.x0 + c.x1) * 0.5))) + Math.round((c.hh - 1) * f); return null; };
+      const headY = (x) => headAt(x, 1) - 1;
+      if (!T.stack) {
+        vegRun(pb, T.x0, T.x1, (x) => headAt(x, 0.15), T.sd, ok, { gap: 6 + r.int(0, 5) });
+        for (let x = T.x0 + r.int(3, 12); x < T.x1 - 3; x += 9 + r.int(0, 14)) { const y = headAt(x, 0.85); if (y != null && ok(x, y)) { if (r() < 0.6) PFFlora.tuft(pb, x, y, 4 + r() * 3, 3 + r() * 2, x + y, RAMP.grassR); else PFFlora.flowerPatch(pb, x, y, 5, x * 3 + y); } }
+      }
+      else { const x = Math.round((T.x0 + T.x1) / 2), y = headY(x); if (y != null) { R3WINDSTORM.nest(pb, x, y, x); PFAWind.perchedGull(pb, x - 4, y - 1, x + 1); } }
+      for (const c of T.cols) {
+        if (!c.hang || T.stack) continue;
+        const x = c.x0 + 1 + r.int(0, Math.max(1, c.x1 - c.x0 - 3)), y = headY(x); if (y == null || !ok(x, y + 2)) continue;
+        hanger(pb, x, y + 2, 5 + r.int(0, 14), x * 7 + y, r() < 0.45 ? r.pick(BLOOMS) : null);
+      }
+      const nb = birds && T.x1 > birds[0] && T.x0 < birds[1] ? 3 : (r() < 0.25 ? 1 : 0);
+      for (let k = 0; k < nb; k++) { const x = T.x0 + 3 + r.int(0, Math.max(1, T.x1 - T.x0 - 6)), y = headY(x); if (y != null && ok(x, y)) { if (r() < 0.55) R3WINDSTORM.nest(pb, x, y + 1, x * 3); else PFAWind.perchedGull(pb, x, y, x); } }
+      if (T.cave) { const x = Math.round(T.cave.cx), y = Math.round(T.cave.cy + T.cave.ry * 0.5); if (Zat(x, y) === T.z) R3WINDSTORM.nest(pb, x, y, x + 5); }
+    }
+    // 3b) cantos rodados al pie de cabos y calas, medio hundidos, con collar de espuma
+    const RR = ramp17(s.ramp || RAMP.rockWarmR), FOAM = U('#e6fbff'), WH = U('#ffffff');
+    const boulder = (cx, cy, rx, ry, seed) => {
+      K.ellipseFn(pb, cx, cy, rx, ry, (nx, ny, dd, xx, yy) => { if (ny > 0.55) return 0; const tt = 0.62 - nx * 0.3 - ny * 0.5 + (K.cl(xx, yy, 2, seed) - 0.5) * 0.14 - (dd > 0.8 ? 0.12 : 0); const kk = clamp(Math.round(tt * 16), 2, 15); return tt < 0.42 ? K.mixU(RR.lit[kk], RR.sh[kk], 0.6) : RR.lit[kk]; });
+      for (let q = -rx - 1; q <= rx + 1; q++) if (hash2(cx + q, cy, seed) < 0.75) put(pb, cx + q, Math.round(cy + ry * 0.55) + (Math.abs(q) > rx * 0.7 ? -1 : 0), Math.abs(q) < rx * 0.5 ? WH : FOAM);
+    };
+    for (const T of L_.tiers) {
+      const n = T.stack ? 1 : 2 + r.int(0, 2);
+      for (let k = 0; k < n; k++) { const bx = T.x0 - 4 + r.int(0, T.x1 - T.x0 + 8), by = T.foot + r.int(-1, 3); if (inSeg(bx) && Zat(bx, by + 3) === -2) boulder(bx, by, 2 + r.int(0, 4), 2 + r.int(0, 2), bx); }
+    }
+    for (const c of L_.coves) for (let k = 0; k < 2 + r.int(0, 2); k++) { const bx = c.x0 + 4 + r.int(0, c.x1 - c.x0 - 8), by = c.wy + 2 + r.int(0, 5); if (Zat(bx, by + 2) === -2) boulder(bx, by, 2 + r.int(0, 3), 2 + r.int(0, 1), bx + 1); }
+    // 4) colonia de aves: nidos en grietas del muro con chorreones de guano y gaviotas posadas
+    if (birds) for (let x = birds[0] + r.int(0, 8); x < birds[1]; x += 7 + r.int(0, 9)) {
+      const y = gy(x) + 14 + r.int(0, 60); if (!inSeg(x) || Zat(x, y) < 0 || Zat(x, y - 4) !== Zat(x, y)) continue;
+      R3WINDSTORM.nest(pb, x, y, x + y);
+      for (let q = 2; q < 8 + r.int(0, 10); q++) { const c = get(pb, x, y + q); if (c >>> 24) put(pb, x, y + q, K.mixU(c, U('#f4f0e6'), 0.55 * (1 - q / 18))); }
+      if (r() < 0.45) PFAWind.perchedGull(pb, x + 4, y - 1, x);
+    }
+    // 5) calas: playa con barca varada, embarcadero con barcas, caseta de amarre del cable
+    for (const c of L_.coves) {
+      const cx = Math.round((c.x0 + c.x1) / 2);
+      if (c.kind === 'beach') {
+        for (let k = 0; k < 10; k++) { const x = c.x0 + 6 + r.int(0, c.x1 - c.x0 - 12), y = c.wy + 3 + r.int(0, 6); if (Fat(x, y) === 9) { put(pb, x, y, U('#e8d8c0')); put(pb, x + 1, y, U('#a89478')); } }
+        boat(pb, cx - 14, c.wy + 9, 22, cx, { stripe: '#c83a2a' });
+        for (let k = 0; k < 3; k++) PFFlora.tuft(pb, c.x0 + 8 + k * 9, c.wy + 2, 5, 4, cx + k);
+      }
+      if (c.kind === 'jetty') {
+        const jy = c.wy + 10; jetty(pb, c.x0 + 10, c.x1 - 18, jy, cx);
+        boat(pb, c.x0 + 22, jy + 14, 30, cx + 1, { mast: true });
+        boat(pb, c.x1 - 52, jy + 22, 24, cx + 2, { stripe: '#18a088' });
+      }
+      if (c.kind === 'landing') {
+        const hx = cx - 10, hy = c.wy + 2;
+        PFInfra.box3q(pb, hx, hy, 20, 12, 5, { ramp: PFTerrain.CONC, skew: 0.5 });
+        for (let yy = hy - 9; yy < hy; yy++) for (let xx = hx + 3; xx < hx + 9; xx++) put(pb, xx, yy, U(yy === hy - 9 ? '#2a3448' : '#3a4a62'));
+        PFK.polyFill(pb, [[hx + 14, hy - 10], [hx + 17, hy - 5], [hx + 11, hy - 5]], U('#f0bc2c')); put(pb, hx + 14, hy - 8, U('#1a1418')); put(pb, hx + 14, hy - 6, U('#1a1418'));
+        put(pb, hx + 18, hy - 13, U('#3fe0a0'));
+        c._hut = [hx, hy];
+      }
+    }
+    // 6) conducciones: de cada aerogenerador baja una bandeja hasta el tendido horizontal bajo el canto,
+    //    que converge hacia la subestación; un montante baja a la caseta de amarre de la cala
+    const CD = o.conduit;
+    if (CD) {
+      const td = CD.d ?? 5, ty = (x) => gy(x) + td;
+      const xs = CD.from.slice().sort((a, b) => a - b);
+      for (const x of xs) { PFInfra.box3q(pb, x - 5, ty(x) + 9, 10, 7, 2, { ramp: R3WINDSTORM.R.METAL, skew: 0.5 }); PFK.polyFill(pb, [[x, ty(x) + 3], [x + 2, ty(x) + 7], [x - 2, ty(x) + 7]], U('#f0bc2c')); put(pb, x, ty(x) + 5, U('#1a1418')); }
+      const run = []; for (let x = xs[0]; x <= xs[xs.length - 1]; x += 6) run.push([x, ty(x)]); run.push([xs[xs.length - 1], ty(xs[xs.length - 1])]);
+      conduit(pb, run);
+      const hut = L_.coves.find(c => c._hut);
+      if (hut) { const [hx, hy] = hut._hut, mx = CD.to; conduit(pb, [[mx, ty(mx)], [mx, Math.round((ty(mx) + hy) / 2)], [hx + 16, Math.round((ty(mx) + hy) / 2) + 6], [hx + 16, hy - 12]]); }
+    }
+    // 7) sendas y escaleras talladas (coordenadas: [x, dy] relativas al canto en x)
+    for (const P of (o.paths || [])) trail(pb, P.map(([x, dy]) => [x, gy(x) + dy]), P[0][0] + sd);
+  }
+
+  /* ---------- oclusor del plano frontal (f 1,3): rocas basálticas frías y matas oscuras en contraluz ---------- */
+  function fgFrame(o) {
+    const w = o.w || 160, h = o.h || 80, pb = new PixelBuffer(w, h), r = RNG(o.seed || 1);
+    const RK = P32(['#05060f', '#0a0e1e', '#10182e', '#18243e', '#22324e', '#2e4060', '#3e5272']);
+    const GK = P32(['#03080a', '#06121a', '#0c1e26', '#132c32', '#1c3c3e', '#284e4a', '#386656']);
+    const VI = P32(RAMP.fgVioR);
+    // rocas: bloques redondeados con cara superior apenas iluminada (luz fría) y borde cálido 1 px arriba-izquierda
+    const nR = o.rocks ?? (1 + Math.round(w / 70));
+    for (let i = 0; i < nR; i++) {
+      const cx = w * (0.12 + r() * 0.76), rw = 14 + r() * 22, rh = 10 + r() * Math.min(26, h * 0.4), cy = h - rh * 0.55;
+      K.ellipseFn(pb, cx, cy, rw, rh, (nx, ny, d) => { if (ny > 0.65) return RK[1]; const t = 3.2 - nx * 1.4 - ny * 2 - (d > 0.85 ? 1.2 : 0) + (K.cl(Math.round(cx + nx * rw), Math.round(cy + ny * rh), 2, i) - 0.5) * 1.2; return RK[clamp(Math.round(t), 0, 6)]; });
+    }
+    // matas: agaves y tabaibas oscuras, gramíneas y una vara florida violeta
+    const nA = o.agaves ?? 2;
+    for (let i = 0; i < nA; i++) PFFlora.agave(pb, Math.round(w * (0.15 + r() * 0.7)), h - 2 - r.int(0, 8), 9 + r.int(0, 8), (o.seed || 1) * 7 + i, ['#02060a', '#06121a', '#0c1e26', '#132c32', '#1c3c3e', '#284e4a', '#386656']);
+    for (let i = 0; i < Math.round(w / 12); i++) { const bx = r() * w, a = -Math.PI / 2 + (r() - 0.5) * 1.6, L = h * (0.25 + r() * 0.45); K.lineFn(pb, bx, h, bx + Math.cos(a) * L * 0.5, h + Math.sin(a) * L, (t) => GK[clamp(Math.round(1 + t * 4), 0, 6)]); }
+    if (o.spike !== false) for (let i = 0; i < (o.spikes ?? 1); i++) PFFlora.lupine(pb, Math.round(w * (0.2 + r() * 0.6)), h - r.int(4, 12), Math.round(h * (0.5 + r() * 0.3)), (o.seed || 1) + i * 5, { ramp: RAMP.fgVioR, leaf: ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88', '#7ab09a'], wide: 1 });
+    K.rim(pb, U('#c88a5a'), 0.32, -1, -1);
+    for (let x = 0; x < w; x++) { const hh = 5 + Math.round(K.vn(x * 0.12, 0, o.seed || 1) * 7); for (let y = h - hh; y < h; y++) if (!(get(pb, x, y) >>> 24)) put(pb, x, y, RK[y > h - 3 ? 0 : 1]); }
+    return pb;
+  }
+  if (typeof PFTerrain !== 'undefined') PFTerrain.register('r4l5cliff', { face, post });
+  if (typeof PFStage !== 'undefined' && PFStage.FG) PFStage.FG.r4l5Frame = fgFrame;
+  return { face, post, build, layout, info, tabaiba, cardon, hanger, vegRun, trail, conduit, boat, jetty, fgFrame, WAT };
+})();
+
 /* ===== 18p_pfa_salt.js ===== */
 /* =====================================================================
    18p_pfa_salt.js — Cañones de sal del plano jugable (kit PF, rollout A)
@@ -47266,12 +47844,19 @@ LEVELS[5] = {
   /* Cámara: el mundo crece 60 px hacia abajo (acantilados de estratos y gargantas hasta el mar) */
   cam: { look: 60, vy: 0.6 },
   pf: {
+    /* r4-l5: la cara bajo el paso es un DIORAMA de acantilado (R4L5_CLIFF, 18o): cabos escalonados, calas con el mar
+       al pie, cuevas, sendas, conducciones del parque y colonia de aves. coves: [x0, x1, línea de agua al fondo, tipo];
+       paths: [[x, dy bajo el canto]..] */
     terrain: [
-      { x0: 0, x1: 424, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true },
+      { x0: 0, x1: 424, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true,
+        r4: { coves: [[150, 240, 352, 'beach'], [300, 352, 358, 'stack']], paths: [[[116, 1], [92, 22], [128, 46], [160, 72]]] } },
       { x0: 424, x1: 624, surf: 'void', face: 'void', hard: true },
-      { x0: 624, x1: 1304, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true, r3b: true },
+      { x0: 624, x1: 1304, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true,
+        r4: { coves: [[688, 744, 358, 'stack'], [904, 1000, 348, 'landing'], [1122, 1196, 354, 'cave']], conduit: { from: [760, 900, 1040, 1180], to: 952, d: 5 } } },
       { x0: 1304, x1: 1564, surf: 'void', face: 'void', hard: true },
-      { x0: 1564, x1: 3000, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true },
+      { x0: 1564, x1: 3000, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true,
+        r4: { coves: [[1606, 1662, 356, 'stack'], [1756, 1846, 350, 'cave'], [1986, 2080, 352, 'cave'], [2196, 2270, 356, 'stack'], [2380, 2470, 348, 'birds'], [2640, 2792, 348, 'jetty'], [2880, 2948, 354, 'stack']],
+          birds: [2364, 2566], paths: [[[2622, 1], [2600, 26], [2634, 52], [2612, 76], [2650, 104]], [[1716, 1], [1700, 20], [1730, 44], [1760, 70]]] } },
     ],
     /** Primer plano: matas costeras con altramuces en los bordes inferiores */
     fg: [
@@ -47282,11 +47867,6 @@ LEVELS[5] = {
       { kind: 'clump', x: 3100, w: 140, h: 92, seed: 13, spikes: 5, leaves: 12 },
       { kind: 'clump', x: 3700, w: 130, h: 84, seed: 15, spikes: 4, leaves: 10 },
     ],
-    /** r2-biomes-a: la cara del acantilado deja de ser un muro uniforme (degradado de profundidad, cornisas con vegetación en diagonal, gaviotas y senderos en zigzag) */
-    decorateFace(pb, world) {
-      PFAWind.cliffDress(pb, world, { segs: [[0, 424], [624, 1304], [1564, 3000]], R: LV5_ROCK, seed: 5101, skip: [[396, 650], [1280, 1590]],
-        paths: [[[1186, 10], [1060, 52], [1120, 92], [1040, 126]], [[2690, 8], [2560, 50], [2640, 92], [2560, 128]], [[392, 8], [300, 44], [356, 84]]] });
-    },
     fauna: { eagle: { x0: 400, x1: 2600, y: 60 }, gulls: [{ x: 520, y: 150, n: 4 }, { x: 1420, y: 140, n: 5 }, { x: 2480, y: 110, n: 4 }] },
   },
   /** Etiquetas científicas en el mundo */
