@@ -3,6 +3,9 @@
    Parcelas agroecológicas, viveros, banco de semillas y red de riego.
    RA-07 · Mapa de Raíces · Guardián: La Cosecha Transparente
    KIRU revela la memoria cifrada con los datos comunitarios.
+   r4-l8: banco de semillas en 3/4 (R4L8_seedBank), corte de suelo iluminado
+   (R4L8_soilCut/R4L8_drawSoil), cultivos que se mecen (R4L8_SWAY) y fauna
+   viva del plano jugable (R4L8_drawLife).
    ===================================================================== */
 
 const IRR_SOURCES = {

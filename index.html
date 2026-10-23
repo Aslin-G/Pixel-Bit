@@ -36696,8 +36696,8 @@ BIOME_LABELS.council = BIOME_LABELS.council || [];
    cascadas, aldea de adobe, invernaderos y banco de semillas; delante,
    un humedal con garzas y, junto al plano jugable, huertos y frutales.
    Planos (atrás → delante): cielo+sol+rayos (0) · cirros · cúmulos altos ·
-   cordillera lila (0,06) · cúmulos bajos · dunas (0,12) · mesetas con
-   energía (0,2) · colina del oasis (0,3) · humedal (0,42) · huertos (0,56)
+   cordillera erosionada ocre/violeta con fantasma (0,06; r4-l8) · cúmulos bajos · dunas (0,12) · mesetas con
+   energía y picos erosionados (0,2) · colina del oasis (0,3) · humedal (0,42) · huertos (0,56)
    La cámara del nivel queda en cam.y = 0 (suelo jugable en y ≈ 282).
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
@@ -49490,6 +49490,9 @@ const Sim07 = makeSim({
    Parcelas agroecológicas, viveros, banco de semillas y red de riego.
    RA-07 · Mapa de Raíces · Guardián: La Cosecha Transparente
    KIRU revela la memoria cifrada con los datos comunitarios.
+   r4-l8: banco de semillas en 3/4 (R4L8_seedBank), corte de suelo iluminado
+   (R4L8_soilCut/R4L8_drawSoil), cultivos que se mecen (R4L8_SWAY) y fauna
+   viva del plano jugable (R4L8_drawLife).
    ===================================================================== */
 
 const IRR_SOURCES = {
