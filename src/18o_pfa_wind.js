@@ -860,7 +860,7 @@ const R4L5_CLIFF = (() => {
     const tier = (xa, xb, top, z, foot, o2 = {}) => {
       xa = Math.max(xa, lo); xb = Math.min(xb, hi); if (xb - xa < 10) return null;
       top = Math.min(top, foot - 18);
-      const T = { id: tiers.length, x0: xa, x1: xb, yT: top, z, foot, tL: o2.tL ?? 0.08 + r() * 0.16, tR: o2.tR ?? 0.05 + r() * 0.12, ridge: xa + (xb - xa) * (0.25 + r() * 0.5), kL: 0.03 + r() * 0.07, kR: 0.06 + r() * 0.1, alb: 0.08 + z * 0.03 + (r() - 0.5) * 0.08, pro: 0, cave: null, stack: !!o2.stack, sd: r.int(1, 1e6) };
+      const T = { id: tiers.length, x0: xa, x1: xb, yT: top, z, foot, tL: o2.tL ?? 0.08 + r() * 0.16, tR: o2.tR ?? 0.05 + r() * 0.12, ridge: xa + (xb - xa) * (0.25 + r() * 0.5), kL: 0.03 + r() * 0.07, kR: 0.06 + r() * 0.1, alb: 0.16 + z * 0.04 + (r() - 0.5) * 0.08, pro: 0, cave: null, stack: !!o2.stack, sd: r.int(1, 1e6) };
       T.cols = mkCols(r, xa, xb, o2.cMin ?? 8, o2.cMax ?? 20, { b0: 5, b1: 14, s0: 9, s1: 22 });
       // cabezas en 3/4: plano superior hondo (el cabo se adelanta), hombros redondeados en los extremos
       for (const c of T.cols) { const e = Math.min(c.x0 - xa, xb - c.x1); c.top = top + r.int(-2, 2) + (e < 5 ? r.int(2, 6) : 0); c.hh = o2.stack ? 5 + r.int(0, 2) : 7 + Math.min(z, 3) * 2 + r.int(0, 3) - (e < 5 ? 2 : 0); c.tilt = (r() - 0.5) * 0.12; }
@@ -905,7 +905,7 @@ const R4L5_CLIFF = (() => {
     // cuevas marinas al pie del muro en las calas
     for (const c of coves) if (c.kind === 'cave' || (c.kind === 'birds' && r() < 0.6)) {
       const cx = c.x0 + (c.x1 - c.x0) * (0.3 + r() * 0.4), m = ms.find(mm => cx >= mm.x0 && cx < mm.x1);
-      if (m) m.cave = { cx, cy: c.wy, rx: r.int(9, 15), ry: r.int(15, 22), dep: 15, sea: true };
+      if (m) m.cave = { cx, cy: c.wy + 2, rx: r.int(11, 17), ry: r.int(20, 28), dep: 16, sea: true };
     }
     return { coves, tiers, ms, wcols, Wy, footBase, lo, hi };
   }
@@ -990,7 +990,7 @@ const R4L5_CLIFF = (() => {
               if (cv) {
                 const ex2 = (x - cv.cx) / cv.rx, ey2 = (y - cv.cy) / cv.ry, nz = (vnoise(x * 0.2, y * 0.2, sd + 50) - 0.5) * 0.5;
                 const rr = cv.sea ? (y >= cv.cy - 2 ? ex2 * ex2 + nz : ex2 * ex2 + ey2 * ey2 + nz) : ex2 * ex2 + ey2 * ey2 + nz;
-                if (rr < 1) { hg -= cv.dep * Math.sqrt(1 - rr); alb -= 0.08; if (rr < 0.55) fl = 3; }
+                if (rr < 1) { hg -= cv.dep * Math.sqrt(1 - rr); alb -= 0.08; if (rr < 0.72) fl = 3; }
               }
               if (foot - y < 4 && fl !== 3) { alb -= 0.1; if (fl === 0) fl = 5; }
             }
@@ -1063,7 +1063,7 @@ const R4L5_CLIFF = (() => {
         }
         let t;
         if (fl === 2 || fl === 6 || fl === 7) t = (fl === 6 ? 1 : fl === 7 ? 0.52 : 0.72 + A[i] * 0.2 + (K.cl(x, y, 2, sd + 9) - 0.5) * 0.12) * (1 - 0.6 * sh) - ao * 0.5;
-        else t = Math.min(1, A[i] * (0.2 + 1.45 * lam * (1 - 0.82 * sh))) - ao - clamp((d - 70) / 240, 0, 0.1);
+        else t = Math.min(1, A[i] * (0.22 + 1.5 * lam * (1 - 0.82 * sh))) - ao - clamp((d - 70) / 240, 0, 0.1);
         t += (hash2((x + bx0) >> 1, y >> 1, sd + 31) - 0.5) * 0.045;
         if (fl === 1) t = Math.min(t, 0.2); else if (fl === 3) t = Math.min(t, 0.07 + lam * 0.08);
         const k = clamp(Math.round(t * 16), 1, 16);
@@ -1343,16 +1343,20 @@ const R4L5_CLIFF = (() => {
     const w = o.w || 160, h = o.h || 80, pb = new PixelBuffer(w, h), r = RNG(o.seed || 1);
     const RK = P32(['#05060f', '#0a0e1e', '#10182e', '#18243e', '#22324e', '#2e4060', '#3e5272']);
     const GK = P32(['#03080a', '#06121a', '#0c1e26', '#132c32', '#1c3c3e', '#284e4a', '#386656']);
-    const VI = P32(RAMP.fgVioR);
-    // rocas: bloques redondeados con cara superior apenas iluminada (luz fría) y borde cálido 1 px arriba-izquierda
-    const nR = o.rocks ?? (1 + Math.round(w / 70));
-    for (let i = 0; i < nR; i++) {
-      const cx = w * (0.12 + r() * 0.76), rw = 14 + r() * 22, rh = 10 + r() * Math.min(26, h * 0.4), cy = h - rh * 0.55;
-      K.ellipseFn(pb, cx, cy, rw, rh, (nx, ny, d) => { if (ny > 0.65) return RK[1]; const t = 3.2 - nx * 1.4 - ny * 2 - (d > 0.85 ? 1.2 : 0) + (K.cl(Math.round(cx + nx * rw), Math.round(cy + ny * rh), 2, i) - 0.5) * 1.2; return RK[clamp(Math.round(t), 0, 6)]; });
-    }
-    // matas: agaves y tabaibas oscuras, gramíneas y una vara florida violeta
-    const nA = o.agaves ?? 2;
-    for (let i = 0; i < nA; i++) PFFlora.agave(pb, Math.round(w * (0.15 + r() * 0.7)), h - 2 - r.int(0, 8), 9 + r.int(0, 8), (o.seed || 1) * 7 + i, ['#02060a', '#06121a', '#0c1e26', '#132c32', '#1c3c3e', '#284e4a', '#386656']);
+    // rocas: un peñasco alto a un lado (la masa que encuadra) y cantos más bajos que se apagan hacia el otro;
+    // cara superior apenas iluminada (luz fría), facetas en clusters y borde cálido 1 px arriba-izquierda
+    const side = o.side ?? ((o.seed || 1) % 4 < 2 ? -1 : 1), nR = o.rocks ?? (1 + Math.round(w / 70)), tops = [];
+    const rock = (cx, rw, rh, i) => {
+      const cy = h - rh * 0.5;
+      K.ellipseFn(pb, cx, cy, rw, rh, (nx, ny, d) => { if (ny < 0.5 && d > 0.74 + vnoise(Math.round(Math.atan2(ny, nx) * 3) * 0.9, i, o.seed || 1) * 0.26) return 0; if (ny > 0.7) return RK[1]; const fx = Math.round(nx * 2.2) / 2.2, fy = Math.round(ny * 2.2) / 2.2; const t = 3.1 - fx * 1.5 - fy * 2.1 - (d > 0.86 ? 1.1 : 0) + (K.cl(Math.round(cx + nx * rw), Math.round(cy + ny * rh), 2, i) - 0.5) * 1.1; return RK[clamp(Math.round(t), 0, 6)]; });
+      tops.push([cx, Math.round(cy - rh * 0.9), rw]);
+    };
+    rock(w * (side < 0 ? 0.28 : 0.72), w * 0.24, h * 0.56, 0);
+    for (let i = 1; i < nR; i++) { const u = i / nR; rock(w * (side < 0 ? 0.28 + u * 0.6 : 0.72 - u * 0.6) + (r() - 0.5) * 10, 10 + r() * 14, h * (0.42 - u * 0.24) * (0.8 + r() * 0.3), i); }
+    // matas: agaves y tabaibas oscuras sobre los peñascos, gramíneas y una vara florida violeta
+    const nA = o.agaves ?? 2, AGK = ['#02060a', '#06121a', '#0c1e26', '#132c32', '#1c3c3e', '#284e4a', '#386656'];
+    for (let i = 0; i < nA; i++) { const T = tops[i % tops.length]; PFFlora.agave(pb, Math.round(T[0] + (r() - 0.5) * T[2] * 0.6), T[1] + 3, 8 + r.int(0, 7), (o.seed || 1) * 7 + i, AGK); }
+    for (const T of tops) for (let k = 0; k < 5; k++) { const bx = T[0] + (r() - 0.5) * T[2] * 1.2, a = -Math.PI / 2 + (r() - 0.5) * 1.4, L = 6 + r() * 10; K.lineFn(pb, bx, T[1] + 4, bx + Math.cos(a) * L * 0.6, T[1] + 4 + Math.sin(a) * L, (t) => GK[clamp(Math.round(2 + t * 4), 0, 6)]); }
     for (let i = 0; i < Math.round(w / 12); i++) { const bx = r() * w, a = -Math.PI / 2 + (r() - 0.5) * 1.6, L = h * (0.25 + r() * 0.45); K.lineFn(pb, bx, h, bx + Math.cos(a) * L * 0.5, h + Math.sin(a) * L, (t) => GK[clamp(Math.round(1 + t * 4), 0, 6)]); }
     if (o.spike !== false) for (let i = 0; i < (o.spikes ?? 1); i++) PFFlora.lupine(pb, Math.round(w * (0.2 + r() * 0.6)), h - r.int(4, 12), Math.round(h * (0.5 + r() * 0.3)), (o.seed || 1) + i * 5, { ramp: RAMP.fgVioR, leaf: ['#05060f', '#0a1626', '#0e243a', '#194560', '#2f6f7a', '#4f8f88', '#7ab09a'], wide: 1 });
     K.rim(pb, U('#c88a5a'), 0.32, -1, -1);
