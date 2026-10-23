@@ -17850,11 +17850,31 @@ const PFInfra = (() => {
        sy = y − cam.y·fy; fy = 1 si f = 1 (mundo); si no, fy = f·0,3
        (igual que Backdrop.layer) salvo que la etiqueta defina fy.
      · (x, y) = centro inferior de la caja. El tallo baja desde el borde
-       inferior hasta (ax ?? x, ay ?? y + 8) y termina en un remache.
+       inferior hasta (ax ?? x, ay ?? y + 8) y termina en un remache (si el
+       ancla queda por encima de la caja, el tallo sube desde el borde superior).
+     · def.labelAvoid: rótulos horneados [{x, y, w, h}] (mundo) que ni cajas ni
+       tallos tapan; def.labelOffsets: {TÍTULO: {dx, dy, adx, ady, hide}}.
      · kind: 'water' | 'brine' | 'green' | 'solar' | 'tech' | 'alert'.
      · sub puede ser texto o función (sc) → texto (valores en vivo).
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+
+/* r4-labels: cajas de pantalla dibujadas DESPUÉS de las etiquetas en el cuadro anterior, que las etiquetas
+   esquivan en el siguiente: instrumentos inferiores del HUD (UIK.instrumentPlates, vía hudGauges). Envoltorio
+   transparente: mismos argumentos y mismo valor devuelto. (Los globos ya esquivan las etiquetas por su cuenta.) */
+const R4LBL_SEEN = { plates: { f: -99, r: [] } };
+function R4LBL_record(slot, r) {
+  if (!r || typeof Game === 'undefined') return;
+  const S = R4LBL_SEEN[slot];
+  if (S.f !== Game.frame) { S.f = Game.frame; S.r = []; }
+  if (S.r.length < 12) S.r.push({ x: r.x, y: r.y, w: r.w, h: r.h });
+}
+if (typeof UIK !== 'undefined') for (const [fn, slot] of [['instrumentPlates', 'plates']]) {
+  const f0 = UIK[fn];
+  if (typeof f0 !== 'function' || f0.r4lbl) continue;
+  const f1 = function () { const r = f0.apply(this, arguments); R4LBL_record(slot, r); return r; };
+  f1.r4lbl = 1; UIK[fn] = f1;
+}
 
 const PFSigns = (() => {
   const WOOD = ['#100100', '#2a0800', '#370b00', '#4e2519', '#5a2d21', '#6e3a24', '#8e542f', '#ab7448', '#cb9772'];
@@ -17992,12 +18012,32 @@ const WorldLabels = (() => {
     c = { c: pb.toCanvas(), w: w + 2, h: h + 2, K };
     cache.set(key, c); return c;
   }
+  /* r4-labels: def.labelOffsets = {TÍTULO: {dx, dy, adx, ady, hide}} ajusta, desde el nivel, la caja (dx, dy) y el
+     ancla (adx, ady) de una etiqueta del nivel o de su bioma (las del bioma se comparten y no se tocan: se deriva
+     una copia por prototipo, cacheada, que conserva when/camX/sub) */
+  const tweaks = new WeakMap();
+  function tweak(L, d) {
+    const o = d.labelOffsets && d.labelOffsets[L.title];
+    if (!o) return L;
+    if (o.hide) return null;
+    let T = tweaks.get(L);
+    if (!T || T._r4o !== o) {
+      T = Object.create(L);
+      T._r4o = o;
+      T.x = L.x + (o.dx || 0); T.y = L.y + (o.dy || 0);
+      T.ax = (L.ax ?? L.x) + (o.adx || 0); T.ay = (L.ay ?? (L.y + 8)) + (o.ady || 0);
+      tweaks.set(L, T);
+    }
+    return T;
+  }
   function list(sc) {
     const out = [];
     const d = sc.def;
-    if (d && d.labels) for (const L of d.labels) out.push(L);
-    const bl = (typeof BIOME_LABELS !== 'undefined' && d) ? BIOME_LABELS[d.biome] : null;
-    if (bl) for (const L of bl) out.push(L);
+    if (!d) return out;
+    const add = (L) => { const T = tweak(L, d); if (T) out.push(T); };
+    if (d.labels) for (const L of d.labels) add(L);
+    const bl = typeof BIOME_LABELS !== 'undefined' ? BIOME_LABELS[d.biome] : null;
+    if (bl) for (const L of bl) add(L);
     return out;
   }
   /** Rectángulo en pantalla de la caja de una etiqueta (o null si está fuera o no aplica) */
@@ -18027,6 +18067,13 @@ const WorldLabels = (() => {
       g.fillStyle = B.K.border; g.fillRect(stx, sy, 1, ay - sy);
       if (stx !== ax) { g.fillRect(Math.min(stx, ax), ay, Math.abs(ax - stx) + 1, 1); }
       g.fillStyle = B.K.border; g.fillRect(ax - 1, ay - 1, 3, 3); g.fillStyle = '#ffffff'; g.fillRect(ax, ay - 1, 1, 1);
+    } else if (ay < by - 1) {
+      // r4-labels: ancla por encima de la caja (p. ej. una etiqueta bajo el agua que señala la pluma): el tallo sube
+      const stx = clamp(ax, bx + 3, bx + B.w - 4);
+      g.fillStyle = B.K.glow; g.fillRect(stx + 1, ay, 1, by - ay + 1);
+      g.fillStyle = B.K.border; g.fillRect(stx, ay, 1, by - ay + 1);
+      if (stx !== ax) { g.fillRect(Math.min(stx, ax), ay, Math.abs(ax - stx) + 1, 1); }
+      g.fillStyle = B.K.border; g.fillRect(ax - 1, ay - 1, 3, 3); g.fillStyle = '#ffffff'; g.fillRect(ax, ay - 1, 1, 1);
     }
     g.drawImage(B.c, bx, by);
     if (alpha < 1) g.globalAlpha = 1;
@@ -18036,10 +18083,12 @@ const WorldLabels = (() => {
   function stemRects(L, cam, R, dx, dy) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
     const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
-    const bx = R.x + dx, sy = R.y + dy + R.h - 1;
-    if (ay <= sy) return [];
+    const bx = R.x + dx, sy = R.y + dy + R.h - 1, ty = R.y + dy;
     const stx = clamp(ax, bx + 4, bx + R.w - 3);
-    const out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    let out;
+    if (ay > sy) out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    else if (ay < ty - 1) out = [{ x: stx - 1, y: ay - 1, w: 3, h: ty - ay + 2 }];
+    else return [];
     if (stx !== ax) out.push({ x: Math.min(stx, ax) - 1, y: ay - 1, w: Math.abs(ax - stx) + 3, h: 3 });
     return out;
   }
@@ -18066,21 +18115,52 @@ const WorldLabels = (() => {
     for (const d of [0, -9, 9, 18]) NEAR_TRY.push([k * sgn, d]);
     if (k <= 40) for (const d of [0, -9]) FAR_TRY.push([k * sgn, d]);
   }
+  /** Punto de anclaje del tallo en pantalla */
+  function anchorOf(L, cam) {
+    const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+    return { x: Math.round((L.ax ?? L.x) - cam.x * f), y: Math.round((L.ay ?? (L.y + 8)) - cam.y * fy) };
+  }
+  /** r4-labels: zonas del HUD de este cuadro (las del cuadro anterior, que es cuando se dibujaron): retrato, objetivo,
+      minimapa y botones (UIK._hudRects), instrumentos inferiores (hudGauges) y avisos del Atlas abajo a la derecha */
+  function hudZones() {
+    const out = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const fr = typeof Game !== 'undefined' ? Game.frame : 0;
+    if (R4LBL_SEEN.plates.f >= fr - 3) for (const r of R4LBL_SEEN.plates.r) out.push({ x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4, hud: 1 });
+    // avisos (Game.renderToasts): abajo a la derecha, apilados hacia arriba, sobre el panel de diálogo o los botones táctiles
+    if (typeof Game !== 'undefined' && Game.toasts && Game.toasts.length) {
+      const top = Game.top();
+      let y = H - 28;
+      if (top && typeof top.panelTop === 'number' && top.panelTopFrame >= fr - 2) y = Math.min(y, Math.round(top.panelTop) - 24);
+      if (typeof Touch !== 'undefined' && Touch.enabledFor && Touch.enabledFor(top)) y = Math.min(y, H - 96);
+      for (const t of Game.toasts) {
+        const w = Math.min(300, FONTS.main.measure(fitText(t.text, 266)) + 36);
+        out.push({ x: W - w - 8, y: y - 2, w: w + 8, h: 24, hud: 1 });
+        y -= 23;
+      }
+    }
+    return out;
+  }
   /**
    * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
-   * Obstáculos duros: el HUD, las cajas y los tallos ya colocados. Obstáculos blandos: la jugadora, KIRU y los NPC.
-   * Cada etiqueta prueba desplazamientos verticales y luego horizontales (±8..±80 px; ±40 las lejanas) y toma el
-   * primero libre de todo; si no lo hay, el primero libre de obstáculos duros; si tampoco, no se dibuja (nunca bajo el HUD).
+   * Obstáculos duros (caja y tallo): el HUD (también instrumentos inferiores y avisos), las cajas y los tallos ya
+   * colocados y los rótulos horneados del nivel (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo).
+   * Obstáculos blandos (solo la caja): la jugadora, KIRU y los NPC.
+   * Cada etiqueta prueba su sitio, el desplazamiento del cuadro anterior (histéresis) y luego desplazamientos
+   * verticales y horizontales (±8..±80 px; ±40 las lejanas); toma el primero libre de todo; si no lo hay, el primero
+   * libre de obstáculos duros; si tampoco, no se dibuja. La caja nunca baja hasta su ancla (el tallo se ve siempre)
+   * y una etiqueta cuyo objeto queda fuera del encuadre o bajo el HUD no se dibuja (su tallo no señalaría nada).
    * L.camX = [x0, x1] limita una etiqueta a un tramo de cámara (fundido de 40 px en los bordes).
    * Títulos repetidos en pantalla se dibujan una sola vez.
    */
   function draw(g, sc) {
     const cam = sc.cam ? { x: sc.cam.ox, y: sc.cam.oy } : { x: 0, y: 0 };
     const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
-    const placed = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const hud = hudZones(), placed = hud.slice();
     const soft = actorRects(sc, cam);
-    // rótulos horneados en el mundo que las etiquetas no deben tapar (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo)
-    if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0) soft.push({ x, y, w: r.w, h: r.h }); }
+    // rótulos horneados en el mundo que las etiquetas (caja y tallo) no deben tapar
+    const signs = [];
+    if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0 && y < H && y + r.h > 0) signs.push({ x, y, w: r.w, h: r.h }); }
+    const underHud = (p) => hud.some(z => p.x >= z.x - 1 && p.x <= z.x + z.w && p.y >= z.y - 1 && p.y <= z.y + z.h);
     const seen = new Set();
     for (const L of all) {
       let alpha = 1;
@@ -18093,22 +18173,31 @@ const WorldLabels = (() => {
       const R = rectOf(L, cam, sc); if (!R) continue;
       if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
+      // el ancla (lo que la etiqueta nombra) debe verse: dentro del encuadre y fuera del HUD
+      const A = anchorOf(L, cam), stem = A.y > R.y + R.h, up = A.y < R.y - 1;
+      if ((stem || up) && (A.x < 2 || A.x > W - 3 || A.y > H - 3 || underHud(A))) { L._fixlaOff = null; continue; }
       const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
+      // el tallo puede entrar en el rótulo (o panel) que contiene su ancla: es justo lo que la etiqueta nombra
+      const stemSigns = (stem || up) ? signs.filter(q => !(A.x >= q.x && A.x < q.x + q.w && A.y >= q.y && A.y < q.y + q.h)) : signs;
       let best = null, fallback = null;
-      // histéresis: se prueba antes el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
-      const tries = L._fixlaOff ? [L._fixlaOff].concat(far ? FAR_TRY : NEAR_TRY) : (far ? FAR_TRY : NEAR_TRY);
+      // histéresis: tras su sitio se prueba el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
+      const base = far ? FAR_TRY : NEAR_TRY;
+      const tries = L._fixlaOff ? [base[0], L._fixlaOff].concat(base.slice(1)) : base;
       for (const [dx, dy] of tries) {
         const R2 = { x: R.x + dx, y: R.y + dy, w: R.w, h: R.h };
-        if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1) continue;
+        if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1 || R2.y + R2.h > H - 2) continue;
+        if (stem && R2.y + R2.h > A.y - 4) continue; // la caja no tapa su ancla: queda un tallo visible
+        if (up && R2.y < A.y + 4) continue;
         if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
+        if (signs.some(s => hit(R2, s, 1))) continue;
         const st = stemRects(L, cam, R, dx, dy);
-        if (st.some(s => placed.some(p => !p.hud && hit(s, p, 0)))) continue;
+        if (st.some(s => placed.some(p => hit(s, p, 0)) || stemSigns.some(q => hit(s, q, 0)))) continue;
         if (!fallback) fallback = { dx, dy, R2, st };
         if (!soft.some(a => hit(R2, a, 1))) { best = { dx, dy, R2, st }; break; }
       }
       const P_ = best || fallback;
       if (!P_) { L._fixlaOff = null; continue; }
-      L._fixlaOff = [P_.dx, P_.dy];
+      L._fixlaOff = (P_.dx || P_.dy) ? [P_.dx, P_.dy] : null;
       placed.push(P_.R2);
       for (const s of P_.st) placed.push(s);
       seen.add(L.title);
@@ -28577,7 +28666,7 @@ const SCATitleArt = (() => {
         { x: Aq.potable.x - 46, y: L + Aq.potable.y - 8, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x - 10, ay: L + Aq.potable.y + 6 },
       );
       A.mouth = { x: P.mouth.x, y: L + P.mouth.y };
-      A.labels.push({ x: P.mouth.x - 52, y: WY + 34, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: P.mouth.x - 22, ay: WY + 22 });
+      A.labels.push({ x: P.mouth.x - 52, y: WY + 34, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: P.mouth.x + 6, ay: WY + 6 }); // r4-labels: el tallo sube hasta la pluma (antes, sin tallo)
     }, { dyn: (g) => R2PLANT.drawFx(g, A.plant, 0, PLANT_LY, Game.time, {}) });
     A.plume = R2PLANT.plumeStrip({ mode: 'under', s: 1, w: 150, h: 62, bed: 50, seed: 11 });
     /* ---------------- corte submarino (kit PFWater con mundo ficticio) ---------------- */
@@ -28647,8 +28736,6 @@ const SCATitleArt = (() => {
     PFWater.renderBack(g, A.wsc, A.water);
     PFWater.renderFront(g, A.wsc, A.water);
     drawUnderPipes(g, A, t);
-    // etiquetas científicas
-    for (const L of A.labels) WorldLabels.drawOne(g, L, { x: 0, y: 0 }, null);
     // acantilado
     g.drawImage(A.cliffTop, 0, 0);
     g.drawImage(A.cliff, 0, 0);
@@ -28664,6 +28751,8 @@ const SCATitleArt = (() => {
     g.drawImage(A.clumpL, -20, H - 92);
     g.drawImage(A.clumpR, W - 104, H - 58);
     V.drawMotes(g, 18, t, 11, { y0: 120, y1: 300 });
+    // etiquetas científicas al final (r4-labels): el águila, las motas y los oclusores ya no cruzan su texto
+    for (const L of A.labels) WorldLabels.drawOne(g, L, { x: 0, y: 0 }, null);
   }
   /** Pluma de salmuera bajo la boca del emisario: chorro denso y saturado que cae, se hunde hasta el lecho y se diluye */
   function drawUnderPipes(g, A, t) {
@@ -43017,7 +43106,7 @@ LEVELS[0] = {
     { x: 1437, y: 168, title: 'PRIMER AGUA', sub: 'Agua tratada', kind: 'water', ax: 1437, ay: 184 },
     { x: 1570, y: 214, title: 'RIEGO POR GOTEO', sub: (sc) => sc.state.irrig && !sc.state.dark ? 'Activo' : 'Cerrado', kind: 'green', ax: 1570, ay: 250 },
     { x: 1702, y: 196, title: 'ELECTROLIZADOR', sub: 'Agua + energía → H₂ + O₂', kind: 'green', ax: 1700, ay: 230 },
-    { x: 2000, y: 175, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1962, ay: 185 },
+    { x: 2000, y: 175, title: 'NÚCLEO SYNARA', sub: (sc) => sc.state.sealed ? 'Sellado' : 'Control del nexo', kind: 'tech', ax: 1958, ay: 200 }, // r4-labels: ancla a media altura de la torre: con la cámara al final del nivel la caja cabe bajo el panel de objetivo
   ],
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
@@ -43680,10 +43769,10 @@ LEVELS[1] = {
   /** Etiquetas científicas en el mundo (WorldLabels) */
   labels: [
     { x: 1164, y: 204, title: 'BOMBEO', sub: '(Agua de mar)', kind: 'water', ax: 1192, ay: 216 }, // r3-coast: a la izquierda de la casa de bombas (no sobre la jugadora ni KIRU junto al Gemelo)
-    { x: 1455, y: 118, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1455, ay: 132 },
+    { x: 1455, y: 172, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1452, ay: 198 }, // r4-labels: el tallo baja a la cubierta de la torre de toma (antes acababa en el cielo)
     { x: 1522, y: 346, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1476, ay: 375 },
     { x: 1250, y: 362, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1236, ay: 380 },
-    { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 448, ay: 318 },
+    { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 452, ay: 306 }, // r4-labels: el tallo sube y señala la pluma (antes la caja flotaba sin tallo)
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },
@@ -44865,7 +44954,7 @@ LEVELS[2] = {
     { x: 1376, y: 224, title: 'CALCITA', sub: 'Remineraliza', kind: 'green', ax: 1372, ay: 234 },
     { x: 1535, y: 140, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 152 },
     { x: 1756, y: 208, title: 'LIMPIEZA CIP', sub: 'Solo si el flujo cae', kind: 'tech', ax: 1752, ay: 222 },
-    { x: 2104, y: 196, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
+    { x: 2104, y: 183, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
     { x: 2203, y: 176, title: 'DESPACHO', sub: 'Controlador', kind: 'tech', ax: 2203, ay: 192 },
     { x: 2548, y: 160, title: 'SALMUERA', sub: '(Rechazo) → canales', kind: 'brine', ax: 2546, ay: 178 },
     { x: 1100, y: 344, title: 'GALERÍA DE COLECTORES', sub: 'salmuera · permeado · alimentación', kind: 'tech', ax: 1100, ay: 352 },
@@ -45000,6 +45089,7 @@ LEVELS[2] = {
     I.pipe(pb, [[pp2[1].dis[0] + 2, pp2[1].dis[1] + 2], [pp2[1].dis[0] + 2, 196]], 3, 'product', { flange: 0 });
     flow([[pp2[0].dis[0] + 2, pp2[0].dis[1]], [pp2[0].dis[0] + 2, 196], [2168, 196], [2168, 96]], 'product', 1);
     P.rect(pb, 2120, 186, 40, 8, U_('#0c2650')); K.text(pb, 'A RED', 2124, 187, U_('#d0f4f8'), { font: 'tiny' });
+    LEVELS[2].labelAvoid.push({ x: 2120, y: 186, w: 40, h: 8 }); // r4-labels: ANALIZADORES no tapa el rótulo «A RED»
     const an = P.analyzers(pb, 2068, fb + 2, 72); LV2_ANCH.an = an.screens;
     /* ===== 11. CONTROLADOR DE DESPACHO (2178–2290) ===== */
     P.tray(pb, 2160, 2600, 118, 18);
@@ -46892,6 +46982,9 @@ LEVELS[4] = {
     { x: 2580, y: 200, title: 'CERCAS DE ARENA', sub: 'Fijan las dunas', kind: 'green', ax: 2580, ay: 236 },
     { x: 712, y: 311, title: 'ZANJA DE CABLES CC', sub: 'Strings → inversores', kind: 'solar', ax: 712, ay: 324 },
   ],
+  // r4-labels: la etiqueta lejana del bioma (f 0,28) sube a las terrazas FV del fondo; en su sitio original caía sobre
+  // los strings del plano jugable (tapaba los rótulos S3–S5 y su tallo señalaba la fila delantera)
+  labelOffsets: { 'FOTOVOLTAICA': { dy: -68, ady: -70 } },
   /* ---------------- accesorios estáticos (prerender, f = 1) ---------------- */
   props(pb, world) {
     const t0 = nowMs();
@@ -48632,7 +48725,7 @@ LEVELS[6] = {
     { x: 1094, y: 172, title: 'CONVERTIDORES', sub: 'Batería (CC) y red (CA)', kind: 'tech', ax: 1094, ay: 186 },
     { x: 1500, y: 66, title: 'RESERVA MÍNIMA', sub: (sc) => fmt0((sc.state.reserve ?? 0.1) * 100) + ' % para cargas críticas', kind: 'solar', ax: 1500, ay: 98 },
     { x: 1960, y: 150, title: 'EFICIENCIA ≈ 90 %', sub: 'Entran 100 kWh, salen ≈ 90', kind: 'tech', ax: 1960, ay: 162 },
-    { x: 2210, y: 122, title: 'CARGAS CRÍTICAS', sub: 'Agua potable · clínica · comunicaciones', kind: 'alert', ax: 2210, ay: 130 },
+    { x: 2210, y: 122, title: 'CARGAS CRÍTICAS', sub: 'Agua potable · clínica · comunicaciones', kind: 'alert', ax: 2270, ay: 162 }, // r4-labels: el tallo baja a la cubierta de la barra principal, a la derecha de su placa (antes acababa en la ventana)
   ],
   /* ---------------- accesorios estáticos (prerender) ---------------- */
   props(pb, world) {
@@ -49394,8 +49487,8 @@ LEVELS[7] = {
     { x: 250, y: 172, title: 'OI · 2.º PASO', sub: 'Quita casi todos los iones', kind: 'water', ax: 250, ay: 196 },
     { x: 356, y: 196, title: 'EDI', sub: 'Electrodesionización', kind: 'water', ax: 356, ay: 206 },
     { x: 432, y: 132, title: 'AGUA ULTRAPURA', sub: (sc) => sc.state.waterReady ? '0,06 µS/cm · lista' : 'Meta: < 0,1 µS/cm', kind: 'water', ax: 432, ay: 152 },
-    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 196 },
-    { x: 836, y: 192, title: 'ELECTROLIZADOR PEM', sub: '2 H₂O → 2 H₂ + O₂', kind: 'green', ax: 826, ay: 212 },
+    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 191 }, // r4-labels: el remache queda sobre el rectificador, no encima de su placa
+    { x: 836, y: 180, title: 'ELECTROLIZADOR PEM', sub: '2 H₂O → 2 H₂ + O₂', kind: 'green', ax: 826, ay: 212 },
     { x: 1222, y: 98, title: 'O₂ (SUBPRODUCTO)', sub: '≈ 8 kg por kg de H₂', kind: 'tech', ax: 1250, ay: 104 },
     { x: 1368, y: 188, title: 'COMPRESIÓN', sub: 'Más H₂ en menos volumen', kind: 'tech', ax: 1368, ay: 208 },
     { x: 1584, y: 150, title: 'ALMACENAMIENTO H₂', sub: 'Vector: guarda energía', kind: 'green', ax: 1584, ay: 166 },
@@ -49471,6 +49564,8 @@ LEVELS[7] = {
       const x = 782 + k * 150;
       const st = H2.stackPEM(pb, x, yb, k);
       D.stacks.push(st);
+      // r4-labels: placas H₂ / O₂ de los separadores (18t: centradas en x + 92 / x + 116, y base − 76 / base − 64, alto 9)
+      for (const [px, py, t] of [[x + 92, yb - 76, 'H₂'], [x + 116, yb - 64, 'O₂']]) { const pw = PFK.measure(t, { font: 'tiny' }) + 10; LEVELS[7].labelAvoid.push({ x: Math.round(px - pw / 2), y: py - 2, w: pw, h: 13 }); }
       I.pipe(pb, [[st.h2Out[0], st.h2Out[1] + 6], [st.h2Out[0], 162]], 2, 'h2', { flange: 0 });
       I.pipe(pb, [[st.o2Out[0], st.o2Out[1] + 4], [st.o2Out[0], 150]], 1, 'o2', { flange: 0 });
       // bajantes de potencia desde la bandeja hasta las barras de cobre
@@ -51585,7 +51680,7 @@ LEVELS[9] = {
   },
   /** Etiquetas científicas en el mundo */
   labels: [
-    { x: 236, y: 170, title: 'HISTORIA DE SYNARA', sub: 'Quién decidió y con qué datos', kind: 'tech', ax: 236, ay: 186 },
+    { x: 236, y: 170, title: 'HISTORIA DE SYNARA', sub: 'Quién decidió y con qué datos', kind: 'tech', ax: 222, ay: 190 }, // r4-labels: el tallo cae en el panel 2020 (antes, en el hueco entre 2020 y 2025)
     { x: 850, y: 140, title: 'CONSEJO CIUDADANO', sub: 'Todas las voces en la mesa', kind: 'green', ax: 850, ay: 190 },
     { x: 1157, y: 166, title: 'MURO DE EVIDENCIAS', sub: 'Cada dato con su fuente', kind: 'alert', ax: 1157, ay: 186 },
     { x: 1440, y: 168, title: 'GEMELO DIGITAL', sub: (sc) => sc.state.mosaicBoard ? 'Capas: todos los criterios' : 'Un solo índice opaco', kind: 'water', ax: 1440, ay: 186 },
@@ -52685,11 +52780,11 @@ LEVELS[10] = {
   labels: [
     { x: 540, y: 222, title: 'CAPTACIÓN', sub: (sc) => fmt0(sc.state.ntu ?? 0) + ' NTU · ' + (sc.state.cards && sc.state.cards.toma ? (sc.state.ntu > 60 ? 'TOMA CERRADA' : sc.state.ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA'), kind: 'water', ax: 540, ay: 256 },
     { x: 720, y: 176, title: 'FILTROS DE ARENA', sub: 'Retienen la arena del agua', kind: 'water', ax: 720, ay: 196 },
-    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 150 },
+    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 144 }, // r4-labels: el remache queda en la cubierta, no sobre el rótulo horneado de la nave
     { x: 1214, y: 152, title: 'AGUA POTABLE', sub: (sc) => fmt0(sc.state.tank ?? 0) + ' m³ · mínimo 300', kind: 'water', ax: 1210, ay: 170 },
     { x: 1392, y: 222, title: 'LAGUNA DE SALMUERA', sub: (sc) => (sc.state.cards && sc.state.cards.salmuera && sc.state.tideBad) ? 'Retiene: marea desfavorable' : 'Retención de 900 m³', kind: 'brine', ax: 1392, ay: 252 },
-    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
-    { x: 1660, y: 214, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
+    { x: 1660, y: 209, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
+    { x: 1660, y: 209, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
     { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
     { x: 1950, y: 230, title: 'CERCA DE ARENA', sub: 'Frena el viento a ras de suelo', kind: 'solar', ax: 1950, ay: 256, when: (sc) => (sc.state.clearK || 0) < 0.5 },
     { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
@@ -52761,6 +52856,7 @@ LEVELS[10] = {
     D.valve.push(1550, yb(1532) - 28);
     lampG(dh.lamp[0], dh.lamp[1], 7, 0.25);
     C.routeSign(pb, 1588, yb(1588), 'COSTA', 1);
+    { const w = PFK.measure('COSTA', { font: 'tiny' }) + 8; LEVELS[10].labelAvoid = [{ x: 1588 - Math.round(w / 2) - 1, y: yb(1588) - 65, w: w + 16, h: 13 }]; } // r4-labels: las etiquetas no tapan el rótulo de ruta «COSTA»
     /* ===== 5. ENERGÍA (1600–2160): FV con polvo, aerogeneradores, baterías ===== */
     for (const x of [1612, 1682, 1790, 1862]) E.pvTable(pb, x, yb(x), 60, { soil: 0.65, depth: 18 });
     for (const x of CAL_TURB) { const T = E.turbineTower(pb, x, yb(x), 118, { r: 40 }); D.turbines.push({ hub: T.hub, r: T.r, x }); beacon(T.hub[0] + 6, T.hub[1] - 6, '#ff6a50', 0.6); }
@@ -53771,6 +53867,10 @@ LEVELS[11] = {
   /* plano jugable con kit PF al atardecer (19q_scb_lv11.js): mismo suelo, actores y guion */
   pf: SCBL11.pf,
   labels: SCBL11.labels,
+  // r4-labels: PANEL PÚBLICO sobre la esquina superior derecha de la pantalla LED (su ancla caía 42 px a la derecha
+  // de la pantalla, en el aire) y la pantalla con sus lecturas en vivo (722–888 × 174–260) no se tapa con etiquetas
+  labelOffsets: { 'PANEL PÚBLICO': { dx: -55, dy: -30, adx: -50, ady: -34 } },
+  labelAvoid: [{ x: 722, y: 174, w: 166, h: 86 }],
   props(pb, world) { SCBL11.props(pb, world); },
   propsFront(pb, world) { SCBL11.propsFront(pb, world); },
   renderBack(g, sc, cam) { SCBL11.renderBack(g, sc, cam); },

@@ -12,11 +12,31 @@
        sy = y − cam.y·fy; fy = 1 si f = 1 (mundo); si no, fy = f·0,3
        (igual que Backdrop.layer) salvo que la etiqueta defina fy.
      · (x, y) = centro inferior de la caja. El tallo baja desde el borde
-       inferior hasta (ax ?? x, ay ?? y + 8) y termina en un remache.
+       inferior hasta (ax ?? x, ay ?? y + 8) y termina en un remache (si el
+       ancla queda por encima de la caja, el tallo sube desde el borde superior).
+     · def.labelAvoid: rótulos horneados [{x, y, w, h}] (mundo) que ni cajas ni
+       tallos tapan; def.labelOffsets: {TÍTULO: {dx, dy, adx, ady, hide}}.
      · kind: 'water' | 'brine' | 'green' | 'solar' | 'tech' | 'alert'.
      · sub puede ser texto o función (sc) → texto (valores en vivo).
    ===================================================================== */
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
+
+/* r4-labels: cajas de pantalla dibujadas DESPUÉS de las etiquetas en el cuadro anterior, que las etiquetas
+   esquivan en el siguiente: instrumentos inferiores del HUD (UIK.instrumentPlates, vía hudGauges). Envoltorio
+   transparente: mismos argumentos y mismo valor devuelto. (Los globos ya esquivan las etiquetas por su cuenta.) */
+const R4LBL_SEEN = { plates: { f: -99, r: [] } };
+function R4LBL_record(slot, r) {
+  if (!r || typeof Game === 'undefined') return;
+  const S = R4LBL_SEEN[slot];
+  if (S.f !== Game.frame) { S.f = Game.frame; S.r = []; }
+  if (S.r.length < 12) S.r.push({ x: r.x, y: r.y, w: r.w, h: r.h });
+}
+if (typeof UIK !== 'undefined') for (const [fn, slot] of [['instrumentPlates', 'plates']]) {
+  const f0 = UIK[fn];
+  if (typeof f0 !== 'function' || f0.r4lbl) continue;
+  const f1 = function () { const r = f0.apply(this, arguments); R4LBL_record(slot, r); return r; };
+  f1.r4lbl = 1; UIK[fn] = f1;
+}
 
 const PFSigns = (() => {
   const WOOD = ['#100100', '#2a0800', '#370b00', '#4e2519', '#5a2d21', '#6e3a24', '#8e542f', '#ab7448', '#cb9772'];
@@ -154,12 +174,32 @@ const WorldLabels = (() => {
     c = { c: pb.toCanvas(), w: w + 2, h: h + 2, K };
     cache.set(key, c); return c;
   }
+  /* r4-labels: def.labelOffsets = {TÍTULO: {dx, dy, adx, ady, hide}} ajusta, desde el nivel, la caja (dx, dy) y el
+     ancla (adx, ady) de una etiqueta del nivel o de su bioma (las del bioma se comparten y no se tocan: se deriva
+     una copia por prototipo, cacheada, que conserva when/camX/sub) */
+  const tweaks = new WeakMap();
+  function tweak(L, d) {
+    const o = d.labelOffsets && d.labelOffsets[L.title];
+    if (!o) return L;
+    if (o.hide) return null;
+    let T = tweaks.get(L);
+    if (!T || T._r4o !== o) {
+      T = Object.create(L);
+      T._r4o = o;
+      T.x = L.x + (o.dx || 0); T.y = L.y + (o.dy || 0);
+      T.ax = (L.ax ?? L.x) + (o.adx || 0); T.ay = (L.ay ?? (L.y + 8)) + (o.ady || 0);
+      tweaks.set(L, T);
+    }
+    return T;
+  }
   function list(sc) {
     const out = [];
     const d = sc.def;
-    if (d && d.labels) for (const L of d.labels) out.push(L);
-    const bl = (typeof BIOME_LABELS !== 'undefined' && d) ? BIOME_LABELS[d.biome] : null;
-    if (bl) for (const L of bl) out.push(L);
+    if (!d) return out;
+    const add = (L) => { const T = tweak(L, d); if (T) out.push(T); };
+    if (d.labels) for (const L of d.labels) add(L);
+    const bl = typeof BIOME_LABELS !== 'undefined' ? BIOME_LABELS[d.biome] : null;
+    if (bl) for (const L of bl) add(L);
     return out;
   }
   /** Rectángulo en pantalla de la caja de una etiqueta (o null si está fuera o no aplica) */
@@ -189,6 +229,13 @@ const WorldLabels = (() => {
       g.fillStyle = B.K.border; g.fillRect(stx, sy, 1, ay - sy);
       if (stx !== ax) { g.fillRect(Math.min(stx, ax), ay, Math.abs(ax - stx) + 1, 1); }
       g.fillStyle = B.K.border; g.fillRect(ax - 1, ay - 1, 3, 3); g.fillStyle = '#ffffff'; g.fillRect(ax, ay - 1, 1, 1);
+    } else if (ay < by - 1) {
+      // r4-labels: ancla por encima de la caja (p. ej. una etiqueta bajo el agua que señala la pluma): el tallo sube
+      const stx = clamp(ax, bx + 3, bx + B.w - 4);
+      g.fillStyle = B.K.glow; g.fillRect(stx + 1, ay, 1, by - ay + 1);
+      g.fillStyle = B.K.border; g.fillRect(stx, ay, 1, by - ay + 1);
+      if (stx !== ax) { g.fillRect(Math.min(stx, ax), ay, Math.abs(ax - stx) + 1, 1); }
+      g.fillStyle = B.K.border; g.fillRect(ax - 1, ay - 1, 3, 3); g.fillStyle = '#ffffff'; g.fillRect(ax, ay - 1, 1, 1);
     }
     g.drawImage(B.c, bx, by);
     if (alpha < 1) g.globalAlpha = 1;
@@ -198,10 +245,12 @@ const WorldLabels = (() => {
   function stemRects(L, cam, R, dx, dy) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
     const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
-    const bx = R.x + dx, sy = R.y + dy + R.h - 1;
-    if (ay <= sy) return [];
+    const bx = R.x + dx, sy = R.y + dy + R.h - 1, ty = R.y + dy;
     const stx = clamp(ax, bx + 4, bx + R.w - 3);
-    const out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    let out;
+    if (ay > sy) out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    else if (ay < ty - 1) out = [{ x: stx - 1, y: ay - 1, w: 3, h: ty - ay + 2 }];
+    else return [];
     if (stx !== ax) out.push({ x: Math.min(stx, ax) - 1, y: ay - 1, w: Math.abs(ax - stx) + 3, h: 3 });
     return out;
   }
@@ -228,21 +277,52 @@ const WorldLabels = (() => {
     for (const d of [0, -9, 9, 18]) NEAR_TRY.push([k * sgn, d]);
     if (k <= 40) for (const d of [0, -9]) FAR_TRY.push([k * sgn, d]);
   }
+  /** Punto de anclaje del tallo en pantalla */
+  function anchorOf(L, cam) {
+    const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
+    return { x: Math.round((L.ax ?? L.x) - cam.x * f), y: Math.round((L.ay ?? (L.y + 8)) - cam.y * fy) };
+  }
+  /** r4-labels: zonas del HUD de este cuadro (las del cuadro anterior, que es cuando se dibujaron): retrato, objetivo,
+      minimapa y botones (UIK._hudRects), instrumentos inferiores (hudGauges) y avisos del Atlas abajo a la derecha */
+  function hudZones() {
+    const out = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const fr = typeof Game !== 'undefined' ? Game.frame : 0;
+    if (R4LBL_SEEN.plates.f >= fr - 3) for (const r of R4LBL_SEEN.plates.r) out.push({ x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4, hud: 1 });
+    // avisos (Game.renderToasts): abajo a la derecha, apilados hacia arriba, sobre el panel de diálogo o los botones táctiles
+    if (typeof Game !== 'undefined' && Game.toasts && Game.toasts.length) {
+      const top = Game.top();
+      let y = H - 28;
+      if (top && typeof top.panelTop === 'number' && top.panelTopFrame >= fr - 2) y = Math.min(y, Math.round(top.panelTop) - 24);
+      if (typeof Touch !== 'undefined' && Touch.enabledFor && Touch.enabledFor(top)) y = Math.min(y, H - 96);
+      for (const t of Game.toasts) {
+        const w = Math.min(300, FONTS.main.measure(fitText(t.text, 266)) + 36);
+        out.push({ x: W - w - 8, y: y - 2, w: w + 8, h: 24, hud: 1 });
+        y -= 23;
+      }
+    }
+    return out;
+  }
   /**
    * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
-   * Obstáculos duros: el HUD, las cajas y los tallos ya colocados. Obstáculos blandos: la jugadora, KIRU y los NPC.
-   * Cada etiqueta prueba desplazamientos verticales y luego horizontales (±8..±80 px; ±40 las lejanas) y toma el
-   * primero libre de todo; si no lo hay, el primero libre de obstáculos duros; si tampoco, no se dibuja (nunca bajo el HUD).
+   * Obstáculos duros (caja y tallo): el HUD (también instrumentos inferiores y avisos), las cajas y los tallos ya
+   * colocados y los rótulos horneados del nivel (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo).
+   * Obstáculos blandos (solo la caja): la jugadora, KIRU y los NPC.
+   * Cada etiqueta prueba su sitio, el desplazamiento del cuadro anterior (histéresis) y luego desplazamientos
+   * verticales y horizontales (±8..±80 px; ±40 las lejanas); toma el primero libre de todo; si no lo hay, el primero
+   * libre de obstáculos duros; si tampoco, no se dibuja. La caja nunca baja hasta su ancla (el tallo se ve siempre)
+   * y una etiqueta cuyo objeto queda fuera del encuadre o bajo el HUD no se dibuja (su tallo no señalaría nada).
    * L.camX = [x0, x1] limita una etiqueta a un tramo de cámara (fundido de 40 px en los bordes).
    * Títulos repetidos en pantalla se dibujan una sola vez.
    */
   function draw(g, sc) {
     const cam = sc.cam ? { x: sc.cam.ox, y: sc.cam.oy } : { x: 0, y: 0 };
     const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
-    const placed = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
+    const hud = hudZones(), placed = hud.slice();
     const soft = actorRects(sc, cam);
-    // rótulos horneados en el mundo que las etiquetas no deben tapar (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo)
-    if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0) soft.push({ x, y, w: r.w, h: r.h }); }
+    // rótulos horneados en el mundo que las etiquetas (caja y tallo) no deben tapar
+    const signs = [];
+    if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0 && y < H && y + r.h > 0) signs.push({ x, y, w: r.w, h: r.h }); }
+    const underHud = (p) => hud.some(z => p.x >= z.x - 1 && p.x <= z.x + z.w && p.y >= z.y - 1 && p.y <= z.y + z.h);
     const seen = new Set();
     for (const L of all) {
       let alpha = 1;
@@ -255,22 +335,31 @@ const WorldLabels = (() => {
       const R = rectOf(L, cam, sc); if (!R) continue;
       if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
+      // el ancla (lo que la etiqueta nombra) debe verse: dentro del encuadre y fuera del HUD
+      const A = anchorOf(L, cam), stem = A.y > R.y + R.h, up = A.y < R.y - 1;
+      if ((stem || up) && (A.x < 2 || A.x > W - 3 || A.y > H - 3 || underHud(A))) { L._fixlaOff = null; continue; }
       const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
+      // el tallo puede entrar en el rótulo (o panel) que contiene su ancla: es justo lo que la etiqueta nombra
+      const stemSigns = (stem || up) ? signs.filter(q => !(A.x >= q.x && A.x < q.x + q.w && A.y >= q.y && A.y < q.y + q.h)) : signs;
       let best = null, fallback = null;
-      // histéresis: se prueba antes el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
-      const tries = L._fixlaOff ? [L._fixlaOff].concat(far ? FAR_TRY : NEAR_TRY) : (far ? FAR_TRY : NEAR_TRY);
+      // histéresis: tras su sitio se prueba el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
+      const base = far ? FAR_TRY : NEAR_TRY;
+      const tries = L._fixlaOff ? [base[0], L._fixlaOff].concat(base.slice(1)) : base;
       for (const [dx, dy] of tries) {
         const R2 = { x: R.x + dx, y: R.y + dy, w: R.w, h: R.h };
-        if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1) continue;
+        if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1 || R2.y + R2.h > H - 2) continue;
+        if (stem && R2.y + R2.h > A.y - 4) continue; // la caja no tapa su ancla: queda un tallo visible
+        if (up && R2.y < A.y + 4) continue;
         if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
+        if (signs.some(s => hit(R2, s, 1))) continue;
         const st = stemRects(L, cam, R, dx, dy);
-        if (st.some(s => placed.some(p => !p.hud && hit(s, p, 0)))) continue;
+        if (st.some(s => placed.some(p => hit(s, p, 0)) || stemSigns.some(q => hit(s, q, 0)))) continue;
         if (!fallback) fallback = { dx, dy, R2, st };
         if (!soft.some(a => hit(R2, a, 1))) { best = { dx, dy, R2, st }; break; }
       }
       const P_ = best || fallback;
       if (!P_) { L._fixlaOff = null; continue; }
-      L._fixlaOff = [P_.dx, P_.dy];
+      L._fixlaOff = (P_.dx || P_.dy) ? [P_.dx, P_.dy] : null;
       placed.push(P_.R2);
       for (const s of P_.st) placed.push(s);
       seen.add(L.title);

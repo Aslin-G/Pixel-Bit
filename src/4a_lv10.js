@@ -537,11 +537,11 @@ LEVELS[10] = {
   labels: [
     { x: 540, y: 222, title: 'CAPTACIÓN', sub: (sc) => fmt0(sc.state.ntu ?? 0) + ' NTU · ' + (sc.state.cards && sc.state.cards.toma ? (sc.state.ntu > 60 ? 'TOMA CERRADA' : sc.state.ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA'), kind: 'water', ax: 540, ay: 256 },
     { x: 720, y: 176, title: 'FILTROS DE ARENA', sub: 'Retienen la arena del agua', kind: 'water', ax: 720, ay: 196 },
-    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 150 },
+    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 144 }, // r4-labels: el remache queda en la cubierta, no sobre el rótulo horneado de la nave
     { x: 1214, y: 152, title: 'AGUA POTABLE', sub: (sc) => fmt0(sc.state.tank ?? 0) + ' m³ · mínimo 300', kind: 'water', ax: 1210, ay: 170 },
     { x: 1392, y: 222, title: 'LAGUNA DE SALMUERA', sub: (sc) => (sc.state.cards && sc.state.cards.salmuera && sc.state.tideBad) ? 'Retiene: marea desfavorable' : 'Retención de 900 m³', kind: 'brine', ax: 1392, ay: 252 },
-    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
-    { x: 1660, y: 214, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
+    { x: 1660, y: 209, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
+    { x: 1660, y: 209, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
     { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
     { x: 1950, y: 230, title: 'CERCA DE ARENA', sub: 'Frena el viento a ras de suelo', kind: 'solar', ax: 1950, ay: 256, when: (sc) => (sc.state.clearK || 0) < 0.5 },
     { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
@@ -613,6 +613,7 @@ LEVELS[10] = {
     D.valve.push(1550, yb(1532) - 28);
     lampG(dh.lamp[0], dh.lamp[1], 7, 0.25);
     C.routeSign(pb, 1588, yb(1588), 'COSTA', 1);
+    { const w = PFK.measure('COSTA', { font: 'tiny' }) + 8; LEVELS[10].labelAvoid = [{ x: 1588 - Math.round(w / 2) - 1, y: yb(1588) - 65, w: w + 16, h: 13 }]; } // r4-labels: las etiquetas no tapan el rótulo de ruta «COSTA»
     /* ===== 5. ENERGÍA (1600–2160): FV con polvo, aerogeneradores, baterías ===== */
     for (const x of [1612, 1682, 1790, 1862]) E.pvTable(pb, x, yb(x), 60, { soil: 0.65, depth: 18 });
     for (const x of CAL_TURB) { const T = E.turbineTower(pb, x, yb(x), 118, { r: 40 }); D.turbines.push({ hub: T.hub, r: T.r, x }); beacon(T.hub[0] + 6, T.hub[1] - 6, '#ff6a50', 0.6); }

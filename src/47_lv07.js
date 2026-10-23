@@ -112,8 +112,8 @@ LEVELS[7] = {
     { x: 250, y: 172, title: 'OI · 2.º PASO', sub: 'Quita casi todos los iones', kind: 'water', ax: 250, ay: 196 },
     { x: 356, y: 196, title: 'EDI', sub: 'Electrodesionización', kind: 'water', ax: 356, ay: 206 },
     { x: 432, y: 132, title: 'AGUA ULTRAPURA', sub: (sc) => sc.state.waterReady ? '0,06 µS/cm · lista' : 'Meta: < 0,1 µS/cm', kind: 'water', ax: 432, ay: 152 },
-    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 196 },
-    { x: 836, y: 192, title: 'ELECTROLIZADOR PEM', sub: '2 H₂O → 2 H₂ + O₂', kind: 'green', ax: 826, ay: 212 },
+    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 191 }, // r4-labels: el remache queda sobre el rectificador, no encima de su placa
+    { x: 836, y: 180, title: 'ELECTROLIZADOR PEM', sub: '2 H₂O → 2 H₂ + O₂', kind: 'green', ax: 826, ay: 212 },
     { x: 1222, y: 98, title: 'O₂ (SUBPRODUCTO)', sub: '≈ 8 kg por kg de H₂', kind: 'tech', ax: 1250, ay: 104 },
     { x: 1368, y: 188, title: 'COMPRESIÓN', sub: 'Más H₂ en menos volumen', kind: 'tech', ax: 1368, ay: 208 },
     { x: 1584, y: 150, title: 'ALMACENAMIENTO H₂', sub: 'Vector: guarda energía', kind: 'green', ax: 1584, ay: 166 },
@@ -189,6 +189,8 @@ LEVELS[7] = {
       const x = 782 + k * 150;
       const st = H2.stackPEM(pb, x, yb, k);
       D.stacks.push(st);
+      // r4-labels: placas H₂ / O₂ de los separadores (18t: centradas en x + 92 / x + 116, y base − 76 / base − 64, alto 9)
+      for (const [px, py, t] of [[x + 92, yb - 76, 'H₂'], [x + 116, yb - 64, 'O₂']]) { const pw = PFK.measure(t, { font: 'tiny' }) + 10; LEVELS[7].labelAvoid.push({ x: Math.round(px - pw / 2), y: py - 2, w: pw, h: 13 }); }
       I.pipe(pb, [[st.h2Out[0], st.h2Out[1] + 6], [st.h2Out[0], 162]], 2, 'h2', { flange: 0 });
       I.pipe(pb, [[st.o2Out[0], st.o2Out[1] + 4], [st.o2Out[0], 150]], 1, 'o2', { flange: 0 });
       // bajantes de potencia desde la bandeja hasta las barras de cobre

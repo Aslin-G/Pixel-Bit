@@ -83,7 +83,7 @@ LEVELS[2] = {
     { x: 1376, y: 224, title: 'CALCITA', sub: 'Remineraliza', kind: 'green', ax: 1372, ay: 234 },
     { x: 1535, y: 140, title: 'CONTROL OI', sub: 'Sala de operación', kind: 'tech', ax: 1535, ay: 152 },
     { x: 1756, y: 208, title: 'LIMPIEZA CIP', sub: 'Solo si el flujo cae', kind: 'tech', ax: 1752, ay: 222 },
-    { x: 2104, y: 196, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
+    { x: 2104, y: 183, title: 'ANALIZADORES', sub: (sc) => fmt0(tdsToEC((sc.state.ro || ROModel.solve({ P: 60 })).Cp)) + ' µS/cm', kind: 'water', ax: 2104, ay: 214 },
     { x: 2203, y: 176, title: 'DESPACHO', sub: 'Controlador', kind: 'tech', ax: 2203, ay: 192 },
     { x: 2548, y: 160, title: 'SALMUERA', sub: '(Rechazo) → canales', kind: 'brine', ax: 2546, ay: 178 },
     { x: 1100, y: 344, title: 'GALERÍA DE COLECTORES', sub: 'salmuera · permeado · alimentación', kind: 'tech', ax: 1100, ay: 352 },
@@ -218,6 +218,7 @@ LEVELS[2] = {
     I.pipe(pb, [[pp2[1].dis[0] + 2, pp2[1].dis[1] + 2], [pp2[1].dis[0] + 2, 196]], 3, 'product', { flange: 0 });
     flow([[pp2[0].dis[0] + 2, pp2[0].dis[1]], [pp2[0].dis[0] + 2, 196], [2168, 196], [2168, 96]], 'product', 1);
     P.rect(pb, 2120, 186, 40, 8, U_('#0c2650')); K.text(pb, 'A RED', 2124, 187, U_('#d0f4f8'), { font: 'tiny' });
+    LEVELS[2].labelAvoid.push({ x: 2120, y: 186, w: 40, h: 8 }); // r4-labels: ANALIZADORES no tapa el rótulo «A RED»
     const an = P.analyzers(pb, 2068, fb + 2, 72); LV2_ANCH.an = an.screens;
     /* ===== 11. CONTROLADOR DE DESPACHO (2178–2290) ===== */
     P.tray(pb, 2160, 2600, 118, 18);
