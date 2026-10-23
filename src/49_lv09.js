@@ -81,7 +81,7 @@ LEVELS[9] = {
   },
   /** Etiquetas científicas en el mundo */
   labels: [
-    { x: 236, y: 170, title: 'HISTORIA DE SYNARA', sub: 'Quién decidió y con qué datos', kind: 'tech', ax: 236, ay: 186 },
+    { x: 236, y: 170, title: 'HISTORIA DE SYNARA', sub: 'Quién decidió y con qué datos', kind: 'tech', ax: 222, ay: 190 }, // r4-labels: el tallo cae en el panel 2020 (antes, en el hueco entre 2020 y 2025)
     { x: 850, y: 140, title: 'CONSEJO CIUDADANO', sub: 'Todas las voces en la mesa', kind: 'green', ax: 850, ay: 190 },
     { x: 1157, y: 166, title: 'MURO DE EVIDENCIAS', sub: 'Cada dato con su fuente', kind: 'alert', ax: 1157, ay: 186 },
     { x: 1440, y: 168, title: 'GEMELO DIGITAL', sub: (sc) => sc.state.mosaicBoard ? 'Capas: todos los criterios' : 'Un solo índice opaco', kind: 'water', ax: 1440, ay: 186 },
