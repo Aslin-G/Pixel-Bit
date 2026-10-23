@@ -22504,7 +22504,7 @@ const R4L5_CLIFF = (() => {
       let x = la + r.int(0, 6);
       while (x < lb - 12) {
         let gw = Math.min(lb - x, r.int(o.wMin ?? 52, o.wMax ?? 180)); if (lb - (x + gw) < 30) gw = lb - x;
-        const xa = x, xb = x + gw, g0 = gyAt((xa + xb) >> 1), cw = r.pick([[7, 13], [10, 20], [14, 26], [18, 32]]);
+        const xa = x, xb = x + gw, g0 = gyAt((xa + xb) >> 1), cw = r.pick([[10, 18], [12, 22], [16, 28], [20, 34]]);
         if (gw < 58 && r() < 0.65) tier(xa + 1, xb - 1, g0 + r.int(5, 14), 1, footBase + r.int(4, 10), { cMin: 8, cMax: 15 });
         else {
           const n = gw > 100 ? r.int(2, 3) : r.int(1, 2), down = r() < 0.72 ? -1 : 1;
@@ -22528,7 +22528,7 @@ const R4L5_CLIFF = (() => {
       const mw = r.int(50, 150), m = { i: ms.length, x0: x, x1: x + mw, ridge: x + mw * (0.25 + r() * 0.5), kL: 0.04 + r() * 0.1, kR: 0.1 + r() * 0.22, alb: -0.12 + (r() - 0.5) * 0.12, pro: r() * 5, gw: r.int(2, 5), band: null, cave: null, c0: wcols.length };
       if (r() < 0.5) m.band = { d: r.int(14, 44), kind: r() < 0.55 ? 1 : -1, amt: r.int(4, 8), xa: x + r.int(0, mw >> 2), xb: x + mw - r.int(0, mw >> 2) };
       if (r() < 0.3) m.cave = { cx: x + mw * (0.25 + r() * 0.5), cy: gyAt(x + (mw >> 1)) + r.int(22, 54), rx: r.int(5, 9), ry: r.int(4, 7), dep: 9 + r() * 5 };
-      for (const c of mkCols(r, x, x + mw, 12, 28)) { c.m = m; wcols.push(c); }
+      for (const c of mkCols(r, x, x + mw, 14, 32)) { c.m = m; wcols.push(c); }
       m.c1 = wcols.length; ms.push(m); x += mw;
     }
     // cuevas marinas al pie del muro en las calas
