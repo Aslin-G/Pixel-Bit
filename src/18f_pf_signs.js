@@ -22,16 +22,16 @@
 var BIOME_LABELS = (typeof BIOME_LABELS !== 'undefined') ? BIOME_LABELS : {};
 
 /* r4-labels: cajas de pantalla dibujadas DESPUÉS de las etiquetas en el cuadro anterior, que las etiquetas
-   esquivan en el siguiente: instrumentos inferiores (UIK.instrumentPlates, vía hudGauges) y globos de diálogo
-   (UIK.speechBubble). Envoltorios transparentes: mismos argumentos y mismo valor devuelto. */
-const R4LBL_SEEN = { plates: { f: -99, r: [] }, bubbles: { f: -99, r: [] } };
+   esquivan en el siguiente: instrumentos inferiores del HUD (UIK.instrumentPlates, vía hudGauges). Envoltorio
+   transparente: mismos argumentos y mismo valor devuelto. (Los globos ya esquivan las etiquetas por su cuenta.) */
+const R4LBL_SEEN = { plates: { f: -99, r: [] } };
 function R4LBL_record(slot, r) {
   if (!r || typeof Game === 'undefined') return;
   const S = R4LBL_SEEN[slot];
   if (S.f !== Game.frame) { S.f = Game.frame; S.r = []; }
   if (S.r.length < 12) S.r.push({ x: r.x, y: r.y, w: r.w, h: r.h });
 }
-if (typeof UIK !== 'undefined') for (const [fn, slot] of [['instrumentPlates', 'plates'], ['speechBubble', 'bubbles']]) {
+if (typeof UIK !== 'undefined') for (const [fn, slot] of [['instrumentPlates', 'plates']]) {
   const f0 = UIK[fn];
   if (typeof f0 !== 'function' || f0.r4lbl) continue;
   const f1 = function () { const r = f0.apply(this, arguments); R4LBL_record(slot, r); return r; };
@@ -288,15 +288,25 @@ const WorldLabels = (() => {
     const out = (typeof UIK !== 'undefined' && UIK._hudRects) ? UIK._hudRects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, hud: 1 })) : [];
     const fr = typeof Game !== 'undefined' ? Game.frame : 0;
     if (R4LBL_SEEN.plates.f >= fr - 3) for (const r of R4LBL_SEEN.plates.r) out.push({ x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4, hud: 1 });
-    const n = (typeof Game !== 'undefined' && Game.toasts) ? Game.toasts.length : 0;
-    if (n) out.push({ x: W - 310, y: H - 30 - 23 * (n - 1), w: 310, h: 23 * (n - 1) + 24, hud: 1 });
+    // avisos (Game.renderToasts): abajo a la derecha, apilados hacia arriba, sobre el panel de diálogo o los botones táctiles
+    if (typeof Game !== 'undefined' && Game.toasts && Game.toasts.length) {
+      const top = Game.top();
+      let y = H - 28;
+      if (top && typeof top.panelTop === 'number' && top.panelTopFrame >= fr - 2) y = Math.min(y, Math.round(top.panelTop) - 24);
+      if (typeof Touch !== 'undefined' && Touch.enabledFor && Touch.enabledFor(top)) y = Math.min(y, H - 96);
+      for (const t of Game.toasts) {
+        const w = Math.min(300, FONTS.main.measure(fitText(t.text, 266)) + 36);
+        out.push({ x: W - w - 8, y: y - 2, w: w + 8, h: 24, hud: 1 });
+        y -= 23;
+      }
+    }
     return out;
   }
   /**
    * Dibuja todas las etiquetas sin solapes: primero las del plano jugable (f = 1), luego las lejanas.
    * Obstáculos duros (caja y tallo): el HUD (también instrumentos inferiores y avisos), las cajas y los tallos ya
    * colocados y los rótulos horneados del nivel (def.labelAvoid: [{x, y, w, h}] en coordenadas de mundo).
-   * Obstáculos blandos (solo la caja): la jugadora, KIRU, los NPC y los globos de diálogo del cuadro anterior.
+   * Obstáculos blandos (solo la caja): la jugadora, KIRU y los NPC.
    * Cada etiqueta prueba su sitio, el desplazamiento del cuadro anterior (histéresis) y luego desplazamientos
    * verticales y horizontales (±8..±80 px; ±40 las lejanas); toma el primero libre de todo; si no lo hay, el primero
    * libre de obstáculos duros; si tampoco, no se dibuja. La caja nunca baja hasta su ancla (el tallo se ve siempre)
@@ -309,8 +319,6 @@ const WorldLabels = (() => {
     const all = list(sc).slice().sort((a, b) => ((b.f ?? 1) === 1) - ((a.f ?? 1) === 1) || (b.prio || 0) - (a.prio || 0));
     const hud = hudZones(), placed = hud.slice();
     const soft = actorRects(sc, cam);
-    const fr = typeof Game !== 'undefined' ? Game.frame : 0;
-    if (R4LBL_SEEN.bubbles.f >= fr - 3) for (const r of R4LBL_SEEN.bubbles.r) soft.push(r);
     // rótulos horneados en el mundo que las etiquetas (caja y tallo) no deben tapar
     const signs = [];
     if (sc.def && sc.def.labelAvoid) for (const r of sc.def.labelAvoid) { const x = Math.round(r.x - cam.x), y = Math.round(r.y - cam.y); if (x < W && x + r.w > 0 && y < H && y + r.h > 0) signs.push({ x, y, w: r.w, h: r.h }); }
