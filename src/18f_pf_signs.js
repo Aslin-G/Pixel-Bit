@@ -319,6 +319,8 @@ const WorldLabels = (() => {
       const A = anchorOf(L, cam), stem = A.y > R.y + R.h;
       if (stem && (A.x < 2 || A.x > W - 3 || A.y > H - 3 || underHud(A))) { L._fixlaOff = null; continue; }
       const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
+      // el tallo puede entrar en el rótulo (o panel) que contiene su ancla: es justo lo que la etiqueta nombra
+      const stemSigns = stem ? signs.filter(q => !(A.x >= q.x && A.x < q.x + q.w && A.y >= q.y && A.y < q.y + q.h)) : signs;
       let best = null, fallback = null;
       // histéresis: tras su sitio se prueba el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
       const base = far ? FAR_TRY : NEAR_TRY;
@@ -330,7 +332,7 @@ const WorldLabels = (() => {
         if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
         if (signs.some(s => hit(R2, s, 1))) continue;
         const st = stemRects(L, cam, R, dx, dy);
-        if (st.some(s => placed.some(p => hit(s, p, 0)) || signs.some(q => hit(s, q, 0)))) continue;
+        if (st.some(s => placed.some(p => hit(s, p, 0)) || stemSigns.some(q => hit(s, q, 0)))) continue;
         if (!fallback) fallback = { dx, dy, R2, st };
         if (!soft.some(a => hit(R2, a, 1))) { best = { dx, dy, R2, st }; break; }
       }

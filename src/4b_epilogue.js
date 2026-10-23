@@ -125,6 +125,10 @@ LEVELS[11] = {
   /* plano jugable con kit PF al atardecer (19q_scb_lv11.js): mismo suelo, actores y guion */
   pf: SCBL11.pf,
   labels: SCBL11.labels,
+  // r4-labels: PANEL PÚBLICO sobre la esquina superior derecha de la pantalla LED (su ancla caía 42 px a la derecha
+  // de la pantalla, en el aire) y la pantalla con sus lecturas en vivo (722–888 × 174–260) no se tapa con etiquetas
+  labelOffsets: { 'PANEL PÚBLICO': { dx: -55, dy: -30, adx: -50, ady: -34 } },
+  labelAvoid: [{ x: 722, y: 174, w: 166, h: 86 }],
   props(pb, world) { SCBL11.props(pb, world); },
   propsFront(pb, world) { SCBL11.propsFront(pb, world); },
   renderBack(g, sc, cam) { SCBL11.renderBack(g, sc, cam); },

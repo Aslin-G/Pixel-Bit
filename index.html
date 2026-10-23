@@ -18157,6 +18157,8 @@ const WorldLabels = (() => {
       const A = anchorOf(L, cam), stem = A.y > R.y + R.h;
       if (stem && (A.x < 2 || A.x > W - 3 || A.y > H - 3 || underHud(A))) { L._fixlaOff = null; continue; }
       const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
+      // el tallo puede entrar en el rótulo (o panel) que contiene su ancla: es justo lo que la etiqueta nombra
+      const stemSigns = stem ? signs.filter(q => !(A.x >= q.x && A.x < q.x + q.w && A.y >= q.y && A.y < q.y + q.h)) : signs;
       let best = null, fallback = null;
       // histéresis: tras su sitio se prueba el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
       const base = far ? FAR_TRY : NEAR_TRY;
@@ -18168,7 +18170,7 @@ const WorldLabels = (() => {
         if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
         if (signs.some(s => hit(R2, s, 1))) continue;
         const st = stemRects(L, cam, R, dx, dy);
-        if (st.some(s => placed.some(p => hit(s, p, 0)) || signs.some(q => hit(s, q, 0)))) continue;
+        if (st.some(s => placed.some(p => hit(s, p, 0)) || stemSigns.some(q => hit(s, q, 0)))) continue;
         if (!fallback) fallback = { dx, dy, R2, st };
         if (!soft.some(a => hit(R2, a, 1))) { best = { dx, dy, R2, st }; break; }
       }
@@ -48790,7 +48792,7 @@ LEVELS[7] = {
     { x: 250, y: 172, title: 'OI · 2.º PASO', sub: 'Quita casi todos los iones', kind: 'water', ax: 250, ay: 196 },
     { x: 356, y: 196, title: 'EDI', sub: 'Electrodesionización', kind: 'water', ax: 356, ay: 206 },
     { x: 432, y: 132, title: 'AGUA ULTRAPURA', sub: (sc) => sc.state.waterReady ? '0,06 µS/cm · lista' : 'Meta: < 0,1 µS/cm', kind: 'water', ax: 432, ay: 152 },
-    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 196 },
+    { x: 560, y: 178, title: 'ELECTRICIDAD', sub: 'Del excedente solar y eólico', kind: 'solar', ax: 600, ay: 191 }, // r4-labels: el remache queda sobre el rectificador, no encima de su placa
     { x: 836, y: 180, title: 'ELECTROLIZADOR PEM', sub: '2 H₂O → 2 H₂ + O₂', kind: 'green', ax: 826, ay: 212 },
     { x: 1222, y: 98, title: 'O₂ (SUBPRODUCTO)', sub: '≈ 8 kg por kg de H₂', kind: 'tech', ax: 1250, ay: 104 },
     { x: 1368, y: 188, title: 'COMPRESIÓN', sub: 'Más H₂ en menos volumen', kind: 'tech', ax: 1368, ay: 208 },
@@ -51400,11 +51402,11 @@ LEVELS[10] = {
   labels: [
     { x: 540, y: 222, title: 'CAPTACIÓN', sub: (sc) => fmt0(sc.state.ntu ?? 0) + ' NTU · ' + (sc.state.cards && sc.state.cards.toma ? (sc.state.ntu > 60 ? 'TOMA CERRADA' : sc.state.ntu > 20 ? 'MODO TORMENTA' : 'NORMAL') : 'SIN REGLA'), kind: 'water', ax: 540, ay: 256 },
     { x: 720, y: 176, title: 'FILTROS DE ARENA', sub: 'Retienen la arena del agua', kind: 'water', ax: 720, ay: 196 },
-    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 150 },
+    { x: 1020, y: 136, title: 'ÓSMOSIS INVERSA', sub: '3 trenes · ≈ 3 kWh/m³', kind: 'water', ax: 1020, ay: 144 }, // r4-labels: el remache queda en la cubierta, no sobre el rótulo horneado de la nave
     { x: 1214, y: 152, title: 'AGUA POTABLE', sub: (sc) => fmt0(sc.state.tank ?? 0) + ' m³ · mínimo 300', kind: 'water', ax: 1210, ay: 170 },
     { x: 1392, y: 222, title: 'LAGUNA DE SALMUERA', sub: (sc) => (sc.state.cards && sc.state.cards.salmuera && sc.state.tideBad) ? 'Retiene: marea desfavorable' : 'Retención de 900 m³', kind: 'brine', ax: 1392, ay: 252 },
-    { x: 1660, y: 214, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
-    { x: 1660, y: 214, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
+    { x: 1660, y: 209, title: 'FV CON POLVO', sub: 'Suciedad 65 %: produce menos', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) < 0.5 },
+    { x: 1660, y: 209, title: 'FV TRAS LA CALIMA', sub: 'Toca limpiar los paneles', kind: 'solar', ax: 1650, ay: 246, when: (sc) => (sc.state.clearK || 0) >= 0.5 },
     { x: 1862, y: 122, title: 'AEROGENERADORES', sub: 'Frenan solos sobre 25 m/s', kind: 'tech', ax: 1954, ay: 146 },
     { x: 1950, y: 230, title: 'CERCA DE ARENA', sub: 'Frena el viento a ras de suelo', kind: 'solar', ax: 1950, ay: 256, when: (sc) => (sc.state.clearK || 0) < 0.5 },
     { x: 2050, y: 186, title: 'BATERÍAS', sub: (sc) => fmt0((sc.state.soc ?? 0) * 100) + ' % · 1 600 kWh', kind: 'tech', ax: 2030, ay: 214 },
@@ -51476,6 +51478,7 @@ LEVELS[10] = {
     D.valve.push(1550, yb(1532) - 28);
     lampG(dh.lamp[0], dh.lamp[1], 7, 0.25);
     C.routeSign(pb, 1588, yb(1588), 'COSTA', 1);
+    { const w = PFK.measure('COSTA', { font: 'tiny' }) + 8; LEVELS[10].labelAvoid = [{ x: 1588 - Math.round(w / 2) - 1, y: yb(1588) - 65, w: w + 16, h: 13 }]; } // r4-labels: las etiquetas no tapan el rótulo de ruta «COSTA»
     /* ===== 5. ENERGÍA (1600–2160): FV con polvo, aerogeneradores, baterías ===== */
     for (const x of [1612, 1682, 1790, 1862]) E.pvTable(pb, x, yb(x), 60, { soil: 0.65, depth: 18 });
     for (const x of CAL_TURB) { const T = E.turbineTower(pb, x, yb(x), 118, { r: 40 }); D.turbines.push({ hub: T.hub, r: T.r, x }); beacon(T.hub[0] + 6, T.hub[1] - 6, '#ff6a50', 0.6); }
@@ -52486,6 +52489,10 @@ LEVELS[11] = {
   /* plano jugable con kit PF al atardecer (19q_scb_lv11.js): mismo suelo, actores y guion */
   pf: SCBL11.pf,
   labels: SCBL11.labels,
+  // r4-labels: PANEL PÚBLICO sobre la esquina superior derecha de la pantalla LED (su ancla caía 42 px a la derecha
+  // de la pantalla, en el aire) y la pantalla con sus lecturas en vivo (722–888 × 174–260) no se tapa con etiquetas
+  labelOffsets: { 'PANEL PÚBLICO': { dx: -55, dy: -30, adx: -50, ady: -34 } },
+  labelAvoid: [{ x: 722, y: 174, w: 166, h: 86 }],
   props(pb, world) { SCBL11.props(pb, world); },
   propsFront(pb, world) { SCBL11.propsFront(pb, world); },
   renderBack(g, sc, cam) { SCBL11.renderBack(g, sc, cam); },
