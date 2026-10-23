@@ -104,27 +104,37 @@ LEVELS[5] = {
   /* Cámara: el mundo crece 60 px hacia abajo (acantilados de estratos y gargantas hasta el mar) */
   cam: { look: 60, vy: 0.6 },
   pf: {
+    /* r4-l5: la cara bajo el paso es un DIORAMA de acantilado (R4L5_CLIFF, 18o): cabos escalonados, calas con el mar
+       al pie, cuevas, sendas, conducciones del parque y colonia de aves. coves: [x0, x1, línea de agua al fondo, tipo];
+       paths: [[x, dy bajo el canto]..] */
     terrain: [
-      { x0: 0, x1: 424, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true },
+      { x0: 0, x1: 424, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true,
+        r4: { coves: [[150, 240, 340, 'beach'], [300, 356, 344, 'stack']], paths: [[[116, 1], [92, 22], [128, 46], [160, 72]]] } },
       { x0: 424, x1: 624, surf: 'void', face: 'void', hard: true },
-      { x0: 624, x1: 1304, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true, r3b: true },
+      { x0: 624, x1: 1304, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true,
+        r4: { coves: [[680, 750, 344, 'stack'], [904, 1000, 336, 'landing'], [1118, 1200, 340, 'cave']], conduit: { from: [760, 900, 1040, 1180], to: 952, d: 5 } } },
       { x0: 1304, x1: 1564, surf: 'void', face: 'void', hard: true },
-      { x0: 1564, x1: 3000, surf: 'meadow', face: 'cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true },
+      { x0: 1564, x1: 3000, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true,
+        r4: { coves: [[1604, 1664, 344, 'stack'], [1756, 1850, 338, 'cave'], [1984, 2084, 340, 'cave'], [2190, 2274, 344, 'stack'], [2378, 2474, 336, 'birds'], [2636, 2796, 334, 'jetty'], [2876, 2952, 342, 'stack']],
+          birds: [2364, 2566], paths: [[[2622, 1], [2600, 26], [2634, 52], [2612, 76], [2650, 104]], [[1716, 1], [1700, 20], [1730, 44], [1760, 70]]] } },
     ],
-    /** Primer plano: matas costeras con altramuces en los bordes inferiores */
+    /** r4-l5: plano frontal de encuadre (f 1,3) anclado al borde inferior: rocas basálticas frías y matas oscuras
+        (agaves, gramíneas, vara violeta) con borde cálido; ≤ 90 px de alto, así su copa queda siempre ≥ 50 px por
+        debajo de la línea de paso (no tapa el camino) y las etiquetas se pintan después (nunca quedan tapadas) */
     fg: [
-      { kind: 'clump', x: -30, w: 140, h: 92, seed: 5, spikes: 4, leaves: 11 },
-      { kind: 'clump', x: 700, w: 110, h: 70, seed: 7, spikes: 3, leaves: 8 },
-      { kind: 'clump', x: 1500, w: 130, h: 86, seed: 9, spikes: 5, leaves: 10 },
-      { kind: 'clump', x: 2300, w: 120, h: 80, seed: 11, spikes: 4, leaves: 9 },
-      { kind: 'clump', x: 3100, w: 140, h: 92, seed: 13, spikes: 5, leaves: 12 },
-      { kind: 'clump', x: 3700, w: 130, h: 84, seed: 15, spikes: 4, leaves: 10 },
+      { kind: 'r4l5Frame', x: -40, w: 176, h: 88, seed: 5, rocks: 3, agaves: 2, spikes: 2 },
+      { kind: 'r4l5Frame', x: 300, w: 120, h: 56, seed: 7, rocks: 2, agaves: 1, spike: false },
+      { kind: 'r4l5Frame', x: 610, w: 150, h: 74, seed: 9, rocks: 2, agaves: 2, spikes: 1 },
+      { kind: 'r4l5Frame', x: 950, w: 112, h: 52, seed: 11, rocks: 2, agaves: 1, spike: false },
+      { kind: 'r4l5Frame', x: 1270, w: 168, h: 84, seed: 13, rocks: 3, agaves: 2, spikes: 2 },
+      { kind: 'r4l5Frame', x: 1610, w: 126, h: 60, seed: 15, rocks: 2, agaves: 1, spike: false },
+      { kind: 'r4l5Frame', x: 1930, w: 156, h: 78, seed: 17, rocks: 3, agaves: 2, spikes: 1 },
+      { kind: 'r4l5Frame', x: 2260, w: 118, h: 54, seed: 19, rocks: 2, agaves: 1, spike: false },
+      { kind: 'r4l5Frame', x: 2580, w: 172, h: 86, seed: 21, rocks: 3, agaves: 2, spikes: 2 },
+      { kind: 'r4l5Frame', x: 2920, w: 124, h: 58, seed: 23, rocks: 2, agaves: 1, spike: false },
+      { kind: 'r4l5Frame', x: 3240, w: 160, h: 80, seed: 25, rocks: 3, agaves: 2, spikes: 1 },
+      { kind: 'r4l5Frame', x: 3580, w: 150, h: 72, seed: 27, rocks: 2, agaves: 2, spikes: 1 },
     ],
-    /** r2-biomes-a: la cara del acantilado deja de ser un muro uniforme (degradado de profundidad, cornisas con vegetación en diagonal, gaviotas y senderos en zigzag) */
-    decorateFace(pb, world) {
-      PFAWind.cliffDress(pb, world, { segs: [[0, 424], [624, 1304], [1564, 3000]], R: LV5_ROCK, seed: 5101, skip: [[396, 650], [1280, 1590]],
-        paths: [[[1186, 10], [1060, 52], [1120, 92], [1040, 126]], [[2690, 8], [2560, 50], [2640, 92], [2560, 128]], [[392, 8], [300, 44], [356, 84]]] });
-    },
     fauna: { eagle: { x0: 400, x1: 2600, y: 60 }, gulls: [{ x: 520, y: 150, n: 4 }, { x: 1420, y: 140, n: 5 }, { x: 2480, y: 110, n: 4 }] },
   },
   /** Etiquetas científicas en el mundo */
@@ -249,13 +259,30 @@ LEVELS[5] = {
       if (typeof PFFauna !== 'undefined' && PFFauna.drawGullAt) { const a = t * 0.45 + x0; PFFauna.drawGullAt(g, sx + sw / 2 + Math.cos(a) * sw * 0.32, 262 - cam.y + Math.sin(a) * 18 - ((t * 6) % 30), t + x0, Math.sin(a) > 0); }
       for (let x = 0; x < sw; x += 4) fpx(g, sx + x, Math.round(395 - cam.y + Math.sin(x * 0.2 + t * 2)), '#e4f6fc');
     }
+    // r4-l5: ESTELA de cada rotor (antes de las palas, en este plano medio: queda detrás de las etiquetas y de los
+    // letreros, que se pintan después): trazos de viento más lentos (≈ 30–50 px/s frente a los 240–360 de las líneas
+    // de viento libres) y más tenues, que salen a sotavento (derecha), se ensanchan y serpentean; más vivos con la Lente
+    const wk = S.parkStopped ? 0 : clamp(rot / 3, 0.35, 1) * (1 + (sc.lensT || 0) * 0.8);
+    if (wk > 0) for (const [hx, hy] of N.hubs) {
+      const sx0 = hx - cam.x; if (sx0 < -190 || sx0 > W + 20) continue;
+      for (let i = 0; i < 20; i++) {
+        // carriles: vórtices de punta (arriba/abajo, con rizo) y núcleo; la estela se ensancha aguas abajo
+        const lane = [-0.92, -0.45, 0, 0.45, 0.92][i % 5], sp = 30 + hash1(i, hx + 3) * 20, p = (t * sp / 170 + hash1(i, hx + 1)) % 1;
+        const e = lane + (hash1(i, hx) - 0.5) * 0.2, hw = 50 * (0.8 + p * 0.4), len = 10 + Math.round(hash1(i, hx + 2) * 12), tip = Math.abs(lane) > 0.9;
+        const x = Math.round(sx0 + 12 + p * 170), y = Math.round(hy - cam.y + e * hw + Math.sin(p * 7 + i * 1.7) * (tip ? 3.5 : 2));
+        const al = Math.min(0.85, 0.62 * Math.sin(p * Math.PI) * wk);
+        g.globalAlpha = al; frect(g, x, y, len, 1, i & 1 ? '#f4fbff' : '#dcefff');
+        g.globalAlpha = al * 0.5; frect(g, x + 2, y + 1, len - 4, 1, '#8ebfe8');
+        g.globalAlpha = al;
+        if (tip) { const q = Math.round(Math.sin(t * 5 + i) * 1.5); frect(g, x + len, y - 1 + q, 2, 1, '#eef8ff'); frect(g, x + len + 2, y + q, 1, 1, '#eef8ff'); }
+      }
+      g.globalAlpha = 1;
+    }
     // rotores grandes (tira de 12 cuadros) delante de las góndolas
     if (!this._rot) this._rot = PFAWind.rotor(50);
     for (const [hx, hy] of N.hubs) { const sx = hx - cam.x; if (sx < -70 || sx > W + 70) continue; PFAWind.drawRotor(g, this._rot, sx, hy - cam.y, S.ang + hx * 0.01); }
     PFInfra.drawLeds(g, sc, N.leds);
     if (N.r3) { PFInfra.drawLeds(g, sc, N.r3.leds); PFInfra.drawFlows(g, sc, N.r3.flows.map(f => Object.assign(f, { rate: S.parkStopped ? 0 : 0.6 + clamp(WindModel.power(v) / 500, 0, 1) }))); }
-    // estelas visibles: líneas de viento ralentizadas detrás de cada turbina
-    if (sc.lensT > 0 || S.showWake) for (const [hx, hy] of N.hubs) for (let k = 0; k < 6; k++) { const ph = (t * 0.8 + k / 6) % 1; const xx = hx + 20 + ph * 120 - cam.x, yy = hy - cam.y + Math.sin(ph * 6 + k) * (4 + ph * 18); fpx(g, xx, yy, '#ffffff'); }
     // anemómetros desplegados: cazoletas girando
     for (const id of ['anemo1', 'anemo2', 'anemo3']) { const st = w.find(id); if (!st || !st.done) continue; const ax = st.x - cam.x, ay = w.groundAt(st.x) - cam.y; frect(g, ax, ay - 40, 1, 40, '#c8d8e8'); const a = t * (2 + v * 0.3); for (let k = 0; k < 3; k++) { const aa = a + k * TAU / 3; fpx(g, Math.round(ax + Math.cos(aa) * 4), Math.round(ay - 42 + Math.sin(aa) * 1.5), '#e34ad8'); } }
     // mástil aguas arriba: cazoletas de cada altura
@@ -268,6 +295,35 @@ LEVELS[5] = {
     PFDyn.glows(g, cam, N.lamps, '#e8fff4', 9, 0.25);
     if (N.r3) PFDyn.glows(g, cam, N.r3.lamps, '#ffe8b0', 7, 0.22);
     if (N.ctrl) { const [x, y, ww] = N.ctrl; drawText(g, fmt(v, 1) + ' m/s', x - cam.x + ww / 2, y - cam.y + 5, { font: 'tiny', align: 'center', color: v >= 25 ? '#ff4e5d' : '#8ff5c8' }); }
+  },
+  /** r4-l5: vida del diorama del acantilado (delante del terreno, bajo el paso): espuma que lame el pie de la roca
+      (4 cuadros horneados), rocío que salta en los cabos y gaviotas que planean frente a la pared */
+  renderFront(g, sc, cam) {
+    if (typeof R4L5_CLIFF === 'undefined') return;
+    const t = Game.time, w = sc.world;
+    for (const k in R4L5_CLIFF.info) {
+      const I = R4L5_CLIFF.info[k]; if (!I.frames || !I.frames.length) continue;
+      const fw = I.frames[0].width, fh = I.frames[0].height, a = Math.max(0, Math.floor(cam.x) - I.x), b = Math.min(fw, Math.ceil(cam.x) + W - I.x);
+      if (b <= a) continue;
+      g.drawImage(I.frames[Math.floor(t * 2.6) % 4], a, 0, b - a, fh, Math.round(I.x + a - cam.x), Math.round(I.y - cam.y), b - a, fh);
+      // rocío: ráfagas escalonadas de 5 gotas que suben y caen (≤ 40 por cuadro)
+      let n = 0;
+      for (const [px, py, z] of I.spray) {
+        const sx = px - cam.x; if (sx < -10 || sx > W + 10 || n > 40) continue;
+        const per = 2.4 + hash1(px, 7) * 1.6, ph = (t + hash1(px, 9) * per) % per; if (ph > 0.9) continue;
+        g.globalAlpha = 0.9 * (1 - ph / 0.9);
+        for (let i = 0; i < 5; i++) { const vx = (hash1(px + i, 3) - 0.5) * 16, vy = 16 + hash1(px + i, 4) * 14 + z * 3; frect(g, Math.round(sx + (i - 2) * 2 + vx * ph), Math.round(py - cam.y - vy * ph + 34 * ph * ph), 1, i & 1 ? 1 : 2, i % 3 ? '#ffffff' : '#c8f4fa'); n++; }
+      }
+      g.globalAlpha = 1;
+      // gaviotas frente a la pared: colonia (corro) y alguna que patrulla el tramo
+      if (typeof PFFauna !== 'undefined' && PFFauna.drawGullAt) {
+        const list = [];
+        if (I.birds) { const [b0, b1] = I.birds, cx = (b0 + b1) / 2, rx = (b1 - b0) / 2; for (let i = 0; i < 5; i++) { const ang = t * (0.32 + i * 0.05) + i * 1.3; list.push([cx + Math.cos(ang) * rx * (0.5 + i * 0.1), w.groundAt(cx) + 34 + i * 7 + Math.sin(ang * 1.7) * 8, Math.sin(ang) > 0]); } }
+        const span = fw - 40, u = ((t * 9 + hash1(+k, 2) * span) % span), gx = I.x + 20 + u;
+        list.push([gx, w.groundAt(gx) + 42 + Math.sin(t * 0.8 + +k) * 10, false]);
+        for (const [x, y, fl] of list) { const sx = x - cam.x; if (sx > -12 && sx < W + 12) PFFauna.drawGullAt(g, sx, y - cam.y, t + x * 0.01, fl); }
+      }
+    }
   },
   lens(g, sc, cam, k) {
     const S = sc.state, ox = cam.x, oy = cam.y, w = sc.world;
