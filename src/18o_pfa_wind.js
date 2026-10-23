@@ -853,7 +853,7 @@ const R4L5_CLIFF = (() => {
     const Wy = new Int16Array(x1 - x0 + 9);
     for (let x = x0 - 4; x <= x1 + 4; x++) {
       let f = footBase;
-      for (const c of coves) { const e = Math.min(x - c.x0, c.x1 - x); if (e > -16) f = Math.min(f, Math.round(lerp(footBase, c.wy, clamp((e + 16) / 26, 0, 1)))); }
+      for (const c of coves) { const e = Math.min(x - c.x0, c.x1 - x); if (e > -16) { const bay = c.wy + (1 - Math.sin(clamp((x - c.x0) / (c.x1 - c.x0), 0, 1) * Math.PI)) * 12; f = Math.min(f, Math.round(lerp(footBase, bay, clamp((e + 16) / 26, 0, 1)))); } }
       Wy[x - x0 + 4] = f + Math.round((vnoise(x * 0.09, 0.5, s.seed | 0) - 0.5) * 4);
     }
     const tiers = [];
@@ -923,8 +923,13 @@ const R4L5_CLIFF = (() => {
     const sd = ((s.seed | 0) * 131 + 29) & 0xffff;
     const gyA = new Int16Array(w); for (let i = 0; i < w; i++) gyA[i] = gyAt(bx0 + i);
     const WyAt = (x) => L_.Wy[clamp(x - s.x0 + 4, 0, L_.Wy.length - 1)];
-    const clip = (x, d) => (s.edgeR != null && x >= s.edgeR - Math.round(Math.min(d * 0.2, 3 + vnoise(d * 0.06, 1, sd) * 7))) || (s.edgeL != null && x < s.edgeL + Math.round(Math.min(d * 0.16, 2 + vnoise(d * 0.06, 2, sd) * 6)));
+    const clip = (x, d) => (s.edgeR != null && x >= s.edgeR - 12 && x >= s.edgeR - Math.round(Math.min(d * 0.2, 3 + vnoise(d * 0.06, 1, sd) * 7))) || (s.edgeL != null && x < s.edgeL + 10 && x < s.edgeL + Math.round(Math.min(d * 0.16, 2 + vnoise(d * 0.06, 2, sd) * 6)));
+    // cachés de ruido que solo dependen de x (roturas de bloque, estratos, repisas)
+    const NB = new Float32Array(w * 24).fill(NaN), SX = new Float32Array(w), BX = new Float32Array(w).fill(NaN);
+    for (let xi = 0; xi < w; xi++) SX[xi] = (vnoise((xi + bx0) * 0.012, 3.3, sd) - 0.5) * 22;
+    const brk = (k, xi) => { const j = Math.min(k, 23) * w + xi; let v = NB[j]; if (v !== v) v = NB[j] = (vnoise((xi + bx0) * 0.21, k * 3.1, sd + 40) - 0.5) * 4; return v; };
     function paint(M, isWall) {
+      const FT = isWall ? null : new Int16Array(w).fill(-1);
       const C = M.cols, nC = C.length, E = new Int32Array(nC + 1);
       let yA = by0, yB = by0 + h;
       if (!isWall) { yA = Math.max(by0, Math.min(...C.map(c => c.top)) - 2); yB = Math.min(by0 + h, M.foot + 4); }
@@ -945,8 +950,8 @@ const R4L5_CLIFF = (() => {
             const xi = x - bx0, gy = gyA[xi];
             let top, foot;
             if (isWall) { top = gy; foot = WyAt(x); }
-            else { top = Math.max(gy + 3, c.top + Math.round(c.tilt * (x - (c.x0 + c.x1) * 0.5))); foot = M.foot + Math.round((vnoise(x * 0.12, M.sd & 1023, 6) - 0.5) * 4); }
-            const d = y - top; if (d < 0 || y >= foot) continue;
+            else { top = Math.max(gy + 3, c.top + Math.round(c.tilt * (x - (c.x0 + c.x1) * 0.5))); foot = FT[xi]; if (foot < 0) foot = FT[xi] = M.foot + Math.round((vnoise(x * 0.12, M.sd & 1023, 6) - 0.5) * 4); }
+            const d = y - top; if (d < 0 || y >= foot || Zb[row + xi] !== -1) continue;
             if (clip(x, y - gy)) continue;
             const dl = x - Lx, dr = Rx - 1 - x, u = clamp(dl / Math.max(3, Rx - Lx - 1), 0, 1);
             let hg = M.z * ZH + c.pro + (isWall ? m.pro : 0), alb = 1 + (hash1(c.sd, 5) - 0.5) * 0.1 + m.alb, fl = 0;
@@ -961,7 +966,7 @@ const R4L5_CLIFF = (() => {
               else {
                 const cm = (Lx + Rx) * 0.5, B = c.br;
                 let bi = -1, btop = 0, bbot = 1e9;
-                for (let k = 0; k < B.length; k++) { const bd = B[k].d + Math.round(B[k].tilt * (x - cm) + (vnoise(x * 0.21, k * 3.1, sd + 40) - 0.5) * 4); if (bd <= dd) { bi = k; btop = bd; } else { bbot = bd; break; } }
+                for (let k = 0; k < B.length; k++) { const bd = B[k].d + Math.round(B[k].tilt * (x - cm) + brk(k, xi)); if (bd <= dd) { bi = k; btop = bd; } else { bbot = bd; break; } }
                 const b = bi >= 0 ? B[bi] : null, nb = B[bi + 1];
                 hg += b ? b.off : c.off0;
                 const dt = dd - btop, db = bbot - 1 - dd;
@@ -980,15 +985,16 @@ const R4L5_CLIFF = (() => {
                 }
               }
               hg += (vnoise(x * 0.16, y * 0.11, sd + 7) - 0.5) * 2.2;
-              alb += (hash1(Math.floor((d + (vnoise(x * 0.012, 3.3, sd) - 0.5) * 22) / 21), sd + 5) - 0.5) * 0.1;
+              alb += (hash1(Math.floor((d + SX[xi]) / 21), sd + 5) - 0.5) * 0.1;
               if (isWall && m.band && x >= m.band.xa && x < m.band.xb) {
-                const T = m.band, td = T.d + Math.round((vnoise(x * 0.06, m.i + 0.5, 11) - 0.5) * 5);
+                let bn = BX[xi]; if (bn !== bn) bn = BX[xi] = (vnoise(x * 0.06, m.i + 0.5, 11) - 0.5) * 5;
+                const T = m.band, td = T.d + Math.round(bn);
                 if (T.kind > 0) { if (d >= td + 4) hg += T.amt; else if (d >= td) hg += T.amt * (d - td + 1) / 5; }
                 else { if (d < td - 1) hg += T.amt; else if (d < td + 1) hg += T.amt * (td + 1 - d) / 3; }
               }
               const cv = m.cave;
               if (cv) {
-                const ex2 = (x - cv.cx) / cv.rx, ey2 = (y - cv.cy) / cv.ry, nz = (vnoise(x * 0.2, y * 0.2, sd + 50) - 0.5) * 0.5;
+                const ex2 = (x - cv.cx) / cv.rx, ey2 = (y - cv.cy) / cv.ry, nz = ex2 * ex2 + (cv.sea && y >= cv.cy - 2 ? 0 : ey2 * ey2) < 1.4 ? (vnoise(x * 0.2, y * 0.2, sd + 50) - 0.5) * 0.5 : 0;
                 const rr = cv.sea ? (y >= cv.cy - 2 ? ex2 * ex2 + nz : ex2 * ex2 + ey2 * ey2 + nz) : ex2 * ex2 + ey2 * ey2 + nz;
                 if (rr < 1) { hg -= cv.dep * Math.sqrt(1 - rr); alb -= 0.08; if (rr < 0.72) fl = 3; }
               }
@@ -999,13 +1005,14 @@ const R4L5_CLIFF = (() => {
         }
       }
     }
+    // de delante hacia atrás: cabos (z alto primero) y luego el muro solo donde queda visible
+    for (let q = L_.tiers.length - 1; q >= 0; q--) paint(L_.tiers[q], false);
     paint({ z: 0, cols: L_.wcols }, true);
     // playa de cantos al fondo de las calas 'beach' (capa 0, plana)
     for (const c of L_.coves) if (c.kind === 'beach') for (let x = c.x0 + 4; x < c.x1 - 4; x++) {
       const f = WyAt(x), bh = Math.round(7 + Math.sin(clamp((x - c.x0) / (c.x1 - c.x0), 0, 1) * Math.PI) * 6 + (vnoise(x * 0.1, 3, sd) - 0.5) * 3);
-      for (let y = f; y < f + bh && y < by0 + h; y++) { const i = (y - by0) * w + (x - bx0); H[i] = 0.5; A[i] = 1; F[i] = 9; Zb[i] = 0; FD[i] = f + bh - y; }
+      for (let y = f; y < f + bh && y < by0 + h; y++) { const i = (y - by0) * w + (x - bx0); if (Zb[i] !== -1) continue; H[i] = 0.5; A[i] = 1; F[i] = 9; Zb[i] = 0; FD[i] = f + bh - y; }
     }
-    for (const T of L_.tiers) paint(T, false);
     // mar: desde el último sólido de cada columna hasta abajo
     for (let xi = 0; xi < w; xi++) {
       const x = xi + bx0, gy = gyA[xi];
@@ -1022,6 +1029,8 @@ const R4L5_CLIFF = (() => {
       last = 99999; for (let x = w - 1; x >= 0; x--) { const i = y * w + x; if (Zb[i] >= 0) last = x; else if (Zb[i] === -2) dist[i] = Math.min(dist[i], Math.round((last - x) * 1.6)); }
     }
     const RR = ramp17(s.ramp || RAMP.rockWarmR), W32 = P32(WAT), SA = P32(SANDR), buf = new Uint32Array(N);
+    const OSK = new Int16Array(22), OSX = new Int16Array(22), OSY = new Int16Array(22);
+    for (let q = 0; q < 22; q++) { const k = 2 + q * 2; OSK[q] = k; OSX[q] = Math.round(SDX * k); OSY[q] = Math.round(SDY * k); }
     const LIP = U('#fde3a8'), WET = U('#2a1c18'), SEAB = U('#2a6a9a'), GUANO = U('#3a2a1c');
     for (let y = 0; y < h; y++) {
       const ya = Math.max(0, y - 4), yb = Math.min(h, y + 5);
@@ -1029,8 +1038,8 @@ const R4L5_CLIFF = (() => {
         const i = y * w + x, z = Zb[i]; if (z === -1) continue;
         const h0 = H[i];
         let sh = 0;
-        for (let k = 2; k <= 44; k += 2) {
-          const sx = x + Math.round(SDX * k), sy = y + Math.round(SDY * k); if (sx < 0 || sy < 0 || sx >= w) break;
+        for (let q = 0; q < 22; q++) {
+          const k = OSK[q], sx = x + OSX[q], sy = y + OSY[q]; if (sx < 0 || sy < 0 || sx >= w) break;
           const hs = H[sy * w + sx]; if (hs <= NONE || (z === -2 && Zb[sy * w + sx] < 1)) continue;
           const ex = hs - h0 - SLOPE * k; if (ex > 0) { sh = Math.max(sh, Math.min(1, ex / 1.6)); if (sh >= 1) break; }
         }
@@ -1261,6 +1270,19 @@ const R4L5_CLIFF = (() => {
       if (c0 && r() < 0.75) { const x = c0.x0 + 1, y = gy(x) + 10 + r.int(0, 50); if (inSeg(x) && Zat(x, y) === 0 && Zat(x, y - 5) === 0) { if (r() < 0.5) PFFlora.fern(pb, x, y, 7 + r.int(0, 5), x + y * 3); else PFFlora.tuft(pb, x, y, 6 + r() * 4, 5 + r() * 4, x + y); } }
       const cv = m.cave;
       if (cv && !cv.sea) { const x = Math.round(cv.cx), y = Math.round(cv.cy + cv.ry * 0.55); if (inSeg(x) && Zat(x, y) === 0) { R3WINDSTORM.nest(pb, x, y, x + y); if (r() < 0.5) PFAWind.perchedGull(pb, x + 3, y - 1, x); } }
+    }
+    // 2b) muro: plantas que brotan de las grietas (colgantes, matas, helechos, flores) cada ~20–34 px
+    for (let x = s.x0 + r.int(4, 16); x < s.x1 - 4; x += 20 + r.int(0, 14)) {
+      if (!inSeg(x)) continue;
+      let y = gy(x) + 8 + r.int(0, 56), hit = false;
+      for (let q = 0; q < 14 && !hit; q++, y++) if (Fat(x, y) === 1 && Zat(x, y) === 0 && Zat(x, y - 5) === 0 && Zat(x, y + 5) === 0) hit = true;
+      if (!hit) continue;
+      const k = r();
+      if (k < 0.38) hanger(pb, x, y, 5 + r.int(0, 12), x * 11 + y, r() < 0.35 ? r.pick(BLOOMS) : null);
+      else if (k < 0.62) PFFlora.tuft(pb, x, y, 5 + r() * 4, 4 + r() * 4, x + y * 5, RAMP.grassR, { wind: 0.5 });
+      else if (k < 0.78) PFFlora.fern(pb, x, y, 6 + r.int(0, 4), x * 3 + y);
+      else if (k < 0.9) bloomBush(pb, x, y, 6 + r.int(0, 4), x + y, r.pick(BLOOMS));
+      else PFFlora.agave(pb, x, y, 3 + r.int(0, 2), x + y * 9, ['#0c2020', '#123230', '#1c4a40', '#2a6450', '#3e7e60', '#5a9a74', '#86bc94']);
     }
     // 3) cabos: vegetación en las cabezas al sol (cadenas), plantas colgantes del canto, nidos y gaviotas
     const birds = o.birds;
