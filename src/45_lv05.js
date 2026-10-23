@@ -109,13 +109,13 @@ LEVELS[5] = {
        paths: [[x, dy bajo el canto]..] */
     terrain: [
       { x0: 0, x1: 424, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 1, edgeR: 424, hard: true,
-        r4: { coves: [[150, 240, 352, 'beach'], [300, 352, 358, 'stack']], paths: [[[116, 1], [92, 22], [128, 46], [160, 72]]] } },
+        r4: { coves: [[150, 240, 340, 'beach'], [300, 356, 344, 'stack']], paths: [[[116, 1], [92, 22], [128, 46], [160, 72]]] } },
       { x0: 424, x1: 624, surf: 'void', face: 'void', hard: true },
       { x0: 624, x1: 1304, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 2, edgeL: 624, edgeR: 1304, hard: true,
-        r4: { coves: [[688, 744, 358, 'stack'], [904, 1000, 348, 'landing'], [1122, 1196, 354, 'cave']], conduit: { from: [760, 900, 1040, 1180], to: 952, d: 5 } } },
+        r4: { coves: [[680, 750, 344, 'stack'], [904, 1000, 336, 'landing'], [1118, 1200, 340, 'cave']], conduit: { from: [760, 900, 1040, 1180], to: 952, d: 5 } } },
       { x0: 1304, x1: 1564, surf: 'void', face: 'void', hard: true },
       { x0: 1564, x1: 3000, surf: 'meadow', face: 'r4l5cliff', ramp: LV5_ROCK, depth: 16, seed: 3, edgeL: 1564, hard: true,
-        r4: { coves: [[1606, 1662, 356, 'stack'], [1756, 1846, 350, 'cave'], [1986, 2080, 352, 'cave'], [2196, 2270, 356, 'stack'], [2380, 2470, 348, 'birds'], [2640, 2792, 348, 'jetty'], [2880, 2948, 354, 'stack']],
+        r4: { coves: [[1604, 1664, 344, 'stack'], [1756, 1850, 338, 'cave'], [1984, 2084, 340, 'cave'], [2190, 2274, 344, 'stack'], [2378, 2474, 336, 'birds'], [2636, 2796, 334, 'jetty'], [2876, 2952, 342, 'stack']],
           birds: [2364, 2566], paths: [[[2622, 1], [2600, 26], [2634, 52], [2612, 76], [2650, 104]], [[1716, 1], [1700, 20], [1730, 44], [1760, 70]]] } },
     ],
     /** Primer plano: matas costeras con altramuces en los bordes inferiores */
@@ -270,6 +270,35 @@ LEVELS[5] = {
     PFDyn.glows(g, cam, N.lamps, '#e8fff4', 9, 0.25);
     if (N.r3) PFDyn.glows(g, cam, N.r3.lamps, '#ffe8b0', 7, 0.22);
     if (N.ctrl) { const [x, y, ww] = N.ctrl; drawText(g, fmt(v, 1) + ' m/s', x - cam.x + ww / 2, y - cam.y + 5, { font: 'tiny', align: 'center', color: v >= 25 ? '#ff4e5d' : '#8ff5c8' }); }
+  },
+  /** r4-l5: vida del diorama del acantilado (delante del terreno, bajo el paso): espuma que lame el pie de la roca
+      (4 cuadros horneados), rocío que salta en los cabos y gaviotas que planean frente a la pared */
+  renderFront(g, sc, cam) {
+    if (typeof R4L5_CLIFF === 'undefined') return;
+    const t = Game.time, w = sc.world;
+    for (const k in R4L5_CLIFF.info) {
+      const I = R4L5_CLIFF.info[k]; if (!I.frames || !I.frames.length) continue;
+      const fw = I.frames[0].width, fh = I.frames[0].height, a = Math.max(0, Math.floor(cam.x) - I.x), b = Math.min(fw, Math.ceil(cam.x) + W - I.x);
+      if (b <= a) continue;
+      g.drawImage(I.frames[Math.floor(t * 2.6) % 4], a, 0, b - a, fh, Math.round(I.x + a - cam.x), Math.round(I.y - cam.y), b - a, fh);
+      // rocío: ráfagas escalonadas de 5 gotas que suben y caen (≤ 40 por cuadro)
+      let n = 0;
+      for (const [px, py, z] of I.spray) {
+        const sx = px - cam.x; if (sx < -10 || sx > W + 10 || n > 40) continue;
+        const per = 2.4 + hash1(px, 7) * 1.6, ph = (t + hash1(px, 9) * per) % per; if (ph > 0.9) continue;
+        g.globalAlpha = 0.9 * (1 - ph / 0.9);
+        for (let i = 0; i < 5; i++) { const vx = (hash1(px + i, 3) - 0.5) * 16, vy = 16 + hash1(px + i, 4) * 14 + z * 3; frect(g, Math.round(sx + (i - 2) * 2 + vx * ph), Math.round(py - cam.y - vy * ph + 34 * ph * ph), 1, i & 1 ? 1 : 2, i % 3 ? '#ffffff' : '#c8f4fa'); n++; }
+      }
+      g.globalAlpha = 1;
+      // gaviotas frente a la pared: colonia (corro) y alguna que patrulla el tramo
+      if (typeof PFFauna !== 'undefined' && PFFauna.drawGullAt) {
+        const list = [];
+        if (I.birds) { const [b0, b1] = I.birds, cx = (b0 + b1) / 2, rx = (b1 - b0) / 2; for (let i = 0; i < 5; i++) { const ang = t * (0.32 + i * 0.05) + i * 1.3; list.push([cx + Math.cos(ang) * rx * (0.5 + i * 0.1), w.groundAt(cx) + 34 + i * 7 + Math.sin(ang * 1.7) * 8, Math.sin(ang) > 0]); } }
+        const span = fw - 40, u = ((t * 9 + hash1(+k, 2) * span) % span), gx = I.x + 20 + u;
+        list.push([gx, w.groundAt(gx) + 42 + Math.sin(t * 0.8 + +k) * 10, false]);
+        for (const [x, y, fl] of list) { const sx = x - cam.x; if (sx > -12 && sx < W + 12) PFFauna.drawGullAt(g, sx, y - cam.y, t + x * 0.01, fl); }
+      }
+    }
   },
   lens(g, sc, cam, k) {
     const S = sc.state, ox = cam.x, oy = cam.y, w = sc.world;

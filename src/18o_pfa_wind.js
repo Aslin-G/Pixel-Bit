@@ -864,7 +864,7 @@ const R4L5_CLIFF = (() => {
       T.cols = mkCols(r, xa, xb, o2.cMin ?? 8, o2.cMax ?? 20, { b0: 5, b1: 14, s0: 9, s1: 22 });
       // cabezas en 3/4: plano superior hondo (el cabo se adelanta), hombros redondeados en los extremos
       for (const c of T.cols) { const e = Math.min(c.x0 - xa, xb - c.x1); c.top = top + r.int(-2, 2) + (e < 5 ? r.int(2, 6) : 0); c.hh = o2.stack ? 5 + r.int(0, 2) : 7 + Math.min(z, 3) * 2 + r.int(0, 3) - (e < 5 ? 2 : 0); c.tilt = (r() - 0.5) * 0.12; }
-      if (!o2.stack && r() < 0.34 && xb - xa > 40) T.cave = { cx: xa + (xb - xa) * (0.3 + r() * 0.4), cy: top + 16 + r.int(0, 18), rx: r.int(5, 10), ry: r.int(4, 8), dep: 7 + r() * 6 };
+      if (!o2.stack && r() < 0.45 && xb - xa > 36) T.cave = { cx: xa + (xb - xa) * (0.3 + r() * 0.4), cy: top + 18 + r.int(0, 20), rx: r.int(6, 12), ry: r.int(5, 10), dep: 9 + r() * 6 };
       tiers.push(T); return T;
     };
     // tramos de tierra entre calas → cabos escalonados y contrafuertes
@@ -874,14 +874,14 @@ const R4L5_CLIFF = (() => {
     for (const [la, lb] of land) {
       let x = la + r.int(0, 6);
       while (x < lb - 12) {
-        let gw = Math.min(lb - x, r.int(o.wMin ?? 64, o.wMax ?? 150)); if (lb - (x + gw) < 30) gw = lb - x;
-        const xa = x, xb = x + gw, g0 = gyAt((xa + xb) >> 1);
+        let gw = Math.min(lb - x, r.int(o.wMin ?? 52, o.wMax ?? 180)); if (lb - (x + gw) < 30) gw = lb - x;
+        const xa = x, xb = x + gw, g0 = gyAt((xa + xb) >> 1), cw = r.pick([[7, 13], [10, 20], [14, 26], [18, 32]]);
         if (gw < 58 && r() < 0.65) tier(xa + 1, xb - 1, g0 + r.int(5, 14), 1, footBase + r.int(4, 10), { cMin: 8, cMax: 15 });
         else {
-          const n = gw > 104 ? r.int(2, 3) : r.int(1, 2), down = r() < 0.72 ? -1 : 1;
-          let ta = xa + r.int(0, 6), tb = xb - r.int(0, 6), top = g0 + r.int(18, 40);
+          const n = gw > 100 ? r.int(2, 3) : r.int(1, 2), down = r() < 0.72 ? -1 : 1;
+          let ta = xa + r.int(0, 6), tb = xb - r.int(0, 6), top = g0 + r.pick([r.int(12, 24), r.int(22, 40), r.int(36, 58)]);
           for (let k = 0; k < n; k++) {
-            tier(ta, tb, top, k + 1, footBase + 4 + k * 3 + r.int(0, 4));
+            tier(ta, tb, top, k + 1, footBase + 4 + k * 3 + r.int(0, 4), { cMin: cw[0], cMax: cw[1] });
             const w2 = Math.round((tb - ta) * (0.44 + r() * 0.26));
             if (down < 0) { ta -= r.int(2, 14); tb = ta + w2; } else { tb += r.int(2, 14); ta = tb - w2; }
             top += r.int(16, 30);
