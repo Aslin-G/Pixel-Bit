@@ -12,7 +12,10 @@
        sy = y − cam.y·fy; fy = 1 si f = 1 (mundo); si no, fy = f·0,3
        (igual que Backdrop.layer) salvo que la etiqueta defina fy.
      · (x, y) = centro inferior de la caja. El tallo baja desde el borde
-       inferior hasta (ax ?? x, ay ?? y + 8) y termina en un remache.
+       inferior hasta (ax ?? x, ay ?? y + 8) y termina en un remache (si el
+       ancla queda por encima de la caja, el tallo sube desde el borde superior).
+     · def.labelAvoid: rótulos horneados [{x, y, w, h}] (mundo) que ni cajas ni
+       tallos tapan; def.labelOffsets: {TÍTULO: {dx, dy, adx, ady, hide}}.
      · kind: 'water' | 'brine' | 'green' | 'solar' | 'tech' | 'alert'.
      · sub puede ser texto o función (sc) → texto (valores en vivo).
    ===================================================================== */
@@ -226,6 +229,13 @@ const WorldLabels = (() => {
       g.fillStyle = B.K.border; g.fillRect(stx, sy, 1, ay - sy);
       if (stx !== ax) { g.fillRect(Math.min(stx, ax), ay, Math.abs(ax - stx) + 1, 1); }
       g.fillStyle = B.K.border; g.fillRect(ax - 1, ay - 1, 3, 3); g.fillStyle = '#ffffff'; g.fillRect(ax, ay - 1, 1, 1);
+    } else if (ay < by - 1) {
+      // r4-labels: ancla por encima de la caja (p. ej. una etiqueta bajo el agua que señala la pluma): el tallo sube
+      const stx = clamp(ax, bx + 3, bx + B.w - 4);
+      g.fillStyle = B.K.glow; g.fillRect(stx + 1, ay, 1, by - ay + 1);
+      g.fillStyle = B.K.border; g.fillRect(stx, ay, 1, by - ay + 1);
+      if (stx !== ax) { g.fillRect(Math.min(stx, ax), ay, Math.abs(ax - stx) + 1, 1); }
+      g.fillStyle = B.K.border; g.fillRect(ax - 1, ay - 1, 3, 3); g.fillStyle = '#ffffff'; g.fillRect(ax, ay - 1, 1, 1);
     }
     g.drawImage(B.c, bx, by);
     if (alpha < 1) g.globalAlpha = 1;
@@ -235,10 +245,12 @@ const WorldLabels = (() => {
   function stemRects(L, cam, R, dx, dy) {
     const f = L.f ?? 1, fy = L.fy ?? (f === 1 ? 1 : f * 0.3);
     const ax = Math.round((L.ax ?? L.x) - cam.x * f), ay = Math.round((L.ay ?? (L.y + 8)) - cam.y * fy);
-    const bx = R.x + dx, sy = R.y + dy + R.h - 1;
-    if (ay <= sy) return [];
+    const bx = R.x + dx, sy = R.y + dy + R.h - 1, ty = R.y + dy;
     const stx = clamp(ax, bx + 4, bx + R.w - 3);
-    const out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    let out;
+    if (ay > sy) out = [{ x: stx - 1, y: sy, w: 3, h: ay - sy + 2 }];
+    else if (ay < ty - 1) out = [{ x: stx - 1, y: ay - 1, w: 3, h: ty - ay + 2 }];
+    else return [];
     if (stx !== ax) out.push({ x: Math.min(stx, ax) - 1, y: ay - 1, w: Math.abs(ax - stx) + 3, h: 3 });
     return out;
   }
@@ -316,11 +328,11 @@ const WorldLabels = (() => {
       if (R.x < 1 || R.x + R.w > W - 1) continue; // cortada por el borde del encuadre: no se dibuja a medias
       if (seen.has(L.title)) continue;
       // el ancla (lo que la etiqueta nombra) debe verse: dentro del encuadre y fuera del HUD
-      const A = anchorOf(L, cam), stem = A.y > R.y + R.h;
-      if (stem && (A.x < 2 || A.x > W - 3 || A.y > H - 3 || underHud(A))) { L._fixlaOff = null; continue; }
+      const A = anchorOf(L, cam), stem = A.y > R.y + R.h, up = A.y < R.y - 1;
+      if ((stem || up) && (A.x < 2 || A.x > W - 3 || A.y > H - 3 || underHud(A))) { L._fixlaOff = null; continue; }
       const far = (L.f ?? 1) !== 1, m = far ? 4 : 2;
       // el tallo puede entrar en el rótulo (o panel) que contiene su ancla: es justo lo que la etiqueta nombra
-      const stemSigns = stem ? signs.filter(q => !(A.x >= q.x && A.x < q.x + q.w && A.y >= q.y && A.y < q.y + q.h)) : signs;
+      const stemSigns = (stem || up) ? signs.filter(q => !(A.x >= q.x && A.x < q.x + q.w && A.y >= q.y && A.y < q.y + q.h)) : signs;
       let best = null, fallback = null;
       // histéresis: tras su sitio se prueba el desplazamiento del cuadro anterior (evita saltos entre opciones equivalentes)
       const base = far ? FAR_TRY : NEAR_TRY;
@@ -329,6 +341,7 @@ const WorldLabels = (() => {
         const R2 = { x: R.x + dx, y: R.y + dy, w: R.w, h: R.h };
         if (R2.x < 1 || R2.x + R2.w > W - 1 || R2.y < 1 || R2.y + R2.h > H - 2) continue;
         if (stem && R2.y + R2.h > A.y - 4) continue; // la caja no tapa su ancla: queda un tallo visible
+        if (up && R2.y < A.y + 4) continue;
         if (placed.some(p => hit(R2, p, p.hud ? 2 : m))) continue;
         if (signs.some(s => hit(R2, s, 1))) continue;
         const st = stemRects(L, cam, R, dx, dy);

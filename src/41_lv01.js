@@ -79,7 +79,7 @@ LEVELS[1] = {
     { x: 1455, y: 172, title: 'CAPTACIÓN', sub: 'Toma costera', kind: 'water', ax: 1452, ay: 198 }, // r4-labels: el tallo baja a la cubierta de la torre de toma (antes acababa en el cielo)
     { x: 1522, y: 346, title: 'REJILLA DE TOMA', sub: (sc) => 'v ≈ ' + fmt((sc.state.q || 100) / 3600 / 1.6, 3) + ' m/s', kind: 'tech', ax: 1476, ay: 375 },
     { x: 1250, y: 362, title: 'ARRECIFE', sub: '(Zona de cría)', kind: 'green', ax: 1236, ay: 380 },
-    { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 448, ay: 318 },
+    { x: 536, y: 346, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: 452, ay: 306 }, // r4-labels: el tallo sube y señala la pluma (antes la caja flotaba sin tallo)
     { x: 1745, y: 150, title: 'PRETRATAMIENTO', sub: '(Filtros de arena)', kind: 'water', ax: 1745, ay: 166 },
     { x: 2084, y: 214, title: 'AGUA PRETRATADA', sub: 'hacia la planta OI', kind: 'water', ax: 2084, ay: 248 },
     { x: 735, y: 236, title: 'TURBIDEZ', sub: (sc) => fmt(sc.state.turb || 2.5, 1) + ' NTU', kind: 'alert', ax: 735, ay: 262, when: (sc) => !!sc.state.hud },

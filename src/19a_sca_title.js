@@ -274,7 +274,7 @@ const SCATitleArt = (() => {
         { x: Aq.potable.x - 46, y: L + Aq.potable.y - 8, title: 'AGUA POTABLE', sub: '(Permeado)', kind: 'water', ax: Aq.potable.x - 10, ay: L + Aq.potable.y + 6 },
       );
       A.mouth = { x: P.mouth.x, y: L + P.mouth.y };
-      A.labels.push({ x: P.mouth.x - 52, y: WY + 34, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: P.mouth.x - 22, ay: WY + 22 });
+      A.labels.push({ x: P.mouth.x - 52, y: WY + 34, title: 'SALMUERA', sub: '(Rechazo)', kind: 'brine', ax: P.mouth.x + 6, ay: WY + 6 }); // r4-labels: el tallo sube hasta la pluma (antes, sin tallo)
     }, { dyn: (g) => R2PLANT.drawFx(g, A.plant, 0, PLANT_LY, Game.time, {}) });
     A.plume = R2PLANT.plumeStrip({ mode: 'under', s: 1, w: 150, h: 62, bed: 50, seed: 11 });
     /* ---------------- corte submarino (kit PFWater con mundo ficticio) ---------------- */
@@ -344,8 +344,6 @@ const SCATitleArt = (() => {
     PFWater.renderBack(g, A.wsc, A.water);
     PFWater.renderFront(g, A.wsc, A.water);
     drawUnderPipes(g, A, t);
-    // etiquetas científicas
-    for (const L of A.labels) WorldLabels.drawOne(g, L, { x: 0, y: 0 }, null);
     // acantilado
     g.drawImage(A.cliffTop, 0, 0);
     g.drawImage(A.cliff, 0, 0);
@@ -361,6 +359,8 @@ const SCATitleArt = (() => {
     g.drawImage(A.clumpL, -20, H - 92);
     g.drawImage(A.clumpR, W - 104, H - 58);
     V.drawMotes(g, 18, t, 11, { y0: 120, y1: 300 });
+    // etiquetas científicas al final (r4-labels): el águila, las motas y los oclusores ya no cruzan su texto
+    for (const L of A.labels) WorldLabels.drawOne(g, L, { x: 0, y: 0 }, null);
   }
   /** Pluma de salmuera bajo la boca del emisario: chorro denso y saturado que cae, se hunde hasta el lecho y se diluye */
   function drawUnderPipes(g, A, t) {
