@@ -13,9 +13,9 @@ genérico · 1 = plataformas retro sencillo.
 ## Ronda 3 (cierre del rediseño)
 
 Tercera y última ronda, dirigida a las carencias de la ronda 2. Se cerró a petición del
-usuario tras completar la iteración en curso; **no se ha vuelto a convocar a los jueces
-independientes**, de modo que las notas vigentes siguen siendo las de la ronda 2 y no se
-afirma que el umbral del STYLE LOCK §16 esté superado.
+usuario tras completar la iteración en curso y, después, sus cuatro pendientes. **No se ha
+vuelto a convocar a los jueces independientes**, de modo que las notas vigentes siguen siendo
+las de la ronda 2 y no se afirma que el umbral del STYLE LOCK §16 esté superado.
 
 Hecho en esta ronda:
 
@@ -45,13 +45,33 @@ Hecho en esta ronda:
 - **Corrección**: los seis vecinos de fondo del epílogo eran invisibles (usaban un sprite
   inexistente); ahora se dibujan.
 
-Pendiente al cerrar (no abordado):
+Pendientes cerrados después (última pasada, a petición del usuario):
 
-- N5: la mitad inferior sigue siendo un único frente de acantilado; estelas de los rotores.
-- N10: arena que vela las piernas de Amaya, más vegetación y chabolas en 3/4.
-- N8: cordillera propia, corte de suelo y banco de semillas en 3/4.
-- Revisión general de solapes de etiquetas (WorldLabels) y repaso global de luz por nivel.
-- Nueva evaluación independiente de los doce criterios.
+- **N5**: la mitad inferior deja de ser un único frente de acantilado: diorama esculpido con
+  cabos escalonados y sombra granate, calas con espuma y reflejos, cuevas marinas, sendas,
+  escalera hasta un embarcadero, conducciones de los aerogeneradores hasta una caseta de
+  aterrizaje del cable, colonia de aves marinas y flora canaria en repisas; oleaje, rociones y
+  gaviotas animados; estela tenue detrás de cada rotor (por debajo de rótulos y etiquetas);
+  plano frontal de rocas frías.
+- **N10**: la cinta de arena rasante pasa detrás de los personajes salvo la franja de los
+  tobillos; las piernas de Amaya ya no quedan veladas.
+- **N8**: cordilleras erosionadas propias (caras ocres, sombras violeta, cárcavas, cordillera
+  fantasma); corte de suelo denso e iluminado (estratos, acuífero, goteo enterrado, tuberías con
+  chevrones, sondas, raíces, lombrices, hormiguero); banco de semillas en 3/4 (cubierta con FV y
+  captavientos, banda de sombra bajo la cornisa, lateral en sombra, sombra arrojada); cultivos que
+  se mecen, insectos, aves y agua animada (8–12 % de píxeles animados, antes 2–5 %).
+- **Etiquetas** (`src/18f_pf_signs.js`): una etiqueta ya no se desplaza sobre su propio ancla
+  (perdía el tallo); se ocultan las de objetos fuera de pantalla o bajo el HUD; los tallos
+  esquivan el HUD superior e inferior y los avisos del Atlas; los rótulos horneados de
+  `def.labelAvoid` bloquean caja y tallo; tallos hacia arriba; nuevo `def.labelOffsets` por nivel;
+  las etiquetas se dibujan por encima de partículas y fauna en el título. Ajustes en N0, N1, N2,
+  N4, N6, N7, N9, N10, N11 y el título; barrido de 13 posiciones por nivel sin solapes.
+
+Sigue pendiente: una nueva evaluación independiente de los doce criterios. Quedan detalles
+menores anotados por los constructores: el panel de indicadores inferior tapa parte del mar del
+N5 y del corte de suelo del N8; la cordillera del N8 carece de los medios tonos rosados de la
+referencia; el texto «kW!» de los enemigos móviles del N4 puede pasar bajo la etiqueta
+SEGUIDORES.
 
 Pruebas al cierre: humo («Humo OK»), 77/77 pruebas científicas, banco válido y 19/19
 comprobaciones de la Calima; sin errores de consola.
