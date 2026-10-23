@@ -481,8 +481,14 @@ function R4L8_seedBank(pb, x, yb, w, h, d) {
     // derrame: jamba izquierda y dintel en sombra (luz arriba-izquierda), jamba derecha iluminada
     for (let yy = by - dh; yy < by - 3; yy++) { darken(s, ddx, yy, -0.38); darken(s, ddx + 1, yy, -0.2); put(s, ddx + dw - 1, yy, K.mixU(get(s, ddx + dw - 1, yy), U('#fff0c8'), 0.25)); }
     for (let xx = ddx; xx < ddx + dw; xx++) for (let q = 0; q < 3; q++) { const yy = by - dh + 4 + q; darken(s, xx, yy, q === 0 ? -0.36 : -0.2); }
+    // hoja de dos batientes: junta central, travesaños con canto de luz, rejilla de ventilación abajo
+    const L = K.P32(DC[k]), mid = ddx + Math.round(dw / 2);
+    for (let yy = by - dh + 8; yy < by - 4; yy++) { put(s, mid, yy, L[0]); put(s, mid + 1, yy, L[4]); }
+    for (const ty of [by - Math.round(dh * 0.42), by - Math.round(dh * 0.78)]) for (let xx = ddx + 2; xx < ddx + dw - 1; xx++) { put(s, xx, ty, L[5]); put(s, xx, ty + 1, L[1]); }
+    for (let q = 0; q < 3; q++) for (let xx = ddx + 3; xx < ddx + dw - 3; xx++) if (xx !== mid && xx !== mid + 1) put(s, xx, by - 14 + q * 2, L[q === 0 ? 0 : 1]);
+    for (const hx of [mid - 2, mid + 3]) { put(s, hx, by - Math.round(dh * 0.5), U('#ffe08a')); put(s, hx, by - Math.round(dh * 0.5) + 1, U('#7a5a10')); }
     // semilla/hoja pintada en la hoja de la puerta
-    const sx = ddx + Math.round(dw / 2) - 1, sy = by - Math.round(dh * 0.62), L = K.P32(DC[k]);
+    const sx = ddx + Math.round(dw / 2) - 4, sy = by - Math.round(dh * 0.62);
     for (const [ax, ay, kk] of [[0, 0, 5], [1, -1, 5], [1, 0, 4], [0, 1, 4], [1, 1, 3], [2, 0, 3], [1, 2, 3], [2, -2, 5], [-1, 1, 5]]) put(s, sx + ax, sy + ay, L[kk]);
   }
   // placa (legible) con sombra arrojada
